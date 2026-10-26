@@ -3,6 +3,16 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Ajouté
+
+- Indicateur : icône anneau-jauge dessinée selon la session du compte actif
+  (vert, orange, rouge), lisible même quand l'extension n'affiche pas le texte.
+- Menu de l'indicateur enrichi : compte actif et âge des données, session (avec
+  heure de fin) et semaine de chaque compte, réserve, erreurs, meilleur compte,
+  prévision, prochaine recharge, capacité ; interrupteur Orchestrateur.
+
 ## [0.2.1] — 2026-10-26
 
 ### Corrigé
