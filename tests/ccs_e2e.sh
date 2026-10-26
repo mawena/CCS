@@ -63,6 +63,9 @@ out="$("$CCS" auto off)"; expect "$out" "désactivée"
 out="$("$CCS" status)"; expect "$out" "Bascule automatique : désactivée"
 out="$("$CCS" auto on)"; expect "$out" "activée"
 out="$("$CCS" help)"; expect "$out" "ccs best"
+out="$("$CCS" orch on)"; expect "$out" "activé"
+out="$("$CCS" status)"; expect "$out" "Orchestrateur : activé"
+out="$("$CCS" help)"; expect "$out" "ccs plan"
 
 # Revue finale C1 : `ccs use` attend le verrou tenu par le service.
 g="$HOME/.claude.json"
