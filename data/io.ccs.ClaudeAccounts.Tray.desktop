@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Comptes Claude (indicateur)
+Comment=Usage du compte Claude Code actif dans la barre du haut
+Exec=/usr/bin/claude-accounts tray
+Icon=io.ccs.ClaudeAccounts
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+OnlyShowIn=GNOME;Unity;XFCE;MATE;Budgie;Cinnamon;KDE;

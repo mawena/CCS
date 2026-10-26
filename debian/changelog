@@ -1,0 +1,7 @@
+ccs (0.1.0) unstable; urgency=medium
+
+  * Première version : profils multi-comptes, usage de tous les comptes,
+    prévisions, meilleur compte, bascule automatique, alertes, warm-up,
+    analyse des journaux, application GTK, indicateur et service systemd.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 26 Oct 2026 12:00:00 +0100

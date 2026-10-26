@@ -1,0 +1,12 @@
+.superpowers/
+dist/
+__pycache__/
+*.pyc
+debian/.debhelper/
+debian/ccs/
+debian/files
+debian/*.substvars
+debian/*.debhelper.log
+debian/debhelper-build-stamp
+debian/*.debhelper
+debian/*.debhelper.log

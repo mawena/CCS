@@ -1,0 +1,80 @@
+.TH CCS 1 "octobre 2026" "ccs 0.1.0" "Commandes utilisateur"
+.SH NOM
+ccs \- bascule entre plusieurs comptes Claude Code et suit leur usage
+.SH SYNOPSIS
+.B ccs
+[\fIcommande\fR] [\fIarguments\fR]
+.br
+.B ccs
+\fInom-du-profil\fR
+.SH DESCRIPTION
+.B ccs
+enregistre plusieurs comptes Claude Code (abonnements claude.ai) sous forme de
+profils et bascule de l'un à l'autre en réécrivant le fichier de connexion de
+Claude Code. Les réglages, l'historique, les plugins et les serveurs MCP restent
+partagés. Les sessions Claude Code ouvertes passent sur le nouveau compte à leur
+requête suivante.
+.SH COMMANDES
+.TP
+.B ccs
+Liste les profils ; le profil actif est marqué d'un rond vert.
+.TP
+.BI ccs " nom"
+Bascule sur le profil \fInom\fR (équivalent à \fBccs use\fR \fInom\fR).
+.TP
+.B ccs next
+Bascule sur le profil suivant de la liste.
+.TP
+.B ccs best
+Bascule sur le meilleur compte du moment (marge restante, réinitialisation proche).
+.TP
+.BI "ccs save " nom
+Enregistre le compte actuellement connecté sous \fInom\fR.
+.TP
+.BI "ccs add " nom " \fR[\fB\-\-email \fIadresse\fR] [\fB\-\-console\fR] [\fB\-\-sso\fR]"
+Connecte un nouveau compte avec \fBclaude auth login\fR et l'enregistre.
+.TP
+.B ccs status
+Compte actif, prévision de fin de session, meilleur compte, capacité restante.
+.TP
+.B ccs usage
+Usage (session de 5 h et semaine) de tous les comptes, avec prévisions.
+.TP
+.B ccs auto on\fR|\fBoff
+Active ou désactive la bascule automatique (seuil par défaut : 98 %).
+.TP
+.BI "ccs analyze \fR[\fB\-\-days \fIN\fR]"
+Consommation locale par projet, modèle, heure et compte, avec conseils.
+.TP
+.B ccs gui
+Ouvre l'application « Comptes Claude ».
+.TP
+.B ccs current
+Affiche le nom du profil actif.
+.TP
+.BI "ccs rename " "ancien nouveau"
+Renomme un profil.
+.TP
+.BI "ccs rm " nom
+Supprime un profil (le compte n'est pas déconnecté chez Anthropic).
+.SH FICHIERS
+.TP
+.I ~/.claude-accounts/
+Profils (jetons OAuth, droits 600), historique \fIhistory.db\fR, réglages
+\fIsettings.json\fR, état courant \fIstate.json\fR.
+.TP
+.I ~/.claude/.credentials.json\fR, \fI~/.claude.json
+Fichiers de Claude Code réécrits lors d'une bascule.
+.SH ENVIRONNEMENT
+.TP
+.B CLAUDE_CONFIG_DIR
+Dossier de configuration de Claude Code (défaut : \fI~/.claude\fR).
+.TP
+.B CCS_HOME
+Dossier des profils (défaut : \fI~/.claude-accounts\fR).
+.TP
+.B NO_COLOR
+Désactive les couleurs.
+.SH VOIR AUSSI
+.BR claude-accounts (1),
+.BR claude (1)

@@ -1,0 +1,284 @@
+"""Service de collecte : relevés, prévisions, bascule automatique, alertes, état partagé."""
+
+import fcntl
+import logging
+import os
+import signal
+import sys
+import threading
+import time
+from datetime import datetime, timedelta, timezone
+
+from . import alerts, autoswitch, core, notify
+from .forecast import (AccountState, best_account, capacity, session_forecast,
+                       weekly_pace)
+from .settings import load_settings
+from .store import RETENTION_S, Store
+
+log = logging.getLogger("ccs.daemon")
+
+FAST_PERCENT = 85
+FAST_ETA = timedelta(minutes=15)
+HISTORY = timedelta(hours=5)
+EVENTS_LOOKBACK = timedelta(hours=8)
+ALERTS_LOOKBACK = timedelta(days=8)
+
+
+def _iso(dt):
+    return dt.isoformat() if dt else None
+
+
+def state_path():
+    return core.paths().store / "state.json"
+
+
+def pid_path():
+    return core.paths().store / "daemon.pid"
+
+
+class Daemon:
+    def __init__(self, store, notifier=notify.send):
+        self.store = store
+        self.notifier = notifier
+        self.states = {}            # dernier AccountState connu par profil
+        self.previous_sessions = {}  # limite session au tick précédent
+        self.last_full = None
+        self.last_prune = None
+        self.hooks = []             # fonctions (daemon, states, settings, now) appelées à chaque tick
+
+    # ---- collecte ---------------------------------------------------------
+
+    def collect(self, now, only=None):
+        profiles = [p for p in core.list_profiles() if only is None or p.name in only]
+        results = {}
+
+        def fetch(name):
+            results[name] = core.fetch_usage(name)
+        threads = [threading.Thread(target=fetch, args=(p.name,)) for p in profiles]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        out = []
+        for p in profiles:
+            r = results[p.name]
+            limits = core.parse_limits(r.usage)
+            if r.error is None and limits:
+                self.store.add_samples(r.fetched_at, p.name, limits)
+            elif r.error:
+                last = self.store.last_event("error", p.name)
+                if not last or last.detail.get("message") != r.error:
+                    self.store.add_event(now.timestamp(), "error", p.name,
+                                         {"op": "fetch", "message": r.error})
+            out.append(AccountState(p.name, p.active, limits, r.fetched_at, r.error))
+        return out
+
+    def detect_manual_switch(self, now):
+        active = core.active_profile_name()
+        if not active:
+            return
+        last = self.store.last_event("switch")
+        if last is None:
+            # Premier relevé : point de départ, pas une bascule de l'utilisateur.
+            self.store.add_event(now.timestamp(), "switch", active, {"mode": "initial"})
+        elif last.profile != active:
+            self.store.add_event(now.timestamp(), "switch", active, {"mode": "manual"})
+
+    # ---- tick ---------------------------------------------------------------
+
+    def tick(self, settings, now):
+        poll = settings["poll"]
+        self.detect_manual_switch(now)
+        profiles = {p.name: p for p in core.list_profiles()}
+        active = next((n for n, p in profiles.items() if p.active), None)
+
+        full = (self.last_full is None
+                or (now - self.last_full).total_seconds() >= poll["normal_s"] - 1
+                or not set(profiles) <= set(self.states))
+        fresh = self.collect(now, None if full else [active] if active else [])
+        if full:
+            self.last_full = now
+        for s in fresh:
+            self.states[s.name] = s
+        states = []
+        for name, p in profiles.items():
+            if name in self.states:
+                s = self.states[name]
+                s.active = p.active
+                states.append(s)
+
+        forecasts = {s.name: self._forecast(s, now) for s in states}
+        paces = {s.name: weekly_pace(s.weekly, now) for s in states}
+        fc = forecasts.get(active)
+        act = next((s for s in states if s.name == active), None)
+        fast = act is not None and (
+            act.max_effective(now) >= FAST_PERCENT
+            or (fc and fc.verdict == "limit" and fc.eta and fc.eta - now < FAST_ETA))
+        delay = poll["fast_s"] if fast else poll["normal_s"]
+
+        events = self.store.events((now - EVENTS_LOOKBACK).timestamp())
+        decision = autoswitch.decide(states, active, fc, settings, now, events, delay)
+        if decision.action == "switch" and autoswitch.execute(decision, self.store, now):
+            delay = poll["fast_s"]
+        best = best_account(states, now)
+
+        sent = {e.detail.get("key") for e in
+                self.store.events((now - ALERTS_LOOKBACK).timestamp(), type="alert")}
+        pending = alerts.pending_alerts(states, active, fc, paces, best, settings, now,
+                                        sent, self.previous_sessions)
+        da = alerts.decision_alert(decision, now)
+        if da and da.key not in sent and settings["alerts"]["enabled"]:
+            pending.append(da)
+        for a in pending:
+            self.notifier(a)
+            self.store.add_event(now.timestamp(), "alert", None, {"key": a.key, "title": a.title})
+
+        for hook in self.hooks:
+            try:
+                hook(self, states, settings, now)
+            except Exception:  # un module optionnel ne doit pas arrêter la collecte
+                log.exception("erreur dans un module du daemon")
+
+        self.previous_sessions = {s.name: s.session for s in states}
+        self.write_state(states, profiles, forecasts, paces, best, decision, settings, now)
+        if self.last_prune is None or now - self.last_prune > timedelta(days=1):
+            self.store.prune(now.timestamp() - RETENTION_S)
+            self.last_prune = now
+        return delay
+
+    def _forecast(self, s, now):
+        samples = [(ts, pct) for ts, pct, _ in
+                   self.store.samples(s.name, "session", (now - HISTORY).timestamp())]
+        return session_forecast(samples, s.session, now)
+
+    # ---- état partagé -------------------------------------------------------
+
+    def write_state(self, states, profiles, forecasts, paces, best, decision, settings, now):
+        last_auto = self.store.last_event("switch")
+        accounts = []
+        for s in states:
+            p = profiles[s.name]
+            fc, pace = forecasts.get(s.name), paces.get(s.name)
+            accounts.append({
+                "name": s.name, "email": p.email, "org": p.org, "plan": p.plan,
+                "active": s.active, "error": s.error, "fetched_at": s.fetched_at,
+                "limits": [{"kind": l.kind, "label": l.label, "percent": l.percent,
+                            "resets_at": _iso(l.resets_at)} for l in s.limits],
+                "forecast": fc and {"verdict": fc.verdict, "eta": _iso(fc.eta),
+                                    "rate_per_min": fc.rate_per_min,
+                                    "minutes_before_reset": fc.minutes_before_reset},
+                "pace": pace and {"ideal": pace.ideal, "margin": pace.margin,
+                                  "per_day_budget": pace.per_day_budget,
+                                  "days_left": pace.days_left},
+            })
+        core.atomic_write_json(state_path(), {
+            "updated_at": now.timestamp(),
+            "active": next((s.name for s in states if s.active), None),
+            "capacity": capacity(states, now),
+            "best": best and {"name": best.name, "reason": best.reason},
+            "auto_switch": {
+                "enabled": settings["auto_switch"]["enabled"],
+                "decision": {"action": decision.action, "target": decision.target,
+                             "reason": decision.reason},
+                "last": last_auto and {"ts": last_auto.ts, "profile": last_auto.profile,
+                                       "mode": last_auto.detail.get("mode")},
+            },
+            "accounts": accounts,
+        })
+
+
+# --------------------------------------------------------------------------
+# Processus
+# --------------------------------------------------------------------------
+
+STALE_STATE_S = 600
+
+
+def state_fresh(state, now=None):
+    now = time.time() if now is None else now
+    updated = (state or {}).get("updated_at")
+    return bool(updated) and now - updated <= STALE_STATE_S
+
+
+def _is_our_daemon(pid):
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            cmd = f.read()
+    except OSError:
+        return False
+    return b"daemon" in cmd and (b"claude-accounts" in cmd or b"ccs_app" in cmd)
+
+
+def running_pid():
+    """Pid du daemon, seulement s'il tient le verrou du fichier pid (pas de pid recyclé)."""
+    try:
+        with open(pid_path(), "r+") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                pid = int(f.read().strip() or 0)
+                return pid if pid and _is_our_daemon(pid) else None
+            fcntl.flock(f, fcntl.LOCK_UN)
+            return None
+    except (OSError, ValueError):
+        return None
+
+
+def request_refresh():
+    """Demande une collecte immédiate au daemon ; False s'il ne tourne pas."""
+    pid = running_pid()
+    if not pid:
+        return False
+    os.kill(pid, signal.SIGUSR1)
+    return True
+
+
+def run():
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr,
+                        format="%(levelname)s %(name)s: %(message)s")
+    wake = threading.Event()
+    stop = threading.Event()
+    # Gestionnaires posés avant d'annoncer le pid : un SIGUSR1 précoce ne tue pas le daemon.
+    signal.signal(signal.SIGUSR1, lambda *_: wake.set())
+    signal.signal(signal.SIGTERM, lambda *_: (stop.set(), wake.set()))
+    signal.signal(signal.SIGINT, lambda *_: (stop.set(), wake.set()))
+    core.paths().store.mkdir(mode=0o700, parents=True, exist_ok=True)
+    pid_file = open(pid_path(), "a+")
+    try:
+        fcntl.flock(pid_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        log.error("daemon déjà lancé (pid %s)", running_pid())
+        return 1
+    pid_file.seek(0)
+    pid_file.truncate()
+    pid_file.write(str(os.getpid()))
+    pid_file.flush()
+    d = Daemon(Store())
+    try:
+        from . import warmup
+        d.hooks.append(warmup.hook)
+    except ImportError:
+        pass
+    log.info("daemon démarré")
+    try:
+        while not stop.is_set():
+            try:
+                delay = d.tick(load_settings(), datetime.now(timezone.utc))
+            except Exception:
+                log.exception("tick en échec")
+                delay = 60
+            wake.wait(delay)
+            wake.clear()
+    finally:
+        pid_file.seek(0)
+        pid_file.truncate()
+        pid_file.close()
+    log.info("daemon arrêté")
+    return 0
+
+
+def collect_once():
+    d = Daemon(Store())
+    d.tick(load_settings(), datetime.now(timezone.utc))
+    return 0
+

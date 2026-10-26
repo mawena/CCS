@@ -1,0 +1,15 @@
+#!/usr/bin/python3
+"""Lanceur : trouve le paquet ccs_app (dépôt ou /usr/lib/ccs) et l'exécute."""
+
+import os
+import sys
+
+here = os.path.dirname(os.path.realpath(__file__))
+for candidate in (os.path.join(here, ".."), "/usr/lib/ccs"):
+    if os.path.isdir(os.path.join(candidate, "ccs_app")):
+        sys.path.insert(0, os.path.abspath(candidate))
+        break
+
+from ccs_app.cli import main  # noqa: E402
+
+sys.exit(main())

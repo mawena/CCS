@@ -1,0 +1,13 @@
+[Unit]
+Description=CCS — collecte d'usage et bascule automatique des comptes Claude Code
+Documentation=man:ccs(1)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/claude-accounts daemon
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
