@@ -97,3 +97,10 @@ class AggregateTest(unittest.TestCase):
 
     def test_advice_empty(self):
         self.assertEqual(advice(aggregate([], [], days=7)), [])
+
+
+class FormatTest(unittest.TestCase):
+    def test_fmt_tokens_french_decimal(self):
+        self.assertEqual(transcripts.fmt_tokens(1_500_000), "1,5 M")
+        self.assertEqual(transcripts.fmt_tokens(2_300), "2,3 k")
+        self.assertEqual(transcripts.fmt_tokens(42), "42")

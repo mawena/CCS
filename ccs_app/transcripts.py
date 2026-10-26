@@ -137,5 +137,5 @@ def advice(report):
 def fmt_tokens(value):
     for unit, size in (("M", 1e6), ("k", 1e3)):
         if value >= size:
-            return f"{value / size:.1f} {unit}"
+            return f"{core.fr(value / size)} {unit}"
     return f"{value:.0f}"

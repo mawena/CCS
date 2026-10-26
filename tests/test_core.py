@@ -113,3 +113,10 @@ class FormatTest(HomeTestCase):
                          "réinitialisation dans 3 h 05")
         self.assertEqual(core.fmt_reset(now - timedelta(minutes=1), now), "réinitialisé")
         self.assertIn("réinitialisation", core.fmt_reset(now + timedelta(days=3), now))
+
+
+class NumberTest(HomeTestCase):
+    def test_fr_number(self):
+        self.assertEqual(core.fr(1.06), "1,1")
+        self.assertEqual(core.fr(3.0, 1), "3,0")
+        self.assertEqual(core.fr(16.25, 0), "16")

@@ -349,6 +349,11 @@ def fmt_reset(dt, now=None):
             f"{MONTHS[local.month - 1]} à {local:%H:%M}")
 
 
+def fr(value, digits=1):
+    """Nombre à la française (virgule décimale)."""
+    return f"{value:.{digits}f}".replace(".", ",")
+
+
 def fmt_time(ts):
     if not ts:
         return ""
