@@ -96,6 +96,11 @@ def cmd_analyze(args):
     return 0
 
 
+def cmd_tray(_args):
+    from . import tray
+    return tray.run()
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
@@ -106,6 +111,7 @@ def build_parser():
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
     sub.add_parser("collect", help="collecte immédiate").set_defaults(func=cmd_collect)
+    sub.add_parser("tray", help="indicateur de la barre du haut").set_defaults(func=cmd_tray)
     an = sub.add_parser("analyze", help="analyse des journaux locaux")
     an.add_argument("--days", type=int, default=7)
     an.set_defaults(func=cmd_analyze)

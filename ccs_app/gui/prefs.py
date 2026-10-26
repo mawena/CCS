@@ -165,4 +165,27 @@ class PrefsPage(Adw.PreferencesPage):
         btn.connect("clicked", start)
         row.add_suffix(btn)
         g.add(row)
+        g.add(self.indicator_row())
         return g
+
+    def indicator_row(self):
+        from ..tray import EXTENSION, watcher_available
+        ok = watcher_available()
+        row = Adw.ActionRow(
+            title="Indicateur de la barre du haut",
+            subtitle="Affiché" if ok else "Invisible : l'extension GNOME « Ubuntu AppIndicators » est désactivée")
+        if not ok:
+            btn = Gtk.Button(label="Activer l'extension", valign=Gtk.Align.CENTER)
+
+            def enable(*_):
+                try:
+                    r = subprocess.run(["gnome-extensions", "enable", EXTENSION],
+                                       capture_output=True, text=True, timeout=10)
+                    ok_ = r.returncode == 0
+                except (OSError, subprocess.SubprocessError):
+                    ok_ = False
+                self.window.toast("Extension activée" if ok_ else "Activation impossible")
+                self.render()
+            btn.connect("clicked", enable)
+            row.add_suffix(btn)
+        return row
