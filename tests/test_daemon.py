@@ -243,3 +243,46 @@ class RateLimitTest(DaemonTest):
             self.d.tick(self.settings, NOW + timedelta(minutes=7))
         fetched = [c[3]["Authorization"] for c in calls]
         self.assertNotIn("Bearer AT-pro", fetched)
+
+
+class ActionsAndSessionsTest(DaemonTest):
+    def test_notification_action_switches(self):
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok) as run:
+            self.assertTrue(self.d.handle_action("use:pro", NOW))
+        run.assert_called_once_with(["use", "pro"])
+        ev = self.store_db.last_event("switch")
+        self.assertEqual((ev.profile, ev.detail["mode"], ev.detail.get("via")), ("pro", "manual", "notification"))
+
+    def test_notification_action_refused_for_unknown_or_active(self):
+        with mock.patch.object(core, "run_ccs") as run:
+            self.assertFalse(self.d.handle_action("use:inconnu", NOW))
+            self.assertFalse(self.d.handle_action("use:perso", NOW))   # déjà actif
+            self.assertFalse(self.d.handle_action("rm:pro", NOW))
+        run.assert_not_called()
+
+    def _sess(self, pid, state, since):
+        from ccs_app.sessions import Session
+        return Session(pid, f"s{pid}", f"gigit-{pid}", "/w/GiGit", "GiGit", state, None,
+                       NOW.timestamp() - 3600, since, "interactive", "cli")
+
+    def test_session_finished_notified_once(self):
+        from ccs_app import sessions
+        t = NOW.timestamp()
+        seq = [[self._sess(1, "busy", t - 300)], [self._sess(1, "idle", t)], [self._sess(1, "busy", t + 10)],
+               [self._sess(1, "idle", t + 100)]]
+        with mock.patch.object(sessions, "list_sessions", side_effect=seq):
+            for i in range(4):
+                self.d.on_sessions(self.settings, NOW + timedelta(seconds=[0, 1, 10, 100][i]))
+        titles = [a.title for a in self.sent]
+        self.assertEqual(titles, ["GiGit a terminé"])
+
+    def test_session_alerts_can_be_disabled(self):
+        from ccs_app import sessions
+        self.settings["alerts"]["sessions"] = False
+        t = NOW.timestamp()
+        with mock.patch.object(sessions, "list_sessions",
+                               side_effect=[[self._sess(1, "busy", t - 300)], [self._sess(1, "waiting", t)]]):
+            self.d.on_sessions(self.settings, NOW)
+            self.d.on_sessions(self.settings, NOW)
+        self.assertEqual(self.sent, [])
