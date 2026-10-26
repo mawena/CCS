@@ -57,9 +57,12 @@ peut passer minuit), il :
 - **démarre** chaque compte au repos à son créneau du jour, puis **enchaîne**
   ses fenêtres : dès qu'une fenêtre se termine, la suivante démarre (requête
   minimale à Haiku, dans un dossier de configuration temporaire) ;
-- **décale** les comptes : le premier créneau du compte n° k (ordre
-  alphabétique) est `début de plage + k × 5 h ÷ N`. Ton propre usage peut
-  décaler la grille dans la journée ; elle est recalée chaque matin ;
+- **décale** les comptes : un compte au repos ne démarre que si la dernière
+  fenêtre ouverte sur un autre compte date d'au moins 5 h ÷ N (2 h 30 pour deux
+  comptes). Le matin, cela donne `début de plage`, puis `+ 2 h 30`… ; dans la
+  journée, l'écart se rétablit tout seul, y compris après tes propres
+  démarrages. Un compte au repos reste utilisable : son quota est entier, et ta
+  première requête ouvre sa fenêtre ;
 - **bascule vers le quota qui expire** : un compte dont la fenêtre se termine
   dans moins de 60 min avec au moins 30 % restants passe devant, si sa fin est
   plus proche que celle du compte actif (au plus une fois toutes les 30 min,

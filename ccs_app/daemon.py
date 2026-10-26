@@ -22,6 +22,7 @@ FAST_ETA = timedelta(minutes=15)
 HISTORY = timedelta(hours=5)
 EVENTS_LOOKBACK = timedelta(hours=8)
 ALERTS_LOOKBACK = timedelta(days=8)
+RATE_LIMIT_PAUSE = timedelta(minutes=5)
 
 
 def _iso(dt):
@@ -45,12 +46,14 @@ class Daemon:
         self.previous_sessions = {}  # limite session au tick précédent
         self.last_full = None
         self.last_prune = None
+        self.cooldown = {}          # profil -> instant avant lequel ne pas réinterroger (429)
         self.hooks = []             # fonctions (daemon, states, settings, now) appelées à chaque tick
 
     # ---- collecte ---------------------------------------------------------
 
     def collect(self, now, only=None):
-        profiles = [p for p in core.list_profiles() if only is None or p.name in only]
+        profiles = [p for p in core.list_profiles() if (only is None or p.name in only)
+                    and self.cooldown.get(p.name, now) <= now]
         results = {}
 
         def fetch(name):
@@ -67,6 +70,8 @@ class Daemon:
             if r.error is None and limits:
                 self.store.add_samples(r.fetched_at, p.name, limits)
             elif r.error:
+                if r.error.startswith("HTTP 429"):
+                    self.cooldown[p.name] = now + RATE_LIMIT_PAUSE
                 last = self.store.last_event("error", p.name)
                 if not last or last.detail.get("message") != r.error:
                     self.store.add_event(now.timestamp(), "error", p.name,
@@ -249,6 +254,23 @@ class Daemon:
 # --------------------------------------------------------------------------
 
 STALE_STATE_S = 600
+# Code de sortie quand une nouvelle version est installée : systemd
+# (Restart=on-failure) relance aussitôt le service avec le nouveau code.
+EXIT_UPDATED = 75
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def code_stamp(path=PACKAGE_DIR):
+    """Empreinte (mtime la plus récente) des fichiers Python du paquet."""
+    latest = 0.0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            if f.endswith(".py"):
+                try:
+                    latest = max(latest, os.stat(os.path.join(root, f)).st_mtime)
+                except OSError:
+                    pass
+    return latest
 
 
 def state_fresh(state, now=None):
@@ -331,8 +353,14 @@ def run():
     except ImportError:
         pass
     log.info("daemon démarré")
+    stamp = code_stamp()
+    exit_code = 0
     try:
         while not stop.is_set():
+            if code_stamp() != stamp:
+                log.info("nouvelle version installée : redémarrage du service")
+                exit_code = EXIT_UPDATED
+                break
             try:
                 delay = d.tick(load_settings(), datetime.now(timezone.utc))
             except Exception:
@@ -346,7 +374,7 @@ def run():
         pid_file.truncate()
         pid_file.close()
     log.info("daemon arrêté")
-    return 0
+    return exit_code
 
 
 def collect_once():

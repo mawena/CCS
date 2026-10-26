@@ -10,6 +10,7 @@ WEEK = timedelta(days=7)
 TREND_WINDOW = timedelta(minutes=45)
 MIN_TREND_SPAN_S = 10 * 60
 STABLE_RATE = 0.01  # %/min
+TRANSIENT_ERRORS = ("HTTP 429", "HTTP 5", "réseau")
 
 
 @dataclass
@@ -30,6 +31,15 @@ class AccountState:
     @property
     def weekly(self):
         return self._kind("weekly_all")
+
+    @property
+    def blocking_error(self):
+        """Erreur qui rend le compte inutilisable (connexion révoquée…), par opposition
+        aux erreurs passagères (429, 5xx, réseau) où les dernières données restent
+        valables selon leur âge."""
+        if not self.error or self.error.startswith(TRANSIENT_ERRORS):
+            return None
+        return self.error
 
     @property
     def max_percent(self):
@@ -146,9 +156,10 @@ class Recommendation:
 
 
 def window_open(a, now):
+    """Fenêtre de 5 h en cours : une heure de fin à venir, même à 0 % (l'API
+    renvoie 0 % juste après un démarrage par requête minimale)."""
     s = a.session
-    return (s is not None and s.resets_at is not None and s.resets_at > now
-            and effective_percent(s, now) > 0)
+    return s is not None and s.resets_at is not None and s.resets_at > now
 
 
 def best_account(accounts, now, exclude=frozenset(), max_session=90, max_weekly=95,

@@ -134,3 +134,12 @@ class CapacityAndBestTest(unittest.TestCase):
         self.assertEqual(a.max_effective(NOW), 99)
         b = acc("y", limits=[session(100, -1), weekly(30)])
         self.assertEqual(b.max_effective(NOW), 30)
+
+
+class WindowOpenTest(unittest.TestCase):
+    def test_window_open_at_zero_percent_when_reset_is_set(self):
+        # Constaté le 26/10 : juste après un démarrage, l'API renvoie 0 % avec une heure de fin.
+        from ccs_app.forecast import window_open
+        self.assertTrue(window_open(acc("w", session(0, 290)), NOW))
+        self.assertFalse(window_open(acc("w", session(0, None)), NOW))
+        self.assertFalse(window_open(acc("w", session(40, -1)), NOW))
