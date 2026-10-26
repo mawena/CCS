@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -138,3 +139,79 @@ class PidTest(HomeTestCase):
         self.assertTrue(daemon.state_fresh({"updated_at": now - 60}, now))
         self.assertFalse(daemon.state_fresh({"updated_at": now - 3600}, now))
         self.assertFalse(daemon.state_fresh({}, now))
+
+
+def idle_usage(weekly=10):
+    return {"limits": [
+        {"kind": "session", "percent": 0, "resets_at": None},
+        {"kind": "weekly_all", "percent": weekly,
+         "resets_at": (NOW + timedelta(days=3)).isoformat()},
+    ]}
+
+
+class OrchestratorDaemonTest(DaemonTest):
+    def setUp(self):
+        super().setUp()
+        self.started = []
+        self.d.starter = lambda name, now: self.started.append(name)
+        o = self.settings["orchestrator"]
+        o["enabled"] = True
+        # NOW = 09:00 UTC ; plage large pour être active quel que soit le fuseau du poste.
+        o["active_hours"] = {"start": "00:00", "end": "23:59", "days": list(range(7))}
+
+    def test_starts_idle_account_after_its_slot(self):
+        self.settings["orchestrator"]["stagger"] = False
+        with fake_http(per_account(perso=usage(30), pro=idle_usage())):
+            self.d.tick(self.settings, NOW)
+        self.assertEqual(self.started, ["pro"])
+        ev = self.store_db.last_event("warmup", "pro")
+        self.assertEqual(ev.detail["mode"], "orchestrateur")
+
+    def test_disabled_never_starts(self):
+        self.settings["orchestrator"]["enabled"] = False
+        with fake_http(per_account(perso=usage(30), pro=idle_usage())):
+            self.d.tick(self.settings, NOW)
+        self.assertEqual(self.started, [])
+
+    def test_expiring_switch_executed(self):
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with fake_http(per_account(perso=usage(40, reset_min=200), pro=usage(30, reset_min=40))), \
+                mock.patch.object(core, "run_ccs", return_value=ok) as run:
+            self.d.tick(self.settings, NOW)
+        run.assert_called_once_with(["use", "pro"])
+        self.assertEqual(self.store_db.last_event("switch").detail["mode"], "anticipee")
+
+    def test_precise_wake_before_reset(self):
+        with fake_http(per_account(perso=usage(30, reset_min=3), pro=usage(5, reset_min=250))):
+            delay = self.d.tick(self.settings, NOW)
+        self.assertAlmostEqual(delay, 210, delta=1)
+
+    def test_state_contains_plan(self):
+        with fake_http(per_account(perso=usage(30), pro=idle_usage())):
+            self.d.tick(self.settings, NOW)
+        o = self.state()["orchestrator"]
+        self.assertTrue(o["enabled"])
+        self.assertTrue(o["active_now"])
+        self.assertTrue(any(w["name"] == "perso" and w["kind"] == "current" for w in o["plan"]))
+
+
+class ReviewDaemonTest(OrchestratorDaemonTest):
+    def test_no_expiring_switch_when_auto_switch_disabled(self):
+        self.settings["auto_switch"]["enabled"] = False
+        with fake_http(per_account(perso=usage(40, reset_min=200), pro=usage(30, reset_min=40))), \
+                mock.patch.object(core, "run_ccs") as run:
+            self.d.tick(self.settings, NOW)
+        run.assert_not_called()
+
+    def test_failed_switch_does_not_notify(self):
+        ko = subprocess.CompletedProcess([], 1, "", "ccs: erreur")
+        with fake_http(per_account(perso=usage(40, reset_min=200), pro=usage(30, reset_min=40))), \
+                mock.patch.object(core, "run_ccs", return_value=ko):
+            self.d.tick(self.settings, NOW)
+        self.assertFalse(any("Bascule" in a.title for a in self.sent))
+
+    def test_stale_warmup_dirs_cleaned_at_start(self):
+        import tempfile
+        leftover = tempfile.mkdtemp(prefix="ccs-warmup-")
+        daemon.clean_warmup_leftovers()
+        self.assertFalse(os.path.exists(leftover))

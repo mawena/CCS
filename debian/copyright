@@ -1,5 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: ccs
+Source: https://github.com/mawena/CCS
 
 Files: *
 Copyright: 2026 mawena

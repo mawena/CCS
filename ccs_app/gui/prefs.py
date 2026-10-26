@@ -39,6 +39,7 @@ class PrefsPage(Adw.PreferencesPage):
         self.groups = []
         self.s = load_settings()
         self.add_group(self.auto_group())
+        self.add_group(self.orchestrator_group())
         self.add_group(self.alerts_group())
         self.add_group(self.warmup_group())
         self.add_group(self.service_group())
@@ -82,6 +83,69 @@ class PrefsPage(Adw.PreferencesPage):
                             "auto_switch", "threshold", 80, 100))
         g.add(self.spin_row("Session max du compte cible (%)", "Ne bascule que vers un compte en dessous",
                             "auto_switch", "target_max_session", 30, 95, 5))
+        return g
+
+    def orchestrator_group(self):
+        o = self.s["orchestrator"]
+        g = Adw.PreferencesGroup(
+            title="Orchestrateur",
+            description="Enchaîne les fenêtres de 5 h de chaque compte pendant la plage horaire, "
+                        "les décale entre comptes et bascule vers le quota qui va expirer.")
+        g.add(self.switch_row("Activer", "Démarre les fenêtres par une requête minimale (Haiku)",
+                              "orchestrator", "enabled"))
+        hours = Adw.ActionRow(title="Plage horaire", subtitle="Aucun démarrage en dehors")
+        box = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
+        entries = {}
+        for key in ("start", "end"):
+            e = Gtk.Entry(text=o["active_hours"][key], width_chars=5, max_width_chars=5)
+            entries[key] = e
+            box.append(e)
+            if key == "start":
+                box.append(Gtk.Label(label="→"))
+
+        def apply_hours(*_):
+            vals = {k: e.get_text().strip() for k, e in entries.items()}
+            bad = False
+            for k, e in entries.items():
+                if TIME_RE.match(vals[k]):
+                    e.remove_css_class("error")
+                else:
+                    e.add_css_class("error")
+                    bad = True
+            if not bad:
+                o["active_hours"].update(vals)
+                self.save()
+        for e in entries.values():
+            e.connect("changed", apply_hours)
+        hours.add_suffix(box)
+        g.add(hours)
+        days_row = Adw.ActionRow(title="Jours actifs")
+        days_box = Gtk.Box(css_classes=["linked"], valign=Gtk.Align.CENTER)
+        toggles = []
+        for i, lbl in enumerate(DAY_LABELS):
+            t = Gtk.ToggleButton(label=lbl, active=i in o["active_hours"]["days"])
+            toggles.append(t)
+            days_box.append(t)
+
+        def apply_days(*_):
+            o["active_hours"]["days"] = [i for i, t in enumerate(toggles) if t.get_active()]
+            self.save()
+        for t in toggles:
+            t.connect("toggled", apply_days)
+        days_row.add_suffix(days_box)
+        g.add(days_row)
+        g.add(self.switch_row("Décaler les comptes", "Une recharge toutes les 5 h ÷ nombre de comptes",
+                              "orchestrator", "stagger"))
+        g.add(self.switch_row("Utiliser d'abord le quota qui expire",
+                              "Bascule anticipée vers un compte qui va perdre son quota",
+                              "orchestrator", "expiring_switch"))
+        g.add(self.spin_row("Fin de fenêtre dans moins de (min)", "Pour la bascule anticipée",
+                            "orchestrator", "expiring_within_min", 15, 120, 5))
+        g.add(self.spin_row("Quota restant d'au moins (%)", "Pour la bascule anticipée",
+                            "orchestrator", "expiring_min_left", 10, 90, 5))
+        g.add(self.spin_row("Réserve : avance hebdo de plus de (pts)",
+                            "Un compte en avance sur sa semaine sert en dernier",
+                            "orchestrator", "reserve_points", 0, 50, 5))
         return g
 
     def alerts_group(self):

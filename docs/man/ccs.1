@@ -1,4 +1,4 @@
-.TH CCS 1 "octobre 2026" "ccs 0.1.0" "Commandes utilisateur"
+.TH CCS 1 "octobre 2026" "ccs 0.2.0" "Commandes utilisateur"
 .SH NOM
 ccs \- bascule entre plusieurs comptes Claude Code et suit leur usage
 .SH SYNOPSIS
@@ -36,6 +36,14 @@ Connecte un nouveau compte avec \fBclaude auth login\fR et l'enregistre.
 .TP
 .B ccs status
 Compte actif, prévision de fin de session, meilleur compte, capacité restante.
+.TP
+.B ccs plan
+Planning des fenêtres de 5 h (en cours et prévues) et recharges à venir.
+.TP
+.B ccs orch on\fR|\fBoff
+Active ou désactive l'orchestrateur : enchaînement et décalage des fenêtres de
+5 h pendant la plage horaire, bascule vers le quota qui expire, réserve des
+comptes en avance sur leur semaine.
 .TP
 .B ccs usage
 Usage (session de 5 h et semaine) de tous les comptes, avec prévisions.

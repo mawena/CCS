@@ -151,7 +151,16 @@ def window_open(a, now):
             and effective_percent(s, now) > 0)
 
 
-def best_account(accounts, now, exclude=frozenset(), max_session=90, max_weekly=95):
+def best_account(accounts, now, exclude=frozenset(), max_session=90, max_weekly=95,
+                 reserve=frozenset()):
+    """Meilleur compte ; ceux en réserve (semaine en avance) ne servent qu'en dernier."""
+    if reserve:
+        others = [a for a in accounts if a.name not in reserve]
+        rec = best_account(others, now, exclude, max_session, max_weekly)
+        if rec:
+            return rec
+        return best_account([a for a in accounts if a.name in reserve], now, exclude,
+                            max_session, max_weekly)
     open_, idle = [], []
     for a in accounts:
         if a.name in exclude or not _has_data(a):

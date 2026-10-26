@@ -249,6 +249,8 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
   ccs status               compte actif, prévision, meilleur compte, capacité restante
   ccs usage                affiche l'usage (session / semaine) de TOUS les comptes
   ccs auto on|off          active / désactive la bascule automatique (98 %)
+  ccs orch on|off          orchestrateur : enchaîne et décale les fenêtres de 5 h des comptes
+  ccs plan                 planning des fenêtres et des recharges à venir
   ccs analyze [--days N]   où part ton usage : projets, modèles, heures, conseils
   ccs gui                  ouvre l'application graphique
   ccs current              affiche le profil actif
@@ -276,6 +278,8 @@ main() {
     best|b) exec "$CA" best --switch ;;
     status|st) exec "$CA" status ;;
     auto) exec "$CA" auto "$@" ;;
+    orch|orchestrateur) exec "$CA" orch "$@" ;;
+    plan|planning) exec "$CA" plan ;;
     analyze|stats) exec "$CA" analyze "$@" ;;
     version|--version|-v) exec "$CA" --version ;;
     -h|--help|help) usage ;;

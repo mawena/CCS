@@ -79,9 +79,9 @@ def _save_rotated(name, oauth):
         core.atomic_write_json(pfile, prof)
 
 
-def run(name, slot_time, store, now):
+def run(name, slot_time, store, now, mode="creneau"):
     local = now.astimezone()
-    detail = {"date": local.date().isoformat(), "time": slot_time}
+    detail = {"date": local.date().isoformat(), "time": slot_time, "mode": mode}
     tmp = Path(tempfile.mkdtemp(prefix="ccs-warmup-"))
     oauth = {}
     try:

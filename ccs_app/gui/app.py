@@ -17,6 +17,7 @@ from .accounts import AccountsPage, add_account  # noqa: E402
 from .analysis import AnalysisPage  # noqa: E402
 from .common import ask_name, install_css, load_state, refresh_data, run_ccs_async  # noqa: E402
 from .history import HistoryPage  # noqa: E402
+from .planning import PlanningPage  # noqa: E402
 from .prefs import PrefsPage  # noqa: E402
 
 APP_ID = "io.ccs.ClaudeAccounts"
@@ -26,7 +27,7 @@ STALE_S = 600
 class Window(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Comptes Claude")
-        self.set_default_size(620, 820)
+        self.set_default_size(900, 860)
         install_css()
         self.store = Store()
         self._reload_pending = False
@@ -50,23 +51,33 @@ class Window(Adw.ApplicationWindow):
 
         self.stack = Adw.ViewStack()
         self.accounts = AccountsPage(self)
+        self.planning = PlanningPage(self)
         self.history = HistoryPage(self)
         self.analysis = AnalysisPage(self)
         self.prefs = PrefsPage(self)
         for page, name, title, icon in (
                 (self.accounts, "accounts", "Comptes", "system-users-symbolic"),
+                (self.planning, "planning", "Planning", "x-office-calendar-symbolic"),
                 (self.history, "history", "Historique", "document-open-recent-symbolic"),
                 (self.analysis, "analysis", "Analyse", "edit-find-symbolic"),
                 (self.prefs, "prefs", "Réglages", "emblem-system-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
         self.stack.connect("notify::visible-child-name", self.on_page)
-        header.set_title_widget(Adw.ViewSwitcher(stack=self.stack,
-                                                 policy=Adw.ViewSwitcherPolicy.WIDE))
+        top_switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
+        header.set_title_widget(top_switcher)
+        bottom_switcher = Adw.ViewSwitcherBar(stack=self.stack)
 
         self.toasts = Adw.ToastOverlay(child=self.stack)
         view = Adw.ToolbarView(content=self.toasts)
         view.add_top_bar(header)
+        view.add_bottom_bar(bottom_switcher)
         self.set_content(view)
+        # Fenêtre étroite : onglets en bas, comme les applications GNOME.
+        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 820sp"))
+        narrow.add_setter(top_switcher, "visible", False)
+        narrow.add_setter(bottom_switcher, "reveal", True)
+        self.add_breakpoint(narrow)
+        self.set_size_request(360, 400)
 
         state_file = Gio.File.new_for_path(str(daemon.state_path()))
         self.monitor = state_file.monitor_file(Gio.FileMonitorFlags.NONE, None)
@@ -93,6 +104,7 @@ class Window(Adw.ApplicationWindow):
     def reload(self):
         state = load_state()
         self.accounts.render(state, self.store)
+        self.planning.render(state)
         if self.stack.get_visible_child_name() == "history":
             self.history.render(state, self.store)
         else:

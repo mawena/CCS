@@ -21,6 +21,17 @@ DEFAULTS = {
     },
     "poll": {"normal_s": 300, "fast_s": 60},
     "warmup": {},
+    "orchestrator": {
+        "enabled": False,
+        "active_hours": {"start": "08:00", "end": "02:00", "days": [0, 1, 2, 3, 4, 5, 6]},
+        "stagger": True,
+        "expiring_switch": True,
+        "expiring_within_min": 60,
+        "expiring_min_left": 30,
+        "expiring_cooldown_min": 30,
+        "reserve_points": 10,
+        "max_weekly_start": 95,
+    },
 }
 
 
