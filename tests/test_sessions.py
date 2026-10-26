@@ -128,3 +128,34 @@ class ActionsTest(HomeTestCase):
                 mock.patch.object(sessions.os, "kill") as kill:
             self.assertFalse(sessions.terminate(4242))
         kill.assert_not_called()
+
+
+class RecentProjectsTest(HomeTestCase):
+    def test_recent_projects_from_transcripts(self):
+        base = self.home / ".claude" / "projects"
+        gone = str(self.home / "Supprime")
+        for name in ("Old", "New"):
+            (self.home / "w" / name).mkdir(parents=True)
+        p = base / sessions.project_slug(gone) / "g.jsonl"
+        write(p, json.dumps({"type": "user", "cwd": gone, "message": {"content": "x"}}) + "\n")
+        for i, cwd in enumerate([str(self.home / "w" / "Old"), str(self.home / "w" / "New")]):
+            p = base / sessions.project_slug(cwd) / f"s{i}.jsonl"
+            write(p, json.dumps({"type": "user", "cwd": cwd, "message": {"content": "x"}}) + "\n")
+            os.utime(p, (NOW - 1000 + i * 500, NOW - 1000 + i * 500))
+            os.utime(p.parent, (NOW - 1000 + i * 500, NOW - 1000 + i * 500))
+        write(base / "-sans-cwd" / "z.jsonl", json.dumps({"type": "summary"}) + "\n")
+        self.assertEqual([c for c, _ in sessions.recent_projects()],
+                         [str(self.home / "w" / "New"), str(self.home / "w" / "Old")])
+
+
+class TitleTest(HomeTestCase):
+    def test_injected_messages_are_not_titles(self):
+        base = self.home / ".claude" / "projects" / sessions.project_slug("/w/A")
+        lines = [
+            {"type": "user", "isMeta": True, "message": {"content": "Base directory for this skill: /x"}},
+            {"type": "user", "message": {"content": "Base directory for this skill: /y\\n# Skill"}},
+            {"type": "user", "message": {"content": "<command-name>/clear</command-name>"}},
+            {"type": "user", "message": {"content": "vraie demande"}},
+        ]
+        write(base / "s.jsonl", "\n".join(json.dumps(l) for l in lines) + "\n")
+        self.assertEqual(sessions.recent_conversations("/w/A")[0].title, "vraie demande")

@@ -17,6 +17,7 @@ from pathlib import Path
 from . import core, transcripts
 
 REPORT_MIN_BUSY_S = 60
+INJECTED_PREFIXES = ("Base directory for this skill", "Caveat:", "This session is being continued")
 STATE_LABELS = {"busy": "travaille", "waiting": "attend ta réponse", "idle": "au repos"}
 
 
@@ -55,7 +56,7 @@ def _is_claude(pid):
     return comm == "claude" or b"claude" in cmd.split(b"\0")[0]
 
 
-def _project(cwd):
+def project_name(cwd):
     if not cwd:
         return "?"
     if Path(cwd) == core.paths().home:
@@ -93,7 +94,7 @@ def list_sessions():
         ms = lambda key: (data.get(key) or 0) / 1000  # noqa: E731
         out.append(Session(
             pid=pid, session_id=str(data.get("sessionId") or ""), name=str(data.get("name") or pid),
-            cwd=str(data.get("cwd") or ""), project=_project(data.get("cwd")), state=_state(data),
+            cwd=str(data.get("cwd") or ""), project=project_name(data.get("cwd")), state=_state(data),
             waiting_for=data.get("waitingFor"), started_at=ms("startedAt"),
             state_since=ms("statusUpdatedAt") or ms("updatedAt"),
             kind=str(data.get("kind") or ""), entrypoint=str(data.get("entrypoint") or "")))
@@ -144,12 +145,13 @@ def _first_prompt(path):
                     content = d["message"]["content"]
                 except (ValueError, KeyError, TypeError):
                     continue
-                if d.get("type") != "user":
-                    continue
+                if d.get("type") != "user" or d.get("isMeta"):
+                    continue  # messages injectés par Claude Code (skills, commandes)
                 if isinstance(content, list):
                     content = next((c.get("text") for c in content
                                     if isinstance(c, dict) and c.get("type") == "text"), None)
-                if isinstance(content, str) and content.strip() and not content.startswith("<"):
+                if (isinstance(content, str) and content.strip() and not content.startswith("<")
+                        and not content.startswith(INJECTED_PREFIXES)):
                     line = content.strip().splitlines()[0]
                     return line[:70] + ("…" if len(line) > 70 else "")
     except OSError:
@@ -163,6 +165,37 @@ def recent_conversations(cwd, limit=8):
         return []
     files = sorted(d.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
     return [Conversation(f.stem, f.stat().st_mtime, _first_prompt(f)) for f in files]
+
+
+def _cwd_of(path):
+    try:
+        with open(path, errors="replace") as fh:
+            for _, raw in zip(range(50), fh):
+                if '"cwd"' in raw:
+                    try:
+                        return json.loads(raw).get("cwd")
+                    except ValueError:
+                        continue
+    except OSError:
+        pass
+    return None
+
+
+def recent_projects(limit=8):
+    """[(dossier, date)] des projets où Claude Code a servi récemment."""
+    d = projects_dir()
+    if not d.is_dir():
+        return []
+    out = []
+    for proj in sorted((p for p in d.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime,
+                       reverse=True):
+        files = sorted(proj.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        cwd = next((c for c in (_cwd_of(f) for f in files[:3]) if c), None)
+        if cwd and os.path.isdir(cwd):  # projet encore présent sur le disque
+            out.append((cwd, files[0].stat().st_mtime))
+        if len(out) >= limit:
+            break
+    return out
 
 
 def transitions(prev, cur, now):

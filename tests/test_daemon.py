@@ -34,7 +34,7 @@ def per_account(**by_name):
     return {"/api/oauth/usage": handler}
 
 
-class DaemonTest(HomeTestCase):
+class DaemonBase(HomeTestCase):
     def setUp(self):
         super().setUp()
         self.store_db = Store()
@@ -49,6 +49,8 @@ class DaemonTest(HomeTestCase):
     def state(self):
         return json.loads((self.store / "state.json").read_text())
 
+
+class DaemonTest(DaemonBase):
     def test_tick_writes_state_and_samples(self):
         with fake_http(per_account(perso=usage(30), pro=usage(5))):
             delay = self.d.tick(self.settings, NOW)
@@ -150,7 +152,7 @@ def idle_usage(weekly=10):
     ]}
 
 
-class OrchestratorDaemonTest(DaemonTest):
+class OrchestratorBase(DaemonBase):
     def setUp(self):
         super().setUp()
         self.started = []
@@ -160,6 +162,8 @@ class OrchestratorDaemonTest(DaemonTest):
         # NOW = 09:00 UTC ; plage large pour être active quel que soit le fuseau du poste.
         o["active_hours"] = {"start": "00:00", "end": "23:59", "days": list(range(7))}
 
+
+class OrchestratorDaemonTest(OrchestratorBase):
     def test_starts_idle_account_after_its_slot(self):
         self.settings["orchestrator"]["stagger"] = False
         with fake_http(per_account(perso=usage(30), pro=idle_usage())):
@@ -196,7 +200,7 @@ class OrchestratorDaemonTest(DaemonTest):
         self.assertTrue(any(w["name"] == "perso" and w["kind"] == "current" for w in o["plan"]))
 
 
-class ReviewDaemonTest(OrchestratorDaemonTest):
+class ReviewDaemonTest(OrchestratorBase):
     def test_no_expiring_switch_when_auto_switch_disabled(self):
         self.settings["auto_switch"]["enabled"] = False
         with fake_http(per_account(perso=usage(40, reset_min=200), pro=usage(30, reset_min=40))), \
@@ -231,7 +235,7 @@ class SelfRestartTest(unittest.TestCase):
         self.assertEqual(daemon.EXIT_UPDATED, 75)
 
 
-class RateLimitTest(DaemonTest):
+class RateLimitTest(DaemonBase):
     def test_rate_limited_account_not_refetched_for_5_min(self):
         with fake_http(per_account(perso=usage(30), pro=usage(5))):
             self.d.tick(self.settings, NOW)
@@ -245,7 +249,7 @@ class RateLimitTest(DaemonTest):
         self.assertNotIn("Bearer AT-pro", fetched)
 
 
-class ActionsAndSessionsTest(DaemonTest):
+class ActionsAndSessionsTest(DaemonBase):
     def test_notification_action_switches(self):
         ok = subprocess.CompletedProcess([], 0, "basculé", "")
         with mock.patch.object(core, "run_ccs", return_value=ok) as run:

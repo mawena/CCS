@@ -96,3 +96,14 @@ class MenuLinesTest(unittest.TestCase):
 
     def test_empty_state(self):
         self.assertEqual(self.lines({})[0], "Pas encore de données — lance le service")
+
+
+class SessionLinesTest(unittest.TestCase):
+    def test_session_lines(self):
+        import time
+        from ccs_app.sessions import Session
+        from ccs_app.tray import session_lines
+        s = Session(7, "x", "gigit-cb", "/w/GiGit", "GiGit", "waiting", "permission",
+                    time.time() - 4000, time.time(), "interactive", "cli")
+        self.assertEqual(session_lines([s]), [("GiGit — attend ta réponse (permission)", s)])
+        self.assertEqual(session_lines([]), [])

@@ -41,6 +41,7 @@ class PrefsPage(Adw.PreferencesPage):
         self.add_group(self.auto_group())
         self.add_group(self.orchestrator_group())
         self.add_group(self.alerts_group())
+        self.add_group(self.integration_group())
         self.add_group(self.warmup_group())
         self.add_group(self.service_group())
 
@@ -160,6 +161,35 @@ class PrefsPage(Adw.PreferencesPage):
                               "alerts", "resets"))
         g.add(self.switch_row("Connexions expirées", "Quand un profil doit être rajouté",
                               "alerts", "auth"))
+        g.add(self.switch_row("Sessions Claude Code", "Quand une session a terminé ou attend ta réponse",
+                              "alerts", "sessions"))
+        return g
+
+    def integration_group(self):
+        from .. import integration
+        g = Adw.PreferencesGroup(
+            title="Intégration dans Claude Code",
+            description="Ligne d'état en bas de chaque session (compte, %, recharge, prévision) et "
+                        "bascule automatique quand une session atteint la limite. Modifie "
+                        "~/.claude/settings.json (sauvegarde créée, ta ligne d'état n'est jamais remplacée).")
+        st = integration.status()
+        sl = {"ccs": "installée", "autre": "ta propre ligne d'état est conservée",
+              None: "non installée"}[st["statusline"]]
+        row = Adw.ActionRow(title="Ligne d'état · bascule après blocage",
+                            subtitle=f"{sl} · {'installée' if st['hook'] else 'non installée'}")
+        installed = st["statusline"] == "ccs" or st["hook"]
+        btn = Gtk.Button(label="Retirer" if installed else "Installer", valign=Gtk.Align.CENTER)
+
+        def toggle(*_):
+            try:
+                msgs = integration.uninstall() if installed else integration.install()
+                self.window.toast(msgs[-1] if installed else "Intégration installée — relance tes sessions")
+            except integration.IntegrationError as e:
+                self.window.toast(str(e))
+            self.render()
+        btn.connect("clicked", toggle)
+        row.add_suffix(btn)
+        g.add(row)
         return g
 
     def warmup_group(self):

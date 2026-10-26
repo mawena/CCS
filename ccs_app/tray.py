@@ -130,6 +130,11 @@ def menu_lines(state, now):
     return out
 
 
+def session_lines(found):
+    from . import sessions
+    return [(f"{s.project} — {sessions.state_label(s)}", s) for s in found]
+
+
 def icon_dir():
     d = core.paths().home / ".cache" / "ccs" / "icons"
     d.mkdir(parents=True, exist_ok=True)
@@ -197,6 +202,25 @@ def run():
             else:
                 it.set_sensitive(False)
             menu.append(it)
+        from . import sessions
+        lines = session_lines(sessions.list_sessions())
+        if lines:
+            menu.append(Gtk.SeparatorMenuItem())
+            root = Gtk.MenuItem(label=f"Sessions Claude Code ({len(lines)})")
+            sub = Gtk.Menu()
+            for text, sess in lines:
+                it = Gtk.MenuItem(label=text)
+                actions = Gtk.Menu()
+                for label, cb in (("Ouvrir un terminal ici",
+                                   lambda *_, c=sess.cwd: sessions.open_terminal(c, start_claude=False)),
+                                  ("Ouvrir le dossier", lambda *_, c=sess.cwd: sessions.open_folder(c))):
+                    a = Gtk.MenuItem(label=label)
+                    a.connect("activate", cb)
+                    actions.append(a)
+                it.set_submenu(actions)
+                sub.append(it)
+            root.set_submenu(sub)
+            menu.append(root)
         menu.append(Gtk.SeparatorMenuItem())
         s = load_settings()
         for label, section in (("Bascule automatique", "auto_switch"), ("Orchestrateur", "orchestrator")):
