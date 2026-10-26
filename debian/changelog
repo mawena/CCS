@@ -1,3 +1,11 @@
+ccs (0.2.1) unstable; urgency=medium
+
+  * Fenêtres démarrées reconnues à 0 %, décalage calculé sur les démarrages
+    réels, erreurs passagères de l'API d'usage tolérées (pause après 429).
+  * Le service se relance seul après une mise à jour du paquet.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 26 Oct 2026 13:30:00 +0000
+
 ccs (0.2.0) unstable; urgency=medium
 
   * Orchestrateur : enchaînement et décalage des fenêtres de 5 h pendant une
