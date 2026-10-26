@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Comptes Claude
+GenericName=Gestionnaire de comptes Claude Code
+Comment=Usage, prévisions et bascule entre les comptes Claude Code
+Exec=/usr/bin/claude-accounts gui
+Icon=io.ccs.ClaudeAccounts
+Terminal=false
+Categories=Development;
+Keywords=claude;compte;usage;limite;session;ccs;
+StartupWMClass=io.ccs.ClaudeAccounts
+StartupNotify=true

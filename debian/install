@@ -1,0 +1,6 @@
+bin/ccs usr/bin
+bin/claude-accounts usr/bin
+ccs_app usr/lib/ccs
+data/io.ccs.ClaudeAccounts.desktop usr/share/applications
+data/io.ccs.ClaudeAccounts.svg usr/share/icons/hicolor/scalable/apps
+data/io.ccs.ClaudeAccounts.Tray.desktop etc/xdg/autostart

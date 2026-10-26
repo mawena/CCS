@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+# Rien à compiler. Les tests (`make test`) sont lancés par scripts/build-deb.sh
+# avant la construction : ils ont besoin d'un HOME et ne doivent pas tourner en root.
+override_dh_auto_build:
+override_dh_auto_test:
+override_dh_auto_install:
+
+override_dh_install:
+	dh_install
+	find debian/ccs/usr/lib/ccs -name __pycache__ -type d -prune -exec rm -rf {} +
+
+# Unité systemd utilisateur (hors séquence par défaut en compat 13) : installée
+# et activée pour tous les utilisateurs.
+execute_after_dh_installsystemd:
+	dh_installsystemduser --name=ccs-daemon

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d4451"/>
+      <stop offset="1" stop-color="#262a33"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bg)"/>
+  <!-- jauge d'usage -->
+  <path d="M28 82 A36 36 0 0 1 100 82" fill="none" stroke="#4b5260" stroke-width="10" stroke-linecap="round"/>
+  <path d="M28 82 A36 36 0 0 1 76 48" fill="none" stroke="#33d17a" stroke-width="10" stroke-linecap="round"/>
+  <path d="M76 48 A36 36 0 0 1 92 62" fill="none" stroke="#f6a034" stroke-width="10" stroke-linecap="round"/>
+  <!-- deux comptes et la bascule -->
+  <circle cx="46" cy="96" r="9" fill="#62a0ea"/>
+  <circle cx="82" cy="96" r="9" fill="#e66100"/>
+  <path d="M57 92 h14 l-4 -4 M71 100 h-14 l4 4" fill="none" stroke="#ffffff" stroke-width="3"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
