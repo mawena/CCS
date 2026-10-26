@@ -3,7 +3,7 @@
 claude-accounts \- application, service et outils d'usage des comptes Claude Code
 .SH SYNOPSIS
 .B claude-accounts
-[\fBgui\fR|\fBprint\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
+[\fBgui\fR|\fBprint\fR|\fBsessions\fR|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
 .SH DESCRIPTION
 Sans argument, ouvre l'application graphique « Comptes Claude » : comptes et
 prévisions, historique, analyse de l'usage local et réglages.
@@ -14,6 +14,18 @@ Application GTK (défaut).
 .TP
 .B print
 Usage de tous les comptes dans le terminal.
+.TP
+.B sessions
+Sessions Claude Code ouvertes.
+.TP
+.B statusline
+Ligne d'état pour Claude Code (lit le contexte sur l'entrée standard).
+.TP
+.B hook stop-failure
+Hook Claude Code : bascule quand une session est bloquée par la limite.
+.TP
+.B integrate on\fR|\fBoff\fR|\fBstatus
+Installe ou retire la ligne d'état et le hook dans ~/.claude/settings.json.
 .TP
 .B plan
 Planning de l'orchestrateur.

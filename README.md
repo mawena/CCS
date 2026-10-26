@@ -11,6 +11,7 @@ qu'un compte soit disponible quand l'autre est épuisé.
 ccs save perso        # enregistre le compte connecté
 ccs add boulot        # connecte et enregistre un deuxième compte
 ccs orch on           # l'orchestrateur gère le reste
+ccs integrate on      # l'état des comptes en bas de chaque session Claude Code
 ccs status            # où j'en suis, quel compte utiliser
 ```
 
@@ -72,6 +73,31 @@ n'est démarré et aucune bascule anticipée n'a lieu ; la bascule anticipée
 respecte aussi l'interrupteur « bascule automatique ». Tout se règle dans l'onglet **Réglages**, et l'onglet
 **Planning** montre la frise du jour et les recharges à venir.
 
+## Dans Claude Code
+
+`ccs integrate on` ajoute deux choses à Claude Code (dans `~/.claude/settings.json`,
+avec une sauvegarde ; une ligne d'état que tu aurais déjà n'est jamais remplacée) :
+
+- **une ligne d'état** en bas de chaque session :
+  `◑ perso 53 % ↻17:20 · ⏱14:21 · sem. 51 % · 2 comptes` — compte actif,
+  session, recharge, limite estimée, semaine, et le meilleur compte quand il
+  faut changer ;
+- **la bascule après blocage** : si une session atteint malgré tout la limite,
+  CCS bascule aussitôt sur le meilleur autre compte et te prévient — tape
+  « continue » et la session repart.
+
+`ccs integrate off` retire tout ce que CCS a ajouté, et seulement cela.
+
+## Sessions Claude sur le PC
+
+L'onglet **Sessions** (et `ccs sessions`, et le sous-menu de l'icône) liste les
+sessions Claude Code ouvertes — terminal ou VS Code : projet, état (*travaille*,
+*attend ta réponse*, *au repos*), depuis quand, modèle et consommation de la
+conversation. Tu peux ouvrir un terminal ou le dossier du projet, terminer une
+session oubliée, reprendre une conversation récente ou en démarrer une nouvelle
+dans un projet. Une notification te prévient quand une session **a terminé** ou
+**attend ta réponse** — pratique quand plusieurs tournent en parallèle.
+
 ## Fonctionnalités
 
 | | |
@@ -82,10 +108,12 @@ respecte aussi l'interrupteur « bascule automatique ». Tout se règle dans l'o
 | **Meilleur compte** | Recommandation expliquée : d'abord le quota qui expire le plus tôt, les comptes en réserve en dernier. |
 | **Bascule automatique** | À 98 % (réglable) ou si le prochain relevé dépasserait 100 %, vers un compte sous 80 % aux données fraîches. Pas de va-et-vient, bascule manuelle récente respectée. |
 | **Orchestrateur** | Enchaînement et décalage des fenêtres, quota qui expire d'abord, réserve hebdomadaire (voir plus haut). |
-| **Alertes** | 80 % et 95 %, fin de session imminente, bascule effectuée, tous comptes épuisés, compte réinitialisé, semaine en avance, connexion expirée. Une fois par seuil et par fenêtre. |
+| **Alertes** | 80 % et 95 % (avec un bouton « Basculer sur … »), fin de session imminente, bascule effectuée, tous comptes épuisés, compte réinitialisé, semaine en avance, connexion expirée, session terminée ou en attente. Une fois par seuil et par fenêtre. |
+| **Intégration Claude Code** | Ligne d'état dans chaque session, bascule automatique quand une session est bloquée. |
+| **Sessions** | Sessions ouvertes, consommation, reprise de conversations, terminal / dossier du projet. |
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets. |
-| **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Historique, Analyse, Réglages. |
-| **Indicateur** | Pourcentage du compte actif dans la barre du haut, bascule en un clic. |
+| **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Sessions, Historique, Analyse, Réglages. |
+| **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge) ; au clic : comptes, recharges, prévision, sessions, interrupteurs. |
 | **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre. |
 
 ## Installation
@@ -101,7 +129,10 @@ systemctl --user daemon-reload
 systemctl --user enable --now ccs-daemon
 ```
 
-Le service démarre ensuite seul à chaque session, l'indicateur aussi.
+Le service démarre ensuite seul à chaque session, l'icône de la barre du haut
+aussi (première fois sans te reconnecter : `claude-accounts tray &`).
+Optionnel : `ccs integrate on` pour la ligne d'état et la bascule après blocage
+dans Claude Code.
 
 **Indicateur invisible ?** Active l'extension GNOME « Ubuntu AppIndicators » :
 `gnome-extensions enable ubuntu-appindicators@ubuntu.com` (ou bouton dans
@@ -139,6 +170,8 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs next` / `ccs best` | Profil suivant / meilleur compte du moment |
 | `ccs status` | Compte actif, prévision, meilleur compte, capacité, orchestrateur, service |
 | `ccs plan` | Planning des fenêtres et recharges à venir |
+| `ccs sessions` | Sessions Claude Code ouvertes : projet, état, consommation |
+| `ccs integrate on\|off\|status` | Ligne d'état et bascule après blocage dans Claude Code |
 | `ccs usage` | Usage détaillé de tous les comptes, prévisions, rythme hebdo |
 | `ccs orch on\|off` | Orchestrateur |
 | `ccs auto on\|off` | Bascule automatique à 98 % |
@@ -186,7 +219,8 @@ les journaux, l'état partagé ou les notifications.
 | Pas de bascule / pas de démarrage | `ccs status` : service en marche ? orchestrateur activé ? dans la plage horaire ? |
 | L'ancienne version s'ouvre | Supprime `~/.local/bin/ccs`, `~/.local/bin/claude-accounts` et `~/.local/share/applications/io.ccs.ClaudeAccounts.desktop`. |
 | « Comptes Claude » introuvable dans le menu | Alt+F2 puis `r` (X11), ou reconnecte-toi. |
-| Indicateur absent | Extension « Ubuntu AppIndicators » (voir Installation). |
+| Icône absente de la barre du haut | Extension « Ubuntu AppIndicators » (voir Installation), puis `claude-accounts tray &`. |
+| Pas de ligne d'état dans Claude Code | `ccs integrate status`, puis relance la session. |
 
 Journaux du service : `journalctl --user -u ccs-daemon -f`.
 

@@ -3,15 +3,28 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
-## [Non publié]
+## [0.3.0] — 2026-10-26
 
 ### Ajouté
 
-- Indicateur : icône anneau-jauge dessinée selon la session du compte actif
-  (vert, orange, rouge), lisible même quand l'extension n'affiche pas le texte.
-- Menu de l'indicateur enrichi : compte actif et âge des données, session (avec
-  heure de fin) et semaine de chaque compte, réserve, erreurs, meilleur compte,
-  prévision, prochaine recharge, capacité ; interrupteur Orchestrateur.
+- **Sessions Claude Code** : onglet Sessions, `ccs sessions`, sous-menu de
+  l'icône — projet, état (travaille / attend ta réponse / au repos), durée,
+  modèle, consommation ; terminal ou dossier du projet, terminer une session,
+  reprendre une conversation récente, nouvelle session dans un projet récent.
+- Notifications quand une session a terminé ou attend ta réponse (surveillance
+  immédiate des fiches de session).
+- **Intégration Claude Code** (`ccs integrate on|off|status`) : ligne d'état
+  (compte, session, recharge, prévision, semaine) et bascule automatique quand
+  une session est bloquée par la limite (hook `StopFailure`).
+- Boutons « Basculer sur … » dans les alertes de seuil et de fin imminente.
+- Icône de la barre du haut : jauge dessinée selon la session du compte actif
+  (vert / orange / rouge) ; menu enrichi (âge des données, recharges, réserve,
+  erreurs, prochaine recharge, capacité, interrupteur Orchestrateur, sessions).
+
+### Corrigé
+
+- Onglet Analyse : une valeur d'usage non numérique dans un journal ne bloque
+  plus le calcul.
 
 ## [0.2.1] — 2026-10-26
 

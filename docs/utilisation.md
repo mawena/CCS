@@ -120,3 +120,43 @@ claude-accounts collect        # relevé immédiat
 
 Sans service, l'application et `ccs usage` fonctionnent toujours, mais il n'y a
 ni bascule automatique, ni alertes, ni historique.
+
+## Sessions Claude Code
+
+`ccs sessions` ou l'onglet **Sessions** : chaque session ouverte (terminal ou
+VS Code) avec son projet, son état — *travaille*, *attend ta réponse* (et
+pourquoi : permission, question…), *au repos* —, sa durée, son modèle et sa
+consommation (tokens pondérés de la conversation). CCS lit les fiches de
+`~/.claude/sessions` en lecture seule et ignore les fichiers `.key`.
+
+Actions : ouvrir un terminal ou le dossier du projet ; terminer une session
+(après confirmation : la conversation est conservée et peut être reprise) ;
+**Reprendre** une conversation récente (`claude --resume`) ou lancer une
+**Nouvelle session** dans un projet récent, dans un nouveau terminal.
+
+Notifications : « X a terminé » ou « X attend ta réponse » quand une session
+qui travaillait depuis au moins une minute s'arrête (au plus une notification
+toutes les 2 min par session). Réglage : **Réglages → Alertes → Sessions
+Claude Code**.
+
+## Intégration dans Claude Code
+
+`ccs integrate on` (ou **Réglages → Intégration dans Claude Code**) modifie
+`~/.claude/settings.json` : sauvegarde `settings.json.ccs-backup` à la première
+fois, écriture atomique ; une `statusLine` existante est conservée.
+
+- **Ligne d'état** : `claude-accounts statusline` affiche le compte actif, la
+  session et sa recharge (↻), la limite estimée (⏱), la semaine, le nombre de
+  comptes, et `→ compte` quand un autre compte est conseillé. Relance tes
+  sessions pour la voir.
+- **Bascule après blocage** : hook `StopFailure` (erreur `rate_limit`). CCS
+  rafraîchit l'usage si besoin, choisit le meilleur autre compte (données
+  fraîches, sans erreur, sous 95 %), bascule et notifie « Limite atteinte dans
+  X : basculé sur Y ». Tape « continue » dans la session.
+
+`ccs integrate off` retire uniquement les entrées de CCS.
+
+## Boutons des notifications
+
+Les alertes 80 % / 95 % et « limite bientôt atteinte » proposent « Basculer sur
+<meilleur compte> » ; le clic bascule (comme une bascule manuelle).
