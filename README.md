@@ -35,11 +35,11 @@ exemple). Ce que CCS apporte, c'est que ces comptes se comportent comme un seul 
 - la bascule se fait **avant** la coupure, sans interrompre les sessions ouvertes ;
 - l'orchestrateur évite les temps morts : avec 2 comptes décalés, une recharge
   arrive toutes les 2 h 30 au lieu de toutes les 5 h ;
-- le quota qui va expirer est utilisé en premier, rien n'est perdu.
+- le quota qui va expirer est utilisé en premier, pour en perdre le moins possible.
 
 > **À lire avant de multiplier les comptes.** Les conditions d'utilisation
 > d'Anthropic peuvent encadrer l'usage de plusieurs comptes par une même
-> personne : vérifie qu'elles autorisent ton usage. CCS ne contourne aucune
+> personne : vérifie qu'elles autorisent ton usage. CCS ne relève aucune
 > limite : chaque compte garde ses propres limites, CCS aide seulement à bien
 > les utiliser. CCS n'est pas un produit Anthropic ; il s'appuie sur les
 > fichiers et l'API d'usage de Claude Code, qui peuvent évoluer.
@@ -63,11 +63,12 @@ Pendant ta plage horaire (par défaut 8 h → 2 h), il applique quatre règles :
    quota dans moins d'une heure, CCS bascule dessus avant (au plus toutes les
    30 min).
 4. **Répartir la semaine** — un compte en avance sur son rythme hebdomadaire
-   passe en réserve et ne sert qu'en dernier ; un compte à 95 % de sa semaine
-   n'est plus démarré.
+   passe en réserve : les bascules le choisissent en dernier. Un compte à 95 %
+   de sa semaine n'est plus démarré.
 
 Le service se réveille pile à chaque fin de fenêtre. Hors plage horaire, rien
-n'est démarré. Tout se règle dans l'onglet **Réglages**, et l'onglet
+n'est démarré et aucune bascule anticipée n'a lieu ; la bascule anticipée
+respecte aussi l'interrupteur « bascule automatique ». Tout se règle dans l'onglet **Réglages**, et l'onglet
 **Planning** montre la frise du jour et les recharges à venir.
 
 ## Fonctionnalités
@@ -84,7 +85,7 @@ n'est démarré. Tout se règle dans l'onglet **Réglages**, et l'onglet
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets. |
 | **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Historique, Analyse, Réglages. |
 | **Indicateur** | Pourcentage du compte actif dans la barre du haut, bascule en un clic. |
-| **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites, réveil précis aux fins de fenêtre. |
+| **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre. |
 
 ## Installation
 

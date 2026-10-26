@@ -69,13 +69,13 @@ class AlertsTest(unittest.TestCase):
         self.assertEqual(self.alerts([state("perso", 70, True)], fc=fc_far), [])
 
     def test_reset_alert_when_session_back_to_zero(self):
-        previous = {"pro": session(60, NOW - timedelta(minutes=1))}
+        previous = {"pro": session(90, NOW - timedelta(minutes=1))}
         a = self.alerts([state("perso", 10, True), state("pro", 0)], previous=previous)
         self.assertEqual(self.keys(a), ["reset"])
         self.assertIn("pro", a[0].title)
 
     def test_reset_alert_when_reset_moves_forward(self):
-        previous = {"pro": session(60, NOW - timedelta(minutes=1))}
+        previous = {"pro": session(90, NOW - timedelta(minutes=1))}
         new = AccountState("pro", False, [session(3, NOW + timedelta(hours=5))], NOW.timestamp(), None)
         self.assertEqual(self.keys(self.alerts([new], active=None, previous=previous)), ["reset"])
 
@@ -97,7 +97,7 @@ class AlertsTest(unittest.TestCase):
 
     def test_disabled_types_are_skipped(self):
         self.settings["alerts"]["resets"] = False
-        previous = {"pro": session(60, NOW - timedelta(minutes=1))}
+        previous = {"pro": session(90, NOW - timedelta(minutes=1))}
         self.assertEqual(self.alerts([state("pro", 0)], active=None, previous=previous), [])
         self.settings["alerts"]["enabled"] = False
         self.assertEqual(self.alerts([state("perso", 99, True)]), [])
@@ -118,3 +118,11 @@ class DecisionAlertTest(unittest.TestCase):
         self.assertEqual(ex.urgency, 2)
         self.assertTrue(ex.key.startswith("exhausted:perso:"))
         self.assertIsNone(decision_alert(Decision("none", None, ""), NOW))
+
+
+class ResetNoiseTest(AlertsTest):
+    def test_reset_alert_only_after_heavy_use(self):
+        prev60 = {"pro": session(60, NOW - timedelta(minutes=1))}
+        self.assertEqual(self.alerts([state("pro", 0)], active=None, previous=prev60), [])
+        prev85 = {"pro": session(85, NOW - timedelta(minutes=1))}
+        self.assertEqual(self.keys(self.alerts([state("pro", 0)], active=None, previous=prev85)), ["reset"])

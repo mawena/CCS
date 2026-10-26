@@ -14,6 +14,9 @@ from .autoswitch import MANUAL_RESPECT_S, STALE_S, Decision
 from .forecast import SESSION_WINDOW, effective_percent, window_open
 
 RETRY = timedelta(minutes=15)
+FAILURE_WINDOW = timedelta(hours=3)
+FAILURE_LIMIT = 3
+BACKOFF = timedelta(hours=1)
 WAKE_MARGIN = timedelta(seconds=30)
 
 
@@ -58,7 +61,17 @@ def first_slots(accounts, now, cfg):
     if bounds is None:
         return {}
     start, end = bounds
-    names = participants(accounts, now, cfg)
+    by_name = {a.name: a for a in accounts}
+
+    def rank(name):
+        # Fenêtres déjà ouvertes dans la période d'abord (dans leur ordre
+        # d'ouverture), puis le compte actif, puis les autres : le décalage
+        # s'aligne sur ce que l'utilisateur a réellement démarré.
+        a = by_name[name]
+        if window_open(a, now) and a.session.resets_at - SESSION_WINDOW >= start:
+            return (0, (a.session.resets_at - SESSION_WINDOW).timestamp(), name)
+        return (1 if a.active else 2, 0, name)
+    names = sorted(participants(accounts, now, cfg), key=rank)
     step = SESSION_WINDOW / len(names) if names and cfg["stagger"] else timedelta(0)
     slots = {}
     for k, name in enumerate(names):
@@ -76,9 +89,16 @@ def starts_due(accounts, now, cfg, store):
     for name, slot in slots.items():
         if now < slot or window_open(by_name[name], now):
             continue
-        recent = store.events((now - RETRY).timestamp(), type="warmup", profile=name)
-        if any(e.detail.get("mode") == "orchestrateur" for e in recent):
-            continue
+        history = store.events((now - SESSION_WINDOW).timestamp(), type="warmup", profile=name)
+        if any(e.ts >= (now - RETRY).timestamp() for e in history):
+            continue  # tentative récente (quel que soit le mode), l'API ne la reflète pas encore
+        mine = [e for e in history if e.detail.get("mode") == "orchestrateur"]
+        if any(e.detail.get("ok") is True for e in mine):
+            continue  # fenêtre démarrée il y a moins de 5 h : on attend sa fin
+        failures = [e for e in mine if e.detail.get("ok") is False
+                    and e.ts >= (now - FAILURE_WINDOW).timestamp()]
+        if len(failures) >= FAILURE_LIMIT and failures[-1].ts >= (now - BACKOFF).timestamp():
+            continue  # échecs répétés : une tentative par heure seulement
         due.append(name)
     return due
 
@@ -97,6 +117,8 @@ def expiring_decision(accounts, active, now, cfg, events, reserve=frozenset()):
     """Bascule anticipée vers un compte qui va perdre une part importante de son quota."""
     if not cfg["expiring_switch"] or active is None:
         return None
+    if period_bounds(now, cfg["active_hours"]) is None:
+        return None  # rien en dehors de la plage horaire
     act = next((a for a in accounts if a.name == active), None)
     if act is None or not _fresh(act, now):
         return None

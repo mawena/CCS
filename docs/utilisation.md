@@ -63,14 +63,19 @@ peut passer minuit), il :
 - **bascule vers le quota qui expire** : un compte dont la fenêtre se termine
   dans moins de 60 min avec au moins 30 % restants passe devant, si sa fin est
   plus proche que celle du compte actif (au plus une fois toutes les 30 min,
-  jamais juste après une bascule manuelle) ;
+  jamais juste après une bascule manuelle, seulement dans la plage horaire et
+  si la bascule automatique est activée) ;
 - **met en réserve** un compte en avance de plus de 10 points sur le rythme de
-  sa semaine : il ne sert qu'en dernier. Un compte à 95 % de sa semaine n'est
+  sa semaine : la bascule à seuil, la bascule anticipée et le meilleur compte
+  le choisissent en dernier. Un compte à 95 % de sa semaine n'est
   plus démarré.
 
 Un compte en erreur (connexion expirée, réseau) ou aux données de plus de
-10 minutes n'est jamais démarré ni choisi. Une tentative de démarrage par compte
-au plus toutes les 15 minutes.
+10 minutes n'est jamais démarré ni choisi par une bascule automatique. Une
+tentative de démarrage par compte au plus toutes les 15 minutes ; après un
+démarrage réussi, rien pendant 5 h ; après 3 échecs, une tentative par heure.
+Le décalage s'aligne sur ce que tu as réellement démarré : les fenêtres déjà
+ouvertes passent en premier, puis le compte actif.
 
 **Planning.** `ccs plan` ou l'onglet **Planning** : frise par compte (fenêtre en
 cours remplie selon l'usage, fenêtres prévues en pointillés, trait rouge =
@@ -80,7 +85,7 @@ maintenant) et liste des recharges à venir.
 
 Réglables dans l'onglet **Réglages** : seuils 80 % / 95 % du compte actif, fin
 de session estimée dans moins de 20 min, avance hebdomadaire de plus de 15
-points, compte de nouveau disponible, connexion expirée, bascule effectuée ou
+points, compte de nouveau disponible (s'il était à 80 % ou plus), connexion expirée, bascule effectuée ou
 impossible. Chaque alerte n'est envoyée qu'une fois par fenêtre.
 
 ## Warm-up à heure fixe

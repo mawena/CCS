@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -192,3 +193,25 @@ class OrchestratorDaemonTest(DaemonTest):
         self.assertTrue(o["enabled"])
         self.assertTrue(o["active_now"])
         self.assertTrue(any(w["name"] == "perso" and w["kind"] == "current" for w in o["plan"]))
+
+
+class ReviewDaemonTest(OrchestratorDaemonTest):
+    def test_no_expiring_switch_when_auto_switch_disabled(self):
+        self.settings["auto_switch"]["enabled"] = False
+        with fake_http(per_account(perso=usage(40, reset_min=200), pro=usage(30, reset_min=40))), \
+                mock.patch.object(core, "run_ccs") as run:
+            self.d.tick(self.settings, NOW)
+        run.assert_not_called()
+
+    def test_failed_switch_does_not_notify(self):
+        ko = subprocess.CompletedProcess([], 1, "", "ccs: erreur")
+        with fake_http(per_account(perso=usage(40, reset_min=200), pro=usage(30, reset_min=40))), \
+                mock.patch.object(core, "run_ccs", return_value=ko):
+            self.d.tick(self.settings, NOW)
+        self.assertFalse(any("Bascule" in a.title for a in self.sent))
+
+    def test_stale_warmup_dirs_cleaned_at_start(self):
+        import tempfile
+        leftover = tempfile.mkdtemp(prefix="ccs-warmup-")
+        daemon.clean_warmup_leftovers()
+        self.assertFalse(os.path.exists(leftover))

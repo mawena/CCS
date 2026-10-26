@@ -76,9 +76,16 @@ class Daemon:
 
     def _start_window(self, name, now):
         from . import warmup
-        threading.Thread(target=warmup.run, daemon=True,
-                         args=(name, now.astimezone().strftime("%H:%M"), self.store, now),
-                         kwargs={"mode": "orchestrateur"}).start()
+        t = threading.Thread(target=warmup.run, daemon=True,
+                             args=(name, now.astimezone().strftime("%H:%M"), self.store, now),
+                             kwargs={"mode": "orchestrateur"})
+        t.start()
+        self.workers = [w for w in getattr(self, "workers", []) if w.is_alive()] + [t]
+
+    def join_workers(self, timeout=60):
+        """À l'arrêt : laisse les démarrages en cours finir (jeton relu, dossier supprimé)."""
+        for w in getattr(self, "workers", []):
+            w.join(timeout)
 
     def detect_manual_switch(self, now):
         active = core.active_profile_name()
@@ -127,16 +134,17 @@ class Daemon:
         orch_on = ocfg["enabled"]
         reserve = orchestrator.reserve_set(states, paces, ocfg) if orch_on else set()
         events = self.store.events((now - EVENTS_LOOKBACK).timestamp())
-        decision = autoswitch.decide(states, active, fc, settings, now, events, delay)
+        decision = autoswitch.decide(states, active, fc, settings, now, events, delay, reserve)
+        switched = False
         if decision.action == "switch":
-            if autoswitch.execute(decision, self.store, now):
-                delay = poll["fast_s"]
-        elif orch_on:
+            switched = autoswitch.execute(decision, self.store, now)
+        elif orch_on and settings["auto_switch"]["enabled"]:
             early = orchestrator.expiring_decision(states, active, now, ocfg, events, reserve)
             if early is not None:
                 decision = early
-                if autoswitch.execute(early, self.store, now, mode="anticipee"):
-                    delay = poll["fast_s"]
+                switched = autoswitch.execute(early, self.store, now, mode="anticipee")
+        if switched:
+            delay = poll["fast_s"]
         best = best_account(states, now, reserve=reserve)
 
         if orch_on:
@@ -155,6 +163,8 @@ class Daemon:
         pending = alerts.pending_alerts(states, active, fc, paces, best, settings, now,
                                         sent, self.previous_sessions)
         da = alerts.decision_alert(decision, now)
+        if decision.action == "switch" and not switched:
+            da = None  # échec journalisé (event error), pas d'annonce trompeuse
         if da and da.key not in sent and settings["alerts"]["enabled"]:
             pending.append(da)
         for a in pending:
@@ -256,6 +266,19 @@ def _is_our_daemon(pid):
     return b"daemon" in cmd and (b"claude-accounts" in cmd or b"ccs_app" in cmd)
 
 
+def clean_warmup_leftovers():
+    """Supprime les dossiers temporaires de warm-up laissés par un arrêt brutal."""
+    import glob
+    import shutil
+    import tempfile
+    for d in glob.glob(os.path.join(tempfile.gettempdir(), "ccs-warmup-*")):
+        try:
+            if os.stat(d).st_uid == os.getuid():
+                shutil.rmtree(d, ignore_errors=True)
+        except OSError:
+            pass
+
+
 def running_pid():
     """Pid du daemon, seulement s'il tient le verrou du fichier pid (pas de pid recyclé)."""
     try:
@@ -300,6 +323,7 @@ def run():
     pid_file.truncate()
     pid_file.write(str(os.getpid()))
     pid_file.flush()
+    clean_warmup_leftovers()
     d = Daemon(Store())
     try:
         from . import warmup
@@ -317,6 +341,7 @@ def run():
             wake.wait(delay)
             wake.clear()
     finally:
+        d.join_workers()
         pid_file.seek(0)
         pid_file.truncate()
         pid_file.close()

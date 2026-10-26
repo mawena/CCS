@@ -9,6 +9,9 @@ from .forecast import effective_percent
 # secondes d'un appel à l'autre : on identifie une fenêtre à 10 min près.
 WINDOW_ROUND_S = 600
 RESET_MOVE = timedelta(minutes=30)
+# Une réinitialisation n'est signalée que si le compte était bien entamé :
+# avec l'orchestrateur, les fenêtres se renouvellent toutes les 5 h.
+RESET_ALERT_MIN = 80
 
 
 @dataclass
@@ -59,7 +62,7 @@ def _session_alerts(acc, fc, best, cfg, now, sent):
 
 def _reset_alert(acc, prev, now, sent):
     cur = acc.session
-    if prev is None or cur is None or prev.percent <= 0:
+    if prev is None or cur is None or prev.percent < RESET_ALERT_MIN:
         return None
     moved = (cur.resets_at is not None and prev.resets_at is not None
              and cur.resets_at - prev.resets_at > RESET_MOVE)

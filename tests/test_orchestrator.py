@@ -157,3 +157,38 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(orch.next_wake(accounts, NOW, cfg()), local(0, 10, 30) + timedelta(seconds=30))
         accounts = [acc("a", 50, 20), acc("b", 10, 200)]
         self.assertEqual(orch.next_wake(accounts, NOW, cfg()), NOW + timedelta(minutes=20, seconds=30))
+
+
+class ReviewFixesTest(unittest.TestCase):
+    """Revue 0.2.0."""
+
+    def test_open_window_ranks_first_for_stagger(self):
+        # perso (2e par ordre alphabétique) a ouvert sa fenêtre à 08:10 : boulot doit être décalé.
+        perso = acc("perso", 5, 5 * 60 - 110, active=True)   # ouverte vers 08:10
+        slots = orch.first_slots([acc("boulot"), perso], NOW, cfg())
+        self.assertEqual(slots["boulot"], local(0, 10, 30))
+
+    def test_active_account_ranks_first_when_all_idle(self):
+        slots = orch.first_slots([acc("boulot"), acc("perso", active=True)], NOW, cfg())
+        self.assertEqual(slots["perso"], local(0, 8))
+        self.assertEqual(slots["boulot"], local(0, 10, 30))
+
+    def test_no_restart_for_5h_after_successful_start(self):
+        ok = Event(NOW.timestamp() - 3600, "warmup", "a", {"mode": "orchestrateur", "ok": True})
+        self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), FakeStore([ok])), [])
+        old = Event(NOW.timestamp() - 5 * 3600 - 60, "warmup", "a", {"mode": "orchestrateur", "ok": True})
+        self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), FakeStore([old])), ["a"])
+
+    def test_backoff_after_repeated_failures(self):
+        fails = [Event(NOW.timestamp() - m * 60, "warmup", "a", {"mode": "orchestrateur", "ok": False})
+                 for m in (20, 40, 59)]
+        self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), FakeStore(fails)), [])
+
+    def test_any_recent_warmup_counts(self):
+        slot = Event(NOW.timestamp() - 120, "warmup", "a", {"mode": "creneau", "ok": None})
+        self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), FakeStore([slot])), [])
+
+    def test_expiring_switch_only_in_active_hours(self):
+        night = local(1, 3)
+        accounts = [acc("act", 40, 200, active=True, now=night), acc("x", 30, 40, now=night)]
+        self.assertIsNone(orch.expiring_decision(accounts, "act", night, cfg(), []))

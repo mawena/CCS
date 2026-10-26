@@ -151,3 +151,11 @@ class TargetEligibilityTest(unittest.TestCase):
         accounts = [acc("perso", 99, active=True), acc("old", 1, age_s=3600), acc("ok", 30)]
         d = decide(accounts, "perso", None, self.settings, NOW, [], 60)
         self.assertEqual(d.target, "ok")
+
+
+class ReserveDecideTest(unittest.TestCase):
+    def test_threshold_switch_prefers_non_reserve(self):
+        s = copy.deepcopy(DEFAULTS)
+        accounts = [acc("perso", 99, active=True), acc("pro", 10, reset_min=60), acc("third", 40, reset_min=200)]
+        d = decide(accounts, "perso", None, s, NOW, [], 60, reserve={"pro"})
+        self.assertEqual(d.target, "third")
