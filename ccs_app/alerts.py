@@ -20,6 +20,7 @@ class Alert:
     title: str
     body: str
     urgency: int  # 0 bas, 1 normal, 2 critique
+    actions: tuple = ()  # ((clé, libellé), …) : boutons de la notification
 
 
 def window_id(dt):
@@ -36,9 +37,14 @@ def _suggestion(best, active):
     return ""
 
 
+def _switch_button(best, active):
+    return ((f"use:{best.name}", f"Basculer sur {best.name}"),) if best and best.name != active else ()
+
+
 def _session_alerts(acc, fc, best, cfg, now, sent):
     s = acc.session
     pct = effective_percent(s, now)
+    buttons = _switch_button(best, acc.name)
     out = []
     for t in sorted(cfg["session_thresholds"], reverse=True):
         if pct < t:
@@ -47,7 +53,7 @@ def _session_alerts(acc, fc, best, cfg, now, sent):
         if key not in sent:
             out.append(Alert(key, f"{acc.name} : session à {pct:.0f} %",
                              _suggestion(best, acc.name) or "Aucun autre compte disponible.",
-                             2 if t >= 95 else 1))
+                             2 if t >= 95 else 1, buttons))
         break  # seul le plus haut seuil franchi compte
     if (fc is not None and fc.verdict == "limit" and fc.eta is not None
             and fc.eta - now <= timedelta(minutes=cfg["eta_minutes"])):
@@ -56,7 +62,7 @@ def _session_alerts(acc, fc, best, cfg, now, sent):
             body = f"Limite de session estimée vers {_hhmm(fc.eta)}."
             sug = _suggestion(best, acc.name)
             out.append(Alert(key, f"{acc.name} : limite bientôt atteinte",
-                             f"{body} {sug}".strip(), 1))
+                             f"{body} {sug}".strip(), 1, buttons))
     return out
 
 

@@ -18,6 +18,7 @@ DEFAULTS = {
         "weekly_ahead_points": 15,
         "resets": True,
         "auth": True,
+        "sessions": True,
     },
     "poll": {"normal_s": 300, "fast_s": 60},
     "warmup": {},

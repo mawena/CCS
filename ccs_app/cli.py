@@ -239,6 +239,71 @@ def cmd_plan(_args):
     return 0
 
 
+def _duration(seconds):
+    minutes = int(seconds // 60)
+    return f"{minutes // 60} h {minutes % 60:02d}" if minutes >= 60 else f"{minutes} min"
+
+
+def cmd_sessions(_args):
+    import time
+    from . import sessions, transcripts
+    found = sessions.list_sessions()
+    if not found:
+        print("Aucune session Claude Code ouverte.")
+        return 0
+    active = core.active_profile_name() or "compte non enregistré"
+    print(f"{len(found)} session(s) ouverte(s) — toutes sur le compte actif : {active}")
+    for s in found:
+        u = sessions.conversation_usage(s)
+        print(f"  {s.project:<16} {sessions.state_label(s):<28} depuis {_duration(time.time() - s.started_at):<9}"
+              f" {u.model:<7} {transcripts.fmt_tokens(u.weighted):>8} tokens  (pid {s.pid}, {s.name})")
+    return 0
+
+
+def cmd_statusline(_args):
+    from datetime import datetime, timezone
+    from . import integration
+    integration.read_stdin_json()  # Claude Code envoie le contexte de la session ; inutile ici
+    try:
+        text = integration.statusline_text(_state(), datetime.now(timezone.utc))
+    except Exception:  # affichée dans chaque session : jamais de trace Python
+        text = "CCS : état illisible"
+    print(text)
+    return 0
+
+
+def cmd_hook(args):
+    from . import integration
+    if args.event == "stop-failure":
+        try:
+            integration.stop_failure(integration.read_stdin_json())
+        except Exception as e:
+            print(f"ccs : hook en échec : {e}", file=sys.stderr)
+    return 0  # un hook ne doit jamais faire échouer Claude Code
+
+
+def cmd_integrate(args):
+    from . import integration
+    try:
+        if args.action == "on":
+            msgs = integration.install()
+            msgs.append("Relance tes sessions Claude Code pour voir la ligne d'état.")
+        elif args.action == "off":
+            msgs = integration.uninstall()
+        else:
+            st = integration.status()
+            msgs = [
+                "Ligne d'état : " + {"ccs": "installée", "autre": "une autre ligne d'état est configurée",
+                                     None: "non installée"}[st["statusline"]],
+                "Bascule après blocage : " + ("installée" if st["hook"] else "non installée"),
+            ]
+    except integration.IntegrationError as e:
+        print(f"Erreur : {e}", file=sys.stderr)
+        return 1
+    print("\n".join(msgs))
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
@@ -260,6 +325,14 @@ def build_parser():
     orch.add_argument("state", choices=["on", "off"])
     orch.set_defaults(func=cmd_orch)
     sub.add_parser("plan", help="planning des fenêtres de 5 h").set_defaults(func=cmd_plan)
+    sub.add_parser("sessions", help="sessions Claude Code ouvertes").set_defaults(func=cmd_sessions)
+    sub.add_parser("statusline", help="ligne d'état pour Claude Code").set_defaults(func=cmd_statusline)
+    hook = sub.add_parser("hook", help="hooks Claude Code")
+    hook.add_argument("event", choices=["stop-failure"])
+    hook.set_defaults(func=cmd_hook)
+    integ = sub.add_parser("integrate", help="intégration dans Claude Code")
+    integ.add_argument("action", choices=["on", "off", "status"])
+    integ.set_defaults(func=cmd_integrate)
     sub.add_parser("tray", help="indicateur de la barre du haut").set_defaults(func=cmd_tray)
     an = sub.add_parser("analyze", help="analyse des journaux locaux")
     an.add_argument("--days", type=int, default=7)

@@ -51,30 +51,44 @@ def scan(projects_dir, since):
         try:
             if f.stat().st_mtime < since:
                 continue
-            fh = f.open(errors="replace")
         except OSError:
             continue
-        with fh:
-            for raw in fh:
-                if '"assistant"' not in raw:
-                    continue
-                try:
-                    d = json.loads(raw)
-                    msg = d["message"]
-                    u = msg["usage"]
-                    ts = datetime.fromisoformat(d["timestamp"].replace("Z", "+00:00")).timestamp()
-                except (ValueError, KeyError, TypeError, AttributeError):
-                    continue
-                if d.get("type") != "assistant" or ts < since:
-                    continue
+        _read_file(f, since, projects_dir, rows)
+    return list(rows.values())
+
+
+def scan_file(path, since=0):
+    """Réponses d'une seule conversation (fichier .jsonl)."""
+    rows = {}
+    _read_file(Path(path), since, Path(path).parent, rows)
+    return list(rows.values())
+
+
+def _read_file(f, since, projects_dir, rows):
+    try:
+        fh = f.open(errors="replace")
+    except OSError:
+        return
+    with fh:
+        for raw in fh:
+            if '"assistant"' not in raw:
+                continue
+            try:
+                d = json.loads(raw)
+                msg = d["message"]
+                u = msg["usage"]
+                ts = datetime.fromisoformat(d["timestamp"].replace("Z", "+00:00")).timestamp()
                 row = UsageRow(
                     ts, _project(d.get("cwd"), f, projects_dir), model_family(msg.get("model")),
                     int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0),
                     int(u.get("cache_creation_input_tokens") or 0),
                     int(u.get("cache_read_input_tokens") or 0))
-                if row.weighted > 0:  # messages internes (<synthetic>) sans usage réel
-                    rows[msg.get("id") or f"{f}:{ts}"] = row
-    return list(rows.values())
+            except (ValueError, KeyError, TypeError, AttributeError):
+                continue
+            if d.get("type") != "assistant" or ts < since:
+                continue
+            if row.weighted > 0:  # messages internes (<synthetic>) sans usage réel
+                rows[msg.get("id") or f"{f}:{ts}"] = row
 
 
 @dataclass

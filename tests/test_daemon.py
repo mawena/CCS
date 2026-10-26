@@ -34,7 +34,7 @@ def per_account(**by_name):
     return {"/api/oauth/usage": handler}
 
 
-class DaemonTest(HomeTestCase):
+class DaemonBase(HomeTestCase):
     def setUp(self):
         super().setUp()
         self.store_db = Store()
@@ -49,6 +49,8 @@ class DaemonTest(HomeTestCase):
     def state(self):
         return json.loads((self.store / "state.json").read_text())
 
+
+class DaemonTest(DaemonBase):
     def test_tick_writes_state_and_samples(self):
         with fake_http(per_account(perso=usage(30), pro=usage(5))):
             delay = self.d.tick(self.settings, NOW)
@@ -150,7 +152,7 @@ def idle_usage(weekly=10):
     ]}
 
 
-class OrchestratorDaemonTest(DaemonTest):
+class OrchestratorBase(DaemonBase):
     def setUp(self):
         super().setUp()
         self.started = []
@@ -160,6 +162,8 @@ class OrchestratorDaemonTest(DaemonTest):
         # NOW = 09:00 UTC ; plage large pour être active quel que soit le fuseau du poste.
         o["active_hours"] = {"start": "00:00", "end": "23:59", "days": list(range(7))}
 
+
+class OrchestratorDaemonTest(OrchestratorBase):
     def test_starts_idle_account_after_its_slot(self):
         self.settings["orchestrator"]["stagger"] = False
         with fake_http(per_account(perso=usage(30), pro=idle_usage())):
@@ -196,7 +200,7 @@ class OrchestratorDaemonTest(DaemonTest):
         self.assertTrue(any(w["name"] == "perso" and w["kind"] == "current" for w in o["plan"]))
 
 
-class ReviewDaemonTest(OrchestratorDaemonTest):
+class ReviewDaemonTest(OrchestratorBase):
     def test_no_expiring_switch_when_auto_switch_disabled(self):
         self.settings["auto_switch"]["enabled"] = False
         with fake_http(per_account(perso=usage(40, reset_min=200), pro=usage(30, reset_min=40))), \
@@ -231,7 +235,7 @@ class SelfRestartTest(unittest.TestCase):
         self.assertEqual(daemon.EXIT_UPDATED, 75)
 
 
-class RateLimitTest(DaemonTest):
+class RateLimitTest(DaemonBase):
     def test_rate_limited_account_not_refetched_for_5_min(self):
         with fake_http(per_account(perso=usage(30), pro=usage(5))):
             self.d.tick(self.settings, NOW)
@@ -243,3 +247,65 @@ class RateLimitTest(DaemonTest):
             self.d.tick(self.settings, NOW + timedelta(minutes=7))
         fetched = [c[3]["Authorization"] for c in calls]
         self.assertNotIn("Bearer AT-pro", fetched)
+
+
+class ActionsAndSessionsTest(DaemonBase):
+    def test_notification_action_switches(self):
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            self.d.tick(self.settings, NOW)
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok) as run:
+            self.assertTrue(self.d.handle_action("use:pro", NOW))
+        run.assert_called_once_with(["use", "pro"])
+        ev = self.store_db.last_event("switch")
+        self.assertEqual((ev.profile, ev.detail["mode"], ev.detail.get("via")), ("pro", "manual", "notification"))
+
+    def test_notification_action_refused_for_unknown_or_active(self):
+        with mock.patch.object(core, "run_ccs") as run:
+            self.assertFalse(self.d.handle_action("use:inconnu", NOW))
+            self.assertFalse(self.d.handle_action("use:perso", NOW))   # déjà actif
+            self.assertFalse(self.d.handle_action("rm:pro", NOW))
+        run.assert_not_called()
+
+    def _sess(self, pid, state, since):
+        from ccs_app.sessions import Session
+        return Session(pid, f"s{pid}", f"gigit-{pid}", "/w/GiGit", "GiGit", state, None,
+                       NOW.timestamp() - 3600, since, "interactive", "cli")
+
+    def test_session_finished_notified_once(self):
+        from ccs_app import sessions
+        t = NOW.timestamp()
+        seq = [[self._sess(1, "busy", t - 300)], [self._sess(1, "idle", t)], [self._sess(1, "busy", t + 10)],
+               [self._sess(1, "idle", t + 100)]]
+        with mock.patch.object(sessions, "list_sessions", side_effect=seq):
+            for i in range(4):
+                self.d.on_sessions(self.settings, NOW + timedelta(seconds=[0, 1, 10, 100][i]))
+        titles = [a.title for a in self.sent]
+        self.assertEqual(titles, ["GiGit a terminé"])
+
+    def test_session_alerts_can_be_disabled(self):
+        from ccs_app import sessions
+        self.settings["alerts"]["sessions"] = False
+        t = NOW.timestamp()
+        with mock.patch.object(sessions, "list_sessions",
+                               side_effect=[[self._sess(1, "busy", t - 300)], [self._sess(1, "waiting", t)]]):
+            self.d.on_sessions(self.settings, NOW)
+            self.d.on_sessions(self.settings, NOW)
+        self.assertEqual(self.sent, [])
+
+
+class ActionRevalidationTest(DaemonBase):
+    def test_button_refused_when_target_no_longer_good(self):
+        with fake_http(per_account(perso=usage(30), pro=usage(99))):
+            self.d.tick(self.settings, NOW)
+        with mock.patch.object(core, "run_ccs") as run:
+            self.assertFalse(self.d.handle_action("use:pro", NOW + timedelta(minutes=1)))
+        run.assert_not_called()
+        self.assertIn("pro", self.sent[-1].title)
+
+    def test_button_refused_when_target_data_stale(self):
+        with fake_http(per_account(perso=usage(30), pro=usage(10))):
+            self.d.tick(self.settings, NOW)
+        with mock.patch.object(core, "run_ccs") as run:
+            self.assertFalse(self.d.handle_action("use:pro", NOW + timedelta(hours=2)))
+        run.assert_not_called()

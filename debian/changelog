@@ -1,10 +1,20 @@
+ccs (0.3.0) unstable; urgency=medium
+
+  * Sessions Claude Code : liste, état, consommation, reprise, terminal,
+    notifications quand une session termine ou attend une réponse.
+  * Intégration Claude Code : ligne d'état et bascule après blocage (hook).
+  * Boutons « Basculer sur … » dans les notifications.
+  * Icône jauge dans la barre du haut et menu d'informations.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 26 Oct 2026 16:00:00 +0100
+
 ccs (0.2.1) unstable; urgency=medium
 
   * Fenêtres démarrées reconnues à 0 %, décalage calculé sur les démarrages
     réels, erreurs passagères de l'API d'usage tolérées (pause après 429).
   * Le service se relance seul après une mise à jour du paquet.
 
- -- mawena <gamligocharles@gmail.com>  Mon, 26 Oct 2026 13:30:00 +0000
+ -- mawena <gamligocharles@gmail.com>  Mon, 26 Oct 2026 15:30:00 +0100
 
 ccs (0.2.0) unstable; urgency=medium
 

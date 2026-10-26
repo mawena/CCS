@@ -18,6 +18,7 @@ from .analysis import AnalysisPage  # noqa: E402
 from .common import ask_name, install_css, load_state, refresh_data, run_ccs_async  # noqa: E402
 from .history import HistoryPage  # noqa: E402
 from .planning import PlanningPage  # noqa: E402
+from .sessions_page import SessionsPage  # noqa: E402
 from .prefs import PrefsPage  # noqa: E402
 
 APP_ID = "io.ccs.ClaudeAccounts"
@@ -27,7 +28,7 @@ STALE_S = 600
 class Window(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Comptes Claude")
-        self.set_default_size(900, 860)
+        self.set_default_size(1000, 860)
         install_css()
         self.store = Store()
         self._reload_pending = False
@@ -52,12 +53,14 @@ class Window(Adw.ApplicationWindow):
         self.stack = Adw.ViewStack()
         self.accounts = AccountsPage(self)
         self.planning = PlanningPage(self)
+        self.sessions = SessionsPage(self)
         self.history = HistoryPage(self)
         self.analysis = AnalysisPage(self)
         self.prefs = PrefsPage(self)
         for page, name, title, icon in (
                 (self.accounts, "accounts", "Comptes", "system-users-symbolic"),
                 (self.planning, "planning", "Planning", "x-office-calendar-symbolic"),
+                (self.sessions, "sessions", "Sessions", "utilities-terminal-symbolic"),
                 (self.history, "history", "Historique", "document-open-recent-symbolic"),
                 (self.analysis, "analysis", "Analyse", "edit-find-symbolic"),
                 (self.prefs, "prefs", "Réglages", "emblem-system-symbolic")):
@@ -73,7 +76,7 @@ class Window(Adw.ApplicationWindow):
         view.add_bottom_bar(bottom_switcher)
         self.set_content(view)
         # Fenêtre étroite : onglets en bas, comme les applications GNOME.
-        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 820sp"))
+        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 960sp"))
         narrow.add_setter(top_switcher, "visible", False)
         narrow.add_setter(bottom_switcher, "reveal", True)
         self.add_breakpoint(narrow)
@@ -115,6 +118,9 @@ class Window(Adw.ApplicationWindow):
 
     def on_page(self, *_):
         name = self.stack.get_visible_child_name()
+        self.sessions.visible_page = name == "sessions"
+        if name == "sessions":
+            self.sessions.load()
         if name == "history":
             self.history.render(load_state(), self.store)
         elif name == "analysis":

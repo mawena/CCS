@@ -126,3 +126,14 @@ class ResetNoiseTest(AlertsTest):
         self.assertEqual(self.alerts([state("pro", 0)], active=None, previous=prev60), [])
         prev85 = {"pro": session(85, NOW - timedelta(minutes=1))}
         self.assertEqual(self.keys(self.alerts([state("pro", 0)], active=None, previous=prev85)), ["reset"])
+
+
+class ActionsTest(AlertsTest):
+    def test_threshold_alert_offers_switch_button(self):
+        best = Recommendation("pro", "au repos")
+        a = self.alerts([state("perso", 82, True)], best=best)[0]
+        self.assertEqual(a.actions, (("use:pro", "Basculer sur pro"),))
+
+    def test_no_button_when_best_is_active(self):
+        a = self.alerts([state("perso", 82, True)], best=Recommendation("perso", "r"))[0]
+        self.assertEqual(a.actions, ())

@@ -10,8 +10,8 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from . import alerts, autoswitch, core, notify, orchestrator
-from .forecast import (AccountState, best_account, capacity, session_forecast,
-                       weekly_pace)
+from .forecast import (AccountState, best_account, capacity, effective_percent,
+                       session_forecast, weekly_pace)
 from .settings import load_settings
 from .store import RETENTION_S, Store
 
@@ -23,10 +23,22 @@ HISTORY = timedelta(hours=5)
 EVENTS_LOOKBACK = timedelta(hours=8)
 ALERTS_LOOKBACK = timedelta(days=8)
 RATE_LIMIT_PAUSE = timedelta(minutes=5)
+SESSION_NOTIFY_GAP_S = 120
 
 
 def _iso(dt):
     return dt.isoformat() if dt else None
+
+
+def states_from_state(state):
+    """AccountState reconstruits depuis state.json (hook, CLI)."""
+    out = []
+    for a in (state or {}).get("accounts") or []:
+        limits = [core.Limit(l["kind"], l.get("label", l["kind"]), float(l["percent"]),
+                             core.parse_dt(l.get("resets_at"))) for l in a.get("limits") or []]
+        out.append(AccountState(a["name"], bool(a.get("active")), limits, a.get("fetched_at"),
+                                a.get("error")))
+    return out
 
 
 def state_path():
@@ -47,6 +59,9 @@ class Daemon:
         self.last_full = None
         self.last_prune = None
         self.cooldown = {}          # profil -> instant avant lequel ne pas réinterroger (429)
+        self.prev_sessions = None   # pid -> Session (dernier état vu)
+        self.sessions_lock = threading.Lock()
+        self.session_notified = {}  # pid -> instant de la dernière notification
         self.hooks = []             # fonctions (daemon, states, settings, now) appelées à chaque tick
 
     # ---- collecte ---------------------------------------------------------
@@ -91,6 +106,62 @@ class Daemon:
         """À l'arrêt : laisse les démarrages en cours finir (jeton relu, dossier supprimé)."""
         for w in getattr(self, "workers", []):
             w.join(timeout)
+
+    # ---- actions de notification et sessions ---------------------------------
+
+    def handle_action(self, key, now, settings=None):
+        """Bouton cliqué dans une notification : « use:<profil> », revérifié au moment du clic."""
+        kind, _, name = key.partition(":")
+        if kind != "use":
+            return False
+        names = {p.name for p in core.list_profiles()}
+        if name not in names or core.active_profile_name() == name:
+            return False
+        settings = settings or load_settings()
+        target = self.states.get(name)
+        problem = None
+        if target is None or target.fetched_at is None \
+                or now.timestamp() - target.fetched_at > autoswitch.STALE_S:
+            problem = "données trop anciennes"
+        elif target.blocking_error:
+            problem = target.blocking_error
+        elif effective_percent(target.session, now) >= 95 \
+                or target.other_max_effective(now) >= settings["auto_switch"]["target_max_weekly"]:
+            problem = "presque épuisé"
+        if problem:
+            self.notifier(alerts.Alert(f"refus:{name}:{now.timestamp():.0f}",
+                                       f"{name} n'est plus un bon choix", f"Bascule annulée : {problem}.", 1))
+            return False
+        r = core.run_ccs(["use", name])
+        if r.returncode != 0:
+            self.store.add_event(now.timestamp(), "error", name,
+                                 {"op": "notification", "message": (r.stderr or r.stdout).strip()})
+            return False
+        self.store.add_event(now.timestamp(), "switch", name, {"mode": "manual", "via": "notification"})
+        return True
+
+    def on_sessions(self, settings, now):
+        """Compare l'état des sessions Claude Code et prévient quand l'une finit ou attend."""
+        with self.sessions_lock:
+            self._on_sessions(settings, now)
+
+    def _on_sessions(self, settings, now):
+        from . import sessions
+        cur = sessions.list_sessions()
+        prev, self.prev_sessions = self.prev_sessions, {s.pid: s for s in cur}
+        if prev is None or not (settings["alerts"]["enabled"] and settings["alerts"]["sessions"]):
+            return
+        ts = now.timestamp()
+        for s, kind in sessions.transitions(prev, cur, ts):
+            if ts - self.session_notified.get(s.pid, 0) < SESSION_NOTIFY_GAP_S:
+                continue
+            self.session_notified[s.pid] = ts
+            if kind == "waiting":
+                title = f"{s.project} attend ta réponse"
+                body = f"Session {s.name}" + (f" — {s.waiting_for}" if s.waiting_for else "")
+            else:
+                title, body = f"{s.project} a terminé", f"Session {s.name} — prête pour la suite."
+            self.notifier(alerts.Alert(f"session:{s.pid}:{ts:.0f}", title, body, 1))
 
     def detect_manual_switch(self, now):
         active = core.active_profile_name()
@@ -175,6 +246,11 @@ class Daemon:
         for a in pending:
             self.notifier(a)
             self.store.add_event(now.timestamp(), "alert", None, {"key": a.key, "title": a.title})
+
+        try:
+            self.on_sessions(settings, now)
+        except Exception:
+            log.exception("suivi des sessions en échec")
 
         for hook in self.hooks:
             try:
@@ -347,6 +423,18 @@ def run():
     pid_file.flush()
     clean_warmup_leftovers()
     d = Daemon(Store())
+    from . import desktop, sessions
+
+    def now_utc():
+        return datetime.now(timezone.utc)
+
+    def on_action(key):
+        if d.handle_action(key, now_utc()):
+            wake.set()
+    bridge = desktop.Bridge(on_action, lambda: d.on_sessions(load_settings(), now_utc()),
+                            sessions.sessions_dir())
+    bridge.start()
+    d.notifier = bridge.send
     try:
         from . import warmup
         d.hooks.append(warmup.hook)
@@ -375,6 +463,18 @@ def run():
         pid_file.close()
     log.info("daemon arrêté")
     return exit_code
+
+
+def observe_once():
+    """Relevé et état partagé seulement : aucune bascule, alerte ni démarrage."""
+    d = Daemon(Store(), notifier=lambda _a: None, starter=lambda *_: None)
+    s = load_settings()
+    s["auto_switch"]["enabled"] = False
+    s["orchestrator"]["enabled"] = False
+    s["alerts"]["enabled"] = False
+    d.prev_sessions = {}
+    d.tick(s, datetime.now(timezone.utc))
+    return 0
 
 
 def collect_once():

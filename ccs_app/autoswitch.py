@@ -99,6 +99,24 @@ def decide(accounts, active, fc, settings, now, events, poll_s, reserve=frozense
                     f"tous les comptes sont presque épuisés ; {nxt}", active, source_reset)
 
 
+def rescue(accounts, active, settings, now, reserve=frozenset()):
+    """Bascule de secours quand une session vient d'être bloquée (limite atteinte) :
+    pas de seuil ni de délai, mais une cible aux données fraîches et sans erreur
+    bloquante, sous 95 % de session et de semaine."""
+    ts = now.timestamp()
+    eligible = [a for a in accounts if a.name != active and not a.blocking_error
+                and a.fetched_at is not None and ts - a.fetched_at <= STALE_S]
+    rec = best_account(eligible, now, max_session=95,
+                       max_weekly=settings["auto_switch"]["target_max_weekly"], reserve=reserve)
+    if rec:
+        return Decision("switch", rec.name, f"{active} bloqué → {rec.name} ({rec.reason})", active, None)
+    upcoming = sorted((t, a.name) for a in accounts if a.name != active and a.limits
+                      for t in [_blocked_until(a, now, 95, 95)] if t)
+    nxt = (f"prochain disponible : {upcoming[0][1]} à {upcoming[0][0].astimezone():%H:%M}"
+           if upcoming else "pas de prochaine disponibilité connue")
+    return Decision("exhausted", None, nxt, active, None)
+
+
 def execute(decision, store, now, mode="auto"):
     if decision.action != "switch":
         return False
