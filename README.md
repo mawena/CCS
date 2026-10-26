@@ -50,8 +50,9 @@ Pendant ta plage horaire (par défaut 8 h → 2 h), il applique quatre règles :
 
 1. **Enchaîner** — chaque compte a toujours une fenêtre de 5 h ouverte : dès
    qu'une fenêtre se termine, une requête minimale (Haiku) démarre la suivante.
-2. **Décaler** — les comptes sont décalés de 5 h ÷ nombre de comptes, recalés
-   chaque matin :
+2. **Décaler** — les fenêtres des comptes sont espacées de 5 h ÷ nombre de
+   comptes : un compte au repos attend que l'écart avec la dernière fenêtre
+   démarrée soit atteint (il reste utilisable à tout moment entre-temps) :
 
    ```
    perso   08:00 ━━━━━━━━━ 13:00 ━━━━━━━━━ 18:00 ━━━━━━━━━ 23:00 ━━━
@@ -106,8 +107,10 @@ Le service démarre ensuite seul à chaque session, l'indicateur aussi.
 `gnome-extensions enable ubuntu-appindicators@ubuntu.com` (ou bouton dans
 Réglages).
 
-**Mise à jour depuis 0.1.0** : installe le nouveau `.deb` puis
-`systemctl --user restart ccs-daemon`. Tes profils sont conservés.
+**Mise à jour** : installe le nouveau `.deb`. À partir de 0.2.1, le service
+se relance seul avec la nouvelle version (dans les 5 min) ; depuis une version
+plus ancienne, lance une fois `systemctl --user restart ccs-daemon`. Tes
+profils sont conservés.
 
 ### Depuis les sources
 

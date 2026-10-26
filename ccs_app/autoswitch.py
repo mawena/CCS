@@ -73,7 +73,7 @@ def decide(accounts, active, fc, settings, now, events, poll_s, reserve=frozense
     # Une cible doit avoir des données fraîches et sans erreur (jeton révoqué,
     # réseau…) : on ne bascule jamais sur la foi d'un vieux pourcentage.
     eligible = [a for a in accounts if a.name == active or
-                (not a.error and a.fetched_at is not None and ts - a.fetched_at <= STALE_S)]
+                (not a.blocking_error and a.fetched_at is not None and ts - a.fetched_at <= STALE_S)]
     source_reset = act.session.resets_at.timestamp() if act.session and act.session.resets_at else None
     rec = best_account(eligible, now, exclude,
                        max_session=cfg["target_max_session"], max_weekly=cfg["target_max_weekly"],

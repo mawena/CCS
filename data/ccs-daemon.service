@@ -7,7 +7,7 @@ After=graphical-session.target
 Type=simple
 ExecStart=/usr/bin/claude-accounts daemon
 Restart=on-failure
-RestartSec=30
+RestartSec=5
 
 [Install]
 WantedBy=default.target

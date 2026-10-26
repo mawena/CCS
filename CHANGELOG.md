@@ -3,6 +3,22 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.2.1] — 2026-10-26
+
+### Corrigé
+
+- Une fenêtre démarrée par l'orchestrateur est reconnue même à 0 % d'usage
+  (l'API renvoie 0 % avec une heure de fin juste après un démarrage).
+- Le décalage entre comptes se calcule à partir des démarrages réels : deux
+  comptes au repos ne démarrent plus ensemble, l'écart de 5 h ÷ N se rétablit
+  dans la journée.
+- Une erreur passagère de l'API d'usage (429, 5xx, réseau) ne fait plus oublier
+  un compte : ses dernières données restent valables 10 min et sa fenêtre
+  compte pour l'écart. Après une 429, le compte n'est réinterrogé qu'au bout de
+  5 min.
+- Le service se relance de lui-même après une mise à jour du paquet (il gardait
+  l'ancien code en mémoire).
+
 ## [0.2.0] — 2026-10-26
 
 ### Ajouté
