@@ -1,9 +1,9 @@
-.TH CLAUDE-ACCOUNTS 1 "octobre 2026" "ccs 0.1.0" "Commandes utilisateur"
+.TH CLAUDE-ACCOUNTS 1 "octobre 2026" "ccs 0.2.0" "Commandes utilisateur"
 .SH NOM
 claude-accounts \- application, service et outils d'usage des comptes Claude Code
 .SH SYNOPSIS
 .B claude-accounts
-[\fBgui\fR|\fBprint\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
+[\fBgui\fR|\fBprint\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
 .SH DESCRIPTION
 Sans argument, ouvre l'application graphique « Comptes Claude » : comptes et
 prévisions, historique, analyse de l'usage local et réglages.
@@ -14,6 +14,12 @@ Application GTK (défaut).
 .TP
 .B print
 Usage de tous les comptes dans le terminal.
+.TP
+.B plan
+Planning de l'orchestrateur.
+.TP
+.B orch on\fR|\fBoff
+Orchestrateur des fenêtres de 5 h.
 .TP
 .B status
 Résumé : compte actif, prévision, meilleur compte, capacité, service.

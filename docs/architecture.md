@@ -25,7 +25,8 @@
 | `autoswitch` | Décision de bascule (pure) et exécution via `ccs use` |
 | `alerts` / `notify` | Quoi notifier (pur, anti-doublon par fenêtre) / envoi D-Bus |
 | `daemon` | Boucle : relevés, prévisions, décision, alertes, warm-up, écriture de `state.json` |
-| `warmup` | Créneaux et requête minimale dans un `CLAUDE_CONFIG_DIR` temporaire |
+| `orchestrator` | Fonctions pures : plage horaire, créneaux décalés, démarrages dus, bascule vers le quota qui expire, réserve, planning, prochain réveil |
+| `warmup` | Créneaux fixes et requête minimale dans un `CLAUDE_CONFIG_DIR` temporaire (utilisée aussi par l'orchestrateur) |
 | `transcripts` | Lecture des journaux locaux, agrégats, conseils |
 | `gui/` | Application GTK 4 / libadwaita (onglets) |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) |
@@ -49,6 +50,11 @@ l'application et l'indicateur l'appellent.
 
 Relevé de tous les comptes toutes les 5 min ; du seul compte actif toutes les
 minutes s'il dépasse 85 % ou si la fin de session est estimée à moins de 15 min.
+Orchestrateur actif : réveil 30 s après la prochaine fin de fenêtre ou le
+prochain créneau de démarrage (au plus tôt dans 30 s).
+
+Ordre des décisions à chaque tick : bascule à seuil (98 %) ; sinon bascule
+anticipée vers le quota qui expire ; puis démarrages de fenêtres ; puis alertes.
 `SIGUSR1` déclenche un relevé immédiat (bouton Actualiser, `claude-accounts
 collect`).
 
@@ -62,6 +68,9 @@ collect`).
   "best": {"name": "pro", "reason": "au repos, semaine à 22 %"},
   "auto_switch": {"enabled": true, "decision": {"action": "none", "target": null, "reason": "…"},
                   "last": {"ts": 0, "profile": "perso", "mode": "manual"}},
+  "orchestrator": {"enabled": true, "active_now": true, "period": ["…", "…"],
+                   "reserve": ["boulot"], "next_wake": "…",
+                   "plan": [{"name": "perso", "start": "…", "end": "…", "kind": "current|planned"}]},
   "accounts": [{
     "name": "perso", "email": "…", "org": "…", "plan": "pro", "active": true,
     "error": null, "fetched_at": 1793000000.0,

@@ -46,6 +46,36 @@ Garde-fous :
 Les sessions Claude Code ouvertes suivent à leur prochaine requête. Si une
 session a déjà atteint la limite avant la bascule, tape « continue ».
 
+## Orchestrateur
+
+Désactivé par défaut : `ccs orch on`, l'interrupteur de l'onglet **Planning**
+ou **Réglages → Orchestrateur**.
+
+Pendant la **plage horaire** (8 h → 2 h par défaut, jours réglables ; une plage
+peut passer minuit), il :
+
+- **démarre** chaque compte au repos à son créneau du jour, puis **enchaîne**
+  ses fenêtres : dès qu'une fenêtre se termine, la suivante démarre (requête
+  minimale à Haiku, dans un dossier de configuration temporaire) ;
+- **décale** les comptes : le premier créneau du compte n° k (ordre
+  alphabétique) est `début de plage + k × 5 h ÷ N`. Ton propre usage peut
+  décaler la grille dans la journée ; elle est recalée chaque matin ;
+- **bascule vers le quota qui expire** : un compte dont la fenêtre se termine
+  dans moins de 60 min avec au moins 30 % restants passe devant, si sa fin est
+  plus proche que celle du compte actif (au plus une fois toutes les 30 min,
+  jamais juste après une bascule manuelle) ;
+- **met en réserve** un compte en avance de plus de 10 points sur le rythme de
+  sa semaine : il ne sert qu'en dernier. Un compte à 95 % de sa semaine n'est
+  plus démarré.
+
+Un compte en erreur (connexion expirée, réseau) ou aux données de plus de
+10 minutes n'est jamais démarré ni choisi. Une tentative de démarrage par compte
+au plus toutes les 15 minutes.
+
+**Planning.** `ccs plan` ou l'onglet **Planning** : frise par compte (fenêtre en
+cours remplie selon l'usage, fenêtres prévues en pointillés, trait rouge =
+maintenant) et liste des recharges à venir.
+
 ## Alertes
 
 Réglables dans l'onglet **Réglages** : seuils 80 % / 95 % du compte actif, fin
@@ -53,9 +83,9 @@ de session estimée dans moins de 20 min, avance hebdomadaire de plus de 15
 points, compte de nouveau disponible, connexion expirée, bascule effectuée ou
 impossible. Chaque alerte n'est envoyée qu'une fois par fenêtre.
 
-## Warm-up
+## Warm-up à heure fixe
 
-Onglet **Réglages → Warm-up** : pour chaque profil, une heure (HH:MM) et des
+Alternative manuelle à l'orchestrateur. Onglet **Réglages → Warm-up** : pour chaque profil, une heure (HH:MM) et des
 jours. À l'heure dite, si la fenêtre de 5 h du compte n'est pas ouverte, CCS
 envoie une requête minimale à Haiku avec ce compte (dans un dossier de
 configuration temporaire : le compte actif n'est pas touché). La fenêtre
