@@ -14,5 +14,5 @@ deb:
 	bash scripts/build-deb.sh
 
 clean:
-	rm -rf dist build debian/ccs debian/.debhelper debian/files debian/*.substvars debian/debhelper-build-stamp
+	rm -rf dist build debian/ccs debian/.debhelper debian/files debian/*.substvars debian/*.debhelper debian/debhelper-build-stamp
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +

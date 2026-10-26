@@ -5,7 +5,7 @@ import time
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from .. import core
+from .. import core, daemon
 from .charts import Sparkline
 from .common import (ask_name, bar_for, caption, clear, now_utc, parse_ts, run_ccs_async)
 
@@ -94,7 +94,10 @@ class AccountsPage(Gtk.ScrolledWindow):
         if decision.get("action") == "exhausted":
             text.append(caption(f"⚠ {decision['reason']}", error=True))
         row.append(text)
-        if best and best["name"] != state.get("active"):
+        if not daemon.state_fresh(state):
+            text.append(caption(f"⚠ Données anciennes ({core.fmt_time(state.get('updated_at'))}) — "
+                                "actualise avant de choisir un compte", error=True))
+        elif best and best["name"] != state.get("active"):
             use = Gtk.Button(label="Utiliser", css_classes=["suggested-action", "pill"],
                              valign=Gtk.Align.CENTER)
             use.connect("clicked", lambda *_: self.window.switch(best["name"]))

@@ -1,10 +1,12 @@
 """Service de collecte : relevés, prévisions, bascule automatique, alertes, état partagé."""
 
+import fcntl
 import logging
 import os
 import signal
 import sys
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from . import alerts, autoswitch, core, notify
@@ -189,20 +191,37 @@ class Daemon:
 # Processus
 # --------------------------------------------------------------------------
 
-def _pid_alive(pid):
+STALE_STATE_S = 600
+
+
+def state_fresh(state, now=None):
+    now = time.time() if now is None else now
+    updated = (state or {}).get("updated_at")
+    return bool(updated) and now - updated <= STALE_STATE_S
+
+
+def _is_our_daemon(pid):
     try:
         with open(f"/proc/{pid}/cmdline", "rb") as f:
-            return b"daemon" in f.read()
+            cmd = f.read()
     except OSError:
         return False
+    return b"daemon" in cmd and (b"claude-accounts" in cmd or b"ccs_app" in cmd)
 
 
 def running_pid():
+    """Pid du daemon, seulement s'il tient le verrou du fichier pid (pas de pid recyclé)."""
     try:
-        pid = int(pid_path().read_text().strip())
+        with open(pid_path(), "r+") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                pid = int(f.read().strip() or 0)
+                return pid if pid and _is_our_daemon(pid) else None
+            fcntl.flock(f, fcntl.LOCK_UN)
+            return None
     except (OSError, ValueError):
         return None
-    return pid if _pid_alive(pid) else None
 
 
 def request_refresh():
@@ -217,17 +236,23 @@ def request_refresh():
 def run():
     logging.basicConfig(level=logging.INFO, stream=sys.stderr,
                         format="%(levelname)s %(name)s: %(message)s")
-    other = running_pid()
-    if other and other != os.getpid():
-        log.error("daemon déjà lancé (pid %s)", other)
-        return 1
-    core.paths().store.mkdir(mode=0o700, parents=True, exist_ok=True)
-    pid_path().write_text(str(os.getpid()))
     wake = threading.Event()
     stop = threading.Event()
+    # Gestionnaires posés avant d'annoncer le pid : un SIGUSR1 précoce ne tue pas le daemon.
     signal.signal(signal.SIGUSR1, lambda *_: wake.set())
     signal.signal(signal.SIGTERM, lambda *_: (stop.set(), wake.set()))
     signal.signal(signal.SIGINT, lambda *_: (stop.set(), wake.set()))
+    core.paths().store.mkdir(mode=0o700, parents=True, exist_ok=True)
+    pid_file = open(pid_path(), "a+")
+    try:
+        fcntl.flock(pid_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        log.error("daemon déjà lancé (pid %s)", running_pid())
+        return 1
+    pid_file.seek(0)
+    pid_file.truncate()
+    pid_file.write(str(os.getpid()))
+    pid_file.flush()
     d = Daemon(Store())
     try:
         from . import warmup
@@ -245,11 +270,9 @@ def run():
             wake.wait(delay)
             wake.clear()
     finally:
-        try:
-            if pid_path().read_text().strip() == str(os.getpid()):
-                pid_path().unlink()
-        except OSError:
-            pass
+        pid_file.seek(0)
+        pid_file.truncate()
+        pid_file.close()
     log.info("daemon arrêté")
     return 0
 

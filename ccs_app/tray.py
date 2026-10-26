@@ -111,7 +111,7 @@ def run():
         active = _active_account(state)
         menu.append(Gtk.SeparatorMenuItem())
         if best:
-            if best["name"] != state.get("active"):
+            if best["name"] != state.get("active") and daemon.state_fresh(state):
                 menu.append(item(f"Basculer sur le meilleur : {best['name']}",
                                  lambda i, n=best["name"]: use(i, n)))
             menu.append(item(best["reason"], sensitive=False))

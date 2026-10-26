@@ -233,24 +233,33 @@ def access_token(name, force_refresh=False):
     """
     p = paths()
     with store_lock():
-        active = active_profile_name() == name
         pfile = p.store / name / "oauth.json"
-        oauth = (load_json(p.creds) if active else load_json(pfile)).get("claudeAiOauth") or {}
+        live = load_json(p.creds).get("claudeAiOauth") or {}
+        stored = load_json(pfile).get("claudeAiOauth") or {}
+        # Actif si ~/.claude.json le désigne, ou si son jeton est celui du fichier
+        # vivant (fichier ~/.claude.json en cours de réécriture, bascule en cours…).
+        active = (active_profile_name() == name or
+                  (live.get("refreshToken") and live.get("refreshToken") == stored.get("refreshToken")))
+        oauth = live if active else stored
         if not oauth.get("refreshToken"):
             raise UsageError("aucun jeton enregistré pour ce profil")
         fresh = oauth.get("expiresAt", 0) - time.time() * 1000 > EXPIRY_MARGIN_MS
         if fresh and not force_refresh:
             return oauth["accessToken"]
+        if live_logged_in() and live_account() is None:
+            raise UsageError("compte connecté illisible pour l'instant ; nouvel essai au prochain relevé")
         if active and claude_running():
             raise UsageError("jeton expiré ; Claude Code le renouvellera à sa prochaine requête")
+        old_refresh = oauth["refreshToken"]
         new = refresh_tokens(oauth)
-        if active:
-            creds = load_json(p.creds)
+        creds = load_json(p.creds)
+        if (creds.get("claudeAiOauth") or {}).get("refreshToken") == old_refresh:
             creds["claudeAiOauth"] = new
             atomic_write_json(p.creds, creds)
         prof = load_json(pfile)
-        prof["claudeAiOauth"] = new
-        atomic_write_json(pfile, prof)
+        if (prof.get("claudeAiOauth") or {}).get("refreshToken") in (old_refresh, None) or not active:
+            prof["claudeAiOauth"] = new
+            atomic_write_json(pfile, prof)
         return new["accessToken"]
 
 
@@ -367,7 +376,10 @@ def fmt_time(ts):
 def ccs_bin():
     if os.environ.get("CCS_BIN"):
         return os.environ["CCS_BIN"]
-    sibling = Path(__file__).resolve().parent.parent / "bin" / "ccs"
+    here = Path(__file__)
+    if here.parts[:4] == ("/", "usr", "lib", "ccs"):
+        return "/usr/bin/ccs"  # version installée : jamais une ancienne copie du PATH
+    sibling = here.resolve().parent.parent / "bin" / "ccs"
     if sibling.exists():
         return str(sibling)
     return shutil.which("ccs") or "/usr/bin/ccs"

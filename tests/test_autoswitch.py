@@ -128,3 +128,26 @@ class ExecuteTest(unittest.TestCase):
         store = mock.Mock()
         self.assertFalse(autoswitch.execute(Decision("none", None, "", None, None), store, NOW))
         store.add_event.assert_not_called()
+
+
+class TargetEligibilityTest(unittest.TestCase):
+    """Revue finale C2 : une cible périmée ou en erreur n'est jamais choisie."""
+
+    def setUp(self):
+        self.settings = copy.deepcopy(DEFAULTS)
+
+    def test_stale_target_is_never_chosen(self):
+        accounts = [acc("perso", 99, active=True), acc("pro", 5, age_s=3 * 86400)]
+        d = decide(accounts, "perso", None, self.settings, NOW, [], 60)
+        self.assertNotEqual(d.action, "switch")
+
+    def test_auth_error_target_is_never_chosen(self):
+        revoked = acc("pro", 5)
+        revoked.error = "connexion expirée ou révoquée : supprime ce profil"
+        d = decide([acc("perso", 99, active=True), revoked], "perso", None, self.settings, NOW, [], 60)
+        self.assertNotEqual(d.action, "switch")
+
+    def test_fresh_target_still_chosen_among_stale(self):
+        accounts = [acc("perso", 99, active=True), acc("old", 1, age_s=3600), acc("ok", 30)]
+        d = decide(accounts, "perso", None, self.settings, NOW, [], 60)
+        self.assertEqual(d.target, "ok")

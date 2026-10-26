@@ -83,6 +83,7 @@ def run(name, slot_time, store, now):
     local = now.astimezone()
     detail = {"date": local.date().isoformat(), "time": slot_time}
     tmp = Path(tempfile.mkdtemp(prefix="ccs-warmup-"))
+    oauth = {}
     try:
         os.chmod(tmp, 0o700)
         oauth = _profile_oauth(name)
@@ -98,14 +99,15 @@ def run(name, slot_time, store, now):
         env.pop("ANTHROPIC_API_KEY", None)
         r = subprocess.run([_claude_bin(), "-p", "ok", "--model", "haiku"], env=env,
                            capture_output=True, text=True, timeout=TIMEOUT_S, cwd=tmp)
-        after = core.load_json(tmp / ".credentials.json").get("claudeAiOauth") or {}
-        if after.get("refreshToken") and after["refreshToken"] != oauth.get("refreshToken"):
-            _save_rotated(name, after)
         ok = r.returncode == 0
         detail.update(ok=ok, message=(r.stderr or "").strip()[:200] if not ok else "")
     except (OSError, subprocess.SubprocessError, core.UsageError) as e:
         detail.update(ok=False, message=str(e)[:200])
     finally:
+        # Même interrompu, claude a pu faire tourner le jeton : on le récupère.
+        after = core.load_json(tmp / ".credentials.json").get("claudeAiOauth") or {}
+        if after.get("refreshToken") and after["refreshToken"] != oauth.get("refreshToken"):
+            _save_rotated(name, after)
         shutil.rmtree(tmp, ignore_errors=True)
     store.add_event(now.timestamp(), "warmup", name, detail)
     return detail["ok"]

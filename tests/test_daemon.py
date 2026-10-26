@@ -119,3 +119,22 @@ class DaemonTest(HomeTestCase):
             self.assertEqual(self.d.tick(self.settings, NOW), 300)
         self.assertEqual(calls, [])
         self.assertEqual(self.state()["accounts"], [])
+
+
+class PidTest(HomeTestCase):
+    """Revue finale I1 : un pid recyclé ne doit jamais être pris pour le daemon."""
+
+    def test_running_pid_ignores_unrelated_process(self):
+        import sys
+        p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", "daemon"])
+        self.addCleanup(p.kill)
+        write(self.store / "daemon.pid", str(p.pid))
+        self.assertIsNone(daemon.running_pid())
+        self.assertFalse(daemon.request_refresh())
+        self.assertIsNone(p.poll())  # pas tué par un SIGUSR1
+
+    def test_state_fresh(self):
+        now = NOW.timestamp()
+        self.assertTrue(daemon.state_fresh({"updated_at": now - 60}, now))
+        self.assertFalse(daemon.state_fresh({"updated_at": now - 3600}, now))
+        self.assertFalse(daemon.state_fresh({}, now))

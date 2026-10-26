@@ -25,6 +25,7 @@ c_green=$'\e[32m'; c_dim=$'\e[2m'; c_bold=$'\e[1m'; c_red=$'\e[31m'; c_off=$'\e[
 die() { echo "${c_red}ccs: $*${c_off}" >&2; exit 1; }
 need() { command -v "$1" >/dev/null || die "commande requise introuvable : $1"; }
 need jq
+need flock
 
 umask 077
 mkdir -p "$STORE"
@@ -38,6 +39,11 @@ atomic_write() {
   chmod 600 "$tmp"
   mv -f "$tmp" "$dest"
 }
+
+# Même verrou que la partie Python (renouvellement des jetons) : une bascule ne
+# peut pas croiser un renouvellement en cours et installer un jeton périmé.
+lock_store() { exec 9>"$STORE/.lock"; flock 9; }
+unlock_store() { flock -u 9; exec 9>&-; }
 
 valid_name() { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]] || die "nom de profil invalide : '$1' (lettres, chiffres, . _ -)"; }
 
@@ -138,7 +144,9 @@ cmd_save() {
   if [[ -n "$cur" && "$cur" != "$name" ]]; then
     die "ce compte est déjà enregistré sous '$cur' (ccs rename $cur $name pour le renommer)"
   fi
+  lock_store
   save_live_to "$name"
+  unlock_store
   echo "${c_green}✔${c_off} profil '$name' enregistré : $(describe "$name")"
 }
 
@@ -150,7 +158,9 @@ cmd_add() {
   if live_logged_in && [[ -z "$(active_profile)" ]]; then
     die "le compte actuellement connecté n'est pas enregistré ; fais d'abord 'ccs save <nom>' pour ne pas le perdre"
   fi
+  lock_store
   sync_active
+  unlock_store
   local before; before="$(live_key)"
   echo "Connexion du nouveau compte '$name' (choisis bien un AUTRE compte dans le navigateur)…"
   # Pas de 'claude auth logout' : il révoquerait le token du profil précédent.
@@ -162,7 +172,9 @@ cmd_add() {
   local dup
   dup="$(active_profile)"
   [[ -z "$dup" ]] || die "ce compte est déjà enregistré sous '$dup'"
+  lock_store
   save_live_to "$name"
+  unlock_store
   echo "${c_green}✔${c_off} profil '$name' ajouté et actif : $(describe "$name")"
 }
 
@@ -177,8 +189,10 @@ cmd_use() {
   if live_logged_in && [[ -z "$cur" ]]; then
     die "le compte connecté n'est enregistré dans aucun profil ; 'ccs save <nom>' d'abord"
   fi
+  lock_store
   sync_active
   install_profile "$name"
+  unlock_store
   echo "${c_green}✔${c_off} basculé sur '$name' : $(describe "$name")"
   running_warning
 }

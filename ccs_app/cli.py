@@ -151,7 +151,18 @@ def cmd_best(args):
     if not core.list_profiles():
         print("Aucun profil. Enregistre le compte actuel avec : ccs save <nom>")
         return 1
+    from . import daemon
     st = _state()
+    if not daemon.state_fresh(st):
+        # Jamais de bascule sur la foi d'un état ancien : relevé d'abord.
+        if daemon.request_refresh():
+            import time
+            deadline = time.time() + 20
+            while time.time() < deadline and not daemon.state_fresh(_state()):
+                time.sleep(0.5)
+        else:
+            daemon.collect_once()
+        st = _state()
     best = st.get("best")
     if not best:
         print("Aucun compte disponible pour l'instant.")
@@ -165,7 +176,6 @@ def cmd_best(args):
     r = core.run_ccs(["use", best["name"]])
     print((r.stdout + r.stderr).strip())
     if r.returncode == 0:
-        from . import daemon
         daemon.request_refresh()
     return r.returncode
 

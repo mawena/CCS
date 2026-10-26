@@ -107,3 +107,17 @@ class RunTest(HomeTestCase):
         with mock.patch.object(warmup.subprocess, "run", side_effect=boom):
             self.assertFalse(warmup.run("pro", "07:00", self.db, MONDAY_0703))
         self.assertFalse(self.db.last_event("warmup", "pro").detail["ok"])
+
+
+class WarmupTimeoutTest(RunTest):
+    def test_rotated_token_saved_even_on_timeout(self):
+        def rotate_then_timeout(cmd, env, **kwargs):
+            cfg = Path(env["CLAUDE_CONFIG_DIR"])
+            c = json.loads((cfg / ".credentials.json").read_text())
+            c["claudeAiOauth"]["refreshToken"] = "RT-rotated"
+            (cfg / ".credentials.json").write_text(json.dumps(c))
+            raise subprocess.TimeoutExpired(cmd, 120)
+        with mock.patch.object(warmup.subprocess, "run", side_effect=rotate_then_timeout):
+            self.assertFalse(warmup.run("pro", "07:00", self.db, MONDAY_0703))
+        saved = json.loads((self.store / "pro" / "oauth.json").read_text())
+        self.assertEqual(saved["claudeAiOauth"]["refreshToken"], "RT-rotated")

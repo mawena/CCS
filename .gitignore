@@ -8,3 +8,5 @@ debian/files
 debian/*.substvars
 debian/*.debhelper.log
 debian/debhelper-build-stamp
+debian/*.debhelper
+debian/*.debhelper.log

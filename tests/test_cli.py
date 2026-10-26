@@ -97,3 +97,20 @@ class PrintTest(HomeTestCase):
             code, out = run("print")
         self.assertIn("Limite estimée vers", out)
         self.assertIn("budget 16 %/jour", out)
+
+
+class BestFreshnessTest(HomeTestCase):
+    """Revue finale I3 : ne pas basculer sur un état ancien."""
+
+    def test_best_collects_first_when_state_is_stale(self):
+        from ccs_app import daemon
+        st = dict(STATE, updated_at=time.time() - 3 * 3600)
+        write(self.store / "state.json", st)
+        fresh = dict(STATE, updated_at=time.time(), best={"name": "perso", "reason": "r"})
+        with mock.patch.object(daemon, "collect_once",
+                               side_effect=lambda: write(self.store / "state.json", fresh)) as c, \
+                mock.patch.object(core, "run_ccs") as rc:
+            code, out = run("best", "--switch")
+        c.assert_called_once()
+        rc.assert_not_called()
+        self.assertIn("déjà", out)

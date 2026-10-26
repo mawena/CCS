@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from unittest import mock
 
 from ccs_app import core
 from tests.helpers import HomeTestCase, fake_http, write
@@ -120,3 +121,54 @@ class NumberTest(HomeTestCase):
         self.assertEqual(core.fr(1.06), "1,1")
         self.assertEqual(core.fr(3.0, 1), "3,0")
         self.assertEqual(core.fr(16.25, 0), "16")
+
+
+class TokenSafetyTest(HomeTestCase):
+    """Revue finale C1 / I2 : ne jamais écrire ou renouveler le mauvais jeton."""
+
+    def expire(self, path):
+        data = json.loads(path.read_text())
+        data["claudeAiOauth"]["expiresAt"] = 0
+        write(path, data)
+
+    def test_refresh_does_not_overwrite_live_creds_changed_meanwhile(self):
+        creds = self.home / ".claude" / ".credentials.json"
+        self.expire(creds)
+
+        def refresh(oauth):
+            # Pendant l'appel réseau, le fichier vivant change (autre compte installé).
+            other = json.loads(creds.read_text())
+            other["claudeAiOauth"]["refreshToken"] = "RT-autre"
+            write(creds, other)
+            return dict(oauth, accessToken="AT-new", refreshToken="RT-new", expiresAt=9e15)
+        with mock.patch.object(core, "refresh_tokens", side_effect=refresh):
+            core.access_token("perso")
+        self.assertEqual(json.loads(creds.read_text())["claudeAiOauth"]["refreshToken"], "RT-autre")
+
+    def test_no_refresh_when_live_account_unreadable(self):
+        write(self.home / ".claude.json", {"numStartups": 1})  # oauthAccount absent
+        # Copie du profil actif périmée : Claude Code a déjà fait tourner le jeton vivant.
+        path = self.store / "perso" / "oauth.json"
+        data = json.loads(path.read_text())
+        data["claudeAiOauth"].update(refreshToken="RT-ancien", expiresAt=0)
+        write(path, data)
+        with fake_http({}) as calls:
+            with self.assertRaises(core.UsageError):
+                core.access_token("perso")
+        self.assertEqual(calls, [])
+
+    def test_profile_with_live_refresh_token_counts_as_active(self):
+        # ~/.claude.json désigne pro, mais le jeton vivant est encore celui de perso.
+        write(self.home / ".claude.json",
+              {"oauthAccount": json.loads((self.store / "pro" / "account.json").read_text())})
+        self.expire(self.store / "perso" / "oauth.json")
+        self.claude_running.return_value = True
+        with fake_http({}) as calls:
+            # Traité comme actif : jeton vivant (valide) renvoyé, rien n'est renouvelé.
+            self.assertEqual(core.access_token("perso"), "AT-perso")
+        self.assertEqual(calls, [])
+
+    def test_ccs_bin_prefers_system_ccs_when_installed(self):
+        with mock.patch.object(core, "__file__", "/usr/lib/ccs/ccs_app/core.py"), \
+                mock.patch.dict(os.environ, {"CCS_BIN": ""}):
+            self.assertEqual(core.ccs_bin(), "/usr/bin/ccs")

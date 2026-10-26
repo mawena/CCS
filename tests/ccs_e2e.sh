@@ -64,4 +64,18 @@ out="$("$CCS" status)"; expect "$out" "Bascule automatique : désactivée"
 out="$("$CCS" auto on)"; expect "$out" "activée"
 out="$("$CCS" help)"; expect "$out" "ccs best"
 
+# Revue finale C1 : `ccs use` attend le verrou tenu par le service.
+g="$HOME/.claude.json"
+jq --slurpfile a "$HOME/.claude-accounts/perso/account.json" '.oauthAccount=$a[0]' "$g" >"$g.t" && mv "$g.t" "$g"
+"$CCS" add lockb >/dev/null            # faux login : compte B, devient actif
+flock "$HOME/.claude-accounts/.lock" sleep 2 &
+locker=$!
+sleep 0.3
+start=$(date +%s%N)
+"$CCS" perso >/dev/null
+elapsed=$(( ($(date +%s%N) - start) / 1000000 ))
+wait $locker
+(( elapsed >= 1200 )) || fail "ccs n'a pas attendu le verrou (${elapsed} ms)"
+[[ "$("$CCS" current)" == perso ]] || fail "bascule après verrou"
+
 echo "OK ccs_e2e"

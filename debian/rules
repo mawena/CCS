@@ -13,7 +13,7 @@ override_dh_install:
 	dh_install
 	find debian/ccs/usr/lib/ccs -name __pycache__ -type d -prune -exec rm -rf {} +
 
-# Unité systemd utilisateur (hors séquence par défaut en compat 13) : installée
-# et activée pour tous les utilisateurs.
-execute_after_dh_installsystemd:
+# Unité systemd utilisateur (debian/ccs.ccs-daemon.user.service) : installée et
+# activée pour tous les utilisateurs.
+override_dh_installsystemduser:
 	dh_installsystemduser --name=ccs-daemon
