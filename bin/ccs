@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+# ccs — Claude Code account Switcher
+# Gère plusieurs comptes Claude Code sur ce PC et bascule de l'un à l'autre.
+#
+# Principe : chaque profil stocke le token OAuth (claudeAiOauth) et les infos
+# du compte (oauthAccount). Basculer = réinjecter ces données dans
+# ~/.claude/.credentials.json et ~/.claude.json. Settings, historique, plugins,
+# MCP, projets restent partagés entre tous les comptes.
+
+set -euo pipefail
+
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+CREDS="$CONFIG_DIR/.credentials.json"
+if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
+  GLOBAL="$CLAUDE_CONFIG_DIR/.claude.json"
+else
+  GLOBAL="$HOME/.claude.json"
+fi
+STORE="${CCS_HOME:-$HOME/.claude-accounts}"
+
+c_green=$'\e[32m'; c_dim=$'\e[2m'; c_bold=$'\e[1m'; c_red=$'\e[31m'; c_off=$'\e[0m'
+[[ -t 1 ]] || { c_green=; c_dim=; c_bold=; c_red=; c_off=; }
+
+die() { echo "${c_red}ccs: $*${c_off}" >&2; exit 1; }
+need() { command -v "$1" >/dev/null || die "commande requise introuvable : $1"; }
+need jq
+
+umask 077
+mkdir -p "$STORE"
+
+# Écrit stdin dans $1 de façon atomique en conservant des droits 600.
+atomic_write() {
+  local dest="$1" tmp
+  tmp="$(mktemp "$dest.ccs.XXXXXX")"
+  cat >"$tmp"
+  jq empty "$tmp" 2>/dev/null || { rm -f "$tmp"; die "JSON invalide généré pour $dest"; }
+  chmod 600 "$tmp"
+  mv -f "$tmp" "$dest"
+}
+
+valid_name() { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]] || die "nom de profil invalide : '$1' (lettres, chiffres, . _ -)"; }
+
+profiles() { find "$STORE" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort; }
+
+live_logged_in() {
+  [[ -f "$CREDS" ]] && jq -e '.claudeAiOauth.refreshToken // empty' "$CREDS" >/dev/null 2>&1
+}
+
+# Identifiant "compte+org" du compte actuellement connecté.
+live_key() {
+  [[ -f "$GLOBAL" ]] || return 0
+  jq -r '.oauthAccount | if . then "\(.accountUuid)|\(.organizationUuid)" else empty end' "$GLOBAL"
+}
+
+profile_key() {
+  jq -r '"\(.accountUuid)|\(.organizationUuid)"' "$STORE/$1/account.json" 2>/dev/null
+}
+
+# Nom du profil correspondant au compte connecté (vide si aucun).
+active_profile() {
+  local key p
+  key="$(live_key)"
+  [[ -n "$key" ]] || return 0
+  for p in $(profiles); do
+    [[ "$(profile_key "$p")" == "$key" ]] && { echo "$p"; return 0; }
+  done
+  return 0
+}
+
+# Copie l'état de connexion actuel dans le profil $1.
+save_live_to() {
+  local name="$1" dir="$STORE/$1"
+  live_logged_in || die "aucun compte Claude connecté (lance 'claude auth login' ou 'ccs add <nom>')"
+  jq -e '.oauthAccount' "$GLOBAL" >/dev/null 2>&1 || die "oauthAccount absent de $GLOBAL"
+  mkdir -p "$dir"
+  jq '{claudeAiOauth, organizationUuid}' "$CREDS" | atomic_write "$dir/oauth.json"
+  jq '.oauthAccount' "$GLOBAL" | atomic_write "$dir/account.json"
+}
+
+# Avant de basculer : les tokens sont renouvelés en continu par Claude Code,
+# donc on resynchronise le profil actif pour ne jamais garder un token périmé.
+sync_active() {
+  local cur
+  cur="$(active_profile)"
+  if [[ -n "$cur" ]] && live_logged_in; then
+    save_live_to "$cur"
+  fi
+}
+
+install_profile() {
+  local name="$1" dir="$STORE/$1"
+  [[ -f "$dir/oauth.json" && -f "$dir/account.json" ]] || die "profil inconnu : $name (voir 'ccs list')"
+  mkdir -p "$CONFIG_DIR"
+  [[ -f "$CREDS" ]] || echo '{}' | atomic_write "$CREDS"
+  [[ -f "$GLOBAL" ]] || echo '{}' | atomic_write "$GLOBAL"
+  # On ne remplace que la partie compte : les tokens MCP (mcpOAuth) etc. restent.
+  jq --slurpfile p "$dir/oauth.json" '. + $p[0]' "$CREDS" | atomic_write "$CREDS"
+  jq --slurpfile a "$dir/account.json" '.oauthAccount = $a[0]' "$GLOBAL" | atomic_write "$GLOBAL"
+}
+
+describe() {
+  jq -r --arg d "$c_dim" --arg o "$c_off" '"\(.emailAddress // "?")  \($d)\(.organizationName // "")\($o)"' "$STORE/$1/account.json" 2>/dev/null
+}
+
+plan_of() {
+  jq -r '.claudeAiOauth.subscriptionType // "?"' "$STORE/$1/oauth.json" 2>/dev/null
+}
+
+running_warning() {
+  local n
+  n="$(pgrep -u "$(id -u)" -xc claude 2>/dev/null || true)"
+  if [[ "${n:-0}" -gt 0 ]]; then
+    echo "${c_dim}⚠ $n session(s) Claude Code ouverte(s) : relance-les pour qu'elles utilisent le nouveau compte.${c_off}"
+  fi
+}
+
+cmd_list() {
+  local cur p mark
+  cur="$(active_profile)"
+  if [[ -z "$(profiles)" ]]; then
+    echo "Aucun profil. Enregistre le compte actuel avec : ccs save <nom>"
+    return
+  fi
+  for p in $(profiles); do
+    if [[ "$p" == "$cur" ]]; then mark="${c_green}●${c_off}"; else mark=" "; fi
+    printf '%s %s%-14s%s %-6s %s\n' "$mark" "$c_bold" "$p" "$c_off" "$(plan_of "$p")" "$(describe "$p")"
+  done
+  if [[ -z "$cur" ]] && live_logged_in; then
+    echo "${c_dim}(le compte connecté n'est enregistré dans aucun profil : ccs save <nom>)${c_off}"
+  fi
+}
+
+cmd_save() {
+  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs save <nom>"
+  valid_name "$name"
+  local cur; cur="$(active_profile)"
+  if [[ -n "$cur" && "$cur" != "$name" ]]; then
+    die "ce compte est déjà enregistré sous '$cur' (ccs rename $cur $name pour le renommer)"
+  fi
+  save_live_to "$name"
+  echo "${c_green}✔${c_off} profil '$name' enregistré : $(describe "$name")"
+}
+
+cmd_add() {
+  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs add <nom> [--email adresse] [--console]"
+  shift
+  valid_name "$name"
+  [[ ! -d "$STORE/$name" ]] || die "le profil '$name' existe déjà"
+  if live_logged_in && [[ -z "$(active_profile)" ]]; then
+    die "le compte actuellement connecté n'est pas enregistré ; fais d'abord 'ccs save <nom>' pour ne pas le perdre"
+  fi
+  sync_active
+  local before; before="$(live_key)"
+  echo "Connexion du nouveau compte '$name' (choisis bien un AUTRE compte dans le navigateur)…"
+  # Pas de 'claude auth logout' : il révoquerait le token du profil précédent.
+  claude auth login "$@"
+  local after; after="$(live_key)"
+  if [[ -n "$before" && "$before" == "$after" ]]; then
+    die "c'est le même compte que celui déjà connecté ; rien n'a été ajouté"
+  fi
+  local dup
+  dup="$(active_profile)"
+  [[ -z "$dup" ]] || die "ce compte est déjà enregistré sous '$dup'"
+  save_live_to "$name"
+  echo "${c_green}✔${c_off} profil '$name' ajouté et actif : $(describe "$name")"
+}
+
+cmd_use() {
+  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs use <nom>"
+  [[ -d "$STORE/$name" ]] || die "profil inconnu : $name (voir 'ccs list')"
+  local cur; cur="$(active_profile)"
+  if [[ "$cur" == "$name" ]]; then
+    echo "Déjà sur '$name' : $(describe "$name")"
+    return
+  fi
+  if live_logged_in && [[ -z "$cur" ]]; then
+    die "le compte connecté n'est enregistré dans aucun profil ; 'ccs save <nom>' d'abord"
+  fi
+  sync_active
+  install_profile "$name"
+  echo "${c_green}✔${c_off} basculé sur '$name' : $(describe "$name")"
+  running_warning
+}
+
+cmd_next() {
+  local all cur i n
+  mapfile -t all < <(profiles)
+  n="${#all[@]}"
+  [[ "$n" -gt 0 ]] || die "aucun profil"
+  cur="$(active_profile)"
+  for ((i = 0; i < n; i++)); do
+    if [[ "${all[$i]}" == "$cur" ]]; then
+      cmd_use "${all[$(((i + 1) % n))]}"
+      return
+    fi
+  done
+  cmd_use "${all[0]}"
+}
+
+cmd_rm() {
+  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs rm <nom>"
+  [[ -d "$STORE/$name" ]] || die "profil inconnu : $name"
+  [[ "$(active_profile)" != "$name" ]] || die "'$name' est le compte actif ; bascule d'abord sur un autre"
+  rm -rf -- "${STORE:?}/$name"
+  echo "profil '$name' supprimé (le compte reste valide côté Anthropic)"
+}
+
+cmd_rename() {
+  local old="${1:-}" new="${2:-}"
+  [[ -n "$old" && -n "$new" ]] || die "usage : ccs rename <ancien> <nouveau>"
+  valid_name "$new"
+  [[ -d "$STORE/$old" ]] || die "profil inconnu : $old"
+  [[ ! -e "$STORE/$new" ]] || die "'$new' existe déjà"
+  mv -- "$STORE/$old" "$STORE/$new"
+  echo "'$old' → '$new'"
+}
+
+cmd_current() {
+  local cur; cur="$(active_profile)"
+  if [[ -n "$cur" ]]; then echo "$cur"; else echo "(aucun profil)"; return 1; fi
+}
+
+usage() {
+  cat <<EOF
+${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
+
+  ccs                      liste les profils (● = actif)
+  ccs <nom>                bascule sur le profil <nom>
+  ccs next                 bascule sur le profil suivant (pratique en cas de limite atteinte)
+  ccs save <nom>           enregistre le compte actuellement connecté sous <nom>
+  ccs add <nom> [opts]     connecte un nouveau compte (claude auth login) et l'enregistre
+                           opts : --email <adresse>  --console  --sso
+  ccs usage                affiche l'usage (session / semaine) de TOUS les comptes
+  ccs gui                  ouvre l'application graphique
+  ccs current              affiche le profil actif
+  ccs rename <a> <b>       renomme un profil
+  ccs rm <nom>             supprime un profil
+
+Profils stockés dans : $STORE
+EOF
+}
+
+main() {
+  local cmd="${1:-list}"
+  [[ $# -gt 0 ]] && shift
+  case "$cmd" in
+    list|ls) cmd_list ;;
+    save) cmd_save "$@" ;;
+    add|login) cmd_add "$@" ;;
+    use|switch|sw) cmd_use "$@" ;;
+    next|n) cmd_next ;;
+    current|whoami) cmd_current ;;
+    rm|remove|delete) cmd_rm "$@" ;;
+    rename|mv) cmd_rename "$@" ;;
+    usage|u) exec "$(dirname "$(readlink -f "$0")")/claude-accounts" --print ;;
+    gui|app) setsid -f "$(dirname "$(readlink -f "$0")")/claude-accounts" >/dev/null 2>&1 ;;
+    -h|--help|help) usage ;;
+    *)
+      if [[ -d "$STORE/$cmd" ]]; then cmd_use "$cmd"
+      else echo "${c_red}commande ou profil inconnu : $cmd${c_off}" >&2; usage; exit 1
+      fi ;;
+  esac
+}
+
+main "$@"
