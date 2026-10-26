@@ -47,7 +47,7 @@ def period_bounds(now, hours):
 
 
 def _fresh(a, now):
-    return (not a.error and a.limits and a.fetched_at is not None
+    return (not a.blocking_error and a.limits and a.fetched_at is not None
             and now.timestamp() - a.fetched_at <= STALE_S)
 
 
@@ -83,11 +83,11 @@ def first_slots(accounts, now, cfg):
 
 def starts_due(accounts, now, cfg, store):
     """Comptes au repos dont le créneau est arrivé (une tentative / 15 min)."""
-    slots = first_slots(accounts, now, cfg)
+    first, _ = _schedule(accounts, now, cfg)
     by_name = {a.name: a for a in accounts}
     due = []
-    for name, slot in slots.items():
-        if now < slot or window_open(by_name[name], now):
+    for name, start in first.items():
+        if start > now or window_open(by_name[name], now):
             continue
         history = store.events((now - SESSION_WINDOW).timestamp(), type="warmup", profile=name)
         if any(e.ts >= (now - RETRY).timestamp() for e in history):
@@ -161,35 +161,62 @@ class PlanWindow:
     kind: str  # "current" | "planned"
 
 
-def plan(accounts, now, cfg):
-    bounds = period_bounds(now, cfg["active_hours"])
-    slots = first_slots(accounts, now, cfg)
-    out = []
+def _schedule(accounts, now, cfg):
+    """Calendrier simulé de la période : ({compte: prochain démarrage}, fenêtres).
+
+    Un démarrage n'a lieu que si aucune fenêtre d'un autre compte participant
+    n'a démarré depuis moins de 5 h ÷ N : le décalage se rétablit à partir des
+    démarrages réels (y compris ceux de l'utilisateur), pas d'une grille fixe.
+    """
+    current = []
     for a in sorted(accounts, key=lambda x: x.name):
-        nxt = None
         if window_open(a, now):
             reset = a.session.resets_at
-            out.append(PlanWindow(a.name, reset - SESSION_WINDOW, reset, "current"))
-            nxt = reset
-        elif a.name in slots:
-            nxt = max(now, slots[a.name])
-        if bounds is None or a.name not in slots or nxt is None:
+            current.append(PlanWindow(a.name, reset - SESSION_WINDOW, reset, "current"))
+    bounds = period_bounds(now, cfg["active_hours"])
+    if bounds is None:
+        return {}, current
+    end = bounds[1]
+    slots = first_slots(accounts, now, cfg)
+    order = list(slots)
+    step = SESSION_WINDOW / len(order) if order and cfg["stagger"] else timedelta(0)
+    # Fenêtres connues de tous les comptes encore utilisables cette semaine, même
+    # si leur dernier relevé a échoué : elles comptent pour l'écart.
+    weekly_ok = {a.name for a in accounts
+                 if a.other_max_effective(now) < cfg["max_weekly_start"]}
+    starts = [w.start for w in current if w.name in weekly_ok]
+    cand = {}
+    for name in order:
+        own = next((w for w in current if w.name == name), None)
+        cand[name] = own.end if own else max(now, slots[name])
+    first, planned = {}, []
+    for _ in range(200):
+        if not cand:
+            break
+        name = min(cand, key=lambda n: (cand[n], order.index(n)))
+        t = cand[name]
+        if t >= end:
+            del cand[name]
             continue
-        while nxt < bounds[1]:
-            out.append(PlanWindow(a.name, nxt, nxt + SESSION_WINDOW, "planned"))
-            nxt += SESSION_WINDOW
-    return out
+        need = max((st + step for st in starts if st > t - step and st <= t), default=t)
+        if need > t:
+            cand[name] = need
+            continue
+        first.setdefault(name, t)
+        planned.append(PlanWindow(name, t, t + SESSION_WINDOW, "planned"))
+        starts.append(t)
+        cand[name] = t + SESSION_WINDOW
+    return first, sorted(current + planned, key=lambda w: (w.name, w.start))
+
+
+def plan(accounts, now, cfg):
+    return _schedule(accounts, now, cfg)[1]
 
 
 def next_wake(accounts, now, cfg):
-    """Prochain instant utile : fin d'une fenêtre ou créneau de démarrage (+30 s)."""
-    times = []
-    for a in accounts:
-        if window_open(a, now):
-            times.append(a.session.resets_at)
-    for name, slot in first_slots(accounts, now, cfg).items():
-        if slot > now:
-            times.append(slot)
+    """Prochain instant utile : fin d'une fenêtre ou démarrage prévu (+30 s)."""
+    first, _ = _schedule(accounts, now, cfg)
+    times = [a.session.resets_at for a in accounts if window_open(a, now)]
+    times += list(first.values())
     future = [t for t in times if t > now]
     return min(future) + WAKE_MARGIN if future else None
-

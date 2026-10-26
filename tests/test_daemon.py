@@ -1,4 +1,5 @@
 import json
+import unittest
 import os
 import shutil
 import subprocess
@@ -215,3 +216,30 @@ class ReviewDaemonTest(OrchestratorDaemonTest):
         leftover = tempfile.mkdtemp(prefix="ccs-warmup-")
         daemon.clean_warmup_leftovers()
         self.assertFalse(os.path.exists(leftover))
+
+
+class SelfRestartTest(unittest.TestCase):
+    def test_code_stamp_changes_when_package_updated(self):
+        import tempfile, time as _t
+        d = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(d))
+        p = os.path.join(d, "x.py")
+        open(p, "w").write("a")
+        before = daemon.code_stamp(d)
+        os.utime(p, (_t.time() + 10, _t.time() + 10))
+        self.assertNotEqual(daemon.code_stamp(d), before)
+        self.assertEqual(daemon.EXIT_UPDATED, 75)
+
+
+class RateLimitTest(DaemonTest):
+    def test_rate_limited_account_not_refetched_for_5_min(self):
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            self.d.tick(self.settings, NOW)
+        err = core.UsageError("HTTP 429 : rate limited")
+        with fake_http(per_account(perso=usage(31), pro=err)):
+            self.d.tick(self.settings, NOW + timedelta(minutes=5))
+        self.d.last_full = None  # relevé complet forcé : seul le délai de 5 min doit épargner pro
+        with fake_http(per_account(perso=usage(32), pro=usage(6))) as calls:
+            self.d.tick(self.settings, NOW + timedelta(minutes=7))
+        fetched = [c[3]["Authorization"] for c in calls]
+        self.assertNotIn("Bearer AT-pro", fetched)

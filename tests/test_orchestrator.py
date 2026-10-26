@@ -78,9 +78,10 @@ class SlotsTest(unittest.TestCase):
 class StartsDueTest(unittest.TestCase):
     def test_only_accounts_whose_slot_has_come(self):
         self.assertEqual(orch.starts_due([acc("a"), acc("b")], NOW, cfg(), FakeStore()), ["a"])
+        # Deux comptes au repos : un seul démarre, l'autre attend l'écart de 2 h 30.
         later = local(0, 10, 31)
         accounts = [acc("a", now=later), acc("b", now=later)]
-        self.assertEqual(orch.starts_due(accounts, later, cfg(), FakeStore()), ["a", "b"])
+        self.assertEqual(orch.starts_due(accounts, later, cfg(), FakeStore()), ["a"])
 
     def test_open_window_not_started(self):
         self.assertEqual(orch.starts_due([acc("a", 20, 120), acc("b")], NOW, cfg(), FakeStore()), [])
@@ -147,8 +148,9 @@ class PlanTest(unittest.TestCase):
         windows = orch.plan(accounts, NOW, cfg())
         a = [(w.start, w.end, w.kind) for w in windows if w.name == "a"]
         self.assertEqual(a[0], (local(0, 7), local(0, 12), "current"))
-        self.assertEqual(a[1], (local(0, 12), local(0, 17), "planned"))
-        self.assertEqual(a[-1][0], local(0, 22))   # dernier démarrage avant 02:00
+        # b démarre à 10:30 ; a, ouvert depuis 07:00, attend 13:00 pour garder 2 h 30 d'écart.
+        self.assertEqual(a[1], (local(0, 13), local(0, 18), "planned"))
+        self.assertEqual(a[-1][0], local(0, 23))   # dernier démarrage avant 02:00
         b = [(w.start, w.kind) for w in windows if w.name == "b"]
         self.assertEqual(b[0], (local(0, 10, 30), "planned"))
 
@@ -192,3 +194,51 @@ class ReviewFixesTest(unittest.TestCase):
         night = local(1, 3)
         accounts = [acc("act", 40, 200, active=True, now=night), acc("x", 30, 40, now=night)]
         self.assertIsNone(orch.expiring_decision(accounts, "act", night, cfg(), []))
+
+
+class RestaggerTest(unittest.TestCase):
+    """Constaté le 26/10 : deux comptes au repos en même temps démarraient ensemble."""
+
+    def test_idle_account_waits_for_spacing_after_other_start(self):
+        now = local(0, 12, 30)
+        perso = acc("perso", 10, 290 - 0, now=now, active=True)   # ouverte vers 12:20
+        perso.limits[0].resets_at = local(0, 17, 20)
+        boulot = acc("boulot", now=now)
+        self.assertEqual(orch.starts_due([boulot, perso], now, cfg(), FakeStore()), [])
+        later = local(0, 14, 51)
+        perso2 = acc("perso", 30, None, now=later, active=True)
+        perso2.limits[0].resets_at = local(0, 17, 20)
+        self.assertEqual(orch.starts_due([acc("boulot", now=later), perso2], later, cfg(),
+                                         FakeStore()), ["boulot"])
+
+    def test_two_idle_accounts_start_one_at_a_time(self):
+        now = local(0, 17, 21)
+        due = orch.starts_due([acc("a", now=now), acc("b", now=now)], now, cfg(), FakeStore())
+        self.assertEqual(len(due), 1)
+
+    def test_plan_and_wake_follow_spacing(self):
+        now = local(0, 12, 30)
+        perso = acc("perso", 10, None, now=now, active=True)
+        perso.limits[0].resets_at = local(0, 17, 20)
+        accounts = [acc("boulot", now=now), perso]
+        b = [w.start for w in orch.plan(accounts, now, cfg()) if w.name == "boulot"]
+        self.assertEqual(b[0], local(0, 14, 50))
+        self.assertEqual(orch.next_wake(accounts, now, cfg()), local(0, 14, 50, ) + timedelta(seconds=30))
+
+
+class TransientErrorTest(unittest.TestCase):
+    """Constaté le 26/10 : une 429 de l'API d'usage faisait oublier le compte actif."""
+
+    def test_rate_limited_account_still_participates(self):
+        a = acc("perso", 10, 200, error="HTTP 429 : rate limited")
+        self.assertEqual(orch.participants([a, acc("boulot")], NOW, cfg()), ["boulot", "perso"])
+
+    def test_auth_error_still_excludes(self):
+        a = acc("perso", error="connexion expirée ou révoquée : supprime ce profil")
+        self.assertEqual(orch.participants([a, acc("boulot")], NOW, cfg()), ["boulot"])
+
+    def test_errored_account_window_counts_for_spacing(self):
+        now = local(0, 12, 30)
+        perso = acc("perso", 10, None, now=now, age=3600, error="HTTP 429 : rate limited")
+        perso.limits[0].resets_at = local(0, 17, 20)
+        self.assertEqual(orch.starts_due([acc("boulot", now=now), perso], now, cfg(), FakeStore()), [])
