@@ -98,7 +98,7 @@ def decide(accounts, active, fc, settings, now, events, poll_s):
                     f"tous les comptes sont presque épuisés ; {nxt}", active, source_reset)
 
 
-def execute(decision, store, now):
+def execute(decision, store, now, mode="auto"):
     if decision.action != "switch":
         return False
     r = core.run_ccs(["use", decision.target])
@@ -108,6 +108,6 @@ def execute(decision, store, now):
         store.add_event(ts, "error", decision.target, {"op": "auto_switch", "message": msg})
         return False
     store.add_event(ts, "switch", decision.target, {
-        "mode": "auto", "from": decision.source, "from_reset": decision.source_reset,
+        "mode": mode, "from": decision.source, "from_reset": decision.source_reset,
         "reason": decision.reason})
     return True

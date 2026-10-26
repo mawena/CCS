@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import alerts, autoswitch, core, notify
+from . import alerts, autoswitch, core, notify, orchestrator
 from .forecast import (AccountState, best_account, capacity, session_forecast,
                        weekly_pace)
 from .settings import load_settings
@@ -37,9 +37,10 @@ def pid_path():
 
 
 class Daemon:
-    def __init__(self, store, notifier=notify.send):
+    def __init__(self, store, notifier=notify.send, starter=None):
         self.store = store
         self.notifier = notifier
+        self.starter = starter or self._start_window
         self.states = {}            # dernier AccountState connu par profil
         self.previous_sessions = {}  # limite session au tick précédent
         self.last_full = None
@@ -72,6 +73,12 @@ class Daemon:
                                          {"op": "fetch", "message": r.error})
             out.append(AccountState(p.name, p.active, limits, r.fetched_at, r.error))
         return out
+
+    def _start_window(self, name, now):
+        from . import warmup
+        threading.Thread(target=warmup.run, daemon=True,
+                         args=(name, now.astimezone().strftime("%H:%M"), self.store, now),
+                         kwargs={"mode": "orchestrateur"}).start()
 
     def detect_manual_switch(self, now):
         active = core.active_profile_name()
@@ -116,11 +123,32 @@ class Daemon:
             or (fc and fc.verdict == "limit" and fc.eta and fc.eta - now < FAST_ETA))
         delay = poll["fast_s"] if fast else poll["normal_s"]
 
+        ocfg = settings["orchestrator"]
+        orch_on = ocfg["enabled"]
+        reserve = orchestrator.reserve_set(states, paces, ocfg) if orch_on else set()
         events = self.store.events((now - EVENTS_LOOKBACK).timestamp())
         decision = autoswitch.decide(states, active, fc, settings, now, events, delay)
-        if decision.action == "switch" and autoswitch.execute(decision, self.store, now):
-            delay = poll["fast_s"]
-        best = best_account(states, now)
+        if decision.action == "switch":
+            if autoswitch.execute(decision, self.store, now):
+                delay = poll["fast_s"]
+        elif orch_on:
+            early = orchestrator.expiring_decision(states, active, now, ocfg, events, reserve)
+            if early is not None:
+                decision = early
+                if autoswitch.execute(early, self.store, now, mode="anticipee"):
+                    delay = poll["fast_s"]
+        best = best_account(states, now, reserve=reserve)
+
+        if orch_on:
+            for name in orchestrator.starts_due(states, now, ocfg, self.store):
+                local = now.astimezone()
+                self.store.add_event(now.timestamp(), "warmup", name, {
+                    "mode": "orchestrateur", "date": local.date().isoformat(),
+                    "time": f"{local:%H:%M}", "ok": None, "message": "en cours"})
+                self.starter(name, now)
+            wake = orchestrator.next_wake(states, now, ocfg)
+            if wake is not None:
+                delay = max(30.0, min(delay, (wake - now).total_seconds()))
 
         sent = {e.detail.get("key") for e in
                 self.store.events((now - ALERTS_LOOKBACK).timestamp(), type="alert")}
@@ -140,7 +168,8 @@ class Daemon:
                 log.exception("erreur dans un module du daemon")
 
         self.previous_sessions = {s.name: s.session for s in states}
-        self.write_state(states, profiles, forecasts, paces, best, decision, settings, now)
+        self.write_state(states, profiles, forecasts, paces, best, decision, settings, now,
+                         reserve)
         if self.last_prune is None or now - self.last_prune > timedelta(days=1):
             self.store.prune(now.timestamp() - RETENTION_S)
             self.last_prune = now
@@ -153,7 +182,8 @@ class Daemon:
 
     # ---- état partagé -------------------------------------------------------
 
-    def write_state(self, states, profiles, forecasts, paces, best, decision, settings, now):
+    def write_state(self, states, profiles, forecasts, paces, best, decision, settings, now,
+                    reserve=frozenset()):
         last_auto = self.store.last_event("switch")
         accounts = []
         for s in states:
@@ -184,7 +214,24 @@ class Daemon:
                                        "mode": last_auto.detail.get("mode")},
             },
             "accounts": accounts,
+            "orchestrator": self._orchestrator_state(states, settings, now, reserve),
         })
+
+    def _orchestrator_state(self, states, settings, now, reserve):
+        ocfg = settings["orchestrator"]
+        bounds = orchestrator.period_bounds(now, ocfg["active_hours"])
+        wake = orchestrator.next_wake(states, now, ocfg) if ocfg["enabled"] else None
+        return {
+            "enabled": ocfg["enabled"],
+            "active_now": bounds is not None,
+            "period": bounds and [_iso(bounds[0]), _iso(bounds[1])],
+            "reserve": sorted(reserve),
+            "next_wake": _iso(wake),
+            # Désactivé : seulement les fenêtres en cours, rien de « prévu ».
+            "plan": [{"name": w.name, "start": _iso(w.start), "end": _iso(w.end), "kind": w.kind}
+                     for w in orchestrator.plan(states, now, ocfg)
+                     if ocfg["enabled"] or w.kind == "current"],
+        }
 
 
 # --------------------------------------------------------------------------
