@@ -27,7 +27,8 @@ Description: multi-account switcher and usage assistant for Claude Code
  limits), forecasts when a session will run out, recommends the best account,
  switches automatically before a limit is reached (running sessions follow
  on their next request), orchestrates the 5-hour windows of all accounts
- (chained and staggered during active hours, expiring quota used first), sends desktop notifications, analyses local Claude Code
+ (chained and staggered during active hours, expiring quota used first),
+ sends desktop notifications, analyses local Claude Code
  logs per project, model and hour, and can start a 5-hour window early.
  .
  Includes the `ccs` command, the "Comptes Claude" GTK application, a top bar
