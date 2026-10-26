@@ -57,7 +57,8 @@ def make_home(tmp, active="perso"):
 
 @contextmanager
 def fake_http(responses):
-    """Patch de core.http_json : clé = sous-chaîne de l'URL, valeur = dict ou exception."""
+    """Patch de core.http_json : clé = sous-chaîne de l'URL, valeur = dict,
+    exception, ou fonction (method, url, body, headers) -> dict."""
     from ccs_app import core
     calls = []
 
@@ -67,6 +68,8 @@ def fake_http(responses):
             if key in url:
                 if isinstance(value, Exception):
                     raise value
+                if callable(value):
+                    return value(method, url, body, headers)
                 return value
         raise core.UsageError(f"pas de réponse simulée pour {url}")
 

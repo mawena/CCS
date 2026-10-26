@@ -48,6 +48,21 @@ def cmd_gui(_args):
     return run()
 
 
+def cmd_daemon(_args):
+    from . import daemon
+    return daemon.run()
+
+
+def cmd_collect(_args):
+    from . import daemon
+    if daemon.request_refresh():
+        print("Collecte demandée au service.")
+        return 0
+    daemon.collect_once()
+    print(f"État écrit dans {daemon.state_path()}")
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
@@ -56,6 +71,8 @@ def build_parser():
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("gui", help="ouvre l'application (défaut)").set_defaults(func=cmd_gui)
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
+    sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
+    sub.add_parser("collect", help="collecte immédiate").set_defaults(func=cmd_collect)
     return parser
 
 
