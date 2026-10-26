@@ -1,3 +1,12 @@
+ccs (0.2.0) unstable; urgency=medium
+
+  * Orchestrateur : enchaînement et décalage des fenêtres de 5 h pendant une
+    plage horaire, bascule vers le quota qui expire, réserve hebdomadaire.
+  * Réveil précis du service, ccs plan / ccs orch, onglet Planning.
+  * README : usage de 2 ou 3 comptes Pro, conditions d'utilisation.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 26 Oct 2026 15:00:00 +0100
+
 ccs (0.1.0) unstable; urgency=medium
 
   * Première version : profils multi-comptes, usage de tous les comptes,
