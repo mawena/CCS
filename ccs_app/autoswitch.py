@@ -34,7 +34,7 @@ def _blocked_until(a, now, max_session, max_weekly):
     return max(times) if times else None
 
 
-def decide(accounts, active, fc, settings, now, events, poll_s):
+def decide(accounts, active, fc, settings, now, events, poll_s, reserve=frozenset()):
     cfg = settings["auto_switch"]
     if not cfg["enabled"]:
         return none("bascule automatique désactivée")
@@ -76,7 +76,8 @@ def decide(accounts, active, fc, settings, now, events, poll_s):
                 (not a.error and a.fetched_at is not None and ts - a.fetched_at <= STALE_S)]
     source_reset = act.session.resets_at.timestamp() if act.session and act.session.resets_at else None
     rec = best_account(eligible, now, exclude,
-                       max_session=cfg["target_max_session"], max_weekly=cfg["target_max_weekly"])
+                       max_session=cfg["target_max_session"], max_weekly=cfg["target_max_weekly"],
+                       reserve=reserve)
     if rec:
         return Decision("switch", rec.name,
                         f"{active} à {current:.0f} % → {rec.name} ({rec.reason})",
@@ -98,7 +99,7 @@ def decide(accounts, active, fc, settings, now, events, poll_s):
                     f"tous les comptes sont presque épuisés ; {nxt}", active, source_reset)
 
 
-def execute(decision, store, now):
+def execute(decision, store, now, mode="auto"):
     if decision.action != "switch":
         return False
     r = core.run_ccs(["use", decision.target])
@@ -108,6 +109,6 @@ def execute(decision, store, now):
         store.add_event(ts, "error", decision.target, {"op": "auto_switch", "message": msg})
         return False
     store.add_event(ts, "switch", decision.target, {
-        "mode": "auto", "from": decision.source, "from_reset": decision.source_reset,
+        "mode": mode, "from": decision.source, "from_reset": decision.source_reset,
         "reason": decision.reason})
     return True

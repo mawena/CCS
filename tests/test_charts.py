@@ -20,3 +20,12 @@ class ChartsTest(unittest.TestCase):
         pts = ideal_weekly_series([(reset - week, 0, reset), (reset - week / 2, 30, reset)])
         self.assertEqual(pts, [(reset - week, 0.0), (reset - week / 2, 50.0)])
         self.assertEqual(ideal_weekly_series([(1, 5, None)]), [])
+
+
+class TimelineTest(unittest.TestCase):
+    def test_span_to_x_clamps(self):
+        from ccs_app.gui.geometry import span_to_x
+        self.assertEqual(span_to_x(50, 0, 100, 200), 100.0)
+        self.assertEqual(span_to_x(-10, 0, 100, 200), 0.0)
+        self.assertEqual(span_to_x(150, 0, 100, 200), 200.0)
+        self.assertEqual(span_to_x(5, 5, 5, 200), 0.0)

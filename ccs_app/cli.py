@@ -143,6 +143,9 @@ def cmd_status(_args):
     auto = s["auto_switch"]
     print("Bascule automatique : " + (f"activée (seuil {auto['threshold']} %)" if auto["enabled"]
                                       else "désactivée"))
+    o = s["orchestrator"]
+    print("Orchestrateur : " + (f"activé (plage {o['active_hours']['start']} → "
+                                f"{o['active_hours']['end']})" if o["enabled"] else "désactivé"))
     print("Service : " + ("en marche" if daemon.running_pid() else "arrêté"))
     return 0
 
@@ -191,6 +194,51 @@ def cmd_auto(args):
     return 0
 
 
+def cmd_orch(args):
+    from . import daemon
+    from .settings import load_settings, save_settings
+    s = load_settings()
+    s["orchestrator"]["enabled"] = args.state == "on"
+    save_settings(s)
+    daemon.request_refresh()
+    h = s["orchestrator"]["active_hours"]
+    print("Orchestrateur " + (f"activé (plage {h['start']} → {h['end']})" if args.state == "on"
+                              else "désactivé"))
+    return 0
+
+
+def _hm(iso):
+    return f"{core.parse_dt(iso).astimezone():%H:%M}"
+
+
+def cmd_plan(_args):
+    st = _state()
+    o = st.get("orchestrator")
+    if not o:
+        print("Planning : aucune donnée pour l'instant (démarre le service : ccs status).")
+        return 0
+    head = "activé" if o.get("enabled") else "désactivé (ccs orch on)"
+    if o.get("period"):
+        head += f" · plage {_hm(o['period'][0])} → {_hm(o['period'][1])}"
+    elif o.get("enabled"):
+        head += " · hors plage horaire"
+    if o.get("next_wake"):
+        head += f" · prochain réveil {_hm(o['next_wake'])}"
+    print(f"Orchestrateur : {head}")
+    reserve = set(o.get("reserve") or [])
+    names = sorted({w["name"] for w in o.get("plan") or []} |
+                   {a["name"] for a in st.get("accounts") or []})
+    for name in names:
+        parts = [f"{_hm(w['start'])}–{_hm(w['end'])}" + (" (en cours)" if w["kind"] == "current" else "")
+                 for w in o.get("plan") or [] if w["name"] == name]
+        tag = "  [réserve : semaine en avance]" if name in reserve else ""
+        print(f"  {name:<14} {' · '.join(parts) or 'au repos'}{tag}")
+    ends = sorted((core.parse_dt(w["end"]), w["name"]) for w in o.get("plan") or [])
+    if ends:
+        print("Recharges : " + " · ".join(f"{e.astimezone():%H:%M} {n}" for e, n in ends[:8]))
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
@@ -208,6 +256,10 @@ def build_parser():
     auto = sub.add_parser("auto", help="bascule automatique on/off")
     auto.add_argument("state", choices=["on", "off"])
     auto.set_defaults(func=cmd_auto)
+    orch = sub.add_parser("orch", help="orchestrateur on/off")
+    orch.add_argument("state", choices=["on", "off"])
+    orch.set_defaults(func=cmd_orch)
+    sub.add_parser("plan", help="planning des fenêtres de 5 h").set_defaults(func=cmd_plan)
     sub.add_parser("tray", help="indicateur de la barre du haut").set_defaults(func=cmd_tray)
     an = sub.add_parser("analyze", help="analyse des journaux locaux")
     an.add_argument("--days", type=int, default=7)

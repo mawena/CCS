@@ -114,3 +114,39 @@ class BestFreshnessTest(HomeTestCase):
         c.assert_called_once()
         rc.assert_not_called()
         self.assertIn("déjà", out)
+
+
+class OrchestratorCliTest(HomeTestCase):
+    def test_orch_on_off_persists(self):
+        code, out = run("orch", "on")
+        self.assertTrue(load_settings()["orchestrator"]["enabled"])
+        self.assertIn("activé", out)
+        run("orch", "off")
+        self.assertFalse(load_settings()["orchestrator"]["enabled"])
+
+    def test_status_shows_orchestrator(self):
+        run("orch", "on")
+        self.assertIn("Orchestrateur : activé", run("status")[1])
+
+    def test_plan_lists_windows_and_recharges(self):
+        def iso(h, m=0):
+            from datetime import datetime
+            return datetime(2026, 10, 26, h, m).astimezone().isoformat()
+        st = dict(STATE, updated_at=time.time(), orchestrator={
+            "enabled": True, "active_now": True, "period": [iso(8), iso(23)],
+            "next_wake": iso(12, 0), "reserve": ["pro"],
+            "plan": [{"name": "perso", "start": iso(7), "end": iso(12), "kind": "current"},
+                     {"name": "perso", "start": iso(12), "end": iso(17), "kind": "planned"},
+                     {"name": "pro", "start": iso(10, 30), "end": iso(15, 30), "kind": "planned"}]})
+        write(self.store / "state.json", st)
+        code, out = run("plan")
+        self.assertEqual(code, 0)
+        self.assertIn("07:00–12:00 (en cours)", out)
+        self.assertIn("10:30–15:30", out)
+        self.assertIn("Recharges", out)
+        self.assertIn("12:00 perso", out)
+        self.assertIn("réserve", out)
+
+    def test_plan_without_state(self):
+        code, out = run("plan")
+        self.assertIn("aucune donnée", out)

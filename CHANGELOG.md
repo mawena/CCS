@@ -3,6 +3,27 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.2.0] — 2026-10-26
+
+### Ajouté
+
+- **Orchestrateur** (`ccs orch on|off`) : pendant une plage horaire réglable
+  (8 h → 2 h par défaut), enchaîne les fenêtres de 5 h de chaque compte, les
+  décale entre comptes (5 h ÷ N), bascule vers le quota qui va expirer et met en
+  réserve un compte en avance sur sa semaine.
+- Réveil précis du service aux fins de fenêtre et aux créneaux de démarrage.
+- `ccs plan` et onglet **Planning** : frise des fenêtres en cours et prévues,
+  recharges à venir.
+- Groupe « Orchestrateur » dans les Réglages ; état de l'orchestrateur dans
+  `ccs status`.
+
+### Modifié
+
+- Le meilleur compte place les comptes en réserve en dernier.
+- Fenêtre plus large ; onglets en bas quand la fenêtre est étroite.
+- README : cas d'usage « 2 ou 3 comptes Pro » et note sur les conditions
+  d'utilisation d'Anthropic.
+
 ## [0.1.0] — 2026-10-26
 
 Première version.
