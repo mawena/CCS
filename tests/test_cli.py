@@ -171,3 +171,27 @@ class SessionsCliTest(HomeTestCase):
         from ccs_app import sessions
         with mock.patch.object(sessions, "list_sessions", return_value=[]):
             self.assertIn("Aucune session", run("sessions")[1])
+
+
+class IntegrationCliTest(HomeTestCase):
+    def test_integrate_on_status_off(self):
+        code, out = run("integrate", "on")
+        self.assertEqual(code, 0)
+        self.assertIn("Ligne d'état installée", out)
+        self.assertIn("installée", run("integrate", "status")[1])
+        run("integrate", "off")
+        self.assertIn("non installée", run("integrate", "status")[1])
+
+    def test_statusline_prints_one_line(self):
+        write(self.store / "state.json", dict(STATE, updated_at=time.time()))
+        with mock.patch("sys.stdin", io.StringIO('{"session_id": "x"}')):
+            code, out = run("statusline")
+        self.assertEqual(out.count("\n"), 1)
+        self.assertIn("perso", out)
+
+    def test_hook_reads_stdin(self):
+        from ccs_app import integration
+        with mock.patch("sys.stdin", io.StringIO('{"error": "overloaded"}')), \
+                mock.patch.object(integration, "stop_failure", return_value="ignoré") as sf:
+            self.assertEqual(run("hook", "stop-failure")[0], 0)
+        sf.assert_called_once_with({"error": "overloaded"})

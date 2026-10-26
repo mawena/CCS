@@ -29,6 +29,17 @@ def _iso(dt):
     return dt.isoformat() if dt else None
 
 
+def states_from_state(state):
+    """AccountState reconstruits depuis state.json (hook, CLI)."""
+    out = []
+    for a in (state or {}).get("accounts") or []:
+        limits = [core.Limit(l["kind"], l.get("label", l["kind"]), float(l["percent"]),
+                             core.parse_dt(l.get("resets_at"))) for l in a.get("limits") or []]
+        out.append(AccountState(a["name"], bool(a.get("active")), limits, a.get("fetched_at"),
+                                a.get("error")))
+    return out
+
+
 def state_path():
     return core.paths().store / "state.json"
 
