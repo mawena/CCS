@@ -15,6 +15,7 @@ def cmd_print(_args):
     tty = sys.stdout.isatty()
     bold, dim, green, yellow, red, off = (
         ("\033[1m", "\033[2m", "\033[32m", "\033[33m", "\033[31m", "\033[0m") if tty else ("",) * 6)
+    state = _state()
     results = {}
     threads = [threading.Thread(target=lambda n=p.name: results.__setitem__(n, core.fetch_usage(n)))
                for p in profiles]
@@ -32,6 +33,15 @@ def cmd_print(_args):
             bar = "█" * filled + "░" * (20 - filled)
             print(f"    {lim.label:<24} {col}{bar}{off} {lim.percent:>3.0f} %  "
                   f"{dim}{core.fmt_reset(lim.resets_at)}{off}")
+        extra = next((a for a in state.get("accounts") or [] if a.get("name") == p.name), {})
+        fc, pace = extra.get("forecast") or {}, extra.get("pace")
+        if fc.get("verdict") == "limit" and fc.get("eta"):
+            print(f"    {yellow}⏱ Limite estimée vers "
+                  f"{core.parse_dt(fc['eta']).astimezone():%H:%M}{off}")
+        if pace:
+            sign = "marge" if pace["margin"] >= 0 else "d'avance"
+            print(f"    {dim}Semaine : {abs(pace['margin']):.0f} pts {sign} sur le rythme · "
+                  f"budget {pace['per_day_budget']:.0f} %/jour{off}")
         if r.error:
             stale = f" (données de {core.fmt_time(r.fetched_at)})" if r.usage else ""
             print(f"    {red}⚠ {r.error}{off}{dim}{stale}{off}")
@@ -101,6 +111,76 @@ def cmd_tray(_args):
     return tray.run()
 
 
+def _state():
+    from . import daemon
+    return core.load_json(daemon.state_path())
+
+
+def cmd_status(_args):
+    from . import daemon
+    from .settings import load_settings
+    st = _state()
+    s = load_settings()
+    if not st.get("accounts"):
+        print("Statut : aucune donnée pour l'instant (lance « ccs usage » ou démarre le service).")
+    else:
+        act = next((a for a in st["accounts"] if a.get("active")), None)
+        if act:
+            parts = ", ".join(f"{l['label'].split(' ')[0].lower()} {l['percent']:.0f} %"
+                              for l in act.get("limits") or [])
+            print(f"Compte actif : {act['name']} ({parts or 'pas de données'})")
+            fc = act.get("forecast") or {}
+            if fc.get("verdict") == "limit" and fc.get("eta"):
+                print(f"Prévision : limite de session vers {core.parse_dt(fc['eta']).astimezone():%H:%M}")
+        else:
+            print("Compte actif : non enregistré dans un profil")
+        best = st.get("best")
+        print(f"Meilleur compte : {best['name']} — {best['reason']}" if best
+              else "Meilleur compte : aucun disponible")
+        print(f"Capacité restante : {core.fr(st.get('capacity') or 0)} session(s)")
+        if st.get("updated_at"):
+            print(f"Données de {core.fmt_time(st['updated_at'])}")
+    auto = s["auto_switch"]
+    print("Bascule automatique : " + (f"activée (seuil {auto['threshold']} %)" if auto["enabled"]
+                                      else "désactivée"))
+    print("Service : " + ("en marche" if daemon.running_pid() else "arrêté"))
+    return 0
+
+
+def cmd_best(args):
+    if not core.list_profiles():
+        print("Aucun profil. Enregistre le compte actuel avec : ccs save <nom>")
+        return 1
+    st = _state()
+    best = st.get("best")
+    if not best:
+        print("Aucun compte disponible pour l'instant.")
+        return 1
+    print(f"Meilleur compte : {best['name']} — {best['reason']}")
+    if not args.switch:
+        return 0
+    if best["name"] == core.active_profile_name():
+        print("C'est déjà le compte actif.")
+        return 0
+    r = core.run_ccs(["use", best["name"]])
+    print((r.stdout + r.stderr).strip())
+    if r.returncode == 0:
+        from . import daemon
+        daemon.request_refresh()
+    return r.returncode
+
+
+def cmd_auto(args):
+    from . import daemon
+    from .settings import load_settings, save_settings
+    s = load_settings()
+    s["auto_switch"]["enabled"] = args.state == "on"
+    save_settings(s)
+    daemon.request_refresh()
+    print("Bascule automatique " + ("activée" if args.state == "on" else "désactivée"))
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
@@ -111,6 +191,13 @@ def build_parser():
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
     sub.add_parser("collect", help="collecte immédiate").set_defaults(func=cmd_collect)
+    sub.add_parser("status", help="compte actif, meilleur compte, capacité").set_defaults(func=cmd_status)
+    best = sub.add_parser("best", help="meilleur compte maintenant")
+    best.add_argument("--switch", action="store_true", help="bascule dessus")
+    best.set_defaults(func=cmd_best)
+    auto = sub.add_parser("auto", help="bascule automatique on/off")
+    auto.add_argument("state", choices=["on", "off"])
+    auto.set_defaults(func=cmd_auto)
     sub.add_parser("tray", help="indicateur de la barre du haut").set_defaults(func=cmd_tray)
     an = sub.add_parser("analyze", help="analyse des journaux locaux")
     an.add_argument("--days", type=int, default=7)

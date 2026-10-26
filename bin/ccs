@@ -17,6 +17,7 @@ else
   GLOBAL="$HOME/.claude.json"
 fi
 STORE="${CCS_HOME:-$HOME/.claude-accounts}"
+CA="$(dirname "$(readlink -f "$0")")/claude-accounts"
 
 c_green=$'\e[32m'; c_dim=$'\e[2m'; c_bold=$'\e[1m'; c_red=$'\e[31m'; c_off=$'\e[0m'
 [[ -t 1 ]] || { c_green=; c_dim=; c_bold=; c_red=; c_off=; }
@@ -110,7 +111,7 @@ running_warning() {
   local n
   n="$(pgrep -u "$(id -u)" -xc claude 2>/dev/null || true)"
   if [[ "${n:-0}" -gt 0 ]]; then
-    echo "${c_dim}⚠ $n session(s) Claude Code ouverte(s) : relance-les pour qu'elles utilisent le nouveau compte.${c_off}"
+    echo "${c_dim}↻ $n session(s) Claude Code ouverte(s) : elles passeront sur ce compte à leur prochaine requête.${c_off}"
   fi
 }
 
@@ -230,7 +231,11 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
   ccs save <nom>           enregistre le compte actuellement connecté sous <nom>
   ccs add <nom> [opts]     connecte un nouveau compte (claude auth login) et l'enregistre
                            opts : --email <adresse>  --console  --sso
+  ccs best                 bascule sur le meilleur compte maintenant
+  ccs status               compte actif, prévision, meilleur compte, capacité restante
   ccs usage                affiche l'usage (session / semaine) de TOUS les comptes
+  ccs auto on|off          active / désactive la bascule automatique (98 %)
+  ccs analyze [--days N]   où part ton usage : projets, modèles, heures, conseils
   ccs gui                  ouvre l'application graphique
   ccs current              affiche le profil actif
   ccs rename <a> <b>       renomme un profil
@@ -252,8 +257,13 @@ main() {
     current|whoami) cmd_current ;;
     rm|remove|delete) cmd_rm "$@" ;;
     rename|mv) cmd_rename "$@" ;;
-    usage|u) exec "$(dirname "$(readlink -f "$0")")/claude-accounts" --print ;;
-    gui|app) setsid -f "$(dirname "$(readlink -f "$0")")/claude-accounts" >/dev/null 2>&1 ;;
+    usage|u) exec "$CA" print ;;
+    gui|app) setsid -f "$CA" gui >/dev/null 2>&1 ;;
+    best|b) exec "$CA" best --switch ;;
+    status|st) exec "$CA" status ;;
+    auto) exec "$CA" auto "$@" ;;
+    analyze|stats) exec "$CA" analyze "$@" ;;
+    version|--version|-v) exec "$CA" --version ;;
     -h|--help|help) usage ;;
     *)
       if [[ -d "$STORE/$cmd" ]]; then cmd_use "$cmd"

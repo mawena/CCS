@@ -58,4 +58,10 @@ jq '.oauthAccount.accountUuid="uZ"' "$g" >"$g.t" && mv "$g.t" "$g"
 out="$("$CCS" perso 2>&1 || true)"; expect "$out" "n'est enregistré dans aucun profil"
 [[ "$(stat -c %a "$HOME/.claude-accounts/perso/oauth.json")" == 600 ]] || fail "droits du profil"
 
+# Réglages et statut via claude-accounts (pas de réseau : lecture de state.json).
+out="$("$CCS" auto off)"; expect "$out" "désactivée"
+out="$("$CCS" status)"; expect "$out" "Bascule automatique : désactivée"
+out="$("$CCS" auto on)"; expect "$out" "activée"
+out="$("$CCS" help)"; expect "$out" "ccs best"
+
 echo "OK ccs_e2e"
