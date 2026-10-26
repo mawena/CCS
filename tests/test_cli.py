@@ -150,3 +150,24 @@ class OrchestratorCliTest(HomeTestCase):
     def test_plan_without_state(self):
         code, out = run("plan")
         self.assertIn("aucune donnée", out)
+
+
+class SessionsCliTest(HomeTestCase):
+    def test_sessions_list(self):
+        from ccs_app import sessions
+        s = sessions.Session(42, "sid", "gigit-cb", "/w/GiGit", "GiGit", "waiting", "permission",
+                             time.time() - 3600, time.time() - 30, "interactive", "cli")
+        usage = sessions.ConversationUsage(13_500_000, "opus", 316)
+        with mock.patch.object(sessions, "list_sessions", return_value=[s]), \
+                mock.patch.object(sessions, "conversation_usage", return_value=usage):
+            code, out = run("sessions")
+        self.assertEqual(code, 0)
+        self.assertIn("GiGit", out)
+        self.assertIn("attend ta réponse (permission)", out)
+        self.assertIn("13,5 M", out)
+        self.assertIn("1 h", out)
+
+    def test_sessions_empty(self):
+        from ccs_app import sessions
+        with mock.patch.object(sessions, "list_sessions", return_value=[]):
+            self.assertIn("Aucune session", run("sessions")[1])

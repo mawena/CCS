@@ -239,6 +239,27 @@ def cmd_plan(_args):
     return 0
 
 
+def _duration(seconds):
+    minutes = int(seconds // 60)
+    return f"{minutes // 60} h {minutes % 60:02d}" if minutes >= 60 else f"{minutes} min"
+
+
+def cmd_sessions(_args):
+    import time
+    from . import sessions, transcripts
+    found = sessions.list_sessions()
+    if not found:
+        print("Aucune session Claude Code ouverte.")
+        return 0
+    active = core.active_profile_name() or "compte non enregistré"
+    print(f"{len(found)} session(s) ouverte(s) — toutes sur le compte actif : {active}")
+    for s in found:
+        u = sessions.conversation_usage(s)
+        print(f"  {s.project:<16} {sessions.state_label(s):<28} depuis {_duration(time.time() - s.started_at):<9}"
+              f" {u.model:<7} {transcripts.fmt_tokens(u.weighted):>8} tokens  (pid {s.pid}, {s.name})")
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
@@ -260,6 +281,7 @@ def build_parser():
     orch.add_argument("state", choices=["on", "off"])
     orch.set_defaults(func=cmd_orch)
     sub.add_parser("plan", help="planning des fenêtres de 5 h").set_defaults(func=cmd_plan)
+    sub.add_parser("sessions", help="sessions Claude Code ouvertes").set_defaults(func=cmd_sessions)
     sub.add_parser("tray", help="indicateur de la barre du haut").set_defaults(func=cmd_tray)
     an = sub.add_parser("analyze", help="analyse des journaux locaux")
     an.add_argument("--days", type=int, default=7)
