@@ -135,16 +135,25 @@ def session_lines(found):
     return [(f"{s.project} — {sessions.state_label(s)}", s) for s in found]
 
 
+ICON_CACHE_VERSION = "v2"
+
+
 def icon_dir():
-    d = core.paths().home / ".cache" / "ccs" / "icons"
+    d = core.paths().home / ".cache" / "ccs" / f"icons-{ICON_CACHE_VERSION}"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def ensure_icon(name, state):
+def gauge_for_name(name):
+    """Icône dessinée d'après son nom (dizaine), pour que le cache corresponde au nom."""
+    value = name.rsplit("-", 1)[-1]
+    return gauge_svg(None if value == "none" else float(value))
+
+
+def ensure_icon(name):
     path = icon_dir() / f"{name}.svg"
     if not path.exists():
-        path.write_text(gauge_svg(_gauge_value(state)))
+        path.write_text(gauge_for_name(name))
     return path
 
 
@@ -188,7 +197,7 @@ def run():
     def rebuild():
         state = core.load_json(daemon.state_path())
         name = icon_name_for(state)
-        ensure_icon(name, state)
+        ensure_icon(name)
         ind.set_icon_full(name, "Usage du compte Claude actif")
         ind.set_label(label_for(state), "⚠ 100 %")
         menu = Gtk.Menu()
@@ -196,14 +205,17 @@ def run():
             if text == "-":
                 menu.append(Gtk.SeparatorMenuItem())
                 continue
-            it = Gtk.MenuItem(label=text)
+            it = Gtk.MenuItem(label=text, use_underline=False)
             if action and action[0] == "use" and daemon.state_fresh(state):
                 it.connect("activate", use, action[1])
             else:
                 it.set_sensitive(False)
             menu.append(it)
         from . import sessions
-        lines = session_lines(sessions.list_sessions())
+        try:
+            lines = session_lines(sessions.list_sessions())
+        except Exception:
+            lines = []  # une fiche inattendue ne doit pas arrêter l'indicateur
         if lines:
             menu.append(Gtk.SeparatorMenuItem())
             root = Gtk.MenuItem(label=f"Sessions Claude Code ({len(lines)})")

@@ -251,6 +251,8 @@ class RateLimitTest(DaemonBase):
 
 class ActionsAndSessionsTest(DaemonBase):
     def test_notification_action_switches(self):
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            self.d.tick(self.settings, NOW)
         ok = subprocess.CompletedProcess([], 0, "basculé", "")
         with mock.patch.object(core, "run_ccs", return_value=ok) as run:
             self.assertTrue(self.d.handle_action("use:pro", NOW))
@@ -290,3 +292,20 @@ class ActionsAndSessionsTest(DaemonBase):
             self.d.on_sessions(self.settings, NOW)
             self.d.on_sessions(self.settings, NOW)
         self.assertEqual(self.sent, [])
+
+
+class ActionRevalidationTest(DaemonBase):
+    def test_button_refused_when_target_no_longer_good(self):
+        with fake_http(per_account(perso=usage(30), pro=usage(99))):
+            self.d.tick(self.settings, NOW)
+        with mock.patch.object(core, "run_ccs") as run:
+            self.assertFalse(self.d.handle_action("use:pro", NOW + timedelta(minutes=1)))
+        run.assert_not_called()
+        self.assertIn("pro", self.sent[-1].title)
+
+    def test_button_refused_when_target_data_stale(self):
+        with fake_http(per_account(perso=usage(30), pro=usage(10))):
+            self.d.tick(self.settings, NOW)
+        with mock.patch.object(core, "run_ccs") as run:
+            self.assertFalse(self.d.handle_action("use:pro", NOW + timedelta(hours=2)))
+        run.assert_not_called()

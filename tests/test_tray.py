@@ -107,3 +107,10 @@ class SessionLinesTest(unittest.TestCase):
                     time.time() - 4000, time.time(), "interactive", "cli")
         self.assertEqual(session_lines([s]), [("GiGit — attend ta réponse (permission)", s)])
         self.assertEqual(session_lines([]), [])
+
+
+class GaugeCacheTest(unittest.TestCase):
+    def test_icon_drawn_at_decile(self):
+        from ccs_app.tray import gauge_for_name
+        self.assertIn('stroke-dasharray="90.0 100"', gauge_for_name("ccs-gauge-90"))
+        self.assertNotIn("stroke-dasharray", gauge_for_name("ccs-gauge-none"))

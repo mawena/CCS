@@ -28,7 +28,7 @@ class ListSessionsTest(HomeTestCase):
         # Un vrai processus « vivant » pour les fiches valides.
         self.proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
         self.addCleanup(self.proc.kill)
-        alive = mock.patch.object(sessions, "_is_claude", side_effect=lambda pid: pid == self.proc.pid)
+        alive = mock.patch.object(sessions, "_is_claude", side_effect=lambda pid, *a: pid == self.proc.pid)
         alive.start()
         self.addCleanup(alive.stop)
 
@@ -159,3 +159,32 @@ class TitleTest(HomeTestCase):
         ]
         write(base / "s.jsonl", "\n".join(json.dumps(l) for l in lines) + "\n")
         self.assertEqual(sessions.recent_conversations("/w/A")[0].title, "vraie demande")
+
+
+class ReviewSessionsTest(HomeTestCase):
+    def test_recycled_pid_detected_by_proc_start(self):
+        import subprocess as sp
+        p = sp.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+        self.addCleanup(p.kill)
+        real = sessions._proc_start(p.pid)
+        self.assertTrue(real)
+        with mock.patch.object(sessions, "_comm", return_value="claude"):
+            self.assertTrue(sessions._is_claude(p.pid, real))
+            self.assertFalse(sessions._is_claude(p.pid, "123"))
+            self.assertFalse(sessions.terminate(p.pid, "123"))
+        self.assertIsNone(p.poll())
+
+    def test_only_comm_claude_counts(self):
+        with mock.patch.object(sessions, "_comm", return_value="claude-desktop"):
+            self.assertFalse(sessions._is_claude(os.getpid()))
+
+    def test_malformed_timestamps_skip_file(self):
+        d = self.home / ".claude" / "sessions"
+        write(d / f"{os.getpid()}.json", {"pid": os.getpid(), "startedAt": "pas un nombre"})
+        with mock.patch.object(sessions, "_is_claude", return_value=True):
+            self.assertEqual(sessions.list_sessions(), [])
+
+    def test_terminal_command_quotes(self):
+        with mock.patch.object(sessions.shutil, "which", side_effect=lambda n, **k: f"/opt/mon dossier/{n}"):
+            cmd = sessions.terminal_command("/w/A", resume="abc")
+        self.assertEqual(cmd[-1], "'/opt/mon dossier/claude' --resume abc")

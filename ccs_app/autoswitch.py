@@ -113,7 +113,7 @@ def rescue(accounts, active, settings, now, reserve=frozenset()):
     upcoming = sorted((t, a.name) for a in accounts if a.name != active and a.limits
                       for t in [_blocked_until(a, now, 95, 95)] if t)
     nxt = (f"prochain disponible : {upcoming[0][1]} à {upcoming[0][0].astimezone():%H:%M}"
-           if upcoming else "aucun autre compte disponible")
+           if upcoming else "pas de prochaine disponibilité connue")
     return Decision("exhausted", None, nxt, active, None)
 
 

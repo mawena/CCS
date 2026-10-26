@@ -118,7 +118,7 @@ class RescueTest(HomeTestCase):
                          "exhausted")
 
 
-class StopFailureHookTest(HomeTestCase):
+class HookBase(HomeTestCase):
     def setUp(self):
         super().setUp()
         st = copy.deepcopy(STATE)
@@ -128,6 +128,8 @@ class StopFailureHookTest(HomeTestCase):
         write(self.store / "state.json", st)
         self.sent = []
 
+
+class StopFailureHookTest(HookBase):
     def test_ignores_other_errors(self):
         with mock.patch.object(core, "run_ccs") as run:
             msg = integration.stop_failure({"error": "overloaded"}, notifier=self.sent.append)
@@ -150,7 +152,73 @@ class StopFailureHookTest(HomeTestCase):
         write(self.store / "state.json", st)
         from ccs_app import daemon
         with mock.patch.object(daemon, "request_refresh", return_value=False), \
-                mock.patch.object(daemon, "collect_once") as collect, \
+                mock.patch.object(daemon, "observe_once") as collect, \
                 mock.patch.object(core, "run_ccs", return_value=subprocess.CompletedProcess([], 0, "", "")):
             integration.stop_failure({"error": "rate_limit", "cwd": "/w"}, notifier=self.sent.append)
         collect.assert_called_once()
+
+
+class ReviewIntegrationTest(InstallTest):
+    def test_symlinked_settings_stay_a_symlink(self):
+        real = self.home / "dotfiles" / "settings.json"
+        write(real, {"model": "opus"})
+        self.settings().parent.mkdir(parents=True, exist_ok=True)
+        self.settings().symlink_to(real)
+        integration.install(bin_path="/usr/bin/claude-accounts")
+        self.assertTrue(self.settings().is_symlink())
+        self.assertIn("statusLine", json.loads(real.read_text()))
+
+    def test_user_wrapper_mentioning_us_is_not_ours(self):
+        mine = {"statusLine": {"type": "command",
+                               "command": "bash -c 'claude-accounts statusline; git branch'"}}
+        write(self.settings(), mine)
+        integration.install(bin_path="/usr/bin/claude-accounts")
+        integration.uninstall()
+        self.assertEqual(self.read()["statusLine"], mine["statusLine"])
+
+    def test_odd_shapes_raise_integration_error(self):
+        write(self.settings(), {"hooks": None})
+        with self.assertRaises(integration.IntegrationError):
+            integration.install(bin_path="/usr/bin/claude-accounts")
+        write(self.settings(), {"statusLine": "foo"})
+        self.assertEqual(integration.status()["statusline"], "autre")
+
+    def test_backup_refreshed_on_each_write(self):
+        write(self.settings(), {"v": 1})
+        integration.install(bin_path="/usr/bin/claude-accounts")
+        integration.uninstall()
+        backup = json.loads((self.home / ".claude" / "settings.json.ccs-backup").read_text())
+        self.assertIn("statusLine", backup)   # état juste avant la dernière écriture
+
+
+class ReviewHookTest(HookBase):
+    def test_second_hook_does_not_switch_again(self):
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok) as run:
+            integration.stop_failure({"error": "rate_limit", "cwd": "/w/A"}, notifier=self.sent.append)
+            integration.stop_failure({"error": "rate_limit", "cwd": "/w/B"}, notifier=self.sent.append)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(len(self.sent), 1)
+
+    def test_no_switch_if_active_changed_during_refresh(self):
+        def refresh():
+            write(self.home / ".claude.json",
+                  {"oauthAccount": json.loads((self.store / "pro" / "account.json").read_text())})
+            return json.loads((self.store / "state.json").read_text())
+        with mock.patch.object(integration, "_fresh_state", side_effect=refresh), \
+                mock.patch.object(core, "run_ccs") as run:
+            integration.stop_failure({"error": "rate_limit", "cwd": "/w/A"}, notifier=self.sent.append)
+        run.assert_not_called()
+        self.assertIn("déjà", self.sent[0].body)
+
+    def test_failed_switch_says_so(self):
+        ko = subprocess.CompletedProcess([], 1, "", "ccs: erreur")
+        with mock.patch.object(core, "run_ccs", return_value=ko):
+            integration.stop_failure({"error": "rate_limit", "cwd": "/w/A"}, notifier=self.sent.append)
+        self.assertIn("impossible", self.sent[0].body)
+
+    def test_non_dict_payload_and_missing_error(self):
+        ok = subprocess.CompletedProcess([], 0, "", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok) as run:
+            integration.stop_failure(["bizarre"], notifier=self.sent.append)
+        run.assert_called_once()   # le matcher rate_limit filtre déjà : champ absent = blocage

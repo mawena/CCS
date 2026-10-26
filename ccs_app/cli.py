@@ -264,14 +264,21 @@ def cmd_statusline(_args):
     from datetime import datetime, timezone
     from . import integration
     integration.read_stdin_json()  # Claude Code envoie le contexte de la session ; inutile ici
-    print(integration.statusline_text(_state(), datetime.now(timezone.utc)))
+    try:
+        text = integration.statusline_text(_state(), datetime.now(timezone.utc))
+    except Exception:  # affichée dans chaque session : jamais de trace Python
+        text = "CCS : état illisible"
+    print(text)
     return 0
 
 
 def cmd_hook(args):
     from . import integration
     if args.event == "stop-failure":
-        integration.stop_failure(integration.read_stdin_json())
+        try:
+            integration.stop_failure(integration.read_stdin_json())
+        except Exception as e:
+            print(f"ccs : hook en échec : {e}", file=sys.stderr)
     return 0  # un hook ne doit jamais faire échouer Claude Code
 
 

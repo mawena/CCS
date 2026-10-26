@@ -195,3 +195,21 @@ class IntegrationCliTest(HomeTestCase):
                 mock.patch.object(integration, "stop_failure", return_value="ignoré") as sf:
             self.assertEqual(run("hook", "stop-failure")[0], 0)
         sf.assert_called_once_with({"error": "overloaded"})
+
+
+class RobustCliTest(HomeTestCase):
+    def test_statusline_never_prints_traceback(self):
+        bad = dict(STATE, updated_at=time.time())
+        bad["accounts"] = [dict(STATE["accounts"][0], limits=[{"kind": "session", "percent": None}])]
+        write(self.store / "state.json", bad)
+        with mock.patch("sys.stdin", io.StringIO("{}")):
+            code, out = run("statusline")
+        self.assertEqual(code, 0)
+        self.assertIn("CCS", out)
+        self.assertNotIn("Traceback", out)
+
+    def test_hook_never_fails(self):
+        from ccs_app import integration
+        with mock.patch("sys.stdin", io.StringIO('{"error": "rate_limit"}')), \
+                mock.patch.object(integration, "stop_failure", side_effect=RuntimeError("boum")):
+            self.assertEqual(run("hook", "stop-failure")[0], 0)

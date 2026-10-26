@@ -140,7 +140,7 @@ class SessionsPage(Gtk.ScrolledWindow):
 
         def on_response(_d, r):
             if r == "stop":
-                ok = sessions.terminate(s.pid)
+                ok = sessions.terminate(s.pid, s.proc_start)
                 self.window.toast("Session terminée" if ok else "Session déjà fermée")
                 GLib.timeout_add(800, lambda: (self.load(), False)[1])
         d.connect("response", on_response)

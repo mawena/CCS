@@ -10,8 +10,8 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from . import alerts, autoswitch, core, notify, orchestrator
-from .forecast import (AccountState, best_account, capacity, session_forecast,
-                       weekly_pace)
+from .forecast import (AccountState, best_account, capacity, effective_percent,
+                       session_forecast, weekly_pace)
 from .settings import load_settings
 from .store import RETENTION_S, Store
 
@@ -109,13 +109,28 @@ class Daemon:
 
     # ---- actions de notification et sessions ---------------------------------
 
-    def handle_action(self, key, now):
-        """Bouton cliqué dans une notification : « use:<profil> »."""
+    def handle_action(self, key, now, settings=None):
+        """Bouton cliqué dans une notification : « use:<profil> », revérifié au moment du clic."""
         kind, _, name = key.partition(":")
         if kind != "use":
             return False
         names = {p.name for p in core.list_profiles()}
         if name not in names or core.active_profile_name() == name:
+            return False
+        settings = settings or load_settings()
+        target = self.states.get(name)
+        problem = None
+        if target is None or target.fetched_at is None \
+                or now.timestamp() - target.fetched_at > autoswitch.STALE_S:
+            problem = "données trop anciennes"
+        elif target.blocking_error:
+            problem = target.blocking_error
+        elif effective_percent(target.session, now) >= 95 \
+                or target.other_max_effective(now) >= settings["auto_switch"]["target_max_weekly"]:
+            problem = "presque épuisé"
+        if problem:
+            self.notifier(alerts.Alert(f"refus:{name}:{now.timestamp():.0f}",
+                                       f"{name} n'est plus un bon choix", f"Bascule annulée : {problem}.", 1))
             return False
         r = core.run_ccs(["use", name])
         if r.returncode != 0:
@@ -448,6 +463,18 @@ def run():
         pid_file.close()
     log.info("daemon arrêté")
     return exit_code
+
+
+def observe_once():
+    """Relevé et état partagé seulement : aucune bascule, alerte ni démarrage."""
+    d = Daemon(Store(), notifier=lambda _a: None, starter=lambda *_: None)
+    s = load_settings()
+    s["auto_switch"]["enabled"] = False
+    s["orchestrator"]["enabled"] = False
+    s["alerts"]["enabled"] = False
+    d.prev_sessions = {}
+    d.tick(s, datetime.now(timezone.utc))
+    return 0
 
 
 def collect_once():

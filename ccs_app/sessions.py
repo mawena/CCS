@@ -8,6 +8,7 @@ ne sont jamais lus.
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -34,6 +35,7 @@ class Session:
     state_since: float   # secondes
     kind: str
     entrypoint: str
+    proc_start: str | None = None  # date de démarrage du processus (champ 22 de /proc/<pid>/stat)
 
 
 def sessions_dir():
@@ -44,16 +46,28 @@ def projects_dir():
     return core.paths().config_dir / "projects"
 
 
-def _is_claude(pid):
-    """Le pid existe et c'est bien Claude Code (pas un pid recyclé)."""
+def _comm(pid):
     try:
         with open(f"/proc/{pid}/comm") as f:
-            comm = f.read().strip()
-        with open(f"/proc/{pid}/cmdline", "rb") as f:
-            cmd = f.read()
+            return f.read().strip()
     except OSError:
+        return None
+
+
+def _proc_start(pid):
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return f.read().rsplit(")", 1)[1].split()[19]
+    except (OSError, IndexError):
+        return None
+
+
+def _is_claude(pid, proc_start=None):
+    """Le processus s'appelle `claude` et, si la fiche le précise, a démarré au même
+    instant : un pid recyclé n'est jamais pris pour une session."""
+    if _comm(pid) != "claude":
         return False
-    return comm == "claude" or b"claude" in cmd.split(b"\0")[0]
+    return proc_start is None or _proc_start(pid) == str(proc_start)
 
 
 def project_name(cwd):
@@ -87,17 +101,19 @@ def list_sessions():
         try:
             data = json.loads(f.read_text())
             pid = int(data["pid"])
-        except (OSError, ValueError, KeyError, TypeError):
-            continue
-        if not _is_claude(pid):
-            continue
-        ms = lambda key: (data.get(key) or 0) / 1000  # noqa: E731
-        out.append(Session(
-            pid=pid, session_id=str(data.get("sessionId") or ""), name=str(data.get("name") or pid),
-            cwd=str(data.get("cwd") or ""), project=project_name(data.get("cwd")), state=_state(data),
-            waiting_for=data.get("waitingFor"), started_at=ms("startedAt"),
-            state_since=ms("statusUpdatedAt") or ms("updatedAt"),
-            kind=str(data.get("kind") or ""), entrypoint=str(data.get("entrypoint") or "")))
+            ms = lambda key: float(data.get(key) or 0) / 1000  # noqa: E731
+            proc_start = data.get("procStart")
+            if not _is_claude(pid, proc_start):
+                continue
+            out.append(Session(
+                pid=pid, session_id=str(data.get("sessionId") or ""), name=str(data.get("name") or pid),
+                cwd=str(data.get("cwd") or ""), project=project_name(data.get("cwd")), state=_state(data),
+                waiting_for=data.get("waitingFor"), started_at=ms("startedAt"),
+                state_since=ms("statusUpdatedAt") or ms("updatedAt"),
+                kind=str(data.get("kind") or ""), entrypoint=str(data.get("entrypoint") or ""),
+                proc_start=str(proc_start) if proc_start is not None else None))
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            continue  # fiche absente, illisible ou d'un format inconnu
     out.sort(key=lambda s: s.started_at)
     return out
 
@@ -219,7 +235,7 @@ def _claude_bin():
 
 def terminal_command(cwd, resume=None):
     term = shutil.which("gnome-terminal") or shutil.which("x-terminal-emulator") or "x-terminal-emulator"
-    cmd = _claude_bin() + (f" --resume {resume}" if resume else "")
+    cmd = shlex.join([_claude_bin(), "--resume", resume]) if resume else shlex.quote(_claude_bin())
     return [term, f"--working-directory={cwd}", "--", "bash", "-lc", cmd]
 
 
@@ -238,9 +254,21 @@ def open_folder(cwd):
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def terminate(pid):
-    """Termine une session Claude Code (SIGTERM) ; refuse tout autre processus."""
-    if not _is_claude(pid):
+def terminate(pid, proc_start=None):
+    """Termine une session Claude Code (SIGTERM) ; refuse tout autre processus.
+
+    Le pidfd fige le processus visé : la vérification et l'envoi du signal portent
+    forcément sur le même processus, même si le pid est recyclé entre-temps."""
+    try:
+        fd = os.pidfd_open(pid)
+    except OSError:
         return False
-    os.kill(pid, signal.SIGTERM)
-    return True
+    try:
+        if not _is_claude(pid, proc_start):
+            return False
+        signal.pidfd_send_signal(fd, signal.SIGTERM)
+        return True
+    except OSError:
+        return False
+    finally:
+        os.close(fd)
