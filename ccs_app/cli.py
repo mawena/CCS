@@ -63,6 +63,39 @@ def cmd_collect(_args):
     return 0
 
 
+def cmd_analyze(args):
+    import time
+    from . import transcripts
+    from .store import Store
+    since = time.time() - args.days * 86400
+    rows = transcripts.scan(core.paths().config_dir / "projects", since)
+    periods = Store().active_periods(since, time.time())
+    r = transcripts.aggregate(rows, periods, args.days)
+    if not rows:
+        print(f"Aucune activité Claude Code sur les {args.days} derniers jours.")
+        return 0
+    fmt = transcripts.fmt_tokens
+    print(f"Usage des {args.days} derniers jours : {fmt(r.total)} tokens pondérés "
+          f"({len(rows)} réponses)\n")
+    for title, data in (("Par projet", r.by_project), ("Par modèle", r.by_model),
+                        ("Par compte", r.by_account)):
+        print(title)
+        for name, v in sorted(data.items(), key=lambda kv: -kv[1])[:8]:
+            print(f"  {name:<28} {100 * v / r.total:5.1f} %  {fmt(v):>9}")
+        print()
+    peak = max(r.by_hour) or 1
+    print("Par heure")
+    for h in range(24):
+        if r.by_hour[h]:
+            print(f"  {h:02d} h {'█' * max(1, round(30 * r.by_hour[h] / peak))}")
+    tips = transcripts.advice(r)
+    if tips:
+        print("\nConseils")
+        for t in tips:
+            print(f"  • {t}")
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
@@ -73,6 +106,9 @@ def build_parser():
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
     sub.add_parser("collect", help="collecte immédiate").set_defaults(func=cmd_collect)
+    an = sub.add_parser("analyze", help="analyse des journaux locaux")
+    an.add_argument("--days", type=int, default=7)
+    an.set_defaults(func=cmd_analyze)
     return parser
 
 
