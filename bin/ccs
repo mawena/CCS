@@ -203,19 +203,39 @@ cmd_use() {
   running_warning
 }
 
+# Profil suivant (ordre alphabétique, retour au début), en sautant ceux dont la
+# connexion est perdue.
 cmd_next() {
-  local all cur i n
+  local all cur i k n first=0 count cand names="" cmds=""
+  local -a lost=()
   mapfile -t all < <(profiles)
   n="${#all[@]}"
   [[ "$n" -gt 0 ]] || die "aucun profil"
   cur="$(active_profile)"
+  count="$n"
   for ((i = 0; i < n; i++)); do
     if [[ "${all[$i]}" == "$cur" ]]; then
-      cmd_use "${all[$(((i + 1) % n))]}"
-      return
+      first=$((i + 1)); count=$((n - 1))
+      break
     fi
   done
-  cmd_use "${all[0]}"
+  if [[ "$count" -eq 0 ]]; then
+    cmd_use "$cur"  # profil unique : « Déjà sur … »
+    return
+  fi
+  for ((k = 0; k < count; k++)); do
+    cand="${all[$(((first + k) % n))]}"
+    if has_token "$STORE/$cand/oauth.json"; then
+      cmd_use "$cand"
+      return
+    fi
+    lost+=("$cand")
+  done
+  for cand in "${lost[@]}"; do
+    names+="${names:+, }$cand"
+    cmds+="${cmds:+ ; }'ccs rm $cand' puis 'ccs add $cand'"
+  done
+  die "aucun autre profil utilisable, connexion perdue pour : $names (reconnecte avec $cmds)"
 }
 
 cmd_rm() {
@@ -247,7 +267,7 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
 
   ccs                      liste les profils (● = actif)
   ccs <nom>                bascule sur le profil <nom>
-  ccs next                 bascule sur le profil suivant (pratique en cas de limite atteinte)
+  ccs next                 bascule sur le profil suivant utilisable (pratique en cas de limite atteinte)
   ccs save <nom>           enregistre le compte actuellement connecté sous <nom>
   ccs add <nom> [opts]     connecte un nouveau compte (claude auth login) et l'enregistre
                            opts : --email <adresse>  --console  --sso
