@@ -48,7 +48,7 @@ version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`.
 - [x] Release correctif 0.3.2 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
 - [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.3.2_all.deb`)
 
-## Phase 5 — Historique des conversations (0.4.0)
+## Phase 5 — Historique des conversations (0.4.0) ✅
 
 Toutes les conversations Claude Code du PC, comme la liste « Past conversations »
 de l'extension VS Code, et leur reprise en un clic.
@@ -61,6 +61,8 @@ de l'extension VS Code, et leur reprise en un clic.
 - [x] `claude-accounts conversations` / `ccs conv` (liste, recherche) et `claude-accounts resume` / `ccs resume` (reprise)
 - [x] Tests unitaires, suite au vert
 - [x] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
+- [ ] Release mineure 0.4.0 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
+- [ ] Paquet `.deb` construit pour l'installation (`dist/ccs_0.4.0_all.deb`)
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
