@@ -57,10 +57,10 @@ de l'extension VS Code, et leur reprise en un clic.
 - [x] Recherche (titre, demandes, projet) et filtres (projet, origine), regroupement par date
 - [x] Reprise dans VS Code (`vscode://anthropic.claude-code/open?session=…` après ouverture du dossier) ou dans un terminal (`claude --resume`), copie de la commande ; refus si le dossier a disparu ou si la conversation est déjà ouverte
 - [x] Projets déplacés : dossier du même nom proposé (historique, puis HOME), confirmation, copie du journal dans le nouveau dossier (`relocate`)
-- [ ] Onglet « Conversations » de l'application (recherche, filtres, groupes par date, boutons de reprise) et lien depuis l'onglet Sessions
+- [x] Onglet « Conversations » de l'application (recherche, filtres, groupes par date, boutons de reprise) et lien depuis l'onglet Sessions
 - [x] `claude-accounts conversations` / `ccs conv` (liste, recherche) et `claude-accounts resume` / `ccs resume` (reprise)
-- [ ] Tests unitaires, suite au vert
-- [ ] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
+- [x] Tests unitaires, suite au vert
+- [x] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 

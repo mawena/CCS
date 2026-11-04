@@ -24,6 +24,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   - Cache incrémental (`~/.claude-accounts/conversations-cache.json`) : seules
     les lignes ajoutées depuis la dernière lecture sont relues.
 
+### Modifié
+
+- Fenêtre plus large à l'ouverture (1180 px) ; sous 1350 px de large, les sept
+  onglets passent dans la barre du bas pour que leurs titres restent entiers.
+
 ### Corrigé
 
 - Une demande interrompue (« [Request interrupted by user… ») ne sert plus de
