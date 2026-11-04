@@ -48,6 +48,15 @@ comptes en avance sur leur semaine.
 .B ccs sessions
 Sessions Claude Code ouvertes : projet, état, durée, consommation.
 .TP
+.B ccs conv \fR[\fImots\fR] [\fB\-p \fIprojet\fR] [\fB\-\-vscode\fR|\fB\-\-terminal\fR] [\fB\-\-all\fR] [\fB\-\-json\fR]
+Historique de toutes les conversations Claude Code du PC, groupées par date,
+avec recherche et filtres.
+.TP
+.B ccs resume \fIid\fR [\fB\-\-vscode\fR|\fB\-\-new\-terminal\fR|\fB\-\-print\fR] [\fB\-\-dir \fIdossier\fR]
+Reprend une conversation (identifiant complet ou ses 4 premiers caractères au
+moins) dans le terminal courant, dans VS Code ou dans un nouveau terminal.
+\fB\-\-dir\fR la reprend depuis un autre dossier (projet déplacé).
+.TP
 .B ccs integrate on\fR|\fBoff\fR|\fBstatus
 Ligne d'état dans Claude Code et bascule automatique quand une session atteint
 la limite (modifie ~/.claude/settings.json, avec sauvegarde).
@@ -76,7 +85,9 @@ Supprime un profil (le compte n'est pas déconnecté chez Anthropic).
 .TP
 .I ~/.claude-accounts/
 Profils (jetons OAuth, droits 600), historique \fIhistory.db\fR, réglages
-\fIsettings.json\fR, état courant \fIstate.json\fR.
+\fIsettings.json\fR, état courant \fIstate.json\fR, cache de l'historique des
+conversations \fIconversations-cache.json\fR, journaux copiés pour des projets
+déplacés \fIconversations-moves.json\fR.
 .TP
 .I ~/.claude/.credentials.json\fR, \fI~/.claude.json
 Fichiers de Claude Code réécrits lors d'une bascule.
