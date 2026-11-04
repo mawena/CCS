@@ -87,6 +87,36 @@ class TokensTest(HomeTestCase):
         with fake_http({}):
             self.assertEqual(core.access_token("perso"), "AT-perso")
 
+    def test_profile_without_token_says_how_to_reconnect(self):
+        path = self.store / "pro" / "oauth.json"
+        data = json.loads(path.read_text())
+        data["claudeAiOauth"].update(accessToken="", refreshToken="", expiresAt=0)
+        write(path, data)
+        with fake_http({}) as calls:
+            with self.assertRaises(core.UsageError) as cm:
+                core.access_token("pro")
+        self.assertEqual(calls, [])
+        msg = str(cm.exception)
+        self.assertIn("connexion perdue", msg)
+        self.assertIn("ccs rm pro", msg)
+        self.assertIn("ccs add pro", msg)
+
+    def test_refresh_fills_active_profile_whose_copy_is_empty(self):
+        # Copie du profil actif vidée (ancien bug 0.3.0) : le jeton renouvelé
+        # depuis le fichier vivant doit y être enregistré.
+        creds = self.home / ".claude" / ".credentials.json"
+        data = json.loads(creds.read_text())
+        data["claudeAiOauth"]["expiresAt"] = 0
+        write(creds, data)
+        path = self.store / "perso" / "oauth.json"
+        data = json.loads(path.read_text())
+        data["claudeAiOauth"].update(accessToken="", refreshToken="", expiresAt=0)
+        write(path, data)
+        token = {"access_token": "AT-new", "refresh_token": "RT-new", "expires_in": 3600}
+        with fake_http({"/oauth/token": token}):
+            self.assertEqual(core.access_token("perso"), "AT-new")
+        self.assertEqual(json.loads(path.read_text())["claudeAiOauth"]["refreshToken"], "RT-new")
+
 
 class FetchUsageTest(HomeTestCase):
     def test_fetch_usage_success_writes_cache(self):

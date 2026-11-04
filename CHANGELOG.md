@@ -3,6 +3,20 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.3.1] — 2026-11-04
+
+### Corrigé
+
+- En quittant un compte dont la connexion avait été perdue, `ccs` recopiait
+  dans son profil les jetons vides laissés par Claude Code (une chaîne vide
+  passait pour un jeton valide). La carte du compte affichait alors le message
+  trompeur « aucun jeton enregistré pour ce profil ».
+- `ccs use` refuse désormais d'installer un profil sans jeton, sans rien
+  modifier.
+- Le message devient « connexion perdue : reconnecte ce compte avec
+  « ccs rm <nom> » puis « ccs add <nom> » », avec une alerte bureau.
+- Un jeton renouvelé remplit la copie vide du profil actif.
+
 ## [0.3.0] — 2026-10-26
 
 ### Ajouté
