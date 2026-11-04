@@ -1,9 +1,9 @@
-.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.3.2" "Commandes utilisateur"
+.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.4.0" "Commandes utilisateur"
 .SH NOM
 claude-accounts \- application, service et outils d'usage des comptes Claude Code
 .SH SYNOPSIS
 .B claude-accounts
-[\fBgui\fR|\fBprint\fR|\fBsessions\fR|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
+[\fBgui\fR|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
 .SH DESCRIPTION
 Sans argument, ouvre l'application graphique « Comptes Claude » : comptes et
 prévisions, historique, analyse de l'usage local et réglages.
@@ -17,6 +17,17 @@ Usage de tous les comptes dans le terminal.
 .TP
 .B sessions
 Sessions Claude Code ouvertes.
+.TP
+.B conversations \fR[\fImots\fR] [\fB\-p \fIprojet\fR] [\fB\-\-vscode\fR|\fB\-\-terminal\fR] [\fB\-n \fIN\fR|\fB\-\-all\fR] [\fB\-\-json\fR]
+Historique des conversations Claude Code du PC (\fI~/.claude/projects\fR), groupé
+par date ; les mots cherchés doivent tous apparaître (titre, demandes, projet,
+dossier, branche).
+.TP
+.B resume \fIid\fR [\fB\-\-vscode\fR|\fB\-\-new\-terminal\fR|\fB\-\-print\fR] [\fB\-\-dir \fIdossier\fR]
+Reprend une conversation : dans le terminal courant par défaut, dans VS Code
+(extension Claude Code) ou dans un nouveau terminal. Refuse une conversation déjà
+ouverte. Pour un projet déplacé, propose le dossier du même nom (confirmation)
+ou utilise \fB\-\-dir\fR.
 .TP
 .B statusline
 Ligne d'état pour Claude Code (lit le contexte sur l'entrée standard).

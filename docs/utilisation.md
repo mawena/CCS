@@ -136,10 +136,44 @@ Actions : ouvrir un terminal ou le dossier du projet ; terminer une session
 **Reprendre** une conversation récente (`claude --resume`) ou lancer une
 **Nouvelle session** dans un projet récent, dans un nouveau terminal.
 
+Le bouton **Tout l'historique** ouvre l'onglet Conversations.
+
 Notifications : « X a terminé » ou « X attend ta réponse » quand une session
 qui travaillait depuis au moins une minute s'arrête (au plus une notification
 toutes les 2 min par session). Réglage : **Réglages → Alertes → Sessions
 Claude Code**.
+
+## Historique des conversations
+
+`ccs conv` ou l'onglet **Conversations** : toutes les conversations Claude Code
+du PC (`~/.claude/projects/*/*.jsonl`, terminal et VS Code), de la plus récente
+à la plus ancienne, groupées par date.
+
+- **Titre** : celui donné avec `/rename` ou dans VS Code, sinon le titre
+  automatique de Claude Code, sinon la première demande. Le contexte ajouté par
+  VS Code (fichier ouvert, sélection) et les messages injectés par Claude Code
+  sont ignorés.
+- **Recherche** : chaque mot doit apparaître dans le titre, la première ou la
+  dernière demande, le projet, le dossier ou la branche (accents et majuscules
+  ignorés). Filtres : projet (`-p <nom ou dossier>`), origine (`--vscode`,
+  `--terminal`). `--all` affiche tout, `--json` pour un script.
+- **Reprise** : dans VS Code (`ccs resume <id> --vscode`, ou le bouton) : CCS
+  ouvre la fenêtre du projet puis passe le lien
+  `vscode://anthropic.claude-code/open?session=<id>` à l'extension. Dans un
+  terminal : `ccs resume <id>` reprend dans le terminal courant,
+  `--new-terminal` dans une nouvelle fenêtre, `--print` affiche seulement la
+  commande. Une conversation déjà ouverte dans une session n'est pas relancée.
+- **Projet déplacé** : Claude Code range les conversations selon le chemin du
+  projet ; après un déplacement, `claude --resume` ne les retrouve plus. CCS
+  marque ces conversations « dossier introuvable », propose le dossier du même
+  nom (connu de l'historique, sinon trouvé dans le dossier personnel, sur 4
+  niveaux) et demande confirmation. Il copie alors le journal dans le dossier
+  de projet de Claude Code correspondant au nouvel emplacement, sans toucher à
+  l'original. `--dir <dossier>` choisit le dossier à la main.
+
+Lecture : la première fois, CCS parcourt tous les journaux (quelques secondes
+pour 2 Go) ; ensuite il ne relit que les lignes ajoutées depuis, grâce au cache
+`~/.claude-accounts/conversations-cache.json`.
 
 ## Intégration dans Claude Code
 

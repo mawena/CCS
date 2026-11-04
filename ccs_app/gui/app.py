@@ -16,6 +16,7 @@ from ..store import Store  # noqa: E402
 from .accounts import AccountsPage, add_account  # noqa: E402
 from .analysis import AnalysisPage  # noqa: E402
 from .common import ask_name, install_css, load_state, refresh_data, run_ccs_async  # noqa: E402
+from .conversations_page import ConversationsPage  # noqa: E402
 from .history import HistoryPage  # noqa: E402
 from .planning import PlanningPage  # noqa: E402
 from .sessions_page import SessionsPage  # noqa: E402
@@ -28,7 +29,7 @@ STALE_S = 600
 class Window(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Comptes Claude")
-        self.set_default_size(1000, 860)
+        self.set_default_size(1180, 860)
         install_css()
         self.store = Store()
         self._reload_pending = False
@@ -54,6 +55,7 @@ class Window(Adw.ApplicationWindow):
         self.accounts = AccountsPage(self)
         self.planning = PlanningPage(self)
         self.sessions = SessionsPage(self)
+        self.conversations = ConversationsPage(self)
         self.history = HistoryPage(self)
         self.analysis = AnalysisPage(self)
         self.prefs = PrefsPage(self)
@@ -61,6 +63,7 @@ class Window(Adw.ApplicationWindow):
                 (self.accounts, "accounts", "Comptes", "system-users-symbolic"),
                 (self.planning, "planning", "Planning", "x-office-calendar-symbolic"),
                 (self.sessions, "sessions", "Sessions", "utilities-terminal-symbolic"),
+                (self.conversations, "conversations", "Conversations", "chat-message-new-symbolic"),
                 (self.history, "history", "Historique", "document-open-recent-symbolic"),
                 (self.analysis, "analysis", "Analyse", "edit-find-symbolic"),
                 (self.prefs, "prefs", "Réglages", "emblem-system-symbolic")):
@@ -75,8 +78,9 @@ class Window(Adw.ApplicationWindow):
         view.add_top_bar(header)
         view.add_bottom_bar(bottom_switcher)
         self.set_content(view)
-        # Fenêtre étroite : onglets en bas, comme les applications GNOME.
-        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 960sp"))
+        # Fenêtre étroite : onglets en bas, comme les applications GNOME (7 onglets de
+        # même largeur : en dessous de 1350 px, « Conversations » serait tronqué en haut).
+        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 1350sp"))
         narrow.add_setter(top_switcher, "visible", False)
         narrow.add_setter(bottom_switcher, "reveal", True)
         self.add_breakpoint(narrow)
@@ -119,8 +123,11 @@ class Window(Adw.ApplicationWindow):
     def on_page(self, *_):
         name = self.stack.get_visible_child_name()
         self.sessions.visible_page = name == "sessions"
+        self.conversations.visible_page = name == "conversations"
         if name == "sessions":
             self.sessions.load()
+        elif name == "conversations":
+            self.conversations.load()
         if name == "history":
             self.history.render(load_state(), self.store)
         elif name == "analysis":

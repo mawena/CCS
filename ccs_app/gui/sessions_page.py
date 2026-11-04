@@ -67,8 +67,13 @@ class SessionsPage(Gtk.ScrolledWindow):
             self.box.append(self.session_card(s, usage.get(s.pid)))
 
         if projects:
-            self.box.append(Gtk.Label(label="Reprendre ou démarrer", xalign=0,
-                                      css_classes=["title-4"], margin_top=8))
+            title = Gtk.Box(spacing=8, margin_top=8)
+            title.append(Gtk.Label(label="Reprendre ou démarrer", xalign=0, hexpand=True,
+                                   css_classes=["title-4"]))
+            history = Gtk.Button(label="Tout l'historique", css_classes=["flat"], valign=Gtk.Align.CENTER)
+            history.connect("clicked", lambda *_: self.window.stack.set_visible_child_name("conversations"))
+            title.append(history)
+            self.box.append(title)
         for cwd, _mtime in projects:
             self.box.append(self.project_card(cwd, convs.get(cwd) or []))
 

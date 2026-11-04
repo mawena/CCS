@@ -278,6 +278,10 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
   ccs orch on|off          orchestrateur : enchaîne et décale les fenêtres de 5 h des comptes
   ccs plan                 planning des fenêtres et des recharges à venir
   ccs sessions             sessions Claude Code ouvertes : projet, état, consommation
+  ccs conv [mots] [opts]   historique des conversations Claude Code du PC (recherche)
+                           opts : -p <projet>  --vscode  --terminal  --all  --json
+  ccs resume <id> [opts]   reprend une conversation ici (ou --vscode, --new-terminal, --print)
+                           --dir <dossier> : depuis un projet déplacé
   ccs integrate on|off     ligne d'état dans Claude Code + bascule après blocage (hook)
   ccs analyze [--days N]   où part ton usage : projets, modèles, heures, conseils
   ccs gui                  ouvre l'application graphique
@@ -309,6 +313,8 @@ main() {
     orch|orchestrateur) exec "$CA" orch "$@" ;;
     plan|planning) exec "$CA" plan ;;
     sessions|ps) exec "$CA" sessions ;;
+    conv|conversations|historique) exec "$CA" conversations "$@" ;;
+    resume|reprendre) exec "$CA" resume "$@" ;;
     integrate|integration) exec "$CA" integrate "${1:-status}" ;;
     analyze|stats) exec "$CA" analyze "$@" ;;
     version|--version|-v) exec "$CA" --version ;;

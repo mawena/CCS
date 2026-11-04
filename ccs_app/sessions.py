@@ -18,7 +18,8 @@ from pathlib import Path
 from . import core, transcripts
 
 REPORT_MIN_BUSY_S = 60
-INJECTED_PREFIXES = ("Base directory for this skill", "Caveat:", "This session is being continued")
+INJECTED_PREFIXES = ("Base directory for this skill", "Caveat:", "This session is being continued",
+                     "[Request interrupted by user")
 STATE_LABELS = {"busy": "travaille", "waiting": "attend ta réponse", "idle": "au repos"}
 
 

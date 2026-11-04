@@ -3,6 +3,39 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.4.0] — 2026-11-04
+
+### Ajouté
+
+- **Historique des conversations** : toutes les conversations Claude Code du PC
+  (terminal et VS Code), comme la liste des conversations passées de
+  l'extension VS Code, tous projets confondus.
+  - Onglet **Conversations** de l'application : recherche, filtres par projet
+    et par origine, groupes par date, badge « ouverte », bouton « Tout
+    l'historique » dans l'onglet Sessions.
+  - `ccs conv` / `claude-accounts conversations` : liste, recherche, `--json`.
+  - Reprise dans VS Code (fenêtre du projet puis lien
+    `vscode://anthropic.claude-code/open?session=…`), dans un terminal ou dans
+    le terminal courant (`ccs resume <id>`) ; copie de la commande.
+  - Projets déplacés : dossier du même nom proposé, confirmation, copie du
+    journal dans le nouveau dossier (`--dir` pour le choisir).
+  - Titres : `/rename`, sinon titre automatique, sinon première demande ; le
+    contexte ajouté par VS Code est ignoré.
+  - Cache incrémental (`~/.claude-accounts/conversations-cache.json`) : seules
+    les lignes ajoutées depuis la dernière lecture sont relues.
+
+### Modifié
+
+- Fenêtre plus large à l'ouverture (1180 px) ; sous 1350 px de large, les sept
+  onglets passent dans la barre du bas pour que leurs titres restent entiers.
+
+### Corrigé
+
+- Une demande interrompue (« [Request interrupted by user… ») ne sert plus de
+  titre dans l'onglet Sessions.
+- `claude-accounts --print` n'est plus réécrit qu'en première position (il
+  empêchait `resume … --print`).
+
 ## [0.3.2] — 2026-11-04
 
 ### Corrigé
