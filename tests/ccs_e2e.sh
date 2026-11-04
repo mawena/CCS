@@ -104,4 +104,32 @@ for variant in '.claudeAiOauth.refreshToken=""' 'del(.claudeAiOauth.refreshToken
   [[ "$("$CCS" current)" == lockb ]] || fail "compte actif changé ($variant)"
 done
 
+# `ccs next` saute les profils dont la connexion est perdue (perso est sans
+# jeton depuis le test précédent).
+mkprof() { # nom uuid jeton (vide = connexion perdue)
+  local d="$HOME/.claude-accounts/$1"
+  mkdir -p "$d"
+  jq -n --arg r "$3" '{claudeAiOauth:{accessToken:"A",refreshToken:$r,subscriptionType:"pro"},organizationUuid:"org"}' >"$d/oauth.json"
+  jq -n --arg u "$2" '{accountUuid:$u,organizationUuid:"org",emailAddress:"\($u)@x.com",organizationName:"Org"}' >"$d/account.json"
+  chmod 600 "$d"/*.json
+}
+mkprof aaa uAAA ""
+mkprof zeta uZETA RZ
+[[ "$("$CCS" current)" == lockb ]] || fail "préparation : lockb actif"
+# lockb → perso (sans jeton) sauté → zeta.
+out="$("$CCS" next 2>&1)" || fail "next a échoué : $out"
+expect "$out" "basculé sur 'zeta'"
+# Fin de liste : retour au début, aaa (sans jeton) sauté → lockb.
+out="$("$CCS" next 2>&1)" || fail "next (retour au début) a échoué : $out"
+expect "$out" "basculé sur 'lockb'"
+# Plus aucun autre profil utilisable : message clair, fichiers vivants intacts.
+"$CCS" rm zeta >/dev/null
+before="$(cat "$c" "$HOME/.claude.json" | sha256sum)"
+out="$("$CCS" next 2>&1)" && fail "next accepté sans autre profil utilisable"
+expect "$out" "connexion perdue"
+expect "$out" "ccs rm aaa"; expect "$out" "ccs add aaa"
+expect "$out" "ccs rm perso"; expect "$out" "ccs add perso"
+[[ "$(cat "$c" "$HOME/.claude.json" | sha256sum)" == "$before" ]] || fail "fichiers vivants modifiés par next"
+[[ "$("$CCS" current)" == lockb ]] || fail "compte actif changé par next"
+
 echo "OK ccs_e2e"
