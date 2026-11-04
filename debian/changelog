@@ -1,3 +1,15 @@
+ccs (0.3.2) unstable; urgency=medium
+
+  * Orchestrateur : si un compte a été ouvert avant le début de la plage
+    horaire, le premier démarrage du matin part de son heure d'ouverture
+    au lieu d'une grille fixe.
+  * ccs next saute les profils dont la connexion est perdue et nomme ceux
+    à reconnecter quand aucun autre profil n'est utilisable.
+  * Limites hebdomadaires par modèle affichées « Semaine · <modèle> » au
+    lieu des données brutes de l'API.
+
+ -- mawena <gamligocharles@gmail.com>  Wed, 04 Nov 2026 13:30:00 +0000
+
 ccs (0.3.1) unstable; urgency=medium
 
   * Un compte dont la connexion est perdue ne vide plus son profil en

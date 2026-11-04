@@ -3,6 +3,19 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.3.2] — 2026-11-04
+
+### Corrigé
+
+- Orchestrateur : quand un compte a été ouvert avant le début de la plage
+  horaire, le premier démarrage du matin part de son heure d'ouverture
+  (ouvert à 07:10 → compte suivant à 09:40) au lieu d'une grille fixe calée
+  sur le début de plage (10:30).
+- `ccs next` saute les profils dont la connexion est perdue ; si aucun autre
+  profil n'est utilisable, il s'arrête en nommant les profils à reconnecter.
+- Les limites hebdomadaires par modèle s'affichent « Semaine · Fable » au lieu
+  des données brutes renvoyées par l'API.
+
 ## [0.3.1] — 2026-11-04
 
 ### Corrigé
