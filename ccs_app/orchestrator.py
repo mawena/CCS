@@ -73,9 +73,15 @@ def first_slots(accounts, now, cfg):
         return (1 if a.active else 2, 0, name)
     names = sorted(participants(accounts, now, cfg), key=rank)
     step = SESSION_WINDOW / len(names) if names and cfg["stagger"] else timedelta(0)
+    # Une fenêtre encore ouverte, démarrée avant le début de la plage (tôt le
+    # matin par l'utilisateur), sert de point de départ : les créneaux se calent
+    # sur ce démarrage réel et non sur le début de plage.
+    opened = [by_name[n].session.resets_at - SESSION_WINDOW
+              for n in names if window_open(by_name[n], now)]
+    anchor = min([start] + opened)
     slots = {}
     for k, name in enumerate(names):
-        slot = start + step * k
+        slot = anchor + step * k
         if slot < end:
             slots[name] = slot
     return slots

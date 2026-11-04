@@ -59,8 +59,10 @@ peut passer minuit), il :
   minimale à Haiku, dans un dossier de configuration temporaire) ;
 - **décale** les comptes : un compte au repos ne démarre que si la dernière
   fenêtre ouverte sur un autre compte date d'au moins 5 h ÷ N (2 h 30 pour deux
-  comptes). Le matin, cela donne `début de plage`, puis `+ 2 h 30`… ; dans la
-  journée, l'écart se rétablit tout seul, y compris après tes propres
+  comptes). Le matin, cela donne `début de plage`, puis `+ 2 h 30`… ; si un
+  compte a été ouvert avant le début de plage, l'écart part de son heure
+  d'ouverture (ouvert à 07:10 → le suivant démarre à 09:40, pas à 10:30). Dans
+  la journée, l'écart se rétablit tout seul, y compris après tes propres
   démarrages. Un compte au repos reste utilisable : son quota est entier, et ta
   première requête ouvre sa fenêtre ;
 - **bascule vers le quota qui expire** : un compte dont la fenêtre se termine

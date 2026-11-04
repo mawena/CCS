@@ -84,7 +84,9 @@ class StartsDueTest(unittest.TestCase):
         self.assertEqual(orch.starts_due(accounts, later, cfg(), FakeStore()), ["a"])
 
     def test_open_window_not_started(self):
-        self.assertEqual(orch.starts_due([acc("a", 20, 120), acc("b")], NOW, cfg(), FakeStore()), [])
+        # a (ouvert à 07:00) n'est pas relancé ; b peut démarrer : 07:00 + 2 h 30 est passé.
+        self.assertEqual(orch.starts_due([acc("a", 20, 120), acc("b")], NOW, cfg(), FakeStore()), ["b"])
+        self.assertEqual(orch.starts_due([acc("a", 20, 120)], NOW, cfg(), FakeStore()), [])
 
     def test_recent_attempt_not_repeated(self):
         store = FakeStore([Event(NOW.timestamp() - 300, "warmup", "a", {"mode": "orchestrateur"})])
@@ -148,15 +150,20 @@ class PlanTest(unittest.TestCase):
         windows = orch.plan(accounts, NOW, cfg())
         a = [(w.start, w.end, w.kind) for w in windows if w.name == "a"]
         self.assertEqual(a[0], (local(0, 7), local(0, 12), "current"))
-        # b démarre à 10:30 ; a, ouvert depuis 07:00, attend 13:00 pour garder 2 h 30 d'écart.
-        self.assertEqual(a[1], (local(0, 13), local(0, 18), "planned"))
-        self.assertEqual(a[-1][0], local(0, 23))   # dernier démarrage avant 02:00
+        # a est ouvert depuis 07:00 (avant la plage) : b démarre dès maintenant
+        # (07:00 + 2 h 30 est passé), puis a attend 12:30 pour garder 2 h 30 d'écart.
+        self.assertEqual(a[1], (local(0, 12, 30), local(0, 17, 30), "planned"))
+        self.assertEqual(a[-1][0], local(0, 22, 30))   # dernier démarrage avant 02:00
         b = [(w.start, w.kind) for w in windows if w.name == "b"]
-        self.assertEqual(b[0], (local(0, 10, 30), "planned"))
+        self.assertEqual(b[0], (NOW, "planned"))
 
     def test_next_wake(self):
-        accounts = [acc("a", 50, 120), acc("b")]
+        # a ouvert à 08:00 : b est prévu à 10:30.
+        accounts = [acc("a", 50, 180), acc("b")]
         self.assertEqual(orch.next_wake(accounts, NOW, cfg()), local(0, 10, 30) + timedelta(seconds=30))
+        # a ouvert à 07:00 : b démarre maintenant, le prochain instant utile est la fin de a.
+        accounts = [acc("a", 50, 120), acc("b")]
+        self.assertEqual(orch.next_wake(accounts, NOW, cfg()), local(0, 12) + timedelta(seconds=30))
         accounts = [acc("a", 50, 20), acc("b", 10, 200)]
         self.assertEqual(orch.next_wake(accounts, NOW, cfg()), NOW + timedelta(minutes=20, seconds=30))
 
@@ -242,3 +249,26 @@ class TransientErrorTest(unittest.TestCase):
         perso = acc("perso", 10, None, now=now, age=3600, error="HTTP 429 : rate limited")
         perso.limits[0].resets_at = local(0, 17, 20)
         self.assertEqual(orch.starts_due([acc("boulot", now=now), perso], now, cfg(), FakeStore()), [])
+
+
+class EarlyWindowTest(unittest.TestCase):
+    """Constaté le 04/11 : fenêtre ouverte à 07:10, avant la plage (08:00). L'autre
+    compte démarrait à 10:30 (grille fixe depuis 08:00) au lieu de 09:40 (07:10 + 2 h 30)."""
+
+    def accounts(self, now):
+        m3 = acc("mawena3", 20, None, now=now, active=True)
+        m3.limits[0].resets_at = local(0, 12, 10)
+        return [m3, acc("mawenawork", now=now)]
+
+    def test_plan_follows_real_start_before_range(self):
+        now = local(0, 8, 30)
+        work = [w.start for w in orch.plan(self.accounts(now), now, cfg()) if w.name == "mawenawork"]
+        self.assertEqual(work[0], local(0, 9, 40))
+        self.assertEqual(orch.next_wake(self.accounts(now), now, cfg()),
+                         local(0, 9, 40) + timedelta(seconds=30))
+
+    def test_starts_due_at_real_spacing(self):
+        early = local(0, 9, 39)
+        self.assertEqual(orch.starts_due(self.accounts(early), early, cfg(), FakeStore()), [])
+        due = local(0, 9, 41)
+        self.assertEqual(orch.starts_due(self.accounts(due), due, cfg(), FakeStore()), ["mawenawork"])
