@@ -29,6 +29,16 @@ version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`.
 - [x] Boutons « Basculer sur … » dans les notifications
 - [x] Icône jauge et menu d'informations
 
+## Correctif 0.3.1 — jetons vides recopiés dans un profil
+
+- [x] Tests qui reproduisent le bug (bascule avec jetons vivants vides, profil sans jeton, message)
+- [x] `ccs` : un jeton vide compte comme « non connecté »
+- [x] `ccs use` refuse d'installer un profil sans jeton
+- [x] Message « connexion perdue » avec la marche à suivre pour reconnecter
+- [x] Suite de tests au vert
+- [x] Version 0.3.1 (changelogs, pages man)
+- [ ] Publication : hotfix terminé, `main`, `develop` et le tag poussés
+
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
 Recommandées :
