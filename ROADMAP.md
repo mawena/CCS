@@ -46,7 +46,7 @@ version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`.
 - [x] Libellé lisible pour les limites hebdomadaires par modèle (« Semaine · Fable » au lieu des données brutes)
 - [x] Fusion des trois corrections dans `develop`, suite de tests au vert
 - [x] Release correctif 0.3.2 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
-- [ ] Paquet `.deb` construit pour l'installation
+- [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.3.2_all.deb`)
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
