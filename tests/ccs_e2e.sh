@@ -81,4 +81,27 @@ wait $locker
 (( elapsed >= 1200 )) || fail "ccs n'a pas attendu le verrou (${elapsed} ms)"
 [[ "$("$CCS" current)" == perso ]] || fail "bascule après verrou"
 
+# Correctif 0.3.1 : connexion perdue, Claude Code a vidé les jetons du fichier
+# vivant. Quitter ce compte ne doit pas recopier ces jetons vides dans son profil.
+c="$HOME/.claude/.credentials.json"
+p="$HOME/.claude-accounts/perso/oauth.json"
+rt="$(jq -r .claudeAiOauth.refreshToken "$p")"
+[[ -n "$rt" && "$rt" != null ]] || fail "préparation : perso sans jeton"
+jq '.claudeAiOauth += {"accessToken":"","refreshToken":"","expiresAt":0}' "$c" >"$c.t" && mv "$c.t" "$c"
+out="$("$CCS" lockb)"; expect "$out" "basculé sur 'lockb'"
+[[ "$(jq -r .claudeAiOauth.refreshToken "$p")" == "$rt" ]] || fail "jetons vides recopiés dans le profil quitté"
+
+# Un profil sans jeton (vide ou absent) n'est jamais installé : message clair,
+# fichiers vivants intacts.
+for variant in '.claudeAiOauth.refreshToken=""' 'del(.claudeAiOauth.refreshToken)'; do
+  jq "$variant" "$p" >"$p.t" && mv "$p.t" "$p"
+  before="$(cat "$c" "$HOME/.claude.json" | sha256sum)"
+  out="$("$CCS" perso 2>&1)" && fail "bascule acceptée sur un profil sans jeton ($variant)"
+  expect "$out" "connexion perdue"
+  expect "$out" "ccs rm perso"
+  expect "$out" "ccs add perso"
+  [[ "$(cat "$c" "$HOME/.claude.json" | sha256sum)" == "$before" ]] || fail "fichiers vivants modifiés ($variant)"
+  [[ "$("$CCS" current)" == lockb ]] || fail "compte actif changé ($variant)"
+done
+
 echo "OK ccs_e2e"

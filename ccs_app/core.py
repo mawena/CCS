@@ -242,7 +242,8 @@ def access_token(name, force_refresh=False):
                   (live.get("refreshToken") and live.get("refreshToken") == stored.get("refreshToken")))
         oauth = live if active else stored
         if not oauth.get("refreshToken"):
-            raise UsageError("aucun jeton enregistré pour ce profil")
+            raise UsageError(f"connexion perdue : reconnecte ce compte avec "
+                             f"« ccs rm {name} » puis « ccs add {name} »")
         fresh = oauth.get("expiresAt", 0) - time.time() * 1000 > EXPIRY_MARGIN_MS
         if fresh and not force_refresh:
             return oauth["accessToken"]
@@ -257,7 +258,8 @@ def access_token(name, force_refresh=False):
             creds["claudeAiOauth"] = new
             atomic_write_json(p.creds, creds)
         prof = load_json(pfile)
-        if (prof.get("claudeAiOauth") or {}).get("refreshToken") in (old_refresh, None) or not active:
+        # Copie absente ou vide (connexion perdue puis retrouvée) : on la remplit.
+        if (prof.get("claudeAiOauth") or {}).get("refreshToken") in (old_refresh, None, "") or not active:
             prof["claudeAiOauth"] = new
             atomic_write_json(pfile, prof)
         return new["accessToken"]
