@@ -37,7 +37,7 @@ version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`.
 - [x] Message « connexion perdue » avec la marche à suivre pour reconnecter
 - [x] Suite de tests au vert
 - [x] Version 0.3.1 (changelogs, pages man)
-- [ ] Publication : hotfix terminé, `main`, `develop` et le tag poussés
+- [x] Publication : hotfix terminé, `main`, `develop` et le tag poussés
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
