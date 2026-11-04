@@ -45,7 +45,7 @@ version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`.
 - [x] `ccs next` : sauter les profils dont la connexion est perdue
 - [x] Libellé lisible pour les limites hebdomadaires par modèle (« Semaine · Fable » au lieu des données brutes)
 - [x] Fusion des trois corrections dans `develop`, suite de tests au vert
-- [ ] Release (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
+- [x] Release correctif 0.3.2 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
 - [ ] Paquet `.deb` construit pour l'installation
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
