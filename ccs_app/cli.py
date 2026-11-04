@@ -1,6 +1,7 @@
 """Point d'entrée `claude-accounts`."""
 
 import argparse
+import json
 import sys
 import threading
 
@@ -260,6 +261,116 @@ def cmd_sessions(_args):
     return 0
 
 
+def _project_filter(convs, wanted):
+    """Dossiers de l'historique désignés par un nom de projet ou un chemin."""
+    import os
+    from . import conversations as conv, sessions
+    if not wanted:
+        return None
+    path = os.path.abspath(os.path.expanduser(wanted))
+    return {cwd for cwd, _ in conv.projects(convs)
+            if cwd == path or sessions.project_name(cwd).casefold() == wanted.casefold()}
+
+
+def cmd_conversations(args):
+    from dataclasses import asdict
+    from . import conversations as conv
+    convs = conv.scan()
+    origin = "vscode" if args.vscode else "terminal" if args.terminal else None
+    folders = _project_filter(convs, args.project)
+    if folders is not None and not folders:
+        print(f"Aucun projet « {args.project} » dans l'historique.", file=sys.stderr)
+        return 1
+    found = [c for c in conv.search(convs, " ".join(args.query), origin=origin)
+             if folders is None or c.cwd in folders]
+    shown = found if args.all else found[:args.limit]
+    if args.json:
+        print(json.dumps([dict(asdict(c), project=c.project) for c in shown], ensure_ascii=False, indent=2))
+        return 0
+    if not found:
+        print("Aucune conversation." if not convs else "Aucune conversation ne correspond.")
+        return 0
+    tty = sys.stdout.isatty()
+    bold, dim, green, red, off = ("\033[1m", "\033[2m", "\033[32m", "\033[31m", "\033[0m") if tty else ("",) * 5
+    opened = conv.open_ids()
+    moved_to = conv.suggest_folders(convs)
+    home = str(core.paths().home)
+    for label, group in conv.group_by_day(shown):
+        print(f"{bold}{label}{off}")
+        for c in group:
+            flag = f"  {green}● ouverte{off}" if c.session_id in opened else ""
+            if not c.folder_exists:
+                moved = moved_to.get(c.session_id)
+                flag = (f"  {red}✗ dossier introuvable{off}" + (
+                    f" {dim}(déplacé vers {moved.replace(home, '~', 1)} ?){off}" if moved else ""))
+            n = f"{c.prompts} demande{'s' if c.prompts > 1 else ''}"
+            print(f"  {c.session_id[:8]}  {conv.ago(c.updated_at):<13} {c.project[:18]:<18} "
+                  f"{c.origin_label:<8} {c.title}  {dim}({n}){off}{flag}")
+        print()
+    if len(found) > len(shown):
+        print(f"{dim}… et {len(found) - len(shown)} de plus (--all pour tout afficher){off}")
+    where = f" dans {args.project}" if args.project else ""
+    print(f"{dim}{len(found)} conversation(s){where}. Reprendre : ccs resume <identifiant> "
+          f"[--vscode]{off}".replace(home, "~"))
+    return 0
+
+
+def cmd_resume(args):
+    import os
+    from . import conversations as conv, sessions
+    convs = conv.scan()
+    try:
+        c = conv.find(convs, args.ref)
+    except LookupError as e:
+        print(f"Erreur : {e}", file=sys.stderr)
+        return 1
+    try:
+        if args.dir:
+            c = conv.relocate(c, args.dir)
+        elif not c.folder_exists:
+            moved = conv.suggest_folder(c, convs)
+            hint = f"Indique son nouvel emplacement : ccs resume {args.ref} --dir <dossier>"
+            if not moved:
+                print(f"Erreur : dossier introuvable : {c.cwd or '?'}\n{hint}", file=sys.stderr)
+                return 1
+            question = (f"Le dossier {c.cwd} n'existe plus.\n"
+                        f"Reprendre depuis {moved} (dossier du même nom) ? [o/N] ")
+            if not sys.stdin.isatty():
+                print(f"Erreur : dossier introuvable : {c.cwd}\nPeut-être déplacé vers {moved}. {hint}",
+                      file=sys.stderr)
+                return 1
+            if input(question).strip().lower() not in ("o", "oui", "y", "yes"):
+                print(hint, file=sys.stderr)
+                return 1
+            c = conv.relocate(c, moved)
+    except OSError as e:
+        print(f"Erreur : {e}", file=sys.stderr)
+        return 1
+    problem = conv.resume_problem(c, conv.open_ids())
+    if problem:
+        print(f"Erreur : « {c.title} » est {problem}." if "ouverte" in problem
+              else f"Erreur : {problem}", file=sys.stderr)
+        return 1
+    if args.print:
+        print(conv.resume_command(c))
+        return 0
+    if args.vscode:
+        try:
+            conv.resume_vscode(c, wait=True)
+        except FileNotFoundError as e:
+            print(f"Erreur : {e}", file=sys.stderr)
+            return 1
+        print(f"« {c.title} » rouverte dans VS Code ({c.cwd}).")
+        return 0
+    if args.new_terminal:
+        conv.resume_terminal(c)
+        print(f"« {c.title} » rouverte dans un nouveau terminal.")
+        return 0
+    os.chdir(c.cwd)
+    claude = sessions._claude_bin()
+    os.execvp(claude, [claude, "--resume", c.session_id])
+
+
 def cmd_statusline(_args):
     from datetime import datetime, timezone
     from . import integration
@@ -326,6 +437,24 @@ def build_parser():
     orch.set_defaults(func=cmd_orch)
     sub.add_parser("plan", help="planning des fenêtres de 5 h").set_defaults(func=cmd_plan)
     sub.add_parser("sessions", help="sessions Claude Code ouvertes").set_defaults(func=cmd_sessions)
+    convs = sub.add_parser("conversations", help="historique des conversations Claude Code du PC")
+    convs.add_argument("query", nargs="*", help="mots à chercher (titre, demandes, projet)")
+    convs.add_argument("-p", "--project", help="nom ou dossier du projet")
+    origin = convs.add_mutually_exclusive_group()
+    origin.add_argument("--vscode", action="store_true", help="seulement les conversations de VS Code")
+    origin.add_argument("--terminal", action="store_true", help="seulement celles du terminal")
+    convs.add_argument("-n", "--limit", type=int, default=30, help="nombre affiché (30 par défaut)")
+    convs.add_argument("--all", action="store_true", help="tout afficher")
+    convs.add_argument("--json", action="store_true", help="sortie JSON")
+    convs.set_defaults(func=cmd_conversations)
+    res = sub.add_parser("resume", help="reprend une conversation de l'historique")
+    res.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
+    where = res.add_mutually_exclusive_group()
+    where.add_argument("--vscode", action="store_true", help="dans VS Code (extension Claude Code)")
+    where.add_argument("--new-terminal", action="store_true", help="dans un nouveau terminal")
+    where.add_argument("--print", action="store_true", help="affiche seulement la commande")
+    res.add_argument("--dir", help="reprendre depuis ce dossier (projet déplacé)")
+    res.set_defaults(func=cmd_resume)
     sub.add_parser("statusline", help="ligne d'état pour Claude Code").set_defaults(func=cmd_statusline)
     hook = sub.add_parser("hook", help="hooks Claude Code")
     hook.add_argument("event", choices=["stop-failure"])
@@ -343,7 +472,8 @@ def build_parser():
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     # Compatibilité avec l'ancienne option.
-    argv = ["print" if a == "--print" else a for a in argv]
+    if argv[:1] == ["--print"]:
+        argv[0] = "print"
     args = build_parser().parse_args(argv)
     func = getattr(args, "func", cmd_gui)
     return func(args) or 0

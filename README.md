@@ -98,6 +98,31 @@ session oubliée, reprendre une conversation récente ou en démarrer une nouvel
 dans un projet. Une notification te prévient quand une session **a terminé** ou
 **attend ta réponse** — pratique quand plusieurs tournent en parallèle.
 
+## Historique des conversations
+
+L'onglet **Conversations** (et `ccs conv`) liste **toutes** les conversations
+Claude Code du PC, comme la liste des conversations passées de l'extension
+VS Code, mais tous projets confondus : titre (celui que tu as donné, sinon le
+titre automatique de Claude Code, sinon ta première demande), projet, origine
+(VS Code ou terminal), branche, nombre de demandes, date. Recherche sans
+accents ni majuscules, filtres par projet et par origine, groupes *Aujourd'hui*,
+*Hier*, *7 derniers jours*…
+
+Un clic reprend la conversation **dans VS Code** (la fenêtre du projet s'ouvre et
+l'extension Claude Code y rouvre la conversation) ou **dans un terminal**
+(`claude --resume`). Une conversation déjà ouverte ailleurs n'est pas relancée
+une seconde fois. Si le projet a été **déplacé**, CCS propose le dossier du même
+nom qu'il retrouve et, après confirmation, y copie le journal de la conversation
+pour qu'elle reprenne depuis là (l'original reste en place).
+
+```bash
+ccs conv                 # les 30 dernières conversations, groupées par date
+ccs conv export csv      # recherche
+ccs conv -p Portail      # un projet
+ccs resume 4f3a          # reprend ici (4 premiers caractères de l'identifiant)
+ccs resume 4f3a --vscode # ou dans VS Code
+```
+
 ## Fonctionnalités
 
 | | |
@@ -111,8 +136,9 @@ dans un projet. Une notification te prévient quand une session **a terminé** o
 | **Alertes** | 80 % et 95 % (avec un bouton « Basculer sur … »), fin de session imminente, bascule effectuée, tous comptes épuisés, compte réinitialisé, semaine en avance, connexion expirée, session terminée ou en attente. Une fois par seuil et par fenêtre. |
 | **Intégration Claude Code** | Ligne d'état dans chaque session, bascule automatique quand une session est bloquée. |
 | **Sessions** | Sessions ouvertes, consommation, reprise de conversations, terminal / dossier du projet. |
+| **Conversations** | Historique de toutes les conversations du PC, recherche, reprise dans VS Code ou un terminal, projets déplacés. |
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets. |
-| **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Sessions, Historique, Analyse, Réglages. |
+| **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Sessions, Conversations, Historique, Analyse, Réglages. |
 | **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge) ; au clic : comptes, recharges, prévision, sessions, interrupteurs. |
 | **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre. |
 
@@ -171,6 +197,8 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs status` | Compte actif, prévision, meilleur compte, capacité, orchestrateur, service |
 | `ccs plan` | Planning des fenêtres et recharges à venir |
 | `ccs sessions` | Sessions Claude Code ouvertes : projet, état, consommation |
+| `ccs conv [mots]` | Historique des conversations du PC, recherche, `-p <projet>`, `--vscode`/`--terminal` |
+| `ccs resume <id>` | Reprend une conversation ici, `--vscode`, `--new-terminal`, `--dir <dossier>` |
 | `ccs integrate on\|off\|status` | Ligne d'état et bascule après blocage dans Claude Code |
 | `ccs usage` | Usage détaillé de tous les comptes, prévisions, rythme hebdo |
 | `ccs orch on\|off` | Orchestrateur |
@@ -207,7 +235,9 @@ Architecture : [docs/architecture.md](docs/architecture.md).
 ## Données et confidentialité
 
 Tout reste sur la machine, dans `~/.claude-accounts/` (dossier 700, fichiers
-600). CCS ne contacte que les serveurs d'Anthropic. Aucun jeton n'apparaît dans
+600). CCS ne contacte que les serveurs d'Anthropic. Il lit les conversations de
+`~/.claude/projects` sans les modifier ; seule la reprise d'un projet déplacé y
+ajoute une copie du journal. Aucun jeton n'apparaît dans
 les journaux, l'état partagé ou les notifications.
 
 ## Dépannage

@@ -4,6 +4,7 @@
             ┌────────────── ~/.claude-accounts/ ──────────────┐
             │ <profil>/oauth.json account.json usage.json      │
             │ history.db  settings.json  state.json  .lock     │
+            │ conversations-cache.json  conversations-moves.json│
             └───────▲───────────────▲──────────────▲───────────┘
                     │               │              │
   ccs (bash) ───────┤        ccs-daemon (systemd)  │      Comptes Claude (GTK 4)
@@ -28,6 +29,7 @@
 | `orchestrator` | Fonctions pures : plage horaire, créneaux décalés, démarrages dus, bascule vers le quota qui expire, réserve, planning, prochain réveil |
 | `warmup` | Créneaux fixes et requête minimale dans un `CLAUDE_CONFIG_DIR` temporaire (utilisée aussi par l'orchestrateur) |
 | `transcripts` | Lecture des journaux locaux, agrégats, conseils |
+| `conversations` | Historique de `~/.claude/projects/*/*.jsonl` : index incrémental (cache), titres, recherche, groupes par date, reprise (VS Code, terminal), projets déplacés (`relocate`) |
 | `sessions` | Sessions Claude Code ouvertes (`~/.claude/sessions`), consommation d'une conversation, conversations et projets récents, transitions d'état, actions (terminal, dossier, terminer) |
 | `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état, hook `StopFailure` |
 | `desktop` | Boucle GLib du service : boutons des notifications (ActionInvoked), moniteur de `~/.claude/sessions` |

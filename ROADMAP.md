@@ -48,6 +48,20 @@ version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`.
 - [x] Release correctif 0.3.2 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
 - [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.3.2_all.deb`)
 
+## Phase 5 — Historique des conversations (0.4.0)
+
+Toutes les conversations Claude Code du PC, comme la liste « Past conversations »
+de l'extension VS Code, et leur reprise en un clic.
+
+- [x] `conversations` : index de `~/.claude/projects/*/*.jsonl` (titre `custom-title` > `ai-title` > première demande, projet, origine VS Code ou terminal, branche, nombre de demandes, dates), cache incrémental pour ne relire que les octets ajoutés
+- [x] Recherche (titre, demandes, projet) et filtres (projet, origine), regroupement par date
+- [x] Reprise dans VS Code (`vscode://anthropic.claude-code/open?session=…` après ouverture du dossier) ou dans un terminal (`claude --resume`), copie de la commande ; refus si le dossier a disparu ou si la conversation est déjà ouverte
+- [x] Projets déplacés : dossier du même nom proposé (historique, puis HOME), confirmation, copie du journal dans le nouveau dossier (`relocate`)
+- [x] Onglet « Conversations » de l'application (recherche, filtres, groupes par date, boutons de reprise) et lien depuis l'onglet Sessions
+- [x] `claude-accounts conversations` / `ccs conv` (liste, recherche) et `claude-accounts resume` / `ccs resume` (reprise)
+- [x] Tests unitaires, suite au vert
+- [x] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
+
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
 Recommandées :
