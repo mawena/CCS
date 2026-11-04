@@ -56,6 +56,34 @@ class LimitsTest(HomeTestCase):
         limits = core.parse_limits({"limits": [{"kind": "foo_bar", "percent": 5}]})
         self.assertEqual(limits[0].label, "Foo bar")
 
+    def scoped(self, scope, kind="weekly_scoped"):
+        return core.parse_limits({"limits": [{"kind": kind, "group": "weekly", "percent": 0,
+                                              "scope": scope}]})[0]
+
+    def test_parse_limits_weekly_scoped_model(self):
+        # Forme réelle renvoyée par l'API pour une limite hebdomadaire par modèle.
+        lim = self.scoped({"model": {"id": None, "display_name": "Fable"}, "surface": None})
+        self.assertEqual(lim.kind, "weekly_scoped")
+        self.assertEqual(lim.label, "Semaine · Fable")
+
+    def test_parse_limits_weekly_scoped_surface(self):
+        lim = self.scoped({"model": {"id": None, "display_name": "Fable"},
+                           "surface": {"id": "claude_code", "display_name": "Claude Code"}})
+        self.assertEqual(lim.label, "Semaine · Fable · Claude Code")
+        lim = self.scoped({"model": {"id": "claude-fable-5-1", "display_name": None},
+                           "surface": "cowork"})
+        self.assertEqual(lim.label, "Semaine · claude-fable-5-1 · cowork")
+
+    def test_parse_limits_never_shows_raw_data(self):
+        for scope in ({"model": None, "surface": None}, {"autre": {"x": 1}}, [1, 2],
+                      {"model": {"id": None, "display_name": None}}):
+            label = self.scoped(scope).label
+            self.assertEqual(label, "Semaine")
+            self.assertNotIn("{", label)
+            self.assertNotIn("[", label)
+        self.assertEqual(self.scoped("Opus", kind="foo_bar").label, "Foo bar · Opus")
+        self.assertEqual(self.scoped({"x": 1}, kind={"bizarre": 1}).label, "Inconnu")
+
 
 class TokensTest(HomeTestCase):
     def test_access_token_refreshes_inactive_expired(self):

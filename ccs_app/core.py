@@ -32,6 +32,7 @@ LIMIT_LABELS = {
     "weekly_all": "Semaine · tous modèles",
     "weekly_opus": "Semaine · Opus",
     "weekly_sonnet": "Semaine · Sonnet",
+    "weekly_scoped": "Semaine",  # suivi de la portée : « Semaine · Fable »
 }
 # Ancien format de réponse : clé -> kind du nouveau format.
 LEGACY_KINDS = [
@@ -309,8 +310,35 @@ class Limit:
     resets_at: datetime | None
 
 
+def _scope_part(value):
+    """Nom lisible d'une partie de portée (modèle, surface), sinon ""."""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for key in ("display_name", "name", "id"):
+            if isinstance(value.get(key), str) and value[key].strip():
+                return value[key].strip()
+    return ""
+
+
+def scope_text(scope):
+    """Portée d'une limite en texte (« Fable », « Fable · Claude Code »).
+
+    Jamais de données brutes : une forme inconnue donne "".
+    """
+    if isinstance(scope, str):
+        return scope.strip()
+    if not isinstance(scope, dict):
+        return ""
+    parts = [_scope_part(scope.get(key)) for key in ("model", "surface")]
+    return " · ".join(p for p in parts if p)
+
+
 def label_for(kind, scope=None):
+    if not isinstance(kind, str) or not kind:
+        kind = "inconnu"
     label = LIMIT_LABELS.get(kind) or kind.replace("_", " ").capitalize()
+    scope = scope_text(scope)
     return f"{label} · {scope}" if scope else label
 
 
@@ -329,7 +357,9 @@ def parse_limits(usage):
         return []
     out = []
     for lim in usage.get("limits") or []:
-        kind = lim.get("kind") or "inconnu"
+        kind = lim.get("kind")
+        if not isinstance(kind, str) or not kind:
+            kind = "inconnu"
         out.append(Limit(kind, label_for(kind, lim.get("scope")),
                          float(lim.get("percent") or 0), parse_dt(lim.get("resets_at"))))
     if not out:
