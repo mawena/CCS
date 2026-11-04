@@ -101,11 +101,12 @@ def pending_alerts(accounts, active, fc, paces, best, settings, now, sent_keys, 
                 out.append(Alert(key, f"{acc.name} : semaine en avance sur le rythme",
                                  f"{used:.0f} % utilisés pour {pace.ideal:.0f} % de la semaine "
                                  f"écoulée. Budget : {pace.per_day_budget:.0f} %/jour.", 1))
-        if cfg["auth"] and acc.error and "connexion expirée" in acc.error:
+        if cfg["auth"] and acc.error and ("connexion expirée" in acc.error
+                                          or "connexion perdue" in acc.error):
             key = f"auth:{acc.name}:{now.date().isoformat()}"
             if key not in sent_keys:
                 out.append(Alert(key, f"{acc.name} : connexion expirée",
-                                 "Supprime ce profil puis rajoute le compte (ccs add).", 1))
+                                 f"Reconnecte ce compte : ccs rm {acc.name} puis ccs add {acc.name}.", 1))
     return out
 
 

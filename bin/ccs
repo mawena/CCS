@@ -49,9 +49,14 @@ valid_name() { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]] || die "nom de profil invalide : 
 
 profiles() { find "$STORE" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort; }
 
-live_logged_in() {
-  [[ -f "$CREDS" ]] && jq -e '.claudeAiOauth.refreshToken // empty' "$CREDS" >/dev/null 2>&1
+# Vrai si le fichier $1 contient un jeton de renouvellement non vide. Une
+# connexion perdue laisse "" à sa place : jq tiendrait "" pour une valeur
+# valide avec `// empty`, d'où ce test explicite.
+has_token() {
+  [[ -f "$1" ]] && jq -e '.claudeAiOauth.refreshToken | type == "string" and length > 0' "$1" >/dev/null 2>&1
 }
+
+live_logged_in() { has_token "$CREDS"; }
 
 # Identifiant "compte+org" du compte actuellement connecté.
 live_key() {
@@ -97,6 +102,7 @@ sync_active() {
 install_profile() {
   local name="$1" dir="$STORE/$1"
   [[ -f "$dir/oauth.json" && -f "$dir/account.json" ]] || die "profil inconnu : $name (voir 'ccs list')"
+  has_token "$dir/oauth.json" || die "'$name' : connexion perdue, reconnecte ce compte avec 'ccs rm $name' puis 'ccs add $name'"
   mkdir -p "$CONFIG_DIR"
   [[ -f "$CREDS" ]] || echo '{}' | atomic_write "$CREDS"
   [[ -f "$GLOBAL" ]] || echo '{}' | atomic_write "$GLOBAL"

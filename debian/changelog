@@ -1,3 +1,13 @@
+ccs (0.3.1) unstable; urgency=medium
+
+  * Un compte dont la connexion est perdue ne vide plus son profil en
+    basculant : ccs ne recopie plus de jetons vides et refuse d'installer
+    un profil sans jeton.
+  * Message « connexion perdue » avec les commandes pour reconnecter le
+    compte, et alerte correspondante.
+
+ -- mawena <gamligocharles@gmail.com>  Wed, 04 Nov 2026 12:30:00 +0000
+
 ccs (0.3.0) unstable; urgency=medium
 
   * Sessions Claude Code : liste, état, consommation, reprise, terminal,
