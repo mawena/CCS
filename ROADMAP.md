@@ -62,7 +62,7 @@ de l'extension VS Code, et leur reprise en un clic.
 - [x] Tests unitaires, suite au vert
 - [x] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
 - [x] Release mineure 0.4.0 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
-- [ ] Paquet `.deb` construit pour l'installation (`dist/ccs_0.4.0_all.deb`)
+- [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.4.0_all.deb`)
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
