@@ -1,3 +1,19 @@
+ccs (0.4.0) unstable; urgency=medium
+
+  * Historique de toutes les conversations Claude Code du PC (terminal et
+    VS Code) : onglet Conversations, ccs conv et claude-accounts
+    conversations, avec recherche, filtres par projet et par origine et
+    groupes par date.
+  * Reprise d'une conversation dans VS Code (extension Claude Code), dans
+    un terminal ou dans le terminal courant (ccs resume).
+  * Projets déplacés : dossier du même nom proposé, journal copié dans le
+    nouveau dossier après confirmation.
+  * Fenêtre plus large, onglets en bas sous 1350 px.
+  * Les demandes interrompues ne servent plus de titre ; claude-accounts
+    --print n'est plus réécrit qu'en première position.
+
+ -- mawena <gamligocharles@gmail.com>  Wed, 04 Nov 2026 19:00:00 +0000
+
 ccs (0.3.2) unstable; urgency=medium
 
   * Orchestrateur : si un compte a été ouvert avant le début de la plage
