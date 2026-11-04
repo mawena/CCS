@@ -44,7 +44,7 @@ version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`.
 - [x] Orchestrateur : premier démarrage du matin calé sur les démarrages réels, pas sur une grille fixe depuis le début de plage
 - [x] `ccs next` : sauter les profils dont la connexion est perdue
 - [x] Libellé lisible pour les limites hebdomadaires par modèle (« Semaine · Fable » au lieu des données brutes)
-- [ ] Fusion des trois corrections dans `develop`, suite de tests au vert
+- [x] Fusion des trois corrections dans `develop`, suite de tests au vert
 - [ ] Release (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
 - [ ] Paquet `.deb` construit pour l'installation
 
