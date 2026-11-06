@@ -130,5 +130,32 @@ class ShowSessionTest(unittest.TestCase):
         launch.assert_not_called()
 
 
+class PageNameTest(unittest.TestCase):
+    def test_real_names_of_the_window(self):
+        for name in desktop.PAGES:
+            self.assertEqual(desktop.page_name(name), name)
+
+    def test_french_names_without_accents_or_case(self):
+        expected = {"comptes": "accounts", "Planning": "planning", "SESSIONS": "sessions",
+                    "terminaux": "terminals", "historique": "history", "analyse": "analysis",
+                    "réglages": "prefs", "reglages": "prefs", " sessions ": "sessions"}
+        for text, name in expected.items():
+            self.assertEqual(desktop.page_name(text), name, text)
+
+    def test_conversations_lead_to_sessions(self):
+        # L'ancien onglet Conversations fait partie de l'onglet Sessions.
+        self.assertEqual(desktop.page_name("conversations"), "sessions")
+
+    def test_unknown(self):
+        for text in ("", "inconnu", None, "sessions2"):
+            self.assertIsNone(desktop.page_name(text))
+
+    def test_names_shown_to_the_user(self):
+        self.assertEqual(desktop.PAGE_CHOICES, ("sessions", "comptes", "planning", "historique", "analyse",
+                                                "terminaux", "reglages"))
+        for text in desktop.PAGE_CHOICES:
+            self.assertIn(desktop.page_name(text), desktop.PAGES)
+
+
 if __name__ == "__main__":
     unittest.main()

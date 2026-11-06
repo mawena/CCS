@@ -9,6 +9,11 @@ Afficher une session (`show_session`) : si l'application tourne, son action
 « show-session » est appelée par D-Bus (org.freedesktop.Application) ; sinon elle est
 lancée avec `gui --session <réf>`, dans sa propre unité systemd (`systemd-run --user
 --scope`) pour qu'un redémarrage du service ne ferme pas la fenêtre.
+
+Onglets de la fenêtre (`page_name`) : `gui --page <onglet>` accepte le nom d'un onglet
+du ViewStack ou son titre en français ; l'application reçoit la demande par ses actions
+« show-page » (paramètre : nom de l'onglet) et « new-session » (sans paramètre), y
+compris quand elle tourne déjà.
 """
 
 import logging
@@ -18,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import unicodedata
 from collections import OrderedDict
 
 from . import notify
@@ -27,11 +33,31 @@ DEBOUNCE_MS = 1000
 APP_ID = "io.ccs.ClaudeAccounts"
 MAX_TRACKED = 200          # notifications suivies (clics, jetons d'activation)
 SHOW_ACTION = "show-session"
+SHOW_PAGE_ACTION = "show-page"
+NEW_SESSION_ACTION = "new-session"
+
+# Onglets de la fenêtre (noms du ViewStack, dans l'ordre) et titres acceptés par « gui --page ».
+PAGES = ("accounts", "planning", "sessions", "terminals", "history", "analysis", "prefs")
+PAGE_CHOICES = ("sessions", "comptes", "planning", "historique", "analyse", "terminaux", "reglages")
+PAGE_ALIASES = {"comptes": "accounts", "terminaux": "terminals", "historique": "history",
+                "analyse": "analysis", "reglages": "prefs",
+                "conversations": "sessions"}   # ancien onglet, réuni à l'onglet Sessions
 
 
 def app_id():
     """Identifiant de l'application ; CCS_APP_ID lance une copie distincte (essais)."""
     return os.environ.get("CCS_APP_ID") or APP_ID
+
+
+def page_name(text):
+    """Onglet (nom du ViewStack) désigné par `text` : nom réel ou titre en français, sans
+    tenir compte des accents ni de la casse ; None s'il n'existe pas."""
+    if not isinstance(text, str):
+        return None
+    text = unicodedata.normalize("NFKD", text.strip()).casefold()
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    name = PAGE_ALIASES.get(text, text)
+    return name if name in PAGES else None
 
 
 def _remember(table, key, value):

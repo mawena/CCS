@@ -56,7 +56,17 @@ def cmd_gui(args):
     except ImportError as e:
         print(f"Interface graphique indisponible : {e}", file=sys.stderr)
         return 1
-    return run(session=getattr(args, "session", None))
+    return run(session=getattr(args, "session", None), page=getattr(args, "page", None),
+               new_session=getattr(args, "new_session", False))
+
+
+def _page(text):
+    """Option --page : nom réel d'un onglet ou son titre en français."""
+    from .desktop import PAGE_CHOICES, page_name
+    name = page_name(text)
+    if name is None:
+        raise argparse.ArgumentTypeError(f"onglet inconnu : « {text} » ({', '.join(PAGE_CHOICES)})")
+    return name
 
 
 def cmd_daemon(_args):
@@ -523,6 +533,11 @@ def build_parser():
     gui.add_argument("--session", metavar="PID:ID",
                      help="affiche cette session Claude Code (pid, identifiant de conversation, "
                           "ou les deux) : clic sur une notification")
+    gui.add_argument("--page", metavar="ONGLET", type=_page,
+                     help="affiche cet onglet : sessions, comptes, planning, historique, analyse, "
+                          "terminaux ou reglages")
+    gui.add_argument("--new-session", action="store_true",
+                     help="ouvre « Nouvelle session… » (dossier, compte, modèle, permissions)")
     gui.set_defaults(func=cmd_gui)
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
