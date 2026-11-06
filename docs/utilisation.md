@@ -131,10 +131,15 @@ pourquoi : permission, question…), *au repos* —, sa durée, son modèle et s
 consommation (tokens pondérés de la conversation). CCS lit les fiches de
 `~/.claude/sessions` en lecture seule et ignore les fichiers `.key`.
 
-Actions : ouvrir un terminal ou le dossier du projet ; terminer une session
-(après confirmation : la conversation est conservée et peut être reprise) ;
-**Reprendre** une conversation récente (`claude --resume`) ou lancer une
-**Nouvelle session** dans un projet récent, dans un nouveau terminal.
+Actions : ouvrir un terminal (« Terminal ici ») ou le dossier du projet ;
+terminer une session (après confirmation : la conversation est conservée et peut
+être reprise) ; **Reprendre** une conversation récente (`claude --resume`) ou
+lancer une **Nouvelle session** dans un projet récent. Ces actions ouvrent un
+onglet du [terminal intégré](#terminal-intégré) ; le menu « ⋮ » (ou la flèche de
+« Nouvelle session ») garde le terminal externe. Une session déjà ouverte dans
+l'application affiche **Afficher**, qui mène à son onglet ; une conversation
+ouverte ailleurs (autre terminal, VS Code) n'est pas reprise une seconde fois.
+« Renommer… » est dans le menu « ⋮ » de chaque session et conversation.
 
 Le bouton **Tout l'historique** ouvre l'onglet Conversations.
 
@@ -162,7 +167,10 @@ du PC (`~/.claude/projects/*/*.jsonl`, terminal et VS Code), de la plus récente
   `vscode://anthropic.claude-code/open?session=<id>` à l'extension. Dans un
   terminal : `ccs resume <id>` reprend dans le terminal courant,
   `--new-terminal` dans une nouvelle fenêtre, `--print` affiche seulement la
-  commande. Une conversation déjà ouverte dans une session n'est pas relancée.
+  commande. Dans l'application, le bouton **Terminal** reprend dans un onglet du
+  terminal intégré (le terminal externe est au menu « … »), et **Afficher**
+  remplace les boutons d'une conversation déjà ouverte dans un onglet. Une
+  conversation déjà ouverte dans une session n'est pas relancée.
 - **Projet déplacé** : Claude Code range les conversations selon le chemin du
   projet ; après un déplacement, `claude --resume` ne les retrouve plus. CCS
   marque ces conversations « dossier introuvable », propose le dossier du même
@@ -174,6 +182,58 @@ du PC (`~/.claude/projects/*/*.jsonl`, terminal et VS Code), de la plus récente
 Lecture : la première fois, CCS parcourt tous les journaux (quelques secondes
 pour 2 Go) ; ensuite il ne relit que les lignes ajoutées depuis, grâce au cache
 `~/.claude-accounts/conversations-cache.json`.
+
+### Renommer une conversation
+
+« Renommer… » (menus « ⋮ » des onglets Sessions et Conversations, menu d'un
+onglet du terminal intégré) ou `ccs title <id> <titre>` : comme `/rename` dans
+Claude Code, CCS ajoute à la fin du journal une ligne
+`{"type":"custom-title","sessionId":"…","customTitle":"…"}`. Le dernier titre
+l'emporte, partout : liste de l'application, `ccs conv`, `claude --resume`,
+VS Code. Le titre tient sur une ligne (200 caractères au plus) ; vide, il est
+refusé.
+
+Le journal n'est jamais réécrit : la ligne part en une seule écriture en mode
+ajout, qui ne peut pas se mélanger avec ce qu'une session ouverte écrit au même
+moment. Une session ouverte relit la fin de son journal avant d'y réécrire ses
+propres informations : elle garde le nouveau titre. CCS n'envoie pas `/rename`
+dans le terminal d'une session, pour ne jamais taper dans une question ou une
+demande de permission en cours.
+
+## Terminal intégré
+
+Les sessions Claude Code s'ouvrent dans la fenêtre de l'application, dans des
+onglets (page **Terminaux**, visible tant qu'un onglet est ouvert, avec le
+nombre d'onglets). Il faut VTE pour GTK 4 (`gir1.2-vte-3.91`, dépendance du
+paquet) ; sans lui, tout s'ouvre dans un terminal externe comme avant et
+l'onglet Sessions indique `sudo apt install gir1.2-vte-3.91`.
+
+- **Lancement** : `claude --resume <id>` (ou `claude`) dans le dossier du
+  projet, par un bash de connexion comme le terminal externe (ton profil est
+  lu), avec `TERM=xterm-256color` et `COLORTERM=truecolor` ; `~/.local/bin`
+  est ajouté au `PATH` si besoin. « Terminal ici » ouvre ton shell (`$SHELL`).
+- **Onglets** : titre de la conversation (celui que tu lui as donné, sinon le
+  titre automatique), sablier quand Claude **travaille**, point
+  d'interrogation quand il **attend ta réponse**, carré quand il est arrêté ;
+  un onglet en arrière-plan qui a fini de travailler est signalé. Clic droit
+  sur un onglet ou bouton « ⋮ » : renommer la conversation, ouvrir le dossier,
+  fermer.
+- **Clavier et souris** : Ctrl+Maj+C / Ctrl+Maj+V copient et collent (aussi au
+  clic droit), Ctrl+Maj+A sélectionne tout, Ctrl+clic ouvre un lien,
+  Ctrl+plus / Ctrl+moins / Ctrl+0 changent la taille du texte. 100 000 lignes
+  de défilement arrière. Police à chasse fixe du bureau, couleurs qui suivent
+  le thème clair ou sombre.
+- **Fin de Claude** : un bandeau l'indique, avec **Reprendre** (relance
+  `claude --resume` de la même conversation) et **Fermer**.
+- **Fermeture** : fermer un onglet où Claude tourne, ou la fenêtre avec des
+  sessions ouvertes, demande confirmation (« La conversation est enregistrée :
+  tu pourras la reprendre. »). La session reçoit alors le signal de fermeture
+  d'un terminal (SIGHUP) et s'arrête proprement. Un shell n'est confirmé que si
+  un programme y tourne au premier plan.
+
+Pour essayer une copie de développement sans réveiller l'application ouverte :
+`CCS_APP_ID=io.ccs.ClaudeAccounts.Dev bin/claude-accounts gui` ; `CCS_NO_VTE=1`
+force le repli sur le terminal externe.
 
 ## Intégration dans Claude Code
 

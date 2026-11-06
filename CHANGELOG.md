@@ -3,6 +3,43 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Ajouté
+
+- **Terminal intégré** : reprendre une conversation ou démarrer une session
+  l'ouvre dans la fenêtre de l'application, dans un onglet de terminal (VTE),
+  au lieu d'une fenêtre séparée.
+  - Page **Terminaux**, visible tant qu'un onglet est ouvert : plusieurs
+    sessions en onglets, titre de la conversation, activité (travaille, attend
+    ta réponse, arrêtée), onglet en arrière-plan signalé quand il a fini.
+  - Copier / coller Ctrl+Maj+C / Ctrl+Maj+V et clic droit, Ctrl+clic sur les
+    liens, taille du texte (Ctrl+plus / moins / 0), 100 000 lignes de
+    défilement arrière, police à chasse fixe du bureau, couleurs qui suivent
+    le thème clair ou sombre.
+  - Bandeau de fin avec **Reprendre** (même conversation) et **Fermer** ;
+    confirmation avant de fermer un onglet ou la fenêtre quand une session
+    tourne (« La conversation est enregistrée : tu pourras la reprendre. »).
+  - Onglets Sessions et Conversations : reprise, nouvelle session et
+    « Terminal ici » (shell) dans l'application, terminal externe dans les
+    menus, **Afficher** pour une session déjà ouverte dans un onglet.
+  - Sans `gir1.2-vte-3.91`, tout s'ouvre dans un terminal externe comme avant
+    et l'onglet Sessions indique comment installer le terminal intégré.
+- **Renommer une conversation**, comme `/rename` : « Renommer… » dans les
+  onglets Sessions et Conversations et dans le menu d'un onglet du terminal,
+  `ccs title <id> <titre>` / `claude-accounts title`. Une ligne de titre est
+  ajoutée à la fin du journal (une seule écriture en mode ajout, le journal
+  n'est jamais réécrit).
+- `CCS_APP_ID` et `CCS_NO_VTE` documentés pour essayer une copie de
+  développement.
+
+### Modifié
+
+- L'onglet Sessions affiche les mêmes titres que l'onglet Conversations (titre
+  donné, sinon titre automatique, sinon première demande) et ne propose plus
+  de reprendre une conversation déjà ouverte ailleurs.
+- Paquet : dépend de `gir1.2-vte-3.91`.
+
 ## [0.4.0] — 2026-11-04
 
 ### Ajouté

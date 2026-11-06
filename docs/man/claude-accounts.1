@@ -3,14 +3,17 @@
 claude-accounts \- application, service et outils d'usage des comptes Claude Code
 .SH SYNOPSIS
 .B claude-accounts
-[\fBgui\fR|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
+[\fBgui\fR|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBtitle \fIid titre\fR|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
 .SH DESCRIPTION
 Sans argument, ouvre l'application graphique « Comptes Claude » : comptes et
-prévisions, historique, analyse de l'usage local et réglages.
+prévisions, sessions et historique des conversations, terminal intégré,
+analyse de l'usage local et réglages.
 .SH COMMANDES
 .TP
 .B gui
-Application GTK (défaut).
+Application GTK (défaut). Les sessions Claude Code reprises ou démarrées depuis
+l'application s'ouvrent dans des onglets de son terminal intégré (VTE,
+paquet \fIgir1.2-vte-3.91\fR) ; sans VTE, dans un terminal externe.
 .TP
 .B print
 Usage de tous les comptes dans le terminal.
@@ -28,6 +31,11 @@ Reprend une conversation : dans le terminal courant par défaut, dans VS Code
 (extension Claude Code) ou dans un nouveau terminal. Refuse une conversation déjà
 ouverte. Pour un projet déplacé, propose le dossier du même nom (confirmation)
 ou utilise \fB\-\-dir\fR.
+.TP
+.B title \fIid titre\fR...
+Renomme une conversation, comme \fB/rename\fR dans Claude Code : ajoute une
+ligne \fIcustom-title\fR à la fin de son journal (le dernier titre l'emporte).
+Un titre vide est refusé.
 .TP
 .B statusline
 Ligne d'état pour Claude Code (lit le contexte sur l'entrée standard).
@@ -64,5 +72,13 @@ Service de collecte, lancé par l'unité systemd utilisateur \fIccs-daemon.servi
 .TP
 .B tray
 Indicateur de la barre du haut (nécessite l'extension GNOME AppIndicator).
+.SH ENVIRONNEMENT
+.TP
+.B CCS_APP_ID
+Identifiant d'application de \fBgui\fR (défaut : \fIio.ccs.ClaudeAccounts\fR) :
+une autre valeur lance une copie distincte de l'application déjà ouverte.
+.TP
+.B CCS_NO_VTE
+Non vide : terminal externe au lieu du terminal intégré.
 .SH VOIR AUSSI
 .BR ccs (1)

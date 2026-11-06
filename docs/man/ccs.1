@@ -57,6 +57,10 @@ Reprend une conversation (identifiant complet ou ses 4 premiers caractères au
 moins) dans le terminal courant, dans VS Code ou dans un nouveau terminal.
 \fB\-\-dir\fR la reprend depuis un autre dossier (projet déplacé).
 .TP
+.B ccs title \fIid titre\fR...
+Renomme une conversation, comme \fB/rename\fR dans Claude Code (à ne pas
+confondre avec \fBccs rename\fR, qui renomme un profil).
+.TP
 .B ccs integrate on\fR|\fBoff\fR|\fBstatus
 Ligne d'état dans Claude Code et bascule automatique quand une session atteint
 la limite (modifie ~/.claude/settings.json, avec sauvegarde).
@@ -71,7 +75,8 @@ Active ou désactive la bascule automatique (seuil par défaut : 98 %).
 Consommation locale par projet, modèle, heure et compte, avec conseils.
 .TP
 .B ccs gui
-Ouvre l'application « Comptes Claude ».
+Ouvre l'application « Comptes Claude » ; les sessions qu'elle reprend ou démarre
+s'ouvrent dans des onglets de son terminal intégré.
 .TP
 .B ccs current
 Affiche le nom du profil actif.
@@ -91,6 +96,10 @@ déplacés \fIconversations-moves.json\fR.
 .TP
 .I ~/.claude/.credentials.json\fR, \fI~/.claude.json
 Fichiers de Claude Code réécrits lors d'une bascule.
+.TP
+.I ~/.claude/projects/*/*.jsonl
+Journaux des conversations : lus, et complétés d'une ligne de titre lors d'un
+renommage (\fBccs title\fR).
 .SH ENVIRONNEMENT
 .TP
 .B CLAUDE_CONFIG_DIR
