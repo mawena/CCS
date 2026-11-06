@@ -32,7 +32,9 @@ DOCTOR_DELAY_S = 4   # bilan de santé du démarrage : après le premier afficha
 # Sous cette largeur, les onglets passent dans la barre du bas : 7 onglets de même largeur
 # tiennent en 1350 px, 8 (avec « Terminaux ») en 1540 px.
 NARROW_SP = {False: 1350, True: 1540}
-PAUSE_SP = 100       # « Auto ⏸ jusqu'à 14:00 » à la place de « Auto » pendant une pause
+# Pendant une pause, « Auto ⏸ jusqu'à 14:00 » remplace « Auto » : le seuil monte de la
+# différence de largeur (mesurée), plus cette marge.
+PAUSE_MARGIN_SP = 16
 
 
 class Window(Adw.ApplicationWindow):
@@ -62,6 +64,8 @@ class Window(Adw.ApplicationWindow):
         self.auto_box = Gtk.Box(spacing=6, tooltip_text="Bascule automatique avant la coupure")
         # Pendant une pause, « Auto » devient « Auto ⏸ jusqu'à 14:00 » ; un clic propose de reprendre.
         self.auto_label = Gtk.Label(label="Auto", css_classes=["dim-label"])
+        self.auto_width = self.auto_label.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+        self.pause_extra = 0   # largeur ajoutée à l'en-tête par l'indicateur de pause
         self.pause_btn = Gtk.MenuButton(css_classes=["flat"], valign=Gtk.Align.CENTER, visible=False,
                                         popover=self.resume_popover())
         self.pause_label = Gtk.Label(css_classes=["warning"])
@@ -190,14 +194,19 @@ class Window(Adw.ApplicationWindow):
         st = pause.pause_state(now)
         shown = attention.pause_header(st.as_dict(now) if st else None, now)
         self.auto_label.set_visible(shown is None)
-        if self.pause_btn.get_visible() != (shown is not None):
-            self.pause_btn.set_visible(shown is not None)
-            self.narrow.set_condition(self.narrow_condition())  # l'en-tête s'élargit pendant une pause
+        self.pause_btn.set_visible(shown is not None)
+        extra = 0
         if shown is not None:
             label, tooltip = shown
             self.pause_label.set_label(label)
             self.pause_btn.set_tooltip_text(tooltip)
             self.pause_text.set_label(tooltip.split("\n", 1)[0])
+            width = self.pause_btn.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+            extra = max(0, width - self.auto_width) + PAUSE_MARGIN_SP
+        if extra != self.pause_extra:
+            # L'en-tête s'élargit pendant une pause : les onglets passent en bas plus tôt.
+            self.pause_extra = extra
+            self.narrow.set_condition(self.narrow_condition())
 
     def show_update(self, state):
         found = attention.update_banner(state.get("update"))
@@ -267,8 +276,7 @@ class Window(Adw.ApplicationWindow):
 
     def narrow_condition(self):
         width = NARROW_SP[self.terminals_page.get_visible()]
-        if self.pause_btn.get_visible():
-            width += PAUSE_SP
+        width += self.pause_extra
         return Adw.BreakpointCondition.parse(f"max-width: {width}sp")
 
     def reveal_terminals(self):
