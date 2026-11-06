@@ -481,6 +481,56 @@ class WaitingReminderTest(ActionsAndSessionsTest):
         self.assertAlmostEqual(delay, 101, delta=1)
 
 
+class ShowSessionTest(ActionsAndSessionsTest):
+    """Clic sur une notification de session : l'application s'ouvre sur cette session."""
+
+    def setUp(self):
+        super().setUp()
+        self.shown = []
+        self.d.shower = lambda ref, token=None: self.shown.append((ref, token))
+
+    def test_session_notifications_open_the_session(self):
+        from ccs_app import sessions
+        t = NOW.timestamp()
+        self.settings["alerts"]["waiting_reminder_min"] = 2
+        seq = [[self._sess(7, "busy", t - 300)], [self._sess(7, "waiting", t)], [self._sess(7, "waiting", t)]]
+        with mock.patch.object(sessions, "list_sessions", side_effect=seq):
+            for offset in (0, 1, 200):
+                self.d.on_sessions(self.settings, NOW + timedelta(seconds=offset))
+        self.assertEqual([a.title for a in self.sent], ["GiGit attend ta réponse",
+                                                        "GiGit attend toujours ta réponse"])
+        for a in self.sent:
+            self.assertEqual(a.default, "show:7:s7")
+            self.assertEqual(a.actions, (("show:7:s7", "Afficher"),))
+
+    def test_finished_session_too(self):
+        from ccs_app import sessions
+        t = NOW.timestamp()
+        with mock.patch.object(sessions, "list_sessions",
+                               side_effect=[[self._sess(3, "busy", t - 300)], [self._sess(3, "idle", t)]]):
+            self.d.on_sessions(self.settings, NOW)
+            self.d.on_sessions(self.settings, NOW + timedelta(seconds=1))
+        self.assertEqual(self.sent[0].default, "show:3:s3")
+
+    def test_show_action_never_switches_nor_wakes_the_service(self):
+        with mock.patch.object(core, "run_ccs") as run:
+            self.assertFalse(self.d.handle_action("show:7:s7", NOW, token="jeton-42"))
+        run.assert_not_called()
+        self.assertEqual(self.shown, [("7:s7", "jeton-42")])
+
+    def test_show_failure_is_not_fatal(self):
+        def boom(ref, token=None):
+            raise OSError("pas d'affichage")
+        self.d.shower = boom
+        self.assertFalse(self.d.handle_action("show:7", NOW))
+
+    def test_other_alerts_have_no_default_action(self):
+        with fake_http(per_account(perso=usage(96), pro=usage(5))):
+            self.d.tick(self.settings, NOW)
+        self.assertTrue(self.sent)
+        self.assertTrue(all(a.default is None for a in self.sent))
+
+
 class ActionRevalidationTest(DaemonBase):
     def test_button_refused_when_target_no_longer_good(self):
         with fake_http(per_account(perso=usage(30), pro=usage(99))):
