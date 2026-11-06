@@ -418,7 +418,10 @@ def ccs_bin():
 
 
 def run_ccs(args):
+    """Lance `ccs`. CCS_VIA vide : `ccs use` ne note pas l'origine de la bascule pour le
+    journal (switch_log) ; l'appelant l'a notée (application, icône…) ou le service
+    enregistre lui-même sa bascule (automatique, notification, hook)."""
     p = paths()
-    env = dict(os.environ, NO_COLOR="1",
+    env = dict(os.environ, NO_COLOR="1", CCS_VIA="",
                PATH=f"{p.home}/.local/bin:{os.environ.get('PATH', '/usr/bin:/bin')}")
     return subprocess.run([ccs_bin(), *args], capture_output=True, text=True, env=env)

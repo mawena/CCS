@@ -16,14 +16,17 @@ def actions_for(alert):
     return out + [x for key, label in getattr(alert, "actions", ()) for x in (key, label)]
 
 
-def send(alert):
+def send(alert, transient=False):
     """Affiche l'alerte ; renvoie son identifiant, ou None (sans lever) si le
-    bureau est injoignable."""
+    bureau est injoignable. `transient` : bulle seulement, pas gardée dans la liste
+    des notifications (résultat d'un raccourci clavier)."""
     try:
         from gi.repository import Gio, GLib
         bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         hints = {"urgency": GLib.Variant("y", alert.urgency),
                  "desktop-entry": GLib.Variant("s", ICON)}
+        if transient:
+            hints["transient"] = GLib.Variant("b", True)
         r = bus.call_sync(
             "org.freedesktop.Notifications", "/org/freedesktop/Notifications",
             "org.freedesktop.Notifications", "Notify",
@@ -34,3 +37,10 @@ def send(alert):
     except Exception as e:  # bureau absent, session sans D-Bus…
         log.warning("notification impossible : %s", e)
         return None
+
+
+def message(title, body="", urgency=1):
+    """Notification simple et passagère : résultat d'une commande lancée par un raccourci
+    clavier (`ccs next --notifier`…). Identifiant, ou None si le bureau est injoignable."""
+    from .alerts import Alert
+    return send(Alert("message", title, body, urgency), transient=True)

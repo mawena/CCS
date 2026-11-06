@@ -420,3 +420,307 @@ class PreviewExportCliTest(HomeTestCase):
         code, out = run("resume", self.SID[:6], "--print")
         self.assertEqual(code, 0)
         self.assertIn(f"--resume {self.SID}", out)
+
+
+class _Tty(io.StringIO):
+    """Sortie d'erreur vue comme un terminal."""
+
+    def isatty(self):
+        return True
+
+
+class FormuleCliTest(HomeTestCase):
+    ADVICE = mock.Mock(summary="2 comptes Pro suffisent.", reasons=["Semaine la plus chargée : 1,4 Pro."])
+
+    def test_prints_the_advice_and_alias(self):
+        from ccs_app import advisor
+        for name in ("formule", "conseil"):
+            with self.subTest(name=name), mock.patch.object(advisor, "compute", return_value=self.ADVICE):
+                code, out = run(name)
+            self.assertEqual(code, 0)
+            self.assertEqual(out, advisor.format_text(self.ADVICE) + "\n")
+
+    def test_waiting_message_only_on_a_terminal(self):
+        from ccs_app import advisor
+        for err, shown in ((_Tty(), True), (io.StringIO(), False)):
+            with mock.patch("sys.stderr", err), mock.patch.object(advisor, "compute", return_value=self.ADVICE):
+                self.assertEqual(run("formule")[0], 0)
+            self.assertEqual("Calcul" in err.getvalue(), shown, err.getvalue())
+
+    def test_failure_exit_1_on_stderr(self):
+        from ccs_app import advisor
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err), \
+                mock.patch.object(advisor, "compute", side_effect=OSError("historique illisible")):
+            code, out = run("formule")
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("historique illisible", err.getvalue())
+
+
+class SemaineCliTest(HomeTestCase):
+    def setUp(self):
+        super().setUp()
+        from ccs_app import weekly_report
+        self.wr = weekly_report
+        self.built = []
+        report = mock.Mock()
+        p = mock.patch.object(weekly_report, "build_report",
+                              side_effect=lambda s, e: (self.built.append((s, e)), report)[1])
+        p.start()
+        self.addCleanup(p.stop)
+        f = mock.patch.object(weekly_report, "format_text", return_value="Bilan du 26 oct. au 2 nov.")
+        f.start()
+        self.addCleanup(f.stop)
+
+    def weeks(self):
+        from datetime import datetime, timezone
+        return self.wr.week_choices([], datetime.now(timezone.utc), load_settings(), count=4)
+
+    def test_last_finished_week_by_default(self):
+        code, out = run("semaine")
+        self.assertEqual((code, out), (0, "Bilan du 26 oct. au 2 nov.\n"))
+        self.assertEqual(self.built, [self.weeks()[1]])
+
+    def test_weeks_before(self):
+        self.assertEqual(run("semaine", "--precedente", "2")[0], 0)
+        self.assertEqual(run("semaine", "--precedente", "0")[0], 0)
+        self.assertEqual(self.built, [self.weeks()[3], self.weeks()[1]])
+
+    def test_invalid_count_exit_2(self):
+        for bad in ("-1", "deux", "100000"):
+            err = io.StringIO()
+            with self.subTest(n=bad), mock.patch("sys.stderr", err), self.assertRaises(SystemExit) as e:
+                run("semaine", "--precedente", bad)
+            self.assertEqual(e.exception.code, 2)
+            self.assertIn("--precedente", err.getvalue())
+        self.assertEqual(self.built, [])
+
+    def test_failure_exit_1(self):
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err), \
+                mock.patch.object(self.wr, "build_report", side_effect=OSError("journal illisible")):
+            self.assertEqual(run("semaine")[0], 1)
+        self.assertIn("journal illisible", err.getvalue())
+
+
+class JournalCliTest(HomeTestCase):
+    def setUp(self):
+        super().setUp()
+        from ccs_app.store import Store
+        now = time.time()
+        store = Store()
+        store.add_event(now - 20 * 86400, "switch", "perso", {"mode": "initial"})
+        store.add_event(now - 10 * 86400, "switch", "pro", {"mode": "manual", "via": "ccs", "from": "perso"})
+        store.add_event(now - 3600, "switch", "perso", {"mode": "manual", "via": "icone", "from": "pro"})
+        store.close()
+
+    def test_default_is_seven_days(self):
+        code, out = run("journal")
+        self.assertEqual(code, 0)
+        self.assertIn("pro → perso", out)
+        self.assertIn("depuis l'icône", out)
+        self.assertNotIn("perso → pro", out)
+
+    def test_days_and_everything(self):
+        self.assertIn("perso → pro", run("journal", "--jours", "30")[1])
+        out = run("journal", "--tout")[1]
+        self.assertIn("perso → pro", out)
+        self.assertIn("Début du suivi", out)
+
+    def test_invalid_usage_exit_2(self):
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            code, out = run("journal", "--jours", "0")
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn("usage : ccs journal [--jours N | --tout]", err.getvalue())
+        for argv in (("--jours", "3", "--tout"), ("--jours", "x")):
+            with self.subTest(argv=argv), mock.patch("sys.stderr", io.StringIO()), \
+                    self.assertRaises(SystemExit) as e:
+                run("journal", *argv)
+            self.assertEqual(e.exception.code, 2)
+
+
+class ProjetCliTest(HomeTestCase):
+    def setUp(self):
+        super().setUp()
+        import os
+        self.app = self.home / "Work" / "App"
+        self.app.mkdir(parents=True)
+        cwd = os.getcwd()
+        os.chdir(self.app)
+        self.addCleanup(os.chdir, cwd)
+
+    def test_list_associate_show_remove(self):
+        from ccs_app import project_accounts
+        self.assertEqual(run("projet"), (0, "Aucun projet associé à un compte.\n"))
+        code, out = run("projet", "pro")   # dossier courant
+        self.assertEqual(code, 0)
+        self.assertIn("→ pro", out)
+        self.assertEqual(project_accounts.get(str(self.app)).profile, "pro")
+        self.assertIn("→ pro", run("projet", str(self.app))[1])
+        self.assertEqual(run("projet", str(self.app), "aucun")[0], 0)
+        self.assertIsNone(project_accounts.get(str(self.app)))
+
+    def test_errors_on_stderr(self):
+        for argv, code in ((("inconnu-zz",), 2), ((str(self.app), "zz"), 1), (("a", "b", "c"), 2),
+                           ((str(self.home / "absent"), "pro"), 1)):
+            err = io.StringIO()
+            with self.subTest(argv=argv), mock.patch("sys.stderr", err):
+                self.assertEqual(run("projet", *argv), (code, ""))
+            self.assertTrue(err.getvalue().strip())
+
+
+class RaccourcisCliTest(HomeTestCase):
+    def setUp(self):
+        super().setUp()
+        import os
+        from ccs_app import shortcuts as sc
+        self.sc = sc
+        self.backend = sc.MemoryBackend.gnome()
+        for p in (mock.patch.object(sc, "default_backend", return_value=self.backend),
+                  mock.patch.object(sc, "command_for", side_effect=lambda a: "/usr/bin/" + sc.action(a).display),
+                  mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME"})):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_status_on_set_off_and_alias(self):
+        code, out = run("raccourcis")
+        self.assertEqual(code, 0)
+        self.assertIn("Raccourcis clavier globaux", out)
+        self.assertEqual(run("raccourcis", "on", "suivant")[0], 0)
+        self.assertEqual(self.backend.get(self.sc.MEDIA_KEYS, self.sc.CUSTOM_KEY),
+                         [self.sc.action("suivant").path])
+        code, out = run("shortcuts", "set", "suivant", "Super+Alt+K")
+        self.assertEqual(code, 0)
+        self.assertIn("Super+Alt+K", out)
+        self.assertIn("Raccourcis retirés", run("raccourcis", "off")[1])
+        self.assertEqual(self.backend.get(self.sc.MEDIA_KEYS, self.sc.CUSTOM_KEY), [])
+
+    def test_usage_and_refusal_on_stderr(self):
+        for argv, code in ((("on", "zzz"), 2), (("set", "suivant"), 2), (("set", "suivant", "K"), 1)):
+            err = io.StringIO()
+            with self.subTest(argv=argv), mock.patch("sys.stderr", err):
+                self.assertEqual(run("raccourcis", *argv), (code, ""))
+            self.assertTrue(err.getvalue().strip())
+
+    def test_other_desktop_shows_the_commands(self):
+        import os
+        with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "KDE"}):
+            code, out = run("raccourcis", "status")
+        self.assertEqual(code, 1)
+        self.assertIn("seulement sous GNOME", out)
+        self.assertIn("/usr/bin/ccs next", out)
+
+
+class StatuslineHintCliTest(HomeTestCase):
+    def write_state(self, percent):
+        st = dict(STATE, updated_at=time.time())
+        st["accounts"] = [dict(STATE["accounts"][0], limits=[
+            {"kind": "session", "label": "Session (5 h)", "percent": percent, "resets_at": None}])]
+        write(self.store / "state.json", st)
+
+    def statusline(self, stdin):
+        with mock.patch("sys.stdin", stdin):
+            return run("statusline")
+
+    def test_cheaper_model_hint_from_the_session_model(self):
+        self.write_state(85)
+        payload = json.dumps({"session_id": "x", "model": {"id": "claude-opus-5-5", "display_name": "Opus"}})
+        code, out = self.statusline(io.StringIO(payload))
+        self.assertEqual(code, 0)
+        self.assertIn("→ sonnet ?", out)
+        self.write_state(40)
+        self.assertNotIn("→", self.statusline(io.StringIO(payload))[1])
+
+    def test_empty_or_terminal_input_never_blocks(self):
+        self.write_state(85)
+        tty = mock.Mock()
+        tty.isatty.return_value = True
+        tty.read.side_effect = AssertionError("lecture bloquante d'un terminal")
+        for stdin in (io.StringIO(""), io.StringIO("pas du json"), io.StringIO("[1]"), tty):
+            with self.subTest(stdin=stdin):
+                code, out = self.statusline(stdin)
+            self.assertEqual(code, 0)
+            self.assertIn("perso", out)
+            self.assertEqual(out.count("\n"), 1)
+
+    def test_broken_hint_keeps_the_line(self):
+        self.write_state(85)
+        from ccs_app import model_advice
+        with mock.patch.object(model_advice, "statusline_hint", side_effect=KeyError("alerts")):
+            code, out = self.statusline(io.StringIO('{"model": "claude-opus-5-5"}'))
+        self.assertIn("perso", out)
+        self.assertNotIn("illisible", out)
+
+
+class NotifierCliTest(HomeTestCase):
+    """Commandes des raccourcis clavier (--notifier) : résultat en notification bureau."""
+
+    def setUp(self):
+        super().setUp()
+        from ccs_app import daemon, notify
+        self.sent = []
+        for p in (mock.patch.object(notify, "send", side_effect=lambda a, **k: self.sent.append(a) or 7),
+                  mock.patch.object(daemon, "request_refresh", return_value=True)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def titles(self):
+        return [(a.title, a.body) for a in self.sent]
+
+    def test_notify_command(self):
+        self.assertEqual(run("notify", "--", "Bascule sur pro", "b@y.com")[0], 0)
+        self.assertEqual(self.titles(), [("Bascule sur pro", "b@y.com")])
+
+    def test_best_switch_notifies_and_notes_the_shortcut(self):
+        from ccs_app import switch_log
+        write(self.store / "state.json", dict(STATE, updated_at=time.time()))
+        ok = subprocess.CompletedProcess([], 0, "✔ basculé sur 'pro'", "")
+        notes = []
+
+        def use(args):
+            notes.append(core.load_json(switch_log.origin_path()))
+            return ok
+        with mock.patch.object(core, "run_ccs", side_effect=use):
+            self.assertEqual(run("best", "--switch", "--notifier")[0], 0)
+        self.assertEqual(notes[0]["via"], "raccourci")
+        self.assertEqual(notes[0]["profile"], "pro")
+        self.assertEqual(self.titles(), [("Bascule sur pro", "Meilleur compte : au repos, semaine à 22 %")])
+
+    def test_best_by_hand_notes_ccs_without_notification(self):
+        from ccs_app import switch_log
+        write(self.store / "state.json", dict(STATE, updated_at=time.time()))
+        ok = subprocess.CompletedProcess([], 0, "ok", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok):
+            run("best", "--switch")
+        self.assertEqual(core.load_json(switch_log.origin_path())["via"], "ccs")
+        self.assertEqual(self.sent, [])
+
+    def test_best_failure_and_already_active(self):
+        from ccs_app import switch_log
+        write(self.store / "state.json", dict(STATE, updated_at=time.time()))
+        bad = subprocess.CompletedProcess([], 1, "", "ccs: 'pro' : connexion perdue")
+        with mock.patch.object(core, "run_ccs", return_value=bad):
+            self.assertEqual(run("best", "--switch", "--notifier")[0], 1)
+        self.assertEqual(self.titles(), [("Bascule impossible", "ccs: 'pro' : connexion perdue")])
+        self.assertFalse(switch_log.origin_path().exists())   # pas d'origine pour une bascule ratée
+        self.sent.clear()
+        write(self.store / "state.json", dict(STATE, updated_at=time.time(), best={"name": "perso", "reason": "r"}))
+        self.assertEqual(run("best", "--switch", "--notifier")[0], 0)
+        self.assertEqual(self.titles()[0][0], "Déjà sur perso")
+
+    def test_pause_notifies(self):
+        code, out = run("pause", "1h", "--notifier")
+        self.assertEqual(code, 0)
+        self.assertRegex(self.titles()[0][0], r"^Pause jusqu'à \d\d:\d\d$")
+        self.sent.clear()
+        run("pause", "off", "--notifier")
+        self.assertEqual(self.titles()[0][0], "Pause levée")
+        self.sent.clear()
+        with mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(run("pause", "2h", "--notifier")[0], 2)
+        self.assertEqual(self.titles()[0][0], "Pause impossible")
+
+    def test_pause_without_notifier_is_silent(self):
+        run("pause", "1h")
+        self.assertEqual(self.sent, [])

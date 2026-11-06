@@ -88,16 +88,22 @@ class Action:
 # Super+Alt+lettre : aucune de ces combinaisons n'est prise par GNOME 46, le Dock
 # ou l'assistant de tuilage d'Ubuntu (Super+Alt+S, 8, =, - le sont : lecteur
 # d'écran, loupe). Lettres plutôt que chiffres : mêmes touches en AZERTY.
+# --notifier : sans terminal, le résultat (« Bascule sur pro », « Pause jusqu'à 14:00 »,
+# l'erreur) s'affiche en notification, et la bascule est notée « raccourci » dans le
+# journal. Les raccourcis installés sans l'option sont « à mettre à jour » (`outdated`,
+# `update_commands`).
+NOTIFIER = "--notifier"
 ACTIONS = (
     Action("ouvrir", "Ouvrir Comptes Claude", "claude-accounts", ("gui",), "<Super><Alt>c"),
     Action("sessions", "Afficher les sessions", "claude-accounts", ("gui", "--page", "sessions"),
            "<Super><Alt>v"),
     Action("nouvelle-session", "Nouvelle session", "claude-accounts", ("gui", "--new-session"),
            "<Super><Alt>n"),
-    Action("suivant", "Basculer sur le compte suivant", "ccs", ("next",), "<Super><Alt>b"),
-    Action("meilleur", "Basculer sur le meilleur compte", "ccs", ("best",), "<Super><Alt>m"),
-    Action("pause", "Pause 1 h", "ccs", ("pause", "1h"), "<Super><Alt>p"),
-    Action("reprendre", "Reprendre (lever la pause)", "ccs", ("pause", "off"), "<Super><Alt>r"),
+    Action("suivant", "Basculer sur le compte suivant", "ccs", ("next", NOTIFIER), "<Super><Alt>b"),
+    Action("meilleur", "Basculer sur le meilleur compte", "ccs", ("best", NOTIFIER), "<Super><Alt>m"),
+    Action("pause", "Pause 1 h", "ccs", ("pause", "1h", NOTIFIER), "<Super><Alt>p"),
+    Action("reprendre", "Reprendre (lever la pause)", "ccs", ("pause", "off", NOTIFIER),
+           "<Super><Alt>r"),
 )
 ACTION_IDS = tuple(a.id for a in ACTIONS)
 _BY_ID = {a.id: a for a in ACTIONS}

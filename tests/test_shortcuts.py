@@ -167,10 +167,10 @@ class ActionsTest(unittest.TestCase):
             "ouvrir": "claude-accounts gui",
             "sessions": "claude-accounts gui --page sessions",
             "nouvelle-session": "claude-accounts gui --new-session",
-            "suivant": "ccs next",
-            "meilleur": "ccs best",
-            "pause": "ccs pause 1h",
-            "reprendre": "ccs pause off",
+            "suivant": "ccs next --notifier",
+            "meilleur": "ccs best --notifier",
+            "pause": "ccs pause 1h --notifier",
+            "reprendre": "ccs pause off --notifier",
         })
 
     def test_defaults_valid_distinct_and_free_of_known_gnome_shortcuts(self):
@@ -203,9 +203,9 @@ class ActionsTest(unittest.TestCase):
                     p.write_text("#!/bin/sh\n")
                     p.chmod(0o755)
             with mock.patch.object(sc, "USR_BIN", usr), mock.patch.object(sc, "REPO_BIN", repo):
-                self.assertEqual(sc.command_for(sc.action("suivant")), f"{usr}/ccs next")
+                self.assertEqual(sc.command_for(sc.action("suivant")), f"{usr}/ccs next --notifier")
                 (usr / "ccs").unlink()
-                self.assertEqual(sc.command_for(sc.action("suivant")), f"{repo}/ccs next")
+                self.assertEqual(sc.command_for(sc.action("suivant")), f"{repo}/ccs next --notifier")
                 self.assertEqual(sc.command_for(sc.action("sessions")),
                                  f"{usr}/claude-accounts gui --page sessions")
 
@@ -218,7 +218,7 @@ class ActionsTest(unittest.TestCase):
             p.chmod(0o755)
             with mock.patch.object(sc, "USR_BIN", Path(tmp, "absent")), \
                     mock.patch.object(sc, "REPO_BIN", repo):
-                self.assertEqual(sc.command_for(sc.action("pause")), f"'{repo}/ccs' pause 1h")
+                self.assertEqual(sc.command_for(sc.action("pause")), f"'{repo}/ccs' pause 1h --notifier")
 
 
 # --------------------------------------------------------------------------
@@ -383,7 +383,7 @@ class InstallTest(SafetyMixin, unittest.TestCase):
         item = sc.set_binding("pause", "Super+Alt+F12", backend=self.b)
         self.assertTrue(item.installed)
         self.assertEqual(custom_list(self.b), FOREIGN + [DIR + "ccs-pause/"])
-        self.assertEqual(custom(self.b, DIR + "ccs-pause/")["command"], "/usr/bin/ccs pause 1h")
+        self.assertEqual(custom(self.b, DIR + "ccs-pause/")["command"], "/usr/bin/ccs pause 1h --notifier")
 
     def test_set_binding_invalid(self):
         sc.install("pause", backend=self.b)
@@ -398,8 +398,28 @@ class InstallTest(SafetyMixin, unittest.TestCase):
         self.b.set(sc.CUSTOM_SCHEMA, {"command": "/vieux/depot/bin/ccs next"}, DIR + "ccs-suivant/")
         self.b.log.clear()
         self.assertEqual(sc.update_commands(backend=self.b), ["suivant"])
-        self.assertEqual(custom(self.b, DIR + "ccs-suivant/")["command"], "/usr/bin/ccs next")
+        self.assertEqual(custom(self.b, DIR + "ccs-suivant/")["command"], "/usr/bin/ccs next --notifier")
         self.assertEqual(sc.update_commands(backend=self.b), [])
+
+    def test_shortcuts_installed_without_notifier_are_outdated(self):
+        """Raccourcis de la 0.6 de développement (sans --notifier) : à mettre à jour, raccourci
+        gardé ; les commandes de l'application, elles, n'ont pas changé."""
+        for act in ("ouvrir", "suivant", "meilleur", "pause", "reprendre"):
+            sc.install(act, backend=self.b)
+        old = {"suivant": "ccs next", "meilleur": "ccs best", "pause": "ccs pause 1h",
+               "reprendre": "ccs pause off"}
+        for act, cmd in old.items():
+            self.b.set(sc.CUSTOM_SCHEMA, {"command": "/usr/bin/" + cmd}, DIR + f"ccs-{act}/")
+        sc.set_binding("pause", "Super+Alt+F12", backend=self.b)
+        self.b.set(sc.CUSTOM_SCHEMA, {"command": "/usr/bin/ccs pause 1h"}, DIR + "ccs-pause/")
+        st = sc.status(backend=self.b)
+        self.assertEqual([i.id for i in st.items if i.outdated], list(old))
+        self.assertIn("commande à mettre à jour : ccs raccourcis on suivant", sc.format_text(st))
+        self.assertEqual(sc.update_commands(backend=self.b), list(old))
+        for act, cmd in old.items():
+            self.assertEqual(custom(self.b, DIR + f"ccs-{act}/")["command"], f"/usr/bin/{cmd} --notifier")
+        self.assertEqual(custom(self.b, DIR + "ccs-pause/")["binding"], "<Super><Alt>F12")
+        self.assertFalse(any(i.outdated for i in sc.status(backend=self.b).items))
 
 
 # --------------------------------------------------------------------------

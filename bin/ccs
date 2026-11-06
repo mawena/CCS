@@ -22,7 +22,49 @@ CA="$(dirname "$(readlink -f "$0")")/claude-accounts"
 c_green=$'\e[32m'; c_dim=$'\e[2m'; c_bold=$'\e[1m'; c_red=$'\e[31m'; c_off=$'\e[0m'
 [[ -t 1 ]] || { c_green=; c_dim=; c_bold=; c_red=; c_off=; }
 
-die() { echo "${c_red}ccs: $*${c_off}" >&2; exit 1; }
+# Option --notifier (commandes des raccourcis clavier) : le résultat de la bascule part
+# aussi en notification bureau.
+NOTIFY=""
+# Origine de la bascule pour le journal (switch-origin.json, lu par le service) : « ccs »
+# à la main, « raccourci » avec --notifier ; CCS_VIA vide (appel par l'application, le
+# service, l'icône…) : rien n'est noté, l'appelant s'en charge.
+ORIGIN_VIA="${CCS_VIA-ccs}"
+ORIGIN_KEEP_S=60  # origine notée par l'appelant juste avant pour le même compte : gardée
+
+die() {
+  echo "${c_red}ccs: $*${c_off}" >&2
+  notify_desktop "Bascule impossible" "$*"
+  exit 1
+}
+
+# Notification bureau (seulement avec --notifier) : par claude-accounts (D-Bus), sinon
+# notify-send. Ne fait jamais échouer la commande.
+notify_desktop() {
+  [[ -n "$NOTIFY" ]] || return 0
+  if [[ -x "$CA" ]] && "$CA" notify -- "$1" "${2:-}" >/dev/null 2>&1; then
+    return 0
+  fi
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -a "Comptes Claude" -i io.ccs.ClaudeAccounts -h boolean:transient:true \
+      -- "$1" "${2:-}" >/dev/null 2>&1 || true
+  fi
+  return 0
+}
+
+# Retire --notifier des arguments (reste dans ARGS) ; avec lui, résultat notifié et
+# bascule notée « raccourci » (sauf origine imposée par CCS_VIA).
+take_notifier() {
+  ARGS=()
+  local a
+  for a in "$@"; do
+    if [[ "$a" == --notifier ]]; then
+      NOTIFY=1
+      [[ -n "${CCS_VIA+x}" ]] || ORIGIN_VIA=raccourci
+    else
+      ARGS+=("$a")
+    fi
+  done
+}
 need() { command -v "$1" >/dev/null || die "commande requise introuvable : $1"; }
 need jq
 need flock
@@ -119,12 +161,56 @@ plan_of() {
   jq -r '.claudeAiOauth.subscriptionType // "?"' "$STORE/$1/oauth.json" 2>/dev/null
 }
 
-running_warning() {
+open_sessions() {
   local n
   n="$(pgrep -u "$(id -u)" -xc claude 2>/dev/null || true)"
+  echo "${n:-0}"
+}
+
+running_warning() {
+  local n="$1"
   if [[ "${n:-0}" -gt 0 ]]; then
     echo "${c_dim}↻ $n session(s) Claude Code ouverte(s) : elles passeront sur ce compte à leur prochaine requête.${c_off}"
   fi
+}
+
+# Texte de la notification d'une bascule : adresse, organisation, sessions ouvertes.
+switch_notice() {
+  local name="$1" n="$2" text
+  text="$(jq -r '[.emailAddress // empty, .organizationName // empty] | join(" · ")' \
+    "$STORE/$name/account.json" 2>/dev/null || true)"
+  if [[ "${n:-0}" -gt 0 ]]; then
+    text+="${text:+. }$n session(s) Claude Code ouverte(s) passeront sur ce compte à leur prochaine requête."
+  fi
+  printf '%s' "$text"
+}
+
+# Note l'origine de la bascule vers $1 pour le journal des bascules, au format de
+# switch_log.note_origin : {"profile", "via", "ts"} dans switch-origin.json (600). Jamais
+# bloquant : la moindre erreur laisse la bascule se faire sans note.
+note_origin() {
+  local name="$1" file="$STORE/switch-origin.json" now tmp
+  case "$ORIGIN_VIA" in
+    application|icone|notification|ccs|nouvelle-session|projet|raccourci) ;;
+    *) return 0 ;;
+  esac
+  # Bascule refusée plus loin (install_profile) : pas de note.
+  [[ -f "$STORE/$name/account.json" ]] && has_token "$STORE/$name/oauth.json" || return 0
+  now="$(date +%s.%N 2>/dev/null)" || return 0
+  [[ "$now" =~ ^[0-9]+\.[0-9]+$ ]] || return 0
+  if [[ -f "$file" ]] && jq -e --arg p "$name" --argjson now "$now" --argjson keep "$ORIGIN_KEEP_S" \
+      '.profile == $p and (.ts | type == "number") and ($now - .ts) >= 0 and ($now - .ts) < $keep' \
+      "$file" >/dev/null 2>&1; then
+    return 0  # notée juste avant par l'application, l'icône… : la plus précise, on la garde
+  fi
+  tmp="$(mktemp "$file.XXXXXX" 2>/dev/null)" || return 0
+  if jq -n --arg p "$name" --arg v "$ORIGIN_VIA" --argjson ts "$now" \
+      '{profile: $p, via: $v, ts: $ts}' >"$tmp" 2>/dev/null && chmod 600 "$tmp" 2>/dev/null \
+      && mv -f "$tmp" "$file" 2>/dev/null; then
+    return 0
+  fi
+  rm -f "$tmp" 2>/dev/null
+  return 0
 }
 
 cmd_list() {
@@ -185,27 +271,35 @@ cmd_add() {
 }
 
 cmd_use() {
-  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs use <nom>"
+  take_notifier "$@"
+  [[ ${#ARGS[@]} -le 1 ]] || die "usage : ccs use <nom> [--notifier]"
+  local name="${ARGS[0]:-}"; [[ -n "$name" ]] || die "usage : ccs use <nom> [--notifier]"
   [[ -d "$STORE/$name" ]] || die "profil inconnu : $name (voir 'ccs list')"
   local cur; cur="$(active_profile)"
   if [[ "$cur" == "$name" ]]; then
     echo "Déjà sur '$name' : $(describe "$name")"
+    notify_desktop "Déjà sur $name" "$(switch_notice "$name" 0)"
     return
   fi
   if live_logged_in && [[ -z "$cur" ]]; then
     die "le compte connecté n'est enregistré dans aucun profil ; 'ccs save <nom>' d'abord"
   fi
+  note_origin "$name" || true
   lock_store
   sync_active
   install_profile "$name"
   unlock_store
   echo "${c_green}✔${c_off} basculé sur '$name' : $(describe "$name")"
-  running_warning
+  local n; n="$(open_sessions)"
+  running_warning "$n"
+  notify_desktop "Bascule sur $name" "$(switch_notice "$name" "$n")"
 }
 
 # Profil suivant (ordre alphabétique, retour au début), en sautant ceux dont la
 # connexion est perdue.
 cmd_next() {
+  take_notifier "$@"
+  [[ ${#ARGS[@]} -eq 0 ]] || die "usage : ccs next [--notifier]"
   local all cur i k n first=0 count cand names="" cmds=""
   local -a lost=()
   mapfile -t all < <(profiles)
@@ -266,7 +360,7 @@ usage() {
 ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
 
   ccs                      liste les profils (● = actif)
-  ccs <nom>                bascule sur le profil <nom>
+  ccs <nom>                bascule sur le profil <nom> (ou : ccs use <nom>)
   ccs next                 bascule sur le profil suivant utilisable (pratique en cas de limite atteinte)
   ccs save <nom>           enregistre le compte actuellement connecté sous <nom>
   ccs add <nom> [opts]     connecte un nouveau compte (claude auth login) et l'enregistre
@@ -290,12 +384,25 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
                            exporte une conversation en Markdown (défaut : <titre>.md ici)
   ccs integrate on|off     ligne d'état dans Claude Code + bascule après blocage (hook)
   ccs analyze [--days N]   où part ton usage : projets, modèles, heures, conseils
+  ccs formule              la formule qu'il te faut (Pro, Max, Ultra) d'après ton usage réel
+                           (alias : conseil)
+  ccs semaine [--precedente N]
+                           bilan de la semaine écoulée (ou de N semaines plus tôt)
+  ccs journal [--jours N | --tout]
+                           journal des bascules avec leur raison (7 derniers jours par défaut)
+  ccs projet [<dossier>] [<compte>|aucun]
+                           compte par projet : liste, compte d'un dossier, association
+  ccs raccourcis [status|on|off [action…]|set <action> <raccourci>]
+                           raccourcis clavier globaux du bureau GNOME (alias : shortcuts)
   ccs doctor               bilan de santé : service, version, bureau, comptes, Claude Code
                            (code de sortie 1 au moindre problème)
   ccs gui                  ouvre l'application graphique
   ccs current              affiche le profil actif
   ccs rename <a> <b>       renomme un profil
   ccs rm <nom>             supprime un profil
+
+  --notifier (next, use, best, pause) : résultat aussi en notification bureau ; c'est
+  l'option des raccourcis clavier (bascule notée « raccourci » dans le journal)
 
 Profils stockés dans : $STORE
 EOF
@@ -309,17 +416,22 @@ main() {
     save) cmd_save "$@" ;;
     add|login) cmd_add "$@" ;;
     use|switch|sw) cmd_use "$@" ;;
-    next|n) cmd_next ;;
+    next|n) cmd_next "$@" ;;
     current|whoami) cmd_current ;;
     rm|remove|delete) cmd_rm "$@" ;;
     rename|mv) cmd_rename "$@" ;;
     usage|u) exec "$CA" print ;;
     gui|app) setsid -f "$CA" gui >/dev/null 2>&1 ;;
-    best|b) exec "$CA" best --switch ;;
+    best|b) exec "$CA" best --switch "$@" ;;
     status|st) exec "$CA" status ;;
     auto) exec "$CA" auto "$@" ;;
     pause) exec "$CA" pause "$@" ;;
     doctor|bilan) exec "$CA" doctor ;;
+    formule|conseil) exec "$CA" formule "$@" ;;
+    semaine) exec "$CA" semaine "$@" ;;
+    journal) exec "$CA" journal "$@" ;;
+    projet) exec "$CA" projet "$@" ;;
+    raccourcis|shortcuts) exec "$CA" raccourcis "$@" ;;
     orch|orchestrateur) exec "$CA" orch "$@" ;;
     plan|planning) exec "$CA" plan ;;
     sessions|ps) exec "$CA" sessions ;;
@@ -333,7 +445,7 @@ main() {
     version|--version|-v) exec "$CA" --version ;;
     -h|--help|help) usage ;;
     *)
-      if [[ -d "$STORE/$cmd" ]]; then cmd_use "$cmd"
+      if [[ -d "$STORE/$cmd" ]]; then cmd_use "$cmd" "$@"
       else echo "${c_red}commande ou profil inconnu : $cmd${c_off}" >&2; usage; exit 1
       fi ;;
   esac

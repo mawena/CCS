@@ -50,7 +50,7 @@ class ShortcutsGroupTest(unittest.TestCase):
         self.assertFalse(g.rows["sessions"].switch.get_active())
         self.assertEqual(g.rows["ouvrir"].accel.get_accelerator(), "<Super><Alt>c")
         self.assertEqual(g.rows["sessions"].accel.get_accelerator(), "<Super><Alt>v")
-        self.assertEqual(g.rows["suivant"].get_subtitle(), "ccs next")
+        self.assertEqual(g.rows["suivant"].get_subtitle(), "ccs next --notifier")
         self.assertFalse(g.rows["ouvrir"].warning.get_visible())
 
     def test_switch_on_installs_and_off_removes(self):
@@ -142,7 +142,7 @@ class ShortcutsGroupTest(unittest.TestCase):
         self.assertEqual(g.rows, {})
         self.assertIn("introuvables", g.get_description())
         self.assertEqual(len(g.extra), len(sc.ACTIONS))
-        self.assertEqual(g.extra[3].get_subtitle(), "/usr/bin/ccs next")
+        self.assertEqual(g.extra[3].get_subtitle(), "/usr/bin/ccs next --notifier")
 
     def test_outdated_commands(self):
         sc.install("suivant", backend=self.b)
@@ -151,7 +151,7 @@ class ShortcutsGroupTest(unittest.TestCase):
         self.assertTrue(g.update_btn.get_visible())
         self.assertIn("mettre à jour", g.rows["suivant"].get_subtitle())
         g.update_btn.emit("clicked")
-        self.assertEqual(custom(self.b, DIR + "ccs-suivant/")["command"], "/usr/bin/ccs next")
+        self.assertEqual(custom(self.b, DIR + "ccs-suivant/")["command"], "/usr/bin/ccs next --notifier")
         self.assertFalse(g.update_btn.get_visible())
 
     def test_external_change_refreshes(self):
