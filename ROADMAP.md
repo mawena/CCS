@@ -110,6 +110,12 @@ Documentation et release :
 
 ## Phase 8 — Conseils, journal et raccourcis (0.6.0)
 
+Priorité — à faire immédiatement :
+- [ ] Un seul onglet « Sessions » qui réunit les sessions ouvertes et l'historique des conversations (remplace les onglets Sessions et Conversations)
+  - [ ] Organisation : projets à gauche (avec sessions ouvertes et nombre de conversations), à droite les sessions ouvertes du projet puis ses conversations groupées par date ; recherche et filtres communs
+  - [ ] Fusion des deux pages sans perte : reprise, aperçu, coût, renommage, compte du projet, badge des sessions en attente, notifications cliquables, `--page sessions`
+  - [ ] Tests et essais réels
+
 Conseils :
 - [ ] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars
 - [ ] Conseil de modèle près des limites (Opus → Sonnet)
