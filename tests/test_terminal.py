@@ -73,6 +73,29 @@ class ClaudeLaunchTest(LaunchTestCase):
     def test_home_project_title(self):
         self.assertEqual(terminal.claude_launch(str(self.home), environ=self.environ).title, "~")
 
+    def test_extra_arguments_after_claude_and_resume_quoted(self):
+        launch = terminal.claude_launch("/w/App", environ=self.environ,
+                                        extra_args=("--model", "opus", "--append-system-prompt", "a b'c"))
+        self.assertEqual(launch.argv[-1], "exec /home/u/.local/bin/claude --model opus "
+                                          "--append-system-prompt 'a b'\"'\"'c'")
+        self.assertEqual(launch.extra_args, ("--model", "opus", "--append-system-prompt", "a b'c"))
+        launch = terminal.claude_launch("/w/App", resume="s-1", environ=self.environ,
+                                        extra_args=["--permission-mode", "plan"])
+        self.assertEqual(launch.argv[-1], "exec /home/u/.local/bin/claude --resume s-1 --permission-mode plan")
+        self.assertEqual(launch.extra_args, ("--permission-mode", "plan"))  # tuple : Launch reste figé
+        self.assertEqual(terminal.claude_launch("/w/App", environ=self.environ).extra_args, ())
+
+    def test_relaunch_keeps_extra_arguments(self):
+        tab = TabState(kind="claude", cwd="/w/App", title="Plan", session_id="s-1",
+                       extra_args=("--model", "opus", "--permission-mode", "plan"))
+        again = terminal.relaunch(tab, environ=self.environ)
+        self.assertEqual(again.argv[-1], "exec /home/u/.local/bin/claude --resume s-1 --model opus "
+                                         "--permission-mode plan")
+        self.assertEqual(again.extra_args, tab.extra_args)
+        tab.session_id = None
+        self.assertEqual(terminal.relaunch(tab, environ=self.environ).argv[-1],
+                         "exec /home/u/.local/bin/claude --model opus --permission-mode plan")
+
 
 class ShellLaunchTest(LaunchTestCase):
     def test_user_shell_in_folder(self):

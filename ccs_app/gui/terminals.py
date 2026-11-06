@@ -72,7 +72,8 @@ class TerminalTab(Gtk.Box):
         Vte = vte()
         self.owner = owner
         self.launch = launch
-        self.state = terminal.TabState(launch.kind, launch.cwd, launch.title, launch.session_id)
+        self.state = terminal.TabState(launch.kind, launch.cwd, launch.title, launch.session_id,
+                                       extra_args=launch.extra_args)
         self.page = None
         self.menu_uri = None
         self.feeding = False       # texte envoyé par l'application : pas une saisie
@@ -431,9 +432,10 @@ class TerminalsPage(Gtk.Box):
         state = terminal.find_tab(self.states(), pid=pid, session_id=session_id)
         return next((t for t in self.tabs() if t.state is state), None) if state else None
 
-    def open_claude(self, cwd, resume=None, title=None):
-        """Nouvel onglet : Claude Code dans `cwd` (`resume` : identifiant à reprendre)."""
-        return self.open(terminal.claude_launch(cwd, resume, title))
+    def open_claude(self, cwd, resume=None, title=None, extra_args=()):
+        """Nouvel onglet : Claude Code dans `cwd` (`resume` : identifiant à reprendre,
+        `extra_args` : arguments ajoutés à claude, gardés pour la relance)."""
+        return self.open(terminal.claude_launch(cwd, resume, title, extra_args=extra_args))
 
     def open_shell(self, cwd):
         return self.open(terminal.shell_launch(cwd))

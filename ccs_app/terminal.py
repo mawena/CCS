@@ -47,6 +47,7 @@ class Launch:
     env: dict
     title: str
     session_id: str | None = None
+    extra_args: tuple = ()        # claude : arguments ajoutés (--model, --permission-mode…)
 
     def envv(self):
         """Environnement au format attendu par VTE (« NOM=valeur »)."""
@@ -65,6 +66,7 @@ class TabState:
     state: str | None = None      # "busy" | "waiting" | "idle" (fiche de session de claude)
     busy: bool = False            # shell : un programme tourne au premier plan
     exit_status: int | None = None
+    extra_args: tuple = ()            # claude : arguments du lancement, repris à la relance
     waiting_for: str | None = None    # motif d'attente de la fiche de session
     started_at: float | None = None   # lancement du processus de l'onglet
     busy_since: float | None = None   # début du dernier tour de travail de claude
@@ -99,16 +101,19 @@ def _env(environ):
     return {**TERM_ENV, "PATH": path}
 
 
-def claude_launch(cwd, resume=None, title=None, environ=None):
-    """Claude Code dans `cwd` (`--resume <id>` pour reprendre une conversation).
+def claude_launch(cwd, resume=None, title=None, environ=None, extra_args=()):
+    """Claude Code dans `cwd` (`--resume <id>` pour reprendre une conversation), avec
+    `extra_args` ajoutés après (ex. `--model opus --permission-mode plan`).
 
     Comme pour le terminal externe, claude passe par un bash de connexion (profil de
     l'utilisateur) qui s'efface devant lui (`exec`) : le processus de l'onglet est claude
     lui-même, retrouvé ensuite dans les fiches de session par son pid."""
     environ = os.environ if environ is None else environ
-    claude = [sessions._claude_bin()] + (["--resume", resume] if resume else [])
+    extra_args = tuple(str(a) for a in extra_args or ())
+    claude = [sessions._claude_bin()] + (["--resume", resume] if resume else []) + list(extra_args)
     argv = _unset_prefix(environ) + [_tool("bash", "/bin/bash"), "-lc", "exec " + shlex.join(claude)]
-    return Launch("claude", cwd, tuple(argv), _env(environ), title or sessions.project_name(cwd), resume)
+    return Launch("claude", cwd, tuple(argv), _env(environ), title or sessions.project_name(cwd), resume,
+                  extra_args)
 
 
 def _user_shell(environ):
@@ -130,10 +135,11 @@ def shell_launch(cwd, environ=None):
 
 def relaunch(tab, environ=None):
     """Lancement qui reprend un onglet arrêté : la même conversation si son identifiant
-    est connu, sinon une nouvelle session ; le shell pour un onglet de shell."""
+    est connu, sinon une nouvelle session, avec les mêmes arguments ; le shell pour un
+    onglet de shell."""
     if tab.kind == "shell":
         return shell_launch(tab.cwd, environ)
-    return claude_launch(tab.cwd, tab.session_id, tab.title, environ)
+    return claude_launch(tab.cwd, tab.session_id, tab.title, environ, tab.extra_args)
 
 
 def relaunch_label(tab):
