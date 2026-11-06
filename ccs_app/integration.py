@@ -15,7 +15,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from . import autoswitch, core, daemon, notify
+from . import autoswitch, core, daemon, limit_events, notify
 from .alerts import Alert
 from .settings import load_settings
 from .store import Store
@@ -211,11 +211,20 @@ def _hook_lock():
 
 def stop_failure(payload, notifier=notify.send):
     """Hook StopFailure (matcher rate_limit) : une seule bascule même si plusieurs
-    sessions sont bloquées en même temps, aucune si le compte vient de changer."""
+    sessions sont bloquées en même temps, aucune si le compte vient de changer.
+
+    Laisse aussi un marqueur par conversation (`limit_events`) : le terminal intégré s'en
+    sert pour relancer la conversation bloquée d'un de ses onglets."""
     if not isinstance(payload, dict):
         payload = {}
     if payload.get("error", "rate_limit") != "rate_limit":
         return "ignoré : pas une limite d'usage"
+    session_id = payload.get("session_id")
+
+    def mark(outcome, source=None, target=None, switched=False):
+        limit_events.record(session_id, time.time(), source, target, switched, outcome)
+
+    mark("pending")
     cwd = str(payload.get("cwd") or "")
     project = os.path.basename(cwd.rstrip("/")) or "une session"
     title = f"Limite atteinte dans {project}"
@@ -226,6 +235,7 @@ def stop_failure(payload, notifier=notify.send):
         recent = [e for e in store.events(now.timestamp() - RECENT_SWITCH_S, type="switch")]
         if recent:
             # Une autre session bloquée (ou le service) vient de basculer : on ne rebascule pas.
+            mark("already", recent[-1].detail.get("from"), recent[-1].profile, True)
             if not store.events(now.timestamp() - RECENT_SWITCH_S, type="alert", profile="blocage"):
                 store.add_event(now.timestamp(), "alert", "blocage", {"key": "deja"})
                 notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
@@ -236,6 +246,7 @@ def stop_failure(payload, notifier=notify.send):
         now = datetime.now(timezone.utc)
         after = core.active_profile_name()
         if after != before:
+            mark("already", before, after, True)
             notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                            f"Compte déjà changé pour {after}. Tape « continue » dans la session pour reprendre.", 2))
             return "déjà basculé"
@@ -245,13 +256,16 @@ def stop_failure(payload, notifier=notify.send):
         store.add_event(now.timestamp(), "alert", "blocage", {"key": f"blocage:{now.timestamp():.0f}"})
         if decision.action == "switch":
             if autoswitch.execute(decision, store, now, mode="blocage"):
+                mark("switched", after, decision.target, True)
                 notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                                f"Basculé sur {decision.target}. Tape « continue » dans la session pour reprendre.", 2))
                 return f"basculé sur {decision.target}"
+            mark("failed", after, decision.target)
             notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                            f"Bascule vers {decision.target} impossible : ouvre « Comptes Claude » "
                            "pour voir l'erreur.", 2))
             return "bascule impossible"
+        mark("exhausted", after)
         notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                        f"Aucun autre compte disponible — {decision.reason}.", 2))
         return decision.reason
