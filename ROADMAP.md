@@ -78,7 +78,7 @@ onglets de terminal, au lieu d'une fenêtre de terminal séparée.
 - [x] Repli sans VTE : terminal externe comme avant, message pour installer `gir1.2-vte-3.91`
 - [x] Renommer une conversation (ligne `custom-title` ajoutée au journal) : onglets Sessions et Conversations, onglets du terminal, `ccs title`
 - [x] Paquet : dépendance `gir1.2-vte-3.91`
-- [ ] Essais réels dans une copie de développement (terminal intégré, repli sans VTE)
+- [x] Essais réels dans une copie de développement (terminal intégré, repli sans VTE)
 - [x] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
 - [ ] Suite de tests au vert, feature terminée et `develop` poussée
 
