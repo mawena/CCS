@@ -102,16 +102,22 @@ toucher à tes réglages : utile pour rester sur un compte précis.
 ```sh
 ccs pause            # état de la pause (comme « ccs pause status »)
 ccs pause 1h         # ou 4h
-ccs pause demain     # jusqu'au début de la prochaine plage horaire
+ccs pause demain     # jusqu'au début de la prochaine plage horaire de l'orchestrateur
 ccs pause manuel     # jusqu'à ce que tu reprennes
-ccs pause off        # reprend tout de suite
+ccs pause off        # reprend tout de suite (ou « ccs pause reprendre »)
 ```
+
+Un choix inconnu affiche l'usage et sort avec le code 2. Le service est réveillé
+dès que l'état change, pour que l'icône et l'application suivent.
 
 Aussi : menu de l'icône (« Mettre en pause », puis « Reprendre maintenant ») et
 carte **Meilleur compte** de l'onglet Comptes (« Mettre en pause » /
-« Reprendre »). L'en-tête de la fenêtre, l'onglet Planning, `ccs status`,
-l'icône (⏸ devant le pourcentage) et la ligne d'état de Claude Code rappellent
-la pause et son échéance.
+« Reprendre »). Dans l'en-tête de la fenêtre, « Auto » devient « Auto ⏸ jusqu'à
+14:00 » (« Auto ⏸ en pause » pour une pause sans échéance) ; un clic propose
+« Reprendre maintenant ». `ccs status` affiche « En pause jusqu'à 14:00 :
+bascule automatique et orchestrateur suspendus (ccs pause off pour
+reprendre) » ; l'onglet Planning, l'icône (⏸ devant le pourcentage) et la ligne
+d'état de Claude Code rappellent aussi la pause.
 
 Pendant une pause, **CCS ne change plus de compte tout seul**, sans exception :
 ni bascule à seuil, ni bascule anticipée, ni bascule après blocage (le hook
@@ -196,15 +202,17 @@ onglet du [terminal intégré](#terminal-intégré) ; le menu « ⋮ » (ou la f
 « Nouvelle session ») garde le terminal externe. Une session déjà ouverte dans
 l'application affiche **Afficher**, qui mène à son onglet ; une conversation
 ouverte ailleurs (autre terminal, VS Code) n'est pas reprise une seconde fois.
-« Renommer… » est dans le menu « ⋮ » de chaque session et conversation,
-« Aperçu… » dans celui des conversations.
+« Renommer… » et « Aperçu… » sont dans le menu « ⋮ » de chaque session et
+conversation. La carte d'une session ouverte et chaque conversation récente
+affichent le [coût](#coût-dune-conversation) de la conversation.
 
-Le bouton **Tout l'historique** ouvre l'onglet Conversations. Le badge de
-l'onglet Sessions donne le nombre de sessions qui attendent ta réponse.
+Le bouton **Tout l'historique** ouvre l'onglet Conversations.
 
 ### Nouvelle session
 
-Le bouton **Nouvelle session…** ouvre un dialogue :
+Le bouton **Nouvelle session…** de l'onglet Sessions, l'entrée du même nom
+dans le menu ☰ de la fenêtre, ou « Avec des options… » dans le menu de
+« Nouvelle session » d'un projet ouvrent un dialogue :
 
 - **Dossier** : le projet d'où tu pars, un projet récent ou un autre dossier
   (bouton dossier) ;
@@ -221,23 +229,33 @@ Le bouton **Nouvelle session…** ouvre un dialogue :
   tout faire sans rien demander », à réserver à un dossier jetable ou à une
   machine isolée.
 
-La session s'ouvre dans un onglet du terminal intégré (terminal externe sans
-VTE), avec `claude --model … --permission-mode …` lancé dans le dossier choisi.
+Si un autre compte est choisi, CCS bascule d'abord (« Basculé sur « X » — les
+sessions ouvertes suivront à leur prochaine requête ») ; si la bascule échoue,
+un message l'explique et rien ne s'ouvre. La session s'ouvre ensuite dans un
+onglet du terminal intégré (terminal externe sans VTE), avec
+`claude --model … --permission-mode …` lancé dans le dossier choisi ; l'onglet
+garde ces options pour Reprendre et la réouverture.
 
 ### Notifications
 
 « X a terminé » ou « X attend ta réponse » quand une session qui travaillait
 depuis au moins une minute s'arrête (au plus une notification toutes les 2 min
-par session). Un clic sur la notification ouvre l'onglet de la session dans
-l'application. Réglage : **Réglages → Alertes → Sessions Claude Code**.
+par session). Réglage : **Réglages → Alertes → Sessions Claude Code**.
+
+Un clic sur la notification (ou son bouton **Afficher**) ouvre l'application
+sur la session : son onglet du terminal intégré si elle y tourne, sinon sa carte
+dans l'onglet Sessions, mise en évidence ; « Cette session n'est plus ouverte »
+si elle s'est arrêtée entre-temps. L'application est lancée si elle ne tourne
+pas. Le **badge** de l'onglet Sessions compte les sessions qui attendent ta
+réponse (avec un point d'attention quand l'onglet n'est pas affiché).
 
 **Rappel** : si une session attend ta réponse depuis plus de 10 min, CCS
 envoie « X attend toujours ta réponse », une seule fois par attente (pas de
 répétition tant qu'elle n'a pas changé d'état, pas de rappel au démarrage du
 service pour une attente déjà ancienne). Il part même si les notifications de
-sessions sont coupées. Réglages : **Rappel des sessions en attente** et
-**Rappeler après (min)** (`alerts.waiting_reminder`,
-`alerts.waiting_reminder_min`).
+sessions sont coupées, et s'ouvre de la même façon au clic. Réglages : **Rappel
+des sessions en attente** et **Rappeler après (min)**
+(`alerts.waiting_reminder`, `alerts.waiting_reminder_min`).
 
 ## Historique des conversations
 
@@ -276,8 +294,9 @@ pour 2 Go) ; ensuite il ne relit que les lignes ajoutées depuis, grâce au cach
 
 ### Aperçu et export
 
-« Aperçu… » (menu « ⋮ » d'une conversation, onglets Conversations et Sessions)
-relit une conversation sans la reprendre : tes demandes, les réponses de Claude
+« Aperçu… » (menu « ⋮ » d'une conversation de l'onglet Conversations, d'une
+conversation récente ou d'une session ouverte de l'onglet Sessions) relit une
+conversation sans la reprendre : tes demandes, les réponses de Claude
 (un seul bloc par réponse), chaque appel d'outil résumé en une ligne (outil et
 cible : fichier, commande, recherche…) avec son résultat raccourci, et deux
 repères (conversation compactée, demande interrompue). La réflexion de Claude,
@@ -287,25 +306,37 @@ le [coût](#coût-dune-conversation).
 
 Le dialogue affiche d'abord les 300 derniers messages (« Afficher 300 messages
 de plus » pour remonter) ; **Copier** met toute la conversation en Markdown dans
-le presse-papiers, **Exporter en Markdown…** l'enregistre (nom tiré du titre,
-dossier Documents proposé). Le journal est lu en flux, une ligne à la fois :
+le presse-papiers, **Exporter en Markdown…** l'enregistre avec son coût (nom
+tiré du titre, dossier Documents proposé). Le journal est lu en flux, une ligne à la fois :
 même une conversation de plusieurs centaines de Mo s'ouvre sans tout charger.
 
 ```sh
 ccs preview 4f3a | less        # la conversation en Markdown, coût en en-tête
 ccs apercu 4f3a                # même chose
-ccs export 4f3a prets.md       # l'enregistre dans un fichier
+ccs export 4f3a                # <titre-simplifié>.md dans le dossier courant
+ccs export 4f3a prets.md       # dans ce fichier (remplacé s'il existe)
+ccs export 4f3a ~/Documents    # dans ce dossier, sous le nom tiré du titre
 ```
 
-L'export Markdown contient un titre, le projet, la branche, les dates et
-l'identifiant, puis les échanges (« Toi », « Claude », outils en liste).
+L'identifiant s'écrit comme pour `ccs resume` : complet, ou ses 4 premiers
+caractères au moins. `ccs export` affiche le chemin absolu du fichier écrit ;
+les deux commandes sortent avec le code 1 si l'identifiant est inconnu ou
+ambigu, ou si la lecture ou l'écriture échoue.
+
+Le Markdown contient un titre, le projet, la branche, les dates, l'identifiant
+et le coût (« - Coût : 1,2 M tokens · ≈ 3,40 $ (équivalent API) »), puis les
+échanges (« Toi », « Claude », outils en liste).
 
 ### Coût d'une conversation
 
-Chaque conversation affiche son coût (liste de l'onglet Conversations, aperçu,
-`ccs preview`) : le nombre de tokens consommés (entrée, sortie, écriture et
-lecture du cache), **sous-agents compris**, et l'**équivalent en dollars au
-tarif de l'API Anthropic**, par exemple « 1,2 M tokens · ≈ 3,40 $ ».
+Chaque conversation affiche son coût : le nombre de tokens consommés (entrée,
+sortie, écriture et lecture du cache), **sous-agents compris**, et
+l'**équivalent en dollars au tarif de l'API Anthropic**, par exemple
+« 1,2 M tokens · ≈ 3,40 $ ». Dans les listes (onglet Conversations,
+conversations récentes et sessions ouvertes de l'onglet Sessions), le montant
+« ≈ 3,40 $ » s'ajoute à chaque ligne une fois la liste affichée (lignes visibles
+d'abord), avec le nombre de tokens au survol ; l'aperçu, l'export et
+`ccs preview` le donnent en en-tête.
 
 Ton abonnement (Pro, Max…) **ne facture pas au token** : ce montant dit
 seulement ce que la même conversation aurait coûté par l'API, pour comparer
@@ -394,7 +425,7 @@ Garde-fous :
   bandeau l'explique, rien n'est envoyé.
 
 Interrupteur **Reprise automatique après une limite** (activé par défaut) dans
-le menu « ⋮ » de la page Terminaux ; désactivé, le bandeau te dit seulement de
+le menu « ⋮ » de la page Terminaux ou **Réglages → Terminal intégré** ; désactivé, le bandeau te dit seulement de
 taper « continue ». Il faut `ccs integrate on` : sans le hook, aucun marqueur
 n'est écrit et rien n'est relancé. Les marqueurs
 (`~/.claude-accounts/limits/<conversation>.json`) sont retirés une fois lus, ou
@@ -437,7 +468,8 @@ s'affiche dans la fenêtre. Sans réponse, la liste reste enregistrée pour la
 fois suivante.
 
 Interrupteur **Rouvrir les onglets au démarrage** (désactivé par défaut) dans
-le menu « ⋮ » de la page Terminaux : les onglets sont rouverts sans question.
+le menu « ⋮ » de la page Terminaux ou **Réglages → Terminal intégré** : les
+onglets sont rouverts sans question.
 Chaque conversation reprend avec `claude --resume` et ses options (`--model`,
 `--permission-mode`) ; un shell rouvre dans son dossier de départ. Ne sont pas
 rouverts : un dossier disparu, une conversation ouverte ailleurs ou déjà dans un
@@ -471,8 +503,8 @@ fois, écriture atomique ; une `statusLine` existante est conservée.
 
 ## Bilan de santé
 
-`ccs doctor` (ou `claude-accounts doctor`, ou **Bilan de santé…** dans le menu
-principal de l'application) passe tout en revue :
+`ccs doctor` (alias `ccs bilan`, ou `claude-accounts doctor`, ou **Bilan de
+santé…** dans le menu ☰ de l'application) passe tout en revue :
 
 | Vérification | Ce qui est regardé |
 |---|---|
@@ -491,12 +523,15 @@ principal de l'application) passe tout en revue :
 Chaque ligne est ✔, ⚠ ou ✖ ; sous chaque problème, **la commande qui le
 corrige**, à copier (par exemple `systemctl --user restart ccs-daemon`,
 `ccs integrate on`, `ccs rm perso && ccs add perso`). Le bilan n'exécute jamais
-rien à ta place. Code de sortie : **0** si tout va bien, **1** sinon
-(avertissement ou erreur).
+rien à ta place. Code de sortie : **0** si tout va bien, **1** au moindre
+avertissement ou erreur.
 
 Dans l'application, chaque correctif a son bouton « Copier la commande », et un
-bouton copie tout le bilan. Un **bandeau** s'affiche au démarrage quand un
-problème est détecté. Le bilan ne lit des jetons de connexion que leur présence
+bouton copie tout le bilan. L'application fait aussi le bilan en arrière-plan
+4 s après son ouverture : s'il trouve une **erreur** (un simple avertissement
+ne suffit pas), un **bandeau** « Un problème a été détecté : <vérification> »
+(ou « N problèmes ont été détectés ») propose **Voir le bilan** ; il disparaît
+quand tu ouvres le bilan. Le bilan ne lit des jetons de connexion que leur présence
 et leurs dates d'expiration.
 
 ## Mises à jour
@@ -507,8 +542,10 @@ plus une fois par jour, une heure plus tard si GitHub n'a pas répondu ; une
 erreur réseau ou un refus de GitHub n'est jamais bloquant. Quand une version
 plus récente existe (comparaison SemVer), il prévient **une seule fois par
 version**, avec le lien de la version ; l'icône affiche « ⬆ CCS x.y.z
-disponible — voir la version », la fenêtre un bandeau et **Réglages → Service
-de collecte** la version installée et le lien. Interrupteur **Nouvelles
+disponible — voir la version », la fenêtre un bandeau « CCS x.y.z est
+disponible » avec **Voir** (une fois par lancement, seulement si cette version
+est plus récente que celle installée) et **Réglages → Service de collecte** la
+version installée et le lien. Interrupteur **Nouvelles
 versions** (`updates.enabled`) ; cache `~/.claude-accounts/updates.json`.
 
 Installe le nouveau paquet : le service se relance seul (dans les 5 min) et
@@ -520,5 +557,8 @@ fois avec `pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`.
 
 Les alertes 80 % / 95 % et « limite bientôt atteinte » proposent « Basculer sur
 <meilleur compte> » ; le clic bascule (comme une bascule manuelle). Un clic sur
-une notification de session (« a terminé », « attend ta réponse », rappel)
-ouvre l'application sur l'onglet de cette session.
+une notification de session (« a terminé », « attend ta réponse », rappel), ou
+son bouton **Afficher**, ouvre l'application sur cette session (voir
+[Notifications](#notifications)). Si l'application n'était pas ouverte, elle
+est lancée dans sa propre unité systemd : redémarrer le service ne la ferme
+pas.

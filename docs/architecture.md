@@ -26,27 +26,28 @@
 | `settings` | Réglages JSON fusionnés avec les valeurs par défaut |
 | `forecast` | Fonctions pures : fin de session (régression linéaire), rythme hebdo, fin de semaine prévue (`weekly_forecast` : rythme moyen depuis le début de la semaine, rien avant 12 h), capacité, meilleur compte |
 | `autoswitch` | Décision de bascule (pure) et exécution via `ccs use` |
-| `alerts` / `notify` | Quoi notifier (pur, anti-doublon par fenêtre ; fin de semaine prévue une fois par semaine, prioritaire sur l'avance hebdomadaire) / envoi D-Bus |
+| `alerts` / `notify` | Quoi notifier (pur, anti-doublon par fenêtre ; fin de semaine prévue une fois par semaine, prioritaire sur l'avance hebdomadaire ; `Alert.default` : action d'un clic sur la notification) / envoi D-Bus (`actions_for`) |
 | `daemon` | Boucle : relevés, prévisions, pause, décision, alertes, rappel des sessions en attente, warm-up, modules optionnels (`hooks`), écriture de `state.json` |
 | `pause` | Mode pause : `pause.json` (sous verrou), `set_pause`, `pause_state`, `expire`, `until_for` (1 h, 4 h, début de la plage suivante, reprise manuelle), libellés, `command()` de `ccs pause` |
 | `updates` | Nouvelle version : dernière release GitHub, comparaison SemVer, cache `updates.json`, une notification par version (module du daemon, dans un fil) |
 | `orchestrator` | Fonctions pures : plage horaire, créneaux décalés, démarrages dus, bascule vers le quota qui expire, réserve, planning, prochain réveil |
 | `warmup` | Créneaux fixes et requête minimale dans un `CLAUDE_CONFIG_DIR` temporaire (utilisée aussi par l'orchestrateur) |
 | `transcripts` | Lecture des journaux locaux, agrégats, conseils |
-| `costs` | Coût d'une conversation : tokens par type et équivalent API en dollars (table de tarifs datée), sous-agents compris, cache par chemin / taille / mtime |
-| `preview` | Aperçu d'une conversation (lecture en flux du journal, messages lisibles seulement) et export Markdown |
-| `conversations` | Historique de `~/.claude/projects/*/*.jsonl` : index incrémental (cache), titres, recherche, groupes par date, reprise (VS Code, terminal), projets déplacés (`relocate`), renommage (`rename` : ligne `custom-title` ajoutée en O_APPEND) |
-| `launch_options` | Options d'une nouvelle session (`LaunchSpec` : dossier, compte, `--model`, `--permission-mode`), arguments de `claude`, commande à copier ; ne bascule jamais |
+| `costs` | Coût d'une conversation : tokens par type et équivalent API en dollars (table de tarifs datée), sous-agents compris, cache par chemin / taille / mtime ; `Loader` pour les listes de l'application |
+| `preview` | Aperçu d'une conversation (lecture en flux du journal, messages lisibles seulement) et export Markdown, coût en en-tête |
+| `conversations` | Historique de `~/.claude/projects/*/*.jsonl` : index incrémental (cache), titres, recherche, groupes par date, reprise (VS Code, terminal), projets déplacés (`relocate`), renommage (`rename` : ligne `custom-title` ajoutée en O_APPEND), conversation d'un seul journal (`from_journal`) |
+| `launch_options` | Options d'une nouvelle session (`LaunchSpec` : dossier, compte, `--model`, `--permission-mode`), arguments de `claude`, commande à copier, bascule préalable (`switch_if_needed`) et ouverture (`open_session`) |
 | `sessions` | Sessions Claude Code ouvertes (`~/.claude/sessions`), consommation d'une conversation, titre lu en fin de journal, conversations et projets récents, transitions d'état, actions (terminal externe, dossier, terminer) |
 | `terminal` | Terminal intégré sans GTK (pur, testé) : commande et environnement de lancement (`Launch`, `extra_args`), choix intégré / externe, état des onglets (`TabState`, `sync_tabs`), textes de fin et de confirmation, reprise après une limite (`resume_decision`), réouverture (`tab_record`, `restore_plan`), messages en attente (`queue_next`, `queue_*`) |
 | `terminal_store` | `terminals.json` : interrupteurs de la page Terminaux, onglets à rouvrir (écriture atomique, fichier illisible ignoré) |
 | `limit_events` | Marqueurs « limite atteinte » par conversation (`limits/<session_id>.json`) : écrits par le hook, lus puis consommés par le terminal intégré |
 | `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état (⏸ en pause), hook `StopFailure` (bascule, sauf en pause ; marqueur de limite) |
-| `desktop` | Boucle GLib du service : boutons des notifications (ActionInvoked), moniteur de `~/.claude/sessions` |
+| `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` ; `show_session` : ouvrir l'application sur une session |
+| `attention` | Ce qui demande l'attention dans la fenêtre (pur) : libellé de pause de l'en-tête, bandeaux nouvelle version et bilan, badge des sessions en attente, référence de session (`<pid>:<id>`) et cible d'un clic sur une notification |
 | `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie |
 | `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version ; se relance seul quand le code installé change |
-| `cli` | Point d'entrée `claude-accounts` |
+| `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `gui --session`) |
 
 `ccs` (bash) reste **l'unique implémentation de la bascule** ; le service,
 l'application et l'indicateur l'appellent.
@@ -190,8 +191,13 @@ Ctrl+Maj+E (côte à côte / retour), Ctrl+Maj+M (messages en attente).
 - `pause.until_for(choix, now)` : « 1h », « 4h », « demain » (début de la
   prochaine plage horaire, `orchestrator.next_period_start`), « manuel »
   (`None` : jusqu'à reprise). `pause.command(choix)` renvoie (code de sortie,
-  message) pour `ccs pause` ; l'appelant réveille ensuite le service
-  (`daemon.request_refresh()`).
+  message) pour `ccs pause` (2 pour un choix inconnu, « reprendre » = « off ») ;
+  `cli.cmd_pause` réveille le service (`daemon.request_refresh()`) seulement si
+  l'état a changé. `ccs status` ajoute une ligne de pause.
+- L'en-tête de la fenêtre lit `pause.json` directement (plus frais que
+  `state.json`) : `attention.pause_header` donne « Auto ⏸ jusqu'à 14:00 » ou
+  « Auto ⏸ en pause » ; l'indicateur et les cartes de l'application posent ou
+  lèvent la pause puis réveillent le service.
 - En pause, le daemon remplace la décision par `autoswitch.none("en pause …")`,
   ne fait ni bascule anticipée ni démarrage de fenêtre, et ne publie que les
   fenêtres en cours dans `orchestrator.plan` ; la réserve reste calculée (elle
@@ -227,7 +233,8 @@ Ctrl+Maj+E (côte à côte / retour), Ctrl+Maj+M (messages en attente).
 
 ## Outils de lecture
 
-Modules sans GTK, testés, qui ne modifient rien :
+Modules sans GTK, testés, qui ne font que lire (sauf
+`launch_options.switch_if_needed`, qui change le compte actif) :
 
 - `doctor` : `run_checks(probes)` enchaîne les vérifications dans l'ordre
   d'affichage ; chacune renvoie un ou plusieurs `Check(nom, statut, detail,
@@ -244,7 +251,10 @@ Modules sans GTK, testés, qui ne modifient rien :
   et ne garde que les demandes tapées, le texte des réponses, les appels
   d'outils résumés (avec leur résultat raccourci) et deux repères (compactage,
   interruption). `to_markdown`, `markdown_for`, `export_markdown` (écriture
-  atomique), `suggested_filename`.
+  atomique) acceptent `cost=` (texte de `costs.format_cost`, ligne « Coût » de
+  l'en-tête) ; `suggested_filename` donne `<titre-simplifié>.md`.
+  `ccs export` écrit dans le dossier courant par défaut, dans un dossier donné
+  sous ce nom, ou dans le fichier donné (remplacé), et affiche le chemin absolu.
 - `costs` : `conversation_cost(path, subagents=True)` → `Cost` (tokens par
   type, dollars, détail par modèle, `inconnu`). Tarifs `PRICES` datés de
   `PRICES_DATE` (2026-10-06) ; écriture du cache à 1,25 × / 2 × l'entrée,
@@ -252,14 +262,21 @@ Modules sans GTK, testés, qui ne modifient rien :
   `None` (« tarif inconnu »), jamais d'estimation. Une réponse écrite sur
   plusieurs lignes (même identifiant) compte une fois ; sous-agents lus dans
   `<id>/subagents/*.jsonl`. Cache en mémoire (512 journaux) par chemin, taille
-  et `mtime_ns`. `format_cost`, `format_details`.
+  et `mtime_ns`. `format_cost` (« 1,2 M tokens · ≈ 3,40 $ »), `format_short`
+  (« ≈ 3,40 $ » pour une ligne de liste), `format_details` (par modèle).
+  `Loader` calcule les coûts d'une liste dans un fil, un journal après l'autre,
+  lignes visibles d'abord ; une nouvelle demande remplace la précédente et
+  chaque résultat revient dans l'interface par `GLib.idle_add`.
 - `launch_options` : `MODELS`, `PERMISSION_MODES` (d'après `claude --help`),
   `claude_args(model, permission_mode, resume, extra)` (valeurs vérifiées : un
   modèle ou un identifiant ne peut pas devenir une option), `LaunchSpec(cwd,
   profile, model, permission_mode)` avec `needs_switch(actif)`, `args()`,
-  `shell_command()` ; `launch(spec)` pour un terminal externe. Rien n'y
-  bascule : `NewSessionDialog` renvoie un `LaunchSpec`, l'appelant bascule
-  (`ccs use`) si besoin puis ouvre la session.
+  `shell_command()` ; `launch(spec)` pour un terminal externe.
+  `NewSessionDialog` renvoie un `LaunchSpec` sans rien basculer ;
+  `switch_if_needed(spec)` lance `ccs use <profil>` si le compte diffère de
+  l'actif (renvoie (a basculé, erreur)) et `open_session(spec, embedded,
+  open_claude)` ouvre l'onglet avec `extra_args=spec.args()` ou, sans VTE, un
+  terminal externe.
 
 Les dialogues `gui/doctor_dialog.py`, `gui/preview_dialog.py` et
 `gui/new_session_dialog.py` sont des `Adw.Dialog` (libadwaita ≥ 1.5) ; le
@@ -267,18 +284,64 @@ travail lourd (bilan, lecture du journal, coût, export) tourne dans un fil
 (`common.in_thread`). L'aperçu affiche d'abord les 300 derniers messages et
 construit l'affichage par paquets de 150 pour ne pas figer la fenêtre.
 
-## En cours de branchement (0.5.0)
+## Fenêtre de l'application
 
-- **Commandes** : `doctor`, `pause` (`pause.command`), `preview` (alias
-  `apercu`) et `export` dans `cli.py` et `bin/ccs` ; `ccs status` affiche la
-  pause.
-- **Application** : « Bilan de santé… » dans le menu principal et bandeau au
-  démarrage si un problème est trouvé ; état de pause dans l'en-tête et bandeau
-  « nouvelle version disponible » ; « Aperçu… » et coût dans les listes de
-  conversations ; « Nouvelle session… » → `NewSessionDialog` → bascule si
-  `needs_switch` → onglet du terminal intégré avec `spec.args()` ;
-  notifications de session cliquables (ouverture de l'onglet) ; badge du
-  nombre de sessions en attente sur l'onglet Sessions.
+`gui/app.py` (`App`, instance unique, et `Window`) assemble les onglets et ce
+qui demande l'attention :
+
+- **Menu ☰** : « Nouvelle session… » (`win.new-session`) et « Bilan de santé… »
+  (`win.doctor`).
+- **En-tête** : « Auto », remplacé pendant une pause par le bouton
+  `attention.pause_header` (popover « Reprendre maintenant ») ; l'en-tête
+  s'élargit, le seuil de la fenêtre étroite (onglets en bas) en tient compte.
+- **Bandeaux** : nouvelle version (`attention.update_banner` d'après
+  `state["update"]`, seulement si plus récente que la version installée, une
+  fois par lancement, bouton « Voir ») ; bilan de santé (`doctor.run_checks`
+  dans un fil 4 s après l'ouverture, `attention.doctor_banner` seulement en
+  cas d'erreur, « Voir le bilan », retiré quand le bilan est ouvert).
+- **Onglet Sessions** : badge = `attention.waiting_count` (avec attention si
+  l'onglet n'est pas affiché) ; bouton « Nouvelle session… » et « Avec des
+  options… » dans le menu de chaque projet ; « Aperçu… » et coût
+  (`costs.Loader`) sur les sessions ouvertes et les conversations récentes ;
+  `highlight(pid, id)` met une carte en évidence. Onglet Conversations :
+  « Aperçu… » et coût de chaque ligne de la même façon.
+- **Réglages** : groupe « Terminal intégré » (les deux interrupteurs, qui
+  passent par les actions de la page Terminaux, seule à écrire
+  `terminals.json`).
+
+API de la fenêtre pour les autres pages :
+
+| Appel | Effet |
+|---|---|
+| `new_session(cwd=None)` | Ouvre `NewSessionDialog` (dossier proposé : `cwd`, sinon celui de l'onglet Sessions) |
+| `start_spec(spec)` | Bascule si besoin (`switch_if_needed`, dans un fil ; échec : message, rien n'est ouvert), puis `open_spec` (`open_session`) |
+| `show_session(ref)` | Onglet du terminal intégré de la session, sinon sa carte dans l'onglet Sessions (`attention.focus_target`) |
+| `preview(conv)` | Dialogue d'aperçu |
+| `show_doctor()` | Dialogue du bilan (retire le bandeau) |
+| `reveal_terminals()` | Rend la page Terminaux visible sans l'afficher |
+
+## Notifications cliquables
+
+```
+ daemon : session « a terminé » / « attend ta réponse » / rappel
+    Alert(default="show:<pid>:<id>", actions=(("show:…", "Afficher"),))
+    notify.send → Notify(actions = ["default", "Afficher", "show:…", "Afficher"…])
+ desktop (service) : ActivationToken puis ActionInvoked(id, "default" | clé)
+    Daemon.handle_action("show:<réf>", token) → desktop.show_session(réf, token)
+        application ouverte ? ActivateAction("show-session", [réf]) sur
+                              io.ccs.ClaudeAccounts (ou CCS_APP_ID), par D-Bus
+        sinon  systemd-run --user --scope --slice=app.slice --
+                   claude-accounts gui --session <réf>
+ App : action « show-session » → Window.show_session(réf)
+```
+
+- La référence est `<pid>:<identifiant>` (ou l'un des deux) : le pid suit le
+  processus, l'identifiant retrouve la conversation si le pid est inconnu.
+- Le jeton d'activation du bureau est transmis (données de plateforme ou
+  `XDG_ACTIVATION_TOKEN`) pour que la fenêtre passe au premier plan. Lancée
+  dans sa propre unité, la fenêtre survit à un redémarrage du service.
+- Les boutons « Basculer sur … » (`use:<profil>`) passent par le même
+  `handle_action`, revérifiés au moment du clic.
 
 ## Règles de sécurité des jetons
 

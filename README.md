@@ -85,8 +85,10 @@ se lève seule à l'échéance (notification « Pause terminée ») ; `ccs pause
 reprend tout de suite.
 
 Aussi dans le menu de l'icône (« Mettre en pause ») et sur la carte **Meilleur
-compte** de l'onglet Comptes ; l'en-tête de la fenêtre, l'onglet Planning,
-`ccs status`, l'icône et la ligne d'état de Claude Code affichent ⏸.
+compte** de l'onglet Comptes. Pendant la pause, l'en-tête de la fenêtre affiche
+« Auto ⏸ jusqu'à 14:00 » (un clic propose « Reprendre maintenant ») ;
+`ccs status`, l'onglet Planning, l'icône et la ligne d'état de Claude Code la
+rappellent aussi.
 
 ## Dans Claude Code
 
@@ -113,16 +115,17 @@ conversation. Tu peux ouvrir un terminal ou le dossier du projet, terminer une
 session oubliée, reprendre une conversation récente ou en démarrer une nouvelle
 dans un projet. Une notification te prévient quand une session **a terminé** ou
 **attend ta réponse** — pratique quand plusieurs tournent en parallèle ; un clic
-dessus ouvre l'onglet de la session, et un rappel unique part si ta réponse se
-fait attendre plus de 10 min. Le badge de l'onglet Sessions compte les sessions
-qui t'attendent.
+dessus (ou « Afficher ») ouvre l'application sur l'onglet de la session, et un
+rappel unique part si ta réponse se fait attendre plus de 10 min. Le badge de
+l'onglet Sessions compte les sessions qui t'attendent.
 
-**Nouvelle session…** ouvre un dialogue : dossier, compte, modèle (`--model`)
-et mode de permissions (`--permission-mode`). Si tu choisis un autre compte que
-le compte actif, CCS bascule avant de lancer la session — et toutes les
-sessions ouvertes suivent, le dialogue te le rappelle. Le mode « Aucune
-vérification » (`bypassPermissions`) reste proposé, avec un avertissement en
-rouge.
+**Nouvelle session…** (onglet Sessions, menu ☰ de la fenêtre, ou « Avec des
+options… » dans le menu d'un projet) ouvre un dialogue : dossier, compte,
+modèle (`--model`) et mode de permissions (`--permission-mode`). Si tu
+choisis un autre compte que le compte actif, CCS bascule avant de lancer la
+session — et toutes les sessions ouvertes suivent, le dialogue te le
+rappelle. Le mode « Aucune vérification » (`bypassPermissions`) reste
+proposé, avec un avertissement en rouge.
 
 ## Terminal intégré
 
@@ -187,12 +190,13 @@ une seconde fois. Si le projet a été **déplacé**, CCS propose le dossier du 
 nom qu'il retrouve et, après confirmation, y copie le journal de la conversation
 pour qu'elle reprenne depuis là (l'original reste en place).
 
-**Aperçu…** (menu d'une conversation, onglets Conversations et Sessions) relit
-une conversation sans la reprendre : tes demandes, les réponses de Claude, les
+**Aperçu…** (menu « ⋮ » d'une conversation ou d'une session) relit une
+conversation sans la reprendre : tes demandes, les réponses de Claude, les
 outils utilisés en une ligne. Tu peux la copier ou l'**exporter en Markdown**.
-Chaque conversation affiche aussi son **coût** : tokens consommés (sous-agents
-compris) et ce qu'elle aurait coûté au tarif de l'API. Ton abonnement ne
-facture pas au token : ce montant sert seulement à comparer les conversations.
+Chaque conversation affiche aussi son **coût** (« ≈ 3,40 $ », tokens au
+survol) : tokens consommés (sous-agents compris) et ce qu'elle aurait coûté au
+tarif de l'API. Ton abonnement ne facture pas au token : ce montant sert
+seulement à comparer les conversations.
 
 ```bash
 ccs conv                 # les 30 dernières conversations, groupées par date
@@ -202,18 +206,19 @@ ccs resume 4f3a          # reprend ici (4 premiers caractères de l'identifiant)
 ccs resume 4f3a --vscode # ou dans VS Code
 ccs title 4f3a Export CSV des prêts   # renomme la conversation
 ccs preview 4f3a | less  # relit la conversation (Markdown, coût en en-tête)
-ccs export 4f3a prets.md # l'enregistre en Markdown
+ccs export 4f3a          # l'enregistre en Markdown (<titre>.md ici)
 ```
 
 ## Bilan de santé
 
 Quelque chose ne marche pas ? `ccs doctor` (ou « Bilan de santé… » dans le menu
-de l'application) vérifie le service et ses relevés, la version installée et
+☰ de l'application) vérifie le service et ses relevés, la version installée et
 celle qui tourne, l'extension et l'icône de la barre du haut, l'intégration
 dans Claude Code, la connexion de chaque compte, `claude`, `jq` et le terminal
 intégré. Pour chaque problème, il donne **la commande à copier** ; il ne
-l'exécute jamais à ta place. Code de sortie : 0 si tout va bien, 1 sinon.
-L'application affiche un bandeau quand un problème est détecté au démarrage.
+l'exécute jamais à ta place. Code de sortie : 0 si tout va bien, 1 au moindre
+avertissement. L'application fait le bilan à chaque ouverture et affiche un
+bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreur.
 
 ## Fonctionnalités
 
@@ -261,8 +266,8 @@ dans Claude Code.
 Réglages).
 
 **Mise à jour** : CCS te prévient quand une nouvelle version est publiée
-(notification, icône, Réglages ; vérification sur GitHub au plus une fois par
-jour). Installe le nouveau `.deb` : le service se relance seul avec la nouvelle
+(notification, icône, bandeau de la fenêtre, Réglages ; vérification sur GitHub
+au plus une fois par jour). Installe le nouveau `.deb` : le service se relance seul avec la nouvelle
 version (dans les 5 min), l'icône aussi (dans les 10 s). En venant de la 0.4.0
 ou d'avant, l'icône ne sait pas encore le faire : relance-la une fois
 (`pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`) ; en venant
@@ -301,13 +306,13 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs resume <id>` | Reprend une conversation ici, `--vscode`, `--new-terminal`, `--dir <dossier>` |
 | `ccs title <id> <titre>` | Renomme une conversation (comme `/rename`) |
 | `ccs preview <id>` | Affiche la conversation en Markdown, coût en en-tête (alias `ccs apercu`) |
-| `ccs export <id> [fichier.md]` | Enregistre la conversation en Markdown |
+| `ccs export <id> [fichier.md]` | Enregistre la conversation en Markdown (défaut : `<titre>.md` dans le dossier courant) |
 | `ccs integrate on\|off\|status` | Ligne d'état et bascule après blocage dans Claude Code |
 | `ccs usage` | Usage détaillé de tous les comptes, prévisions, rythme hebdo |
 | `ccs orch on\|off` | Orchestrateur |
 | `ccs auto on\|off` | Bascule automatique à 98 % |
 | `ccs pause [1h\|4h\|demain\|manuel\|off\|status]` | Met en pause la bascule automatique et l'orchestrateur (`status` par défaut) |
-| `ccs doctor` | Bilan de santé, avec la commande qui corrige chaque problème |
+| `ccs doctor` | Bilan de santé, avec la commande qui corrige chaque problème (alias `ccs bilan`) |
 | `ccs analyze [--days N]` | Consommation par projet, modèle, heure, compte + conseils |
 | `ccs save <nom>` / `ccs add <nom>` | Enregistre le compte connecté / connecte un nouveau compte |
 | `ccs rename <a> <b>` / `ccs rm <nom>` | Renomme / supprime un profil |
@@ -324,7 +329,10 @@ bascule automatique (`auto_switch`), alertes (`alerts` : seuils, fin de semaine
 prévue `weekly_forecast` / `weekly_forecast_days`, rappel d'attente
 `waiting_reminder` / `waiting_reminder_min`…), orchestrateur et plage horaire
 (`orchestrator`), warm-up (`warmup`), nouvelles versions (`updates.enabled`).
-`CCS_HOME` change le dossier des profils (défaut `~/.claude-accounts`).
+Les deux interrupteurs du terminal intégré (**Réglages → Terminal intégré**, ou
+menu « ⋮ » de la page Terminaux) sont gardés dans
+`~/.claude-accounts/terminals.json`. `CCS_HOME` change le dossier des profils
+(défaut `~/.claude-accounts`).
 
 ## Comment ça marche
 

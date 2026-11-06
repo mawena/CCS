@@ -60,12 +60,14 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   pause, CCS ne change plus de compte tout seul, bascule après blocage (hook
   `StopFailure`) et reprise automatique du terminal comprises ; les bascules
   manuelles, alertes et warm-up continuent.
-  - `ccs pause [1h|4h|demain|manuel|off|status]` / `claude-accounts pause` ;
-    `ccs status` affiche la pause.
+  - `ccs pause [1h|4h|demain|manuel|off|status]` / `claude-accounts pause`
+    (`status` par défaut, `reprendre` comme `off`, code 2 pour un choix
+    inconnu).
   - Menu de l'indicateur (« Mettre en pause », « Reprendre maintenant », ⏸
     devant le pourcentage), carte « Meilleur compte » de l'onglet Comptes,
-    rappel dans l'onglet Planning et dans l'en-tête de la fenêtre, ⏸ dans la
-    ligne d'état de Claude Code.
+    rappel dans l'onglet Planning, ⏸ dans la ligne d'état de Claude Code.
+  - En-tête de la fenêtre : « Auto ⏸ jusqu'à 14:00 », un clic propose
+    « Reprendre maintenant ».
   - État dans `~/.claude-accounts/pause.json`.
 - **Prévision de fin de semaine** par compte, au rythme moyen de la semaine :
   sur la carte du compte et dans le menu de l'indicateur. Alerte une fois par
@@ -76,31 +78,49 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   `alerts.waiting_reminder_min`), même si les notifications de sessions sont
   coupées.
 - **Nouvelle version** : vérification sur GitHub au plus une fois par jour,
-  une seule notification par version, ligne dans l'indicateur, bandeau dans la
-  fenêtre et lien dans Réglages (`updates.enabled`, cache
-  `~/.claude-accounts/updates.json`).
-- **Bilan de santé** : `ccs doctor` / `claude-accounts doctor` et « Bilan de
-  santé… » dans le menu de l'application : service, relevés, versions,
-  extension et indicateur, intégration, connexion de chaque compte, `claude`,
-  `jq`, terminal intégré. Une commande à copier par problème (rien n'est
-  exécuté) ; code de sortie 0 si tout va bien, 1 sinon ; bandeau au démarrage
-  de l'application si un problème est détecté. Des jetons, seuls la présence
-  et les dates d'expiration sont lues.
-- **Aperçu d'une conversation** sans la reprendre (« Aperçu… » dans les
-  onglets Conversations et Sessions, `ccs preview <id>` alias `ccs apercu`) :
-  demandes, réponses, outils en une ligne ; copie et **export en Markdown**
-  (`ccs export <id> [fichier.md]`). Journal lu en flux, même très gros.
+  une seule notification par version, ligne dans l'indicateur, bandeau « CCS
+  x.y.z est disponible — Voir » dans la fenêtre (une fois par lancement, si la
+  version est plus récente que l'installée) et lien dans Réglages
+  (`updates.enabled`, cache `~/.claude-accounts/updates.json`).
+- **Bilan de santé** : `ccs doctor` (alias `ccs bilan`),
+  `claude-accounts doctor` et « Bilan de santé… » dans le menu ☰ de
+  l'application : service, relevés, versions, extension et indicateur,
+  intégration, connexion de chaque compte, `claude`, `jq`, terminal intégré.
+  Une commande à copier par problème (rien n'est exécuté) ; code de sortie 0 si
+  tout va bien, 1 au moindre avertissement. L'application fait le bilan 4 s
+  après son ouverture et affiche un bandeau « Un problème a été détecté… — Voir
+  le bilan » en cas d'erreur. Des jetons, seuls la présence et les dates
+  d'expiration sont lues.
+- **Aperçu d'une conversation** sans la reprendre : « Aperçu… » dans le menu
+  des conversations (onglet Conversations, conversations récentes et sessions
+  ouvertes de l'onglet Sessions) et `ccs preview <id>` (alias `ccs apercu`),
+  Markdown sur la sortie avec le coût en en-tête : demandes, réponses, outils
+  en une ligne ; copie et **export en Markdown** avec le coût. Journal lu en
+  flux, même très gros.
+- `ccs export <id> [fichier.md]` (alias `ccs exporter`) : `<titre>.md` dans le
+  dossier courant par défaut, ou dans le dossier donné ; affiche le chemin
+  écrit.
 - **Coût d'une conversation** : tokens consommés (sous-agents compris) et
   équivalent au tarif de l'API Anthropic en dollars (tarifs du 2026-10-06),
-  affiché pour chaque conversation et en tête de l'aperçu. Un abonnement ne
-  facture pas au token : le montant sert à comparer les conversations.
-- **Nouvelle session…** : dialogue avec le dossier, le compte, le modèle
-  (`--model`) et le mode de permissions (`--permission-mode`) ; ouverture dans
-  le terminal intégré, bascule de compte si besoin (avec un avertissement : la
-  bascule s'applique à toutes les sessions ouvertes) ; avertissement en rouge
-  pour `bypassPermissions`.
-- Notifications de session cliquables (ouverture de l'onglet de la session) et
-  badge du nombre de sessions en attente sur l'onglet Sessions.
+  affiché dans chaque ligne des onglets Conversations et Sessions (calculé
+  après l'affichage), sur la carte d'une session ouverte et en tête de
+  l'aperçu et de l'export. Un abonnement ne facture pas au token : le montant
+  sert à comparer les conversations.
+- **Nouvelle session avec options** : dialogue avec le dossier, le compte, le
+  modèle (`--model`) et le mode de permissions (`--permission-mode`), depuis le
+  bouton « Nouvelle session… » de l'onglet Sessions, le menu ☰ ou « Avec des
+  options… » dans le menu d'un projet. Bascule de compte d'abord si besoin
+  (avertissement : elle s'applique à toutes les sessions ouvertes ; en cas
+  d'échec, rien ne s'ouvre), puis ouverture dans le terminal intégré ;
+  avertissement en rouge pour `bypassPermissions`.
+- **Notifications de session cliquables** (« a terminé », « attend ta
+  réponse », rappel ; clic ou bouton « Afficher ») : l'application s'ouvre sur
+  l'onglet du terminal intégré de la session, sinon sur sa carte dans l'onglet
+  Sessions ; elle est lancée si elle ne tourne pas.
+- **Badge** du nombre de sessions qui attendent une réponse sur l'onglet
+  Sessions.
+- Réglages : groupe « Terminal intégré » avec les interrupteurs « Reprise
+  automatique après une limite » et « Rouvrir les onglets au démarrage ».
 
 ### Modifié
 
@@ -111,9 +131,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - L'alerte de fin de semaine prévue remplace l'alerte « semaine en avance sur
   le rythme », moins précise, quand elle part.
 - L'indicateur se relance tout seul après une mise à jour du paquet, comme le
-  service. Depuis la 0.4.0 ou avant, relance-le une fois à la main.
-- Les dialogues de l'application demandent libadwaita 1.5 ou plus récent
-  (Ubuntu 24.04 l'a).
+  service. En venant de la 0.4.0 ou d'avant, relance-le une fois à la main.
+- `ccs status` affiche la pause en cours.
+- Paquet : libadwaita 1.5 au moins (`gir1.2-adw-1 (>= 1.5)`, Ubuntu 24.04 l'a).
 - `~/.claude-accounts/state.json` : nouvelles clés `pause`, `update`,
   `auto_switch.paused`, `orchestrator.paused` et `accounts[].weekly_forecast`.
 
