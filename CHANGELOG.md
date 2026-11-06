@@ -53,20 +53,33 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   `ccs raccourcis [status|on|off [action…]|set <action> <raccourci>]`. CCS
   n'écrit que ses propres raccourcis personnalisés et ne retire jamais les
   autres.
-- `claude-accounts gui --page <nom>` (ouvre un onglet) et
-  `claude-accounts gui --new-session` (ouvre le dialogue « Nouvelle session »).
+- `claude-accounts gui --page <onglet>` ouvre un onglet (`sessions`,
+  `comptes`, `planning`, `historique`, `analyse`, `terminaux`, `reglages` ;
+  accents et majuscules indifférents, code 2 pour un nom inconnu) et
+  `claude-accounts gui --new-session` le dialogue « Nouvelle session » ; les
+  deux se combinent avec `--session` et marchent aussi application ouverte.
 - Réglages : interrupteurs et champs du conseil de modèle et du bilan de la
   semaine.
 
 ### Modifié
 
-- **Un seul onglet « Sessions »** remplace les onglets Sessions et
-  Conversations : projets à gauche (« Tous », point d'activité, nombre de
-  conversations, compte du projet), à droite les sessions ouvertes du projet
-  puis ses conversations groupées par date ; recherche et filtre d'origine
-  communs, bouton « Nouvelle session… ». Toutes les actions sont conservées
-  (reprise, aperçu, coût, renommage, badge des sessions en attente,
-  notifications cliquables).
+- **Un seul onglet « Sessions »** réunit les sessions ouvertes et l'historique
+  des conversations ; l'onglet Conversations disparaît. À gauche, les projets
+  (« Tous les projets », point vert pour une session ouverte, bleu quand elle
+  attend ta réponse, nombre de conversations, compte du projet, dossier
+  introuvable) ; à droite, l'en-tête du projet (compte, « Compte de ce
+  projet… », « Nouvelle session ▾ »), « Ouvertes maintenant » puis ses
+  conversations groupées par date. Recherche et filtre d'origine communs,
+  bouton « Nouvelle session… ». Toutes les actions sont conservées (reprise
+  dans l'application, un terminal externe ou VS Code, aperçu, coût,
+  renommage, projet déplacé, badge des sessions en attente). En fenêtre
+  étroite, la liste des projets se replie (bouton ☰).
+- Une notification de session ouvre son projet dans l'onglet Sessions, en
+  retirant les filtres qui cacheraient la session.
+- Les onglets passent en bas de la fenêtre sous 1100 sp de large (1220 sp avec
+  la page Terminaux), au lieu de 1350 / 1540.
+- Journal des bascules : une bascule faite dans la fenêtre est notée « depuis
+  l'application ».
 - Événements `switch` et `error` de l'historique : nouveaux champs pour le
   journal (compte quitté, pourcentage et seuil, quota qui expire, origine
   d'une bascule manuelle, projet). Les anciens événements restent lisibles.

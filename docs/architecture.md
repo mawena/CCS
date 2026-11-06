@@ -47,17 +47,18 @@ raccourcis clavier.
 | `transcripts` | Lecture des journaux locaux, agrégats, conseils ; `weighted_tokens`, `project_label` (réutilisés par le bilan) |
 | `costs` | Coût d'une conversation : tokens par type et équivalent API en dollars (table de tarifs datée), sous-agents compris, cache par chemin / taille / mtime ; `Loader` pour les listes de l'application ; réponses d'une période (`period_answers`, `period_cost`), mêmes tokens au tarif d'un autre modèle (`reprice`) |
 | `preview` | Aperçu d'une conversation (lecture en flux du journal, messages lisibles seulement) et export Markdown, coût en en-tête |
-| `conversations` | Historique de `~/.claude/projects/*/*.jsonl` : index incrémental (cache), titres, recherche, groupes par date, reprise (VS Code, terminal), projets déplacés (`relocate`), renommage (`rename` : ligne `custom-title` ajoutée en O_APPEND), conversation d'un seul journal (`from_journal`) |
+| `conversations` | Historique de `~/.claude/projects/*/*.jsonl` : index incrémental (cache), titres, recherche, groupes par date, reprise (VS Code, terminal), projets déplacés (`relocate`), renommage (`rename` : ligne `custom-title` ajoutée en O_APPEND), conversation d'un seul journal (`from_journal`), texte sans accents ni casse (`fold`) |
 | `launch_options` | Options d'une nouvelle session (`LaunchSpec` : dossier, compte, `--model`, `--permission-mode`, `origin`), arguments de `claude`, commande à copier, bascule préalable (`switch_if_needed`, qui note l'origine pour le journal et enregistre un échec) et ouverture (`open_session`) |
 | `sessions` | Sessions Claude Code ouvertes (`~/.claude/sessions`), consommation d'une conversation, titre lu en fin de journal, conversations et projets récents, transitions d'état, actions (terminal externe, dossier, terminer) |
+| `session_hub` | Onglet Sessions sans GTK (pur, testé) : liste des projets, projet choisi, sessions et conversations à afficher, recherche et origine communes, tri, projet d'une session désignée par une notification |
 | `terminal` | Terminal intégré sans GTK (pur, testé) : commande et environnement de lancement (`Launch`, `extra_args`), choix intégré / externe, état des onglets (`TabState`, `sync_tabs`), textes de fin et de confirmation, reprise après une limite (`resume_decision`), réouverture (`tab_record`, `restore_plan`), messages en attente (`queue_next`, `queue_*`) |
 | `terminal_store` | `terminals.json` : interrupteurs de la page Terminaux, onglets à rouvrir (écriture atomique, fichier illisible ignoré) |
 | `limit_events` | Marqueurs « limite atteinte » par conversation (`limits/<session_id>.json`) : écrits par le hook, lus puis consommés par le terminal intégré |
 | `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état (⏸ en pause, « → sonnet ? » près des limites avec un modèle cher), hook `StopFailure` (bascule, sauf en pause ; marqueur de limite) |
-| `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` ; `show_session` : ouvrir l'application sur une session |
+| `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` ; `show_session` : ouvrir l'application sur une session ; onglets acceptés par `gui --page` (`PAGES`, `page_name`) |
 | `attention` | Ce qui demande l'attention dans la fenêtre (pur) : libellé de pause de l'en-tête, bandeaux nouvelle version et bilan, badge des sessions en attente, référence de session (`<pid>:<id>`) et cible d'un clic sur une notification |
 | `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie |
-| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages |
+| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version ; se relance seul quand le code installé change |
 | `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `journal`, `projet`, `raccourcis`, `gui --session`, `--page`, `--new-session`) |
 
@@ -305,22 +306,17 @@ qui demande l'attention :
   (`win.doctor`).
 - **En-tête** : « Auto », remplacé pendant une pause par le bouton
   `attention.pause_header` (popover « Reprendre maintenant ») ; l'en-tête
-  s'élargit, le seuil de la fenêtre étroite (onglets en bas) en tient compte.
+  s'élargit, le seuil de la fenêtre étroite (onglets en bas) en tient compte :
+  1100 sp, 1220 sp quand la page Terminaux est visible (`NARROW_SP`).
 - **Bandeaux** : nouvelle version (`attention.update_banner` d'après
   `state["update"]`, seulement si plus récente que la version installée, une
   fois par lancement, bouton « Voir ») ; bilan de santé (`doctor.run_checks`
   dans un fil 4 s après l'ouverture, `attention.doctor_banner` seulement en
   cas d'erreur, « Voir le bilan », retiré quand le bilan est ouvert).
-- **Onglet Sessions** (unique : il remplace les anciens onglets Sessions et
-  Conversations) : projets à gauche (« Tous », point d'activité, nombre de
-  conversations, compte du projet), à droite les sessions ouvertes du projet
-  puis ses conversations groupées par date ; recherche et filtre d'origine
-  communs, bouton « Nouvelle session… ». Badge = `attention.waiting_count`
-  (avec attention si l'onglet n'est pas affiché) ; « Avec des options… » et
-  « Compte de ce projet… » dans le menu de chaque projet ; « Aperçu… » et coût
-  (`costs.Loader`) sur les sessions ouvertes et les conversations ;
-  `highlight(pid, id)` met une carte en évidence. Toute ouverture ou reprise
-  passe par `project_account_dialog.confirm_switch`.
+- **Onglet Sessions** (`gui/sessions_page.SessionsPage`, page `sessions`,
+  unique : `gui/conversations_page.py` a disparu) — voir plus bas.
+  Badge = `attention.waiting_count` (avec attention si l'onglet n'est pas
+  affiché).
 - **Onglet Historique** : courbes, puis journal des bascules
   (`switch_log.load`, groupes par jour, 7 jours / 30 jours / tout, 100 entrées
   de plus à la demande).
@@ -330,8 +326,10 @@ qui demande l'attention :
   passent par les actions de la page Terminaux, seule à écrire
   `terminals.json`) ; groupe « Raccourcis clavier » (`ShortcutsGroup`) ;
   interrupteurs et champs du conseil de modèle et du bilan de la semaine.
-- **Ligne de commande** : `claude-accounts gui --page <nom>` ouvre un onglet,
-  `--new-session` le dialogue « Nouvelle session » (raccourcis clavier).
+- **Ligne de commande** : `claude-accounts gui --page <onglet>` ouvre un
+  onglet, `--new-session` le dialogue « Nouvelle session » (commandes des
+  raccourcis clavier) ; voir [Onglets et dialogue à
+  l'ouverture](#onglets-et-dialogue-à-louverture).
 
 API de la fenêtre pour les autres pages :
 
@@ -339,10 +337,70 @@ API de la fenêtre pour les autres pages :
 |---|---|
 | `new_session(cwd=None)` | Ouvre `NewSessionDialog` (dossier proposé : `cwd`, sinon celui de l'onglet Sessions ; compte du projet présélectionné) |
 | `start_spec(spec)` | Bascule si besoin (`switch_if_needed`, dans un fil ; échec : message, rien n'est ouvert), puis `open_spec` (`open_session`) |
-| `show_session(ref)` | Onglet du terminal intégré de la session, sinon sa carte dans l'onglet Sessions (`attention.focus_target`) |
+| `show_session(ref)` | Onglet du terminal intégré de la session, sinon sa carte dans l'onglet Sessions, projet choisi et filtres retirés (`attention.focus_target`, `SessionsPage.highlight`) |
+| `show_page(name)` | Affiche un onglet (`desktop.page_name`) ; Terminaux sans onglet ouvert : Sessions et un message |
+| `switch(name)` | Bascule depuis la fenêtre (`ccs use`), origine « application » notée pour le journal |
 | `preview(conv)` | Dialogue d'aperçu |
 | `show_doctor()` | Dialogue du bilan (retire le bandeau) |
 | `reveal_terminals()` | Rend la page Terminaux visible sans l'afficher |
+
+### Onglet Sessions
+
+```
+ ┌─────────────────────────────────────────────────────────────────────────┐
+ │ [☰] [Rechercher…] [Toutes les origines ▾] [Nouvelle session…]           │
+ ├──────────────────────┬──────────────────────────────────────────────────┤
+ │ ProjectList          │ en-tête du projet (compte, Nouvelle session ▾)   │
+ │ (barre latérale      │ SessionCards : « Ouvertes maintenant »           │
+ │  de OverlaySplitView)│ ConversationList : « Conversations » par date    │
+ └──────────────────────┴──────────────────────────────────────────────────┘
+```
+
+- `session_hub` (pur, testé) : `build(convs, found, selected, query, origin,
+  titles, suggestions, associations)` → `View` (entrées `ProjectEntry` avec
+  « Tous les projets » en tête, entrée choisie, sessions et conversations à
+  afficher, totaux). Tri : projets avec une session ouverte d'abord, puis
+  dernière activité. Recherche (`conversations.fold` : sans accents ni casse)
+  et origine (`session_origin` pour une session) s'appliquent aux
+  conversations, aux sessions et à la liste des projets (un projet sans
+  résultat en sort, sauf celui qui est choisi). `entry_detail`, `count_text`,
+  `project_for_ref` (projet d'une session désignée par une notification).
+- `gui/project_list.ProjectList` : la colonne de gauche (point
+  `ouverte` / `attention`, nombre de conversations, seconde ligne d'après
+  `entry_detail`), reconstruite seulement quand `entries_signature` change.
+- `gui/session_cards.SessionCards` : une carte par session ouverte (état,
+  consommation, coût, Afficher, terminal ici, dossier, Aperçu, Renommer,
+  Terminer).
+- `gui/conversation_list.ConversationList` : conversations groupées par
+  date, 60 lignes puis « Afficher 60 de plus », coût calculé ensuite pour
+  les lignes affichées ; reprise dans l'application, un terminal externe ou
+  VS Code, aperçu, renommage, copie de la commande, dossier, projet déplacé.
+- Deux lectures dans des fils : sessions ouvertes, consommation, titres et
+  comptes par projet toutes les 15 s quand l'onglet est affiché ; historique
+  (`conversations.scan`) toutes les 30 s. Toute ouverture ou reprise passe
+  par `project_account_dialog.confirm_switch`.
+- Points de rupture (`Adw.BreakpointBin`) : sous 800 sp, la liste des projets
+  se replie en surimpression (☰ l'ouvre, choisir un projet la referme) ; sous
+  560 sp, boutons en icônes.
+- `highlight(pid, id)` (clic sur une notification) : au relevé suivant, le
+  projet de la session est choisi, les filtres qui la cacheraient retirés et
+  la carte mise en évidence ; session fermée : message et projet de sa
+  conversation (`project_for_ref`).
+- `gui/common` regroupe les briques partagées : `cap`, `error_text`,
+  `short_path`, `existing_parent`, `string_factory`, `menu_button`.
+
+### Onglets et dialogue à l'ouverture
+
+`desktop.PAGES` (noms du `ViewStack` : `accounts`, `planning`, `sessions`,
+`terminals`, `history`, `analysis`, `prefs`) ; `desktop.page_name(texte)`
+accepte aussi les titres français (`comptes`, `historique`, `analyse`,
+`terminaux`, `reglages`), sans accents ni casse, et `conversations` → `sessions`.
+`cli` refuse un nom inconnu (code 2). `gui.app.run(session, page,
+new_session)` : si l'application tourne déjà, `remote_actions` lui envoie
+dans l'ordre les actions d'application `show-page` (nom), `show-session`
+(réf.) et `new-session` ; sinon elles sont appliquées après l'ouverture de la
+fenêtre (le dialogue une fois la fenêtre affichée). `Window.show_page(nom)` :
+`terminals` sans onglet ouvert affiche l'onglet Sessions avec un message.
 
 ## Notifications cliquables
 
@@ -357,6 +415,7 @@ API de la fenêtre pour les autres pages :
         sinon  systemd-run --user --scope --slice=app.slice --
                    claude-accounts gui --session <réf>
  App : action « show-session » → Window.show_session(réf)
+       (aussi « show-page » et « new-session » pour gui --page / --new-session)
 ```
 
 - La référence est `<pid>:<identifiant>` (ou l'un des deux) : le pid suit le

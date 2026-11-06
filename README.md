@@ -146,13 +146,16 @@ avec une sauvegarde ; une ligne d'état que tu aurais déjà n'est jamais rempla
 ## Sessions Claude sur le PC
 
 L'onglet **Sessions** réunit les sessions ouvertes et l'historique des
-conversations. À gauche, tes projets (« Tous » en tête) : un point quand une
-session y tourne, le nombre de conversations et le compte du projet. À droite,
-les **sessions ouvertes** du projet — terminal ou VS Code : état (*travaille*,
-*attend ta réponse*, *au repos*), depuis quand, modèle et consommation de la
-conversation — puis **ses conversations**, groupées par date. La recherche et
-le filtre d'origine (VS Code ou terminal), en haut, valent pour les deux.
-`ccs sessions` et le sous-menu de l'icône listent aussi les sessions ouvertes.
+conversations. À gauche, tes projets (« Tous les projets » en tête, ceux où une
+session tourne d'abord) : un point vert quand une session y est ouverte, bleu
+quand elle attend ta réponse, le nombre de conversations et le compte du
+projet. À droite, le projet choisi : les sessions **ouvertes maintenant** —
+terminal ou VS Code : état (*travaille*, *attend ta réponse*, *au repos*),
+depuis quand, modèle, consommation et coût — puis **ses conversations**,
+groupées par date. La recherche et le filtre d'origine (VS Code ou terminal),
+en haut, valent pour tout, liste des projets comprise ; ☰ masque ou affiche
+les projets (repliés d'office en fenêtre étroite). `ccs sessions` et le
+sous-menu de l'icône listent aussi les sessions ouvertes.
 
 Tu peux ouvrir un terminal ou le dossier du projet, terminer une session
 oubliée, reprendre une conversation ou en démarrer une nouvelle dans un
@@ -162,8 +165,9 @@ dessus (ou « Afficher ») ouvre l'application sur l'onglet de la session, et un
 rappel unique part si ta réponse se fait attendre plus de 10 min. Le badge de
 l'onglet Sessions compte les sessions qui t'attendent.
 
-**Nouvelle session…** (bouton de l'onglet Sessions, menu ☰ de la fenêtre, ou
-« Avec des options… » dans le menu d'un projet) ouvre un dialogue : dossier,
+**Nouvelle session…** (bouton de l'onglet Sessions, menu ☰ de la fenêtre,
+« Avec des options… » dans le menu « Nouvelle session » d'un projet, ou
+`claude-accounts gui --new-session`) ouvre un dialogue : dossier,
 compte (celui du projet est présélectionné), modèle (`--model`) et mode de
 permissions (`--permission-mode`). Si tu choisis un autre compte que le compte
 actif, CCS bascule avant de lancer la session — et toutes les sessions ouvertes
@@ -174,7 +178,7 @@ suivent, le dialogue te le rappelle. Le mode « Aucune vérification »
 
 Le compte « boulot » pour les projets du travail, « perso » pour le reste ?
 Associe un dossier à un compte : `ccs projet ~/Work/App boulot`, ou « Compte de
-ce projet… » dans le menu d'un projet de l'onglet Sessions. Les sous-dossiers
+ce projet… » en tête d'un projet de l'onglet Sessions. Les sous-dossiers
 héritent du compte de leur dossier parent.
 
 Quand tu ouvres une session ou reprends une conversation de ce projet depuis
@@ -231,7 +235,7 @@ s'affiche partout, VS Code compris.
 
 ## Historique des conversations
 
-L'onglet **Sessions** (projet « Tous » pour tout voir) et `ccs conv` listent
+L'onglet **Sessions** (« Tous les projets » pour tout voir) et `ccs conv` listent
 **toutes** les conversations Claude Code du PC, comme la liste des conversations
 passées de l'extension VS Code, mais tous projets confondus : titre (celui que
 tu as donné, sinon le titre automatique de Claude Code, sinon ta première
@@ -282,7 +286,7 @@ Aujourd'hui
 
 Bascules automatiques, anticipées par l'orchestrateur, après un blocage (avec
 le projet de la session bloquée), manuelles (et d'où elles viennent :
-notification, nouvelle session, compte du projet…), échecs, limites atteintes
+application, notification, nouvelle session, compte du projet…), échecs, limites atteintes
 sans bascule et démarrages de fenêtre. Filtre 7 jours, 30 jours ou tout.
 
 ## Raccourcis clavier

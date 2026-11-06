@@ -146,7 +146,7 @@ l'heure, « compte quitté → compte choisi » et la raison en clair :
 | Automatique | « Bascule automatique avant la coupure (perso à 98 %) », avec « 100 % prévu avant le prochain relevé » quand c'est la projection qui a décidé |
 | Anticipée | « Bascule anticipée de l'orchestrateur : boulot allait perdre 42 % de quota dans 35 min » |
 | Après un blocage | « Bascule après un blocage (limite atteinte dans Portail) » : le projet de la session bloquée, sinon le compte quitté |
-| Manuelle | « Bascule manuelle depuis une notification », « Bascule pour une nouvelle session (compte choisi) », « Bascule vers le compte du projet Portail »… ; « Bascule manuelle (application, icône ou « ccs use ») » quand l'origine n'est pas connue |
+| Manuelle | « Bascule manuelle depuis l'application » (bascule faite dans la fenêtre), « Bascule manuelle depuis une notification », « Bascule pour une nouvelle session (compte choisi) », « Bascule vers le compte du projet Portail »… ; « Bascule manuelle (application, icône ou « ccs use ») » quand l'origine n'est pas connue |
 | Échec | « Échec de la bascule automatique vers boulot : … », avec le message de `ccs` |
 | Limite sans bascule | « Limite atteinte dans Portail pendant une pause : pas de bascule », « … : aucun autre compte disponible » |
 | Démarrage de fenêtre | « Fenêtre de 5 h démarrée par l'orchestrateur », « Warm-up de 07:00 : fenêtre de 5 h démarrée », ou son échec |
@@ -357,44 +357,71 @@ cas de doute : `ccs doctor` (voir [Bilan de santé](#bilan-de-santé)).
 L'onglet **Sessions** réunit les sessions ouvertes et l'historique des
 conversations (il remplace les anciens onglets Sessions et Conversations) :
 
-- **À gauche, les projets** : « Tous » en tête, puis chaque projet avec un
-  point d'activité quand une session y est ouverte, son nombre de
-  conversations et son [compte](#compte-par-projet) s'il en a un.
-- **À droite, le projet choisi** : d'abord ses **sessions ouvertes**, puis
-  **ses conversations**, groupées par date (voir [Historique des
-  conversations](#historique-des-conversations)).
-- **En haut**, la recherche et le filtre d'origine (VS Code ou terminal)
-  valent pour les sessions comme pour les conversations, et le bouton
-  **Nouvelle session…** ouvre le [dialogue](#nouvelle-session).
+- **En haut** : ☰ (afficher ou masquer la liste des projets), la recherche
+  (titre, demandes, projet, dossier ; sans accents ni majuscules ; taper
+  n'importe où sur la page la lance), le filtre d'origine (Toutes les
+  origines, VS Code, Terminal) et **Nouvelle session…**, qui ouvre le
+  [dialogue](#nouvelle-session). Recherche et filtre valent pour tout : les
+  sessions, les conversations et la liste des projets (un projet sans
+  résultat disparaît de la liste). Sans VTE, une ligne indique comment
+  installer le terminal intégré.
+- **À gauche, les projets** : « Tous les projets » en tête, puis chaque
+  projet, ceux où une session est ouverte d'abord, puis du plus récemment
+  actif au plus ancien. Un point vert signale une session ouverte, un point
+  bleu une session qui attend ta réponse ; à droite, le nombre de
+  conversations. La seconde ligne dit « 2 sessions ouvertes » ou « attend ta
+  réponse », le [compte du projet](#compte-par-projet) (« compte boulot »), ou
+  « dossier introuvable · déplacé ? ». Deux projets du même nom s'affichent
+  avec leur chemin.
+- **À droite, le projet choisi** :
+  - un **en-tête** : nom et chemin du projet, compte du projet (ou « Aucun
+    compte associé : les sessions utilisent le compte actif ») avec le bouton
+    **Compte de ce projet…**, et **Nouvelle session ▾** (dans l'application ;
+    la flèche propose « Avec des options… », « Dans un terminal externe »,
+    « Terminal ici » et « Ouvrir le dossier ») ;
+  - **Ouvertes maintenant** : une carte par session ouverte du projet ;
+  - **Conversations** : l'[historique](#historique-des-conversations) du
+    projet, groupé par date.
 
-`ccs sessions` liste aussi les sessions ouvertes. Chaque session ouverte
+  Avec « Tous les projets », toutes les sessions ouvertes et toutes les
+  conversations, et le bouton **Nouvelle session…** du haut mis en avant.
+
+`ccs sessions` liste aussi les sessions ouvertes. Chaque carte de session
 (terminal ou VS Code) montre son projet, son état — *travaille*, *attend ta
 réponse* (et pourquoi : permission, question…), *au repos* —, sa durée, son
-modèle et sa consommation (tokens pondérés de la conversation). CCS lit les
-fiches de `~/.claude/sessions` en lecture seule et ignore les fichiers `.key`.
+modèle, sa consommation (tokens pondérés de la conversation) et son
+[coût](#coût-dune-conversation). CCS lit les fiches de `~/.claude/sessions` en
+lecture seule et ignore les fichiers `.key`.
 
-Actions : ouvrir un terminal (« Terminal ici ») ou le dossier du projet ;
-terminer une session (après confirmation : la conversation est conservée et peut
-être reprise) ; **Reprendre** une conversation (`claude --resume`) ou lancer une
-**Nouvelle session** dans un projet. Ces actions ouvrent un onglet du [terminal
-intégré](#terminal-intégré) ; le menu « ⋮ » (ou la flèche de « Nouvelle
-session ») garde le terminal externe. Une session déjà ouverte dans
-l'application affiche **Afficher**, qui mène à son onglet ; une conversation
-ouverte ailleurs (autre terminal, VS Code) n'est pas reprise une seconde fois.
-« Renommer… » et « Aperçu… » sont dans le menu « ⋮ » de chaque session et
-conversation, « Compte de ce projet… » dans le menu d'un projet. La carte d'une
-session ouverte et chaque conversation affichent le
-[coût](#coût-dune-conversation) de la conversation.
+Actions d'une session : **Afficher** (son onglet du terminal intégré, si elle
+y tourne), « Terminal ici », ouvrir le dossier, **Terminer** (après
+confirmation : la conversation est conservée et peut être reprise),
+« Aperçu… » et « Renommer… » dans son menu « ⋮ ». Reprendre une conversation
+(`claude --resume`) ou démarrer une **Nouvelle session** ouvre un onglet du
+[terminal intégré](#terminal-intégré) ; le menu « ⋮ » ou la flèche de
+« Nouvelle session » garde le terminal externe. Une conversation ouverte
+ailleurs (autre terminal, VS Code) n'est pas reprise une seconde fois.
 
-`claude-accounts gui --page sessions` ouvre l'application sur cet onglet, et
-`claude-accounts gui --new-session` directement sur le dialogue « Nouvelle
-session » (voir [Raccourcis clavier globaux](#raccourcis-clavier-globaux)).
+**Fenêtre étroite** : sous 800 sp de large, la liste des projets se replie ;
+☰ l'ouvre par-dessus le contenu, et choisir un projet la referme. Sous
+560 sp, les boutons passent en icônes.
+
+**Depuis la ligne de commande** : `claude-accounts gui --page sessions` ouvre
+l'application sur cet onglet, `claude-accounts gui --new-session` directement
+sur le dialogue « Nouvelle session », que l'application soit déjà ouverte ou
+non (voir [Raccourcis clavier globaux](#raccourcis-clavier-globaux)).
+`--page` accepte `sessions`, `comptes`, `planning`, `historique`, `analyse`,
+`terminaux` et `reglages` (accents et majuscules indifférents ; `conversations`
+mène à `sessions`) ; un nom inconnu sort avec le code 2, et `terminaux` sans
+onglet ouvert affiche l'onglet Sessions avec un message. Les options se
+combinent entre elles et avec `--session`.
 
 ### Nouvelle session
 
 Le bouton **Nouvelle session…** de l'onglet Sessions, l'entrée du même nom
-dans le menu ☰ de la fenêtre, ou « Avec des options… » dans le menu de
-« Nouvelle session » d'un projet ouvrent un dialogue :
+dans le menu ☰ de la fenêtre, « Avec des options… » dans le menu de
+« Nouvelle session » d'un projet, ou `claude-accounts gui --new-session`
+ouvrent un dialogue :
 
 - **Dossier** : le projet d'où tu pars, un projet récent ou un autre dossier
   (bouton dossier) ;
@@ -429,10 +456,12 @@ depuis au moins une minute s'arrête (au plus une notification toutes les 2 min
 par session). Réglage : **Réglages → Alertes → Sessions Claude Code**.
 
 Un clic sur la notification (ou son bouton **Afficher**) ouvre l'application
-sur la session : son onglet du terminal intégré si elle y tourne, sinon sa carte
-dans l'onglet Sessions, mise en évidence ; « Cette session n'est plus ouverte »
-si elle s'est arrêtée entre-temps. L'application est lancée si elle ne tourne
-pas. Le **badge** de l'onglet Sessions compte les sessions qui attendent ta
+sur la session : son onglet du terminal intégré si elle y tourne ; sinon
+l'onglet Sessions choisit le projet de la session, retire la recherche ou le
+filtre d'origine qui la cacherait et met sa carte en évidence. Si elle s'est
+arrêtée entre-temps, « Cette session n'est plus ouverte » s'affiche et le
+projet de sa conversation est choisi. L'application est lancée si elle ne
+tourne pas. Le **badge** de l'onglet Sessions compte les sessions qui attendent ta
 réponse (avec un point d'attention quand l'onglet n'est pas affiché).
 
 **Rappel** : si une session attend ta réponse depuis plus de 10 min, CCS
@@ -448,8 +477,9 @@ des sessions en attente** et **Rappeler après (min)**
 Un dossier de projet peut avoir un **compte préféré** : « boulot » pour
 `~/Work`, « perso » pour le reste, par exemple.
 
-- **Choisir** : « Compte de ce projet… » dans le menu d'un projet de l'onglet
-  Sessions (un compte, ou « Aucun » ; interrupteur **Proposer la bascule**), ou
+- **Choisir** : bouton « Compte de ce projet… » en tête du projet choisi dans
+  l'onglet Sessions (un compte, ou « Aucun » ; interrupteur **Proposer la
+  bascule**), ou
   `ccs projet` :
 
   ```sh
@@ -486,10 +516,13 @@ gardées dans `~/.claude-accounts/projects.json`.
 
 ## Historique des conversations
 
-`ccs conv`, ou l'onglet **Sessions** (projet « Tous » pour tout voir, ou un
-projet à gauche) : toutes les conversations Claude Code du PC
-(`~/.claude/projects/*/*.jsonl`, terminal et VS Code), de la plus récente à la
-plus ancienne, groupées par date.
+`ccs conv`, ou la partie **Conversations** de l'onglet **Sessions** (« Tous
+les projets » pour tout voir, ou un projet à gauche) : toutes les
+conversations Claude Code du PC (`~/.claude/projects/*/*.jsonl`, terminal et
+VS Code), de la plus récente à la plus ancienne, groupées par date. Dans
+l'application, les 60 premières lignes s'affichent, puis « Afficher 60 de
+plus » ; le nombre de conversations indique ce qu'un filtre cache
+(« 3 conversations sur 340 »).
 
 - **Titre** : celui donné avec `/rename` ou dans VS Code, sinon le titre
   automatique de Claude Code, sinon la première demande. Le contexte ajouté par
@@ -505,7 +538,8 @@ plus ancienne, groupées par date.
   terminal : `ccs resume <id>` reprend dans le terminal courant,
   `--new-terminal` dans une nouvelle fenêtre, `--print` affiche seulement la
   commande. Dans l'application, le bouton **Terminal** reprend dans un onglet du
-  terminal intégré (le terminal externe est au menu « … »), et **Afficher**
+  terminal intégré (« Reprendre dans un terminal externe » et « Copier la
+  commande » sont au menu « ⋮ »), et **Afficher**
   remplace les boutons d'une conversation déjà ouverte dans un onglet. Une
   conversation déjà ouverte dans une session n'est pas relancée. Si le projet a
   un [compte](#compte-par-projet) qui n'est pas le compte actif, l'application

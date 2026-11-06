@@ -3,7 +3,7 @@
 claude-accounts \- application, service et outils d'usage des comptes Claude Code
 .SH SYNOPSIS
 .B claude-accounts
-[\fBgui\fR [\fB\-\-page \fInom\fR|\fB\-\-new\-session\fR|\fB\-\-session \fIréf\fR]|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBtitle \fIid titre\fR|\fBpreview \fIid\fR|\fBexport \fIid\fR [\fIfichier\fR]|\fBdoctor\fR|\fBpause\fR [\fIchoix\fR]|\fBformule\fR|\fBsemaine\fR [\fB\-\-precedente \fIN\fR]|\fBjournal\fR [\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]|\fBprojet\fR [\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]|\fBraccourcis\fR [\fIsous-commande\fR]|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
+[\fBgui\fR [\fB\-\-page \fIonglet\fR|\fB\-\-new\-session\fR|\fB\-\-session \fIréf\fR]|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBtitle \fIid titre\fR|\fBpreview \fIid\fR|\fBexport \fIid\fR [\fIfichier\fR]|\fBdoctor\fR|\fBpause\fR [\fIchoix\fR]|\fBformule\fR|\fBsemaine\fR [\fB\-\-precedente \fIN\fR]|\fBjournal\fR [\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]|\fBprojet\fR [\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]|\fBraccourcis\fR [\fIsous-commande\fR]|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
 .SH DESCRIPTION
 Sans argument, ouvre l'application graphique « Comptes Claude » : comptes et
 prévisions, planning, sessions et historique des conversations (un seul onglet
@@ -26,9 +26,14 @@ de permissions ; ouvrir une session d'un projet associé à un autre compte
 propose d'abord de basculer ; « Aperçu… » relit une conversation et l'exporte
 en Markdown ; « Bilan de santé… » est dans le menu principal. Libadwaita 1.5
 ou plus récent.
-\fB\-\-page\fR \fInom\fR ouvre la fenêtre sur un onglet (par exemple
-\fBsessions\fR) ; \fB\-\-new\-session\fR ouvre directement le dialogue
-« Nouvelle session » : ce sont les commandes des raccourcis clavier.
+\fB\-\-page\fR \fIonglet\fR ouvre la fenêtre sur un onglet : \fBsessions\fR,
+\fBcomptes\fR, \fBplanning\fR, \fBhistorique\fR, \fBanalyse\fR,
+\fBterminaux\fR ou \fBreglages\fR (accents et majuscules indifférents ;
+\fBconversations\fR mène à \fBsessions\fR ; \fBterminaux\fR sans onglet
+ouvert affiche Sessions avec un message). \fB\-\-new\-session\fR ouvre
+directement le dialogue « Nouvelle session ». Ces options se combinent entre
+elles et avec \fB\-\-session\fR, et marchent aussi quand l'application est
+déjà ouverte : ce sont les commandes des raccourcis clavier.
 \fB\-\-session\fR \fIpid\fR:\fIid\fR (ou l'un des deux) ouvre la fenêtre sur
 cette session Claude Code : c'est ce qu'utilise un clic sur une notification de
 session.
