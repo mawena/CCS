@@ -724,3 +724,53 @@ class NotifierCliTest(HomeTestCase):
     def test_pause_without_notifier_is_silent(self):
         run("pause", "1h")
         self.assertEqual(self.sent, [])
+
+
+class OriginFromBashTest(HomeTestCase):
+    """La note écrite par `ccs` (bash, sans Python) est lue par le service, et le journal
+    affiche l'origine de la bascule."""
+
+    def ccs(self, *args, **env):
+        import os
+        from pathlib import Path
+        fake = Path(self.tmp) / "bin"
+        fake.mkdir(exist_ok=True)
+        (fake / "notify-send").write_text("#!/bin/sh\nexit 0\n")   # jamais le vrai bureau
+        (fake / "notify-send").chmod(0o755)
+        environ = dict(os.environ, NO_COLOR="1", DBUS_SESSION_BUS_ADDRESS=f"unix:path={self.tmp}/aucun-bus",
+                       PATH=f"{fake}:{os.environ.get('PATH', '/usr/bin:/bin')}", **env)
+        environ.pop("CCS_VIA", None)
+        environ.update(env)
+        script = Path(__file__).resolve().parent.parent / "bin" / "ccs"
+        return subprocess.run([str(script), *args], capture_output=True, text=True, env=environ, timeout=60)
+
+    def journal_after(self, *args, **env):
+        from datetime import datetime, timezone
+        from ccs_app import daemon, switch_log
+        from ccs_app.store import Store
+        store = Store()
+        self.addCleanup(store.close)
+        store.add_event(time.time() - 60, "switch", "perso", {"mode": "initial"})
+        r = self.ccs(*args, **env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        daemon.Daemon(store, notifier=lambda a: None).detect_manual_switch(datetime.now(timezone.utc))
+        self.assertFalse(switch_log.origin_path().exists())   # lue puis retirée par le service
+        return switch_log.load(store, 1, markers={})[0]
+
+    def test_shortcut(self):
+        entry = self.journal_after("next", "--notifier")
+        self.assertEqual((entry.title, entry.reason), ("perso → pro", "Bascule manuelle par un raccourci clavier"))
+
+    def test_by_hand(self):
+        entry = self.journal_after("pro")
+        self.assertEqual(entry.reason, "Bascule manuelle par la commande ccs")
+
+    def test_application_note_is_kept(self):
+        from ccs_app import switch_log
+        switch_log.note_origin("pro", "application")   # notée juste avant par l'application
+        entry = self.journal_after("use", "pro")
+        self.assertEqual(entry.reason, "Bascule manuelle depuis l'application")
+
+    def test_nothing_noted_when_the_caller_handles_it(self):
+        entry = self.journal_after("use", "pro", CCS_VIA="")
+        self.assertEqual(entry.reason, "Bascule manuelle (application, icône ou « ccs use »)")
