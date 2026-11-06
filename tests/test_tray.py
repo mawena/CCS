@@ -97,6 +97,77 @@ class MenuLinesTest(unittest.TestCase):
     def test_empty_state(self):
         self.assertEqual(self.lines({})[0], "Pas encore de données — lance le service")
 
+    def test_weekly_forecast_line_only_when_limit_comes_first(self):
+        import copy
+        st = copy.deepcopy(FULL)
+        st["accounts"][1]["weekly_forecast"] = {"verdict": "limit", "eta": iso(36 * 60),
+                                                "rate_per_day": 22, "days_before_reset": 1.2}
+        st["accounts"][0]["weekly_forecast"] = {"verdict": "ok", "eta": None,
+                                                "rate_per_day": 9, "days_before_reset": None}
+        week = [l for l in self.lines(st) if "semaine épuisée" in l]
+        self.assertEqual(len(week), 1)
+        self.assertIn("boulot", week[0])
+        self.assertNotIn("semaine épuisée", "\n".join(self.lines()))
+
+
+class UpdateLineTest(unittest.TestCase):
+    URL = "https://github.com/mawena/CCS/releases/tag/v0.5.0"
+
+    def test_new_version_line_opens_release_page(self):
+        st = dict(FULL, update={"version": "0.5.0", "url": self.URL, "name": "CCS 0.5.0"})
+        line = next((t, a) for t, a in menu_lines(st, NOW) if "0.5.0" in t)
+        self.assertEqual(line, ("⬆ CCS 0.5.0 disponible — voir la version", ("open", self.URL)))
+
+    def test_no_line_without_update_or_with_foreign_link(self):
+        self.assertFalse(any("disponible" in t for t, _ in menu_lines(FULL, NOW)))
+        st = dict(FULL, update={"version": "0.5.0", "url": "https://exemple.invalid/x"})
+        self.assertFalse(any("disponible" in t for t, _ in menu_lines(st, NOW)))
+
+
+class SelfRestartTest(unittest.TestCase):
+    def test_restart_only_once_the_new_code_is_stable(self):
+        from ccs_app.tray import restart_due
+        self.assertFalse(restart_due(10.0, 10.0, 10.0))   # rien n'a changé
+        self.assertFalse(restart_due(10.0, 10.0, 20.0))   # mise à jour en cours
+        self.assertTrue(restart_due(10.0, 20.0, 20.0))    # stable depuis un contrôle
+        self.assertFalse(restart_due(10.0, 20.0, 30.0))   # encore en cours
+
+    def test_restart_command_reuses_interpreter_and_arguments(self):
+        import sys
+        from unittest import mock
+
+        from ccs_app.tray import restart_command
+        with mock.patch.object(sys, "orig_argv", ["python3", "-m", "ccs_app.cli", "tray"]):
+            self.assertEqual(restart_command(), [sys.executable, "-m", "ccs_app.cli", "tray"])
+        with mock.patch.object(sys, "orig_argv", ["/usr/bin/python3", "/usr/bin/claude-accounts",
+                                                  "tray"]):
+            self.assertEqual(restart_command(),
+                             [sys.executable, "/usr/bin/claude-accounts", "tray"])
+
+
+class PauseMenuTest(unittest.TestCase):
+    HOURS = {"start": "08:00", "end": "02:00", "days": list(range(7))}
+
+    def test_choices_when_not_paused(self):
+        from ccs_app.tray import pause_menu
+        line, items = pause_menu(None, NOW, self.HOURS)
+        self.assertIsNone(line)
+        self.assertEqual([c for _, c in items], ["1h", "4h", "demain", "manuel"])
+        self.assertEqual(items[0][0], "1 heure")
+
+    def test_resume_when_paused(self):
+        from ccs_app.pause import PauseState
+        from ccs_app.tray import pause_menu
+        line, items = pause_menu(PauseState(NOW, NOW + timedelta(hours=1)), NOW, self.HOURS)
+        self.assertIn("En pause jusqu'à", line)
+        self.assertEqual(items, [("Reprendre maintenant", "reprendre")])
+        line, _ = pause_menu(PauseState(NOW, None), NOW, self.HOURS)
+        self.assertIn("reprise manuelle", line)
+
+    def test_label_shows_pause(self):
+        self.assertEqual(label_for(state(("session", 32)), paused=True), "⏸ ◔ 32 %")
+        self.assertEqual(label_for({}, paused=True), "⏸ —")
+
 
 class SessionLinesTest(unittest.TestCase):
     def test_session_lines(self):

@@ -46,6 +46,20 @@ def period_bounds(now, hours):
     return None
 
 
+def next_period_start(now, hours):
+    """Début de la prochaine période active strictement après `now` (None si aucun jour actif)."""
+    local = now.astimezone()
+    sh, sm = _hhmm(hours["start"])
+    days = hours.get("days", range(7))
+    for ahead in range(8):
+        day = local.date() + timedelta(days=ahead)
+        # Date locale naïve puis fuseau du poste : heure exacte même au changement d'heure.
+        start = datetime(day.year, day.month, day.day, sh, sm).astimezone()
+        if start > local and start.weekday() in days:
+            return start
+    return None
+
+
 def _fresh(a, now):
     return (not a.blocking_error and a.limits and a.fetched_at is not None
             and now.timestamp() - a.fetched_at <= STALE_S)
