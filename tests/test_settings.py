@@ -18,6 +18,7 @@ class SettingsTest(HomeTestCase):
         self.assertEqual(a["weekly_forecast_days"], 2)
         self.assertTrue(a["waiting_reminder"])
         self.assertEqual(a["waiting_reminder_min"], 10)
+        self.assertEqual(settings.load_settings()["updates"], {"enabled": True})
 
     def test_old_settings_file_gets_new_defaults(self):
         # Fichier d'une version précédente : les nouvelles clés prennent leur valeur par défaut.

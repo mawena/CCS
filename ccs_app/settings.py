@@ -25,6 +25,7 @@ DEFAULTS = {
         "waiting_reminder_min": 10,
     },
     "poll": {"normal_s": 300, "fast_s": 60},
+    "updates": {"enabled": True},
     "warmup": {},
     "orchestrator": {
         "enabled": False,

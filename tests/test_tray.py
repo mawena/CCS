@@ -110,6 +110,41 @@ class MenuLinesTest(unittest.TestCase):
         self.assertNotIn("semaine épuisée", "\n".join(self.lines()))
 
 
+class UpdateLineTest(unittest.TestCase):
+    URL = "https://github.com/mawena/CCS/releases/tag/v0.5.0"
+
+    def test_new_version_line_opens_release_page(self):
+        st = dict(FULL, update={"version": "0.5.0", "url": self.URL, "name": "CCS 0.5.0"})
+        line = next((t, a) for t, a in menu_lines(st, NOW) if "0.5.0" in t)
+        self.assertEqual(line, ("⬆ CCS 0.5.0 disponible — voir la version", ("open", self.URL)))
+
+    def test_no_line_without_update_or_with_foreign_link(self):
+        self.assertFalse(any("disponible" in t for t, _ in menu_lines(FULL, NOW)))
+        st = dict(FULL, update={"version": "0.5.0", "url": "https://exemple.invalid/x"})
+        self.assertFalse(any("disponible" in t for t, _ in menu_lines(st, NOW)))
+
+
+class SelfRestartTest(unittest.TestCase):
+    def test_restart_only_once_the_new_code_is_stable(self):
+        from ccs_app.tray import restart_due
+        self.assertFalse(restart_due(10.0, 10.0, 10.0))   # rien n'a changé
+        self.assertFalse(restart_due(10.0, 10.0, 20.0))   # mise à jour en cours
+        self.assertTrue(restart_due(10.0, 20.0, 20.0))    # stable depuis un contrôle
+        self.assertFalse(restart_due(10.0, 20.0, 30.0))   # encore en cours
+
+    def test_restart_command_reuses_interpreter_and_arguments(self):
+        import sys
+        from unittest import mock
+
+        from ccs_app.tray import restart_command
+        with mock.patch.object(sys, "orig_argv", ["python3", "-m", "ccs_app.cli", "tray"]):
+            self.assertEqual(restart_command(), [sys.executable, "-m", "ccs_app.cli", "tray"])
+        with mock.patch.object(sys, "orig_argv", ["/usr/bin/python3", "/usr/bin/claude-accounts",
+                                                  "tray"]):
+            self.assertEqual(restart_command(),
+                             [sys.executable, "/usr/bin/claude-accounts", "tray"])
+
+
 class PauseMenuTest(unittest.TestCase):
     HOURS = {"start": "08:00", "end": "02:00", "days": list(range(7))}
 

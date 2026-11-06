@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import alerts, autoswitch, core, notify, orchestrator, pause
+from . import alerts, autoswitch, core, notify, orchestrator, pause, updates
 from .forecast import (AccountState, best_account, capacity, effective_percent,
                        session_forecast, weekly_forecast, weekly_pace)
 from .settings import load_settings
@@ -385,7 +385,16 @@ class Daemon:
             "orchestrator": self._orchestrator_state(states, settings, now, reserve, paused),
             # Mode pause : {"since", "until" (None : reprise manuelle), "label"} ou None.
             "pause": paused.as_dict(now) if paused is not None else None,
+            # Nouvelle version publiée : {"version", "url", "name"} ou None (cache, sans réseau).
+            "update": self._update_state(settings),
         })
+
+    @staticmethod
+    def _update_state(settings):
+        if not settings["updates"]["enabled"]:
+            return None
+        release = updates.available()
+        return release and {"version": release.version, "url": release.url, "name": release.name}
 
     def _orchestrator_state(self, states, settings, now, reserve, paused=None):
         ocfg = settings["orchestrator"]
@@ -521,6 +530,7 @@ def run():
         d.hooks.append(warmup.hook)
     except ImportError:
         pass
+    d.hooks.append(updates.hook)  # nouvelle version : au plus une vérification par jour
     log.info("daemon démarré")
     stamp = code_stamp()
     exit_code = 0

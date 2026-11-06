@@ -5,7 +5,7 @@ import subprocess
 
 from gi.repository import Adw, Gtk
 
-from .. import core, daemon
+from .. import __version__, core, daemon, updates
 from ..settings import load_settings, save_settings
 
 DAY_LABELS = ["L", "M", "M", "J", "V", "S", "D"]
@@ -272,6 +272,17 @@ class PrefsPage(Adw.PreferencesPage):
         row.add_suffix(btn)
         g.add(row)
         g.add(self.indicator_row())
+        g.add(self.switch_row("Nouvelles versions",
+                              f"Version installée : {__version__}. Vérifie une fois par jour sur "
+                              "GitHub et prévient une seule fois par version", "updates", "enabled"))
+        release = updates.available() if self.s["updates"]["enabled"] else None
+        if release:
+            new = Adw.ActionRow(title=f"CCS {release.version} est disponible",
+                                subtitle="Installe le nouveau paquet : le service et l'indicateur "
+                                         "se relancent tout seuls")
+            new.add_suffix(Gtk.LinkButton(uri=release.url, label="Voir la version",
+                                          valign=Gtk.Align.CENTER))
+            g.add(new)
         return g
 
     def indicator_row(self):

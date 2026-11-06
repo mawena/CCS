@@ -302,6 +302,26 @@ class PauseDaemonTest(OrchestratorBase):
         self.assertFalse(st["auto_switch"]["paused"])
 
 
+class UpdateStateTest(DaemonBase):
+    def test_newer_release_shown_in_state(self):
+        write(self.store / "updates.json", {"checked_at": NOW.timestamp(), "latest": {
+            "version": "99.0.0", "url": "https://github.com/mawena/CCS/releases/tag/v99.0.0",
+            "name": "CCS 99.0.0"}})
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            self.d.tick(self.settings, NOW)
+        self.assertEqual(self.state()["update"]["version"], "99.0.0")
+        self.assertIn("github.com/mawena/CCS", self.state()["update"]["url"])
+        self.settings["updates"]["enabled"] = False
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            self.d.tick(self.settings, NOW + timedelta(minutes=5))
+        self.assertIsNone(self.state()["update"])
+
+    def test_no_update_in_state_without_cache(self):
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            self.d.tick(self.settings, NOW)
+        self.assertIsNone(self.state()["update"])
+
+
 class SelfRestartTest(unittest.TestCase):
     def test_code_stamp_changes_when_package_updated(self):
         import tempfile, time as _t
