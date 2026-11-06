@@ -66,6 +66,7 @@ out="$("$CCS" help)"; expect "$out" "ccs best"
 out="$("$CCS" orch on)"; expect "$out" "activé"
 out="$("$CCS" status)"; expect "$out" "Orchestrateur : activé"
 out="$("$CCS" help)"; expect "$out" "ccs plan"
+out="$("$CCS" help)"; expect "$out" "ccs title <id> <titre>"
 
 # Revue finale C1 : `ccs use` attend le verrou tenu par le service.
 g="$HOME/.claude.json"

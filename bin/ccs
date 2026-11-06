@@ -282,6 +282,7 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
                            opts : -p <projet>  --vscode  --terminal  --all  --json
   ccs resume <id> [opts]   reprend une conversation ici (ou --vscode, --new-terminal, --print)
                            --dir <dossier> : depuis un projet déplacé
+  ccs title <id> <titre>   renomme une conversation (comme /rename dans Claude Code)
   ccs integrate on|off     ligne d'état dans Claude Code + bascule après blocage (hook)
   ccs analyze [--days N]   où part ton usage : projets, modèles, heures, conseils
   ccs gui                  ouvre l'application graphique
@@ -315,6 +316,7 @@ main() {
     sessions|ps) exec "$CA" sessions ;;
     conv|conversations|historique) exec "$CA" conversations "$@" ;;
     resume|reprendre) exec "$CA" resume "$@" ;;
+    title|titre) exec "$CA" title "$@" ;;
     integrate|integration) exec "$CA" integrate "${1:-status}" ;;
     analyze|stats) exec "$CA" analyze "$@" ;;
     version|--version|-v) exec "$CA" --version ;;
