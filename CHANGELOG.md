@@ -18,27 +18,38 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   vérifier » après 120 jours. Formule de chaque compte détectée
   (`subscriptionType`, `rateLimitTier`). Réglages `advisor.weeks`,
   `advisor.margin_pct`, `advisor.plan_prices`, `advisor.profile_plans`,
-  `advisor.max_accounts`.
+  `advisor.max_accounts`, aussi dans le groupe « Conseiller de formule » des
+  Réglages (semaines analysées 1–12, marge 0–100 %, comptes au plus 1–5,
+  formule d'un compte quand la détection hésite, tarifs dans une ligne
+  dépliable). Message d'attente pendant le calcul dans le terminal.
 - **Conseil de modèle près des limites** : au-delà de 80 % (session ou
   semaine) avec un modèle cher, une notification par fenêtre de 5 h propose
   la famille moins chère (Fable → Opus → Sonnet → Haiku) et le gain en ordre
   de grandeur (« ×N », tarifs de l'API appliqués aux réponses des 30 dernières
   minutes) ; « → sonnet ? » dans la ligne d'état de Claude Code. Réglages
-  `alerts.model_advice`, `alerts.model_advice_pct`.
-- **Bilan de la semaine** : `ccs semaine [--precedente N]`, carte de l'onglet
+  `alerts.model_advice`, `alerts.model_advice_pct` (« Proposer un modèle
+  moins cher près des limites », « Seuil du conseil (%) » 50–99, groupe
+  « Conseils » des Réglages).
+- **Bilan de la semaine** : `ccs semaine [--precedente N]` (N de 0 à 520), carte de l'onglet
   Analyse avec choix de la semaine et notification hebdomadaire (comptes,
   activité, tokens et équivalent API, modèles, projets, bascules et alertes,
   comparaison avec la semaine précédente). Semaine alignée sur la plupart des
   comptes ou sur un jour fixe : `alerts.weekly_report`,
-  `alerts.weekly_report_day`, `alerts.weekly_report_hour`.
+  `alerts.weekly_report_day`, `alerts.weekly_report_hour` (« Bilan de la
+  semaine », « Jour du bilan », « Heure du bilan », groupe « Conseils » des
+  Réglages ; notifications envoyées seulement si les notifications sont
+  activées).
 - **Journal des bascules** : section de l'onglet Historique et
   `ccs journal [--jours N | --tout]`. Chaque bascule avec sa raison en clair
   (automatique avec le pourcentage, anticipée par l'orchestrateur, après un
   blocage avec le projet, manuelle et son origine), échecs, limites atteintes
   sans bascule et démarrages de fenêtre ; groupes par jour, filtre 7 jours /
-  30 jours / tout.
+  30 jours / tout. Origine d'une bascule manuelle : application, icône,
+  notification, commande `ccs`, raccourci clavier, nouvelle session, compte du
+  projet (`~/.claude-accounts/switch-origin.json`, écrite aussi par `ccs`
+  lui-même ; variable `CCS_VIA`).
 - **Compte par projet** : `ccs projet [<dossier>] [<compte>|aucun]` et
-  « Compte de ce projet… » dans le menu d'un projet ; héritage par les
+  « Compte de ce projet… » en tête d'un projet ; héritage par les
   sous-dossiers (`~/.claude-accounts/projects.json`). En ouvrant une session ou
   une conversation du projet depuis l'application, la bascule est proposée
   (Basculer et ouvrir / Ouvrir sans basculer / Annuler, « Ne plus demander
@@ -50,16 +61,28 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   meilleur compte (Super+Alt+M), pause 1 h (Super+Alt+P), reprendre
   (Super+Alt+R). Groupe « Raccourcis clavier » des Réglages (capture d'une
   combinaison, conflits signalés) et
-  `ccs raccourcis [status|on|off [action…]|set <action> <raccourci>]`. CCS
-  n'écrit que ses propres raccourcis personnalisés et ne retire jamais les
-  autres.
+  `ccs raccourcis [status|on|off [action…]|set <action> <raccourci>]` (alias
+  `ccs shortcuts`). CCS n'écrit que ses propres raccourcis personnalisés et ne
+  retire jamais les autres.
+- **`--notifier`** pour `ccs <nom>`, `ccs use`, `ccs next`, `ccs best` et
+  `ccs pause` : résultat aussi en notification passagère (« Bascule sur X »,
+  « Déjà sur X », « Bascule impossible », « Aucun compte disponible »,
+  « Pause jusqu'à 14:00 », « Pause levée », « Pause impossible ») ; c'est
+  l'option des raccourcis de bascule et de pause, notés « raccourci » dans le
+  journal.
+- `claude-accounts notify [--] <titre> [<texte>]` : notification passagère
+  (repli de `ccs` : `notify-send`).
+- Menu de l'icône : « Journal des bascules » et « Bilan de la semaine », qui
+  ouvrent l'application sur le bon onglet.
 - `claude-accounts gui --page <onglet>` ouvre un onglet (`sessions`,
   `comptes`, `planning`, `historique`, `analyse`, `terminaux`, `reglages` ;
   accents et majuscules indifférents, code 2 pour un nom inconnu) et
   `claude-accounts gui --new-session` le dialogue « Nouvelle session » ; les
   deux se combinent avec `--session` et marchent aussi application ouverte.
-- Réglages : interrupteurs et champs du conseil de modèle et du bilan de la
-  semaine.
+- Réglages : nouveaux groupes « Conseils », « Conseiller de formule » et
+  « Raccourcis clavier ». Ordre : Bascule automatique, Orchestrateur, Alertes,
+  Conseils, Conseiller de formule, Intégration, Terminal intégré, Raccourcis
+  clavier, Warm-up, Service.
 
 ### Modifié
 
@@ -78,8 +101,15 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   retirant les filtres qui cacheraient la session.
 - Les onglets passent en bas de la fenêtre sous 1100 sp de large (1220 sp avec
   la page Terminaux), au lieu de 1350 / 1540.
-- Journal des bascules : une bascule faite dans la fenêtre est notée « depuis
-  l'application ».
+- La ligne d'état lit le contexte JSON envoyé par Claude Code (modèle de la
+  session) sans jamais attendre un terminal, 2 s au plus.
+- `ccs use <nom>` et `ccs <nom>` refusent les arguments en trop (usage, code 1).
+- Les raccourcis de bascule et de pause activés avant `--notifier` sont
+  signalés « à mettre à jour » (`ccs raccourcis status`, bouton « Mettre à
+  jour les commandes ») ; ils ne sont jamais réécrits d'office. Dans les
+  Réglages, le raccourci s'affiche en texte (« Super+Alt+B »).
+- Fenêtre étroite : l'onglet Historique reste utilisable dès 252 px (légende
+  repliée) ; le filtre d'origine de l'onglet Sessions s'abrège en « Toutes ».
 - Événements `switch` et `error` de l'historique : nouveaux champs pour le
   journal (compte quitté, pourcentage et seuil, quota qui expire, origine
   d'une bascule manuelle, projet). Les anciens événements restent lisibles.

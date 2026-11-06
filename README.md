@@ -120,12 +120,15 @@ En haut de l'onglet **Analyse**, et dans le terminal :
   conversations, sessions, tokens et équivalent API, modèles, projets, bascules
   et alertes, comparés à la semaine précédente. Une notification le résume au
   début de chaque semaine ; la carte de l'onglet Analyse laisse choisir la
-  semaine.
+  semaine (aussi « Bilan de la semaine » dans le menu de l'icône).
 
-Les prix des formules sont ceux du 6 novembre 2026, signalés « à vérifier »
-après 120 jours (réglage `advisor.plan_prices` pour les tiens). Le bilan et
-l'équivalent API ne voient que les journaux Claude Code **de ce PC** :
-claude.ai et tes autres appareils n'y figurent pas.
+Tout se règle dans **Réglages → Conseils** (conseil de modèle et son seuil,
+bilan, jour et heure du bilan) et **Réglages → Conseiller de formule**
+(semaines analysées, marge, nombre de comptes, formule d'un compte mal
+reconnue, tarifs). Les prix des formules sont ceux du 6 novembre 2026, signalés
+« à vérifier » après 120 jours. Le bilan et l'équivalent API ne voient que les
+journaux Claude Code **de ce PC** : claude.ai et tes autres appareils n'y
+figurent pas.
 
 ## Dans Claude Code
 
@@ -286,8 +289,10 @@ Aujourd'hui
 
 Bascules automatiques, anticipées par l'orchestrateur, après un blocage (avec
 le projet de la session bloquée), manuelles (et d'où elles viennent :
-application, notification, nouvelle session, compte du projet…), échecs, limites atteintes
-sans bascule et démarrages de fenêtre. Filtre 7 jours, 30 jours ou tout.
+application, icône, notification, commande `ccs`, raccourci clavier, nouvelle
+session, compte du projet), échecs, limites atteintes sans bascule et
+démarrages de fenêtre. Filtre 7 jours, 30 jours ou tout ; aussi « Journal des
+bascules » dans le menu de l'icône.
 
 ## Raccourcis clavier
 
@@ -300,17 +305,22 @@ désactivés au départ : **Réglages → Raccourcis clavier**, ou
 | Ouvrir Comptes Claude | Super+Alt+C | `claude-accounts gui` |
 | Afficher les sessions | Super+Alt+V | `claude-accounts gui --page sessions` |
 | Nouvelle session | Super+Alt+N | `claude-accounts gui --new-session` |
-| Basculer sur le compte suivant | Super+Alt+B | `ccs next` |
-| Basculer sur le meilleur compte | Super+Alt+M | `ccs best` |
-| Pause 1 h | Super+Alt+P | `ccs pause 1h` |
-| Reprendre (lever la pause) | Super+Alt+R | `ccs pause off` |
+| Basculer sur le compte suivant | Super+Alt+B | `ccs next --notifier` |
+| Basculer sur le meilleur compte | Super+Alt+M | `ccs best --notifier` |
+| Pause 1 h | Super+Alt+P | `ccs pause 1h --notifier` |
+| Reprendre (lever la pause) | Super+Alt+R | `ccs pause off --notifier` |
 
-« Modifier » change la combinaison (ou
+Sans terminal pour le lire, le résultat s'affiche en notification passagère
+(« Bascule sur boulot », « Déjà sur perso », « Pause jusqu'à 14:00 »,
+« Bascule impossible »…) : c'est l'option `--notifier`. « Modifier » change la
+combinaison (ou
 `ccs raccourcis set suivant Super+Alt+B`) ; une combinaison déjà prise par le
 bureau ou par un autre raccourci est signalée. Ce sont des raccourcis
 personnalisés de GNOME (Paramètres › Clavier › Raccourcis personnalisés) : CCS
 ne touche qu'aux siens, jamais aux tiens. Sur un autre bureau, CCS affiche les
-commandes, à associer toi-même à un raccourci.
+commandes, à associer toi-même à un raccourci. Des raccourcis activés avec une
+version précédente (sans `--notifier`) sont signalés « à mettre à jour » :
+bouton **Mettre à jour les commandes** des Réglages, ou `ccs raccourcis on`.
 
 ## Bilan de santé
 
@@ -346,7 +356,7 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets ; bilan de la semaine et conseiller de formule. |
 | **Bilan de santé** | `ccs doctor` : service, versions, barre du haut, intégration, comptes, Claude Code, terminal ; une commande à copier par problème. |
 | **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Sessions, Terminaux, Historique, Analyse, Réglages. |
-| **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge, ⏸ en pause) ; au clic : comptes, recharges, prévisions, sessions, interrupteurs, pause, nouvelle version. |
+| **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge, ⏸ en pause) ; au clic : comptes, recharges, prévisions, sessions, interrupteurs, pause, nouvelle version, journal des bascules, bilan de la semaine. |
 | **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre ; nouvelle version cherchée une fois par jour. |
 
 ## Installation
@@ -404,7 +414,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | Commande | Effet |
 |---|---|
 | `ccs` | Liste les profils (● = actif) |
-| `ccs <nom>` | Bascule sur un profil |
+| `ccs <nom>` | Bascule sur un profil (ou `ccs use <nom>`) |
 | `ccs next` / `ccs best` | Profil suivant / meilleur compte du moment |
 | `ccs status` | Compte actif, prévision, meilleur compte, capacité, orchestrateur, pause, service |
 | `ccs plan` | Planning des fenêtres et recharges à venir |
@@ -425,7 +435,8 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs semaine [--precedente N]` | Bilan de la semaine (`--precedente N` : N semaines plus tôt) |
 | `ccs journal [--jours N\|--tout]` | Journal des bascules (7 derniers jours par défaut) |
 | `ccs projet [<dossier>] [<compte>\|aucun]` | Compte par projet : liste, compte d'un dossier, association (`aucun` la retire) |
-| `ccs raccourcis [status\|on\|off\|set]` | Raccourcis clavier globaux (GNOME) : état, activer, retirer, changer |
+| `ccs raccourcis [status\|on\|off\|set]` | Raccourcis clavier globaux (GNOME) : état, activer, retirer, changer (alias `ccs shortcuts`) |
+| `… --notifier` | Avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`, `ccs pause` : résultat aussi en notification (option des raccourcis clavier) |
 | `ccs save <nom>` / `ccs add <nom>` | Enregistre le compte connecté / connecte un nouveau compte |
 | `ccs rename <a> <b>` / `ccs rm <nom>` | Renomme / supprime un profil |
 | `ccs gui` | Application graphique |
@@ -434,8 +445,11 @@ Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisat
 
 ## Configuration
 
-Tout se règle dans l'onglet **Réglages** de l'application (ou les commandes
-`ccs auto`, `ccs orch`, `ccs pause`, `ccs integrate`). Les réglages vivent dans
+Tout se règle dans l'onglet **Réglages** de l'application — Bascule
+automatique, Orchestrateur, Alertes, Conseils, Conseiller de formule,
+Intégration, Terminal intégré, Raccourcis clavier, Warm-up, Service — ou par
+les commandes `ccs auto`, `ccs orch`, `ccs pause`, `ccs integrate`,
+`ccs projet`, `ccs raccourcis`. Les réglages vivent dans
 `~/.claude-accounts/settings.json`, fusionnés avec les valeurs par défaut :
 bascule automatique (`auto_switch`), alertes (`alerts` : seuils, fin de semaine
 prévue `weekly_forecast` / `weekly_forecast_days`, rappel d'attente
@@ -506,7 +520,7 @@ problème trouvé.
 | Les sessions s'ouvrent dans un terminal externe | Terminal intégré indisponible : `sudo apt install gir1.2-vte-3.91`, puis rouvre l'application. |
 | Une session bloquée n'est pas relancée dans l'onglet | `ccs integrate on` (le hook est nécessaire), interrupteur « Reprise automatique après une limite » du menu « ⋮ » de la page Terminaux, pas de pause en cours ; une touche tapée dans l'onglet après la limite annule la reprise. |
 | Pas de proposition de bascule pour un projet | `ccs projet <dossier>` ; rien n'est proposé pendant une pause ni si « Ne plus demander pour ce projet » a été coché (réactive « Proposer la bascule » dans « Compte de ce projet… »). |
-| Un raccourci clavier ne fait rien | `ccs raccourcis status` : activé ? combinaison déjà prise (⚠) ? Bureau GNOME seulement ; après un déplacement du dépôt ou l'installation du paquet, « Mettre à jour les commandes » (Réglages) ou `ccs raccourcis on`. |
+| Un raccourci clavier ne fait rien | `ccs raccourcis status` : activé ? combinaison déjà prise (⚠) ? Bureau GNOME seulement ; « commande à mettre à jour » (déplacement du dépôt, installation du paquet, raccourci activé avant la 0.6.0) : « Mettre à jour les commandes » (Réglages) ou `ccs raccourcis on`. |
 | « Pas encore assez de relevés pour conseiller une formule » | Le conseiller a besoin d'au moins 3 jours de relevés du service. |
 
 Journaux du service : `journalctl --user -u ccs-daemon -f`.

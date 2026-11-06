@@ -5,8 +5,18 @@
 - `ccs save <nom>` enregistre le compte actuellement connecté dans Claude Code.
 - `ccs add <nom>` lance `claude auth login` : le navigateur s'ouvre, connecte-toi
   avec le compte à ajouter. CCS refuse d'ajouter deux fois le même compte.
-- `ccs <nom>` bascule. Si le compte connecté n'est enregistré nulle part, CCS
-  refuse de basculer pour ne pas le perdre : fais d'abord `ccs save`.
+- `ccs <nom>` (ou `ccs use <nom>`) bascule. Si le compte connecté n'est
+  enregistré nulle part, CCS refuse de basculer pour ne pas le perdre : fais
+  d'abord `ccs save`. Un argument en trop est refusé (usage, code 1).
+- `--notifier` (avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`,
+  `ccs pause`) affiche aussi le résultat en notification passagère : « Bascule
+  sur boulot » (avec l'adresse du compte et les sessions qui suivront), « Déjà
+  sur perso », « Bascule impossible », « Aucun compte disponible », « Pause
+  jusqu'à 14:00 », « Pause levée », « Pause impossible ». C'est l'option des
+  [raccourcis clavier](#raccourcis-clavier-globaux), qui n'ont pas de terminal
+  pour afficher le résultat. La notification passe par
+  `claude-accounts notify`, ou `notify-send` à défaut, et ne fait jamais
+  échouer la commande.
 - CCS n'appelle jamais `claude auth logout` (cela invaliderait le jeton du profil).
 
 ## Lire l'usage
@@ -146,7 +156,7 @@ l'heure, « compte quitté → compte choisi » et la raison en clair :
 | Automatique | « Bascule automatique avant la coupure (perso à 98 %) », avec « 100 % prévu avant le prochain relevé » quand c'est la projection qui a décidé |
 | Anticipée | « Bascule anticipée de l'orchestrateur : boulot allait perdre 42 % de quota dans 35 min » |
 | Après un blocage | « Bascule après un blocage (limite atteinte dans Portail) » : le projet de la session bloquée, sinon le compte quitté |
-| Manuelle | « Bascule manuelle depuis l'application » (bascule faite dans la fenêtre), « Bascule manuelle depuis une notification », « Bascule pour une nouvelle session (compte choisi) », « Bascule vers le compte du projet Portail »… ; « Bascule manuelle (application, icône ou « ccs use ») » quand l'origine n'est pas connue |
+| Manuelle | Selon son origine : « Bascule manuelle depuis l'application » (bascule faite dans la fenêtre), « … depuis l'icône », « … depuis une notification », « … par la commande ccs », « … par un raccourci clavier », « Bascule pour une nouvelle session (compte choisi) », « Bascule vers le compte du projet Portail » ; « Bascule manuelle (application, icône ou « ccs use ») » quand l'origine n'est pas connue |
 | Échec | « Échec de la bascule automatique vers boulot : … », avec le message de `ccs` |
 | Limite sans bascule | « Limite atteinte dans Portail pendant une pause : pas de bascule », « … : aucun autre compte disponible » |
 | Démarrage de fenêtre | « Fenêtre de 5 h démarrée par l'orchestrateur », « Warm-up de 07:00 : fenêtre de 5 h démarrée », ou son échec |
@@ -163,8 +173,17 @@ ccs journal --jours 30
 ccs journal --tout       # tout l'historique gardé
 ```
 
+Code de sortie 2 pour un nombre de jours nul, négatif ou illisible, ou
+`--jours` avec `--tout` ; 1 si l'historique est illisible. Le menu de l'icône
+ouvre aussi le journal (« Journal des bascules »).
+
 Tout vient de l'historique du service (`history.db`) : bascules, échecs,
-alertes du hook et démarrages de fenêtre. Le projet d'une session bloquée est
+alertes du hook et démarrages de fenêtre. L'origine d'une bascule manuelle est
+notée juste avant par celui qui la lance : l'application, l'icône ou `ccs`
+lui-même (« ccs » à la main, « raccourci » avec `--notifier`), dans
+`~/.claude-accounts/switch-origin.json` ; le service la lit en constatant la
+bascule. `CCS_VIA` définie et vide empêche `ccs` de la noter (l'application,
+le service et l'icône, qui notent la leur, lancent `ccs` ainsi). Le projet d'une session bloquée est
 lu dans les marqueurs de limite (`~/.claude-accounts/limits/`) tant qu'ils
 existent (24 h au plus). Les bascules d'avant la 0.6.0 restent lisibles,
 avec moins de détails (pourcentage relu dans la raison, compte quitté déduit
@@ -283,7 +302,19 @@ Conseil : 2 Pro — 40 $/mois
   autres appareils n'y figurent pas.
 
 La carte reprend le conseil, ce que tu paies, ce qui est conseillé et
-l'équivalent API mensuel, puis le raisonnement complet.
+l'équivalent API mensuel, puis le raisonnement complet. Dans le terminal, un
+message d'attente s'affiche pendant le calcul (sur la sortie d'erreur) ; code
+de sortie 1 si le calcul échoue.
+
+**Réglages → Conseiller de formule** :
+
+| Réglage | Clé | Valeurs |
+|---|---|---|
+| Semaines analysées | `advisor.weeks` | 1 à 12 (4 par défaut) |
+| Marge de sécurité (%) | `advisor.margin_pct` | 0 à 100 par pas de 5 (20) |
+| Comptes au plus | `advisor.max_accounts` | 1 à 5 (3) |
+| Formule de « perso » | `advisor.profile_plans` | Automatique, Pro, Max ou Ultra ; la ligne n'apparaît que pour une formule non reconnue, un Max sans palier connu ou une formule déjà imposée |
+| Tarifs des formules (ligne dépliable) | `advisor.plan_prices` | Pro, Max, Ultra en $/mois (0 à 2000) ; revenir au tarif publié retire la surcharge |
 
 ### Conseil de modèle près des limites
 
@@ -302,7 +333,9 @@ c'est un **ordre de grandeur** (« plus de ×5 » au-delà ; pas de notification
 sous ×1,25). **Une seule notification par fenêtre de 5 h** et par compte. Dans
 Claude Code, la [ligne d'état](#intégration-dans-claude-code) ajoute
 « → sonnet ? » tant que la session utilise un modèle cher au-delà du seuil.
-Interrupteur : `alerts.model_advice` (activé par défaut).
+Réglages → Conseils : **Proposer un modèle moins cher près des limites**
+(`alerts.model_advice`, activé par défaut) et **Seuil du conseil (%)**
+(`alerts.model_advice_pct`, 50 à 99).
 
 ### Bilan de la semaine
 
@@ -322,8 +355,12 @@ par défaut) et une **notification hebdomadaire** qui le résume :
 
 ```sh
 ccs semaine                 # semaine écoulée
-ccs semaine --precedente 1  # celle d'avant
+ccs semaine --precedente 1  # celle d'avant (0 à 520)
 ```
+
+Code de sortie 2 pour un nombre de semaines invalide (négatif, illisible, plus
+de 520), 1 si le calcul échoue. « Bilan de la semaine » dans le menu de
+l'icône ouvre l'onglet Analyse.
 
 **Quelle semaine ?** Par défaut, elle commence quand la plupart de tes comptes
 ont commencé leur nouvelle semaine (heures de réinitialisation hebdomadaires
@@ -332,7 +369,13 @@ relevées par le service ; lundi 9:00 faute de relevé). `alerts.weekly_report_d
 fixent à un jour et une heure. La notification part une fois par semaine, dans
 les deux jours qui suivent ce début, si les relevés couvrent au moins 3 jours
 de la semaine écoulée ; le bilan est calculé à part, sans retarder les
-relevés. Interrupteur : `alerts.weekly_report` (activé par défaut).
+relevés. Réglages → Conseils : **Bilan de la semaine** (`alerts.weekly_report`,
+activé par défaut), **Jour du bilan** (« Début de semaine des comptes » ou
+Lundi … Dimanche) et **Heure du bilan** (0 à 23, pour un jour fixe).
+
+Le groupe **Conseils** ne fait qu'envoyer des notifications d'aide : elles ne
+partent que si les notifications sont activées (Réglages → Alertes →
+**Notifications**).
 
 Comme l'équivalent API, l'activité, les modèles et les projets ne viennent que
 des journaux Claude Code **de ce PC** ; l'usage des comptes, lui, vient des
@@ -404,7 +447,8 @@ ailleurs (autre terminal, VS Code) n'est pas reprise une seconde fois.
 
 **Fenêtre étroite** : sous 800 sp de large, la liste des projets se replie ;
 ☰ l'ouvre par-dessus le contenu, et choisir un projet la referme. Sous
-560 sp, les boutons passent en icônes.
+560 sp, les boutons passent en icônes et le filtre d'origine affiche
+« Toutes ».
 
 **Depuis la ligne de commande** : `claude-accounts gui --page sessions` ouvre
 l'application sur cet onglet, `claude-accounts gui --new-session` directement
@@ -753,7 +797,9 @@ fois, écriture atomique ; une `statusLine` existante est conservée.
   comptes, et `→ compte` quand un autre compte est conseillé. Avec un modèle
   cher (Fable, Opus, Sonnet) et le compte actif au-delà du seuil du [conseil de
   modèle](#conseil-de-modèle-près-des-limites) (80 %), elle ajoute
-  « → sonnet ? » (la famille moins chère). Relance tes sessions pour la voir.
+  « → sonnet ? » (la famille moins chère) : le modèle vient du contexte JSON
+  que Claude Code envoie sur l'entrée standard, lu sans jamais attendre un
+  terminal ni plus de 2 s. Relance tes sessions pour la voir.
 - **Bascule après blocage** : hook `StopFailure` (erreur `rate_limit`). CCS
   rafraîchit l'usage si besoin, choisit le meilleur autre compte (données
   fraîches, sans erreur, sous 95 %), bascule et notifie « Limite atteinte dans
@@ -777,25 +823,31 @@ défaut**.
 | Ouvrir Comptes Claude (`ouvrir`) | Super+Alt+C | `claude-accounts gui` |
 | Afficher les sessions (`sessions`) | Super+Alt+V | `claude-accounts gui --page sessions` |
 | Nouvelle session (`nouvelle-session`) | Super+Alt+N | `claude-accounts gui --new-session` |
-| Basculer sur le compte suivant (`suivant`) | Super+Alt+B | `ccs next` |
-| Basculer sur le meilleur compte (`meilleur`) | Super+Alt+M | `ccs best` |
-| Pause 1 h (`pause`) | Super+Alt+P | `ccs pause 1h` |
-| Reprendre (lever la pause) (`reprendre`) | Super+Alt+R | `ccs pause off` |
+| Basculer sur le compte suivant (`suivant`) | Super+Alt+B | `ccs next --notifier` |
+| Basculer sur le meilleur compte (`meilleur`) | Super+Alt+M | `ccs best --notifier` |
+| Pause 1 h (`pause`) | Super+Alt+P | `ccs pause 1h --notifier` |
+| Reprendre (lever la pause) (`reprendre`) | Super+Alt+R | `ccs pause off --notifier` |
 
 Super+Alt+lettre : aucune de ces combinaisons n'est prise par GNOME, le Dock ou
 l'assistant de tuilage d'Ubuntu, et des lettres plutôt que des chiffres
-marchent pareil en AZERTY.
+marchent pareil en AZERTY. Avec `--notifier`, le résultat d'une bascule ou
+d'une pause s'affiche en notification passagère (voir [Profils](#profils)), et
+la bascule est notée « par un raccourci clavier » dans le [journal des
+bascules](#journal-des-bascules).
 
 **Dans l'application** : **Réglages → Raccourcis clavier**, une ligne par
-action avec un interrupteur, le raccourci et **Modifier** : appuie sur la
+action avec un interrupteur, le raccourci en texte (« Super+Alt+B ») et
+**Modifier** : appuie sur la
 nouvelle combinaison (Échap annule, Retour arrière désactive le raccourci). Une
 combinaison doit comporter Super, Ctrl ou Alt (seule ou avec Maj, une touche
 serait prise à toutes les applications), sauf les touches multimédia. Une
 combinaison déjà utilisée par le bureau, un autre raccourci personnalisé ou
 une autre action de CCS est signalée (⚠) sans être refusée. Le groupe suit les
 changements faits ailleurs tant qu'il est affiché ; **Mettre à jour les
-commandes** apparaît quand des raccourcis lancent CCS depuis un autre endroit
-(paquet installé depuis, dépôt déplacé).
+commandes** apparaît quand des raccourcis lancent une autre commande que
+celle attendue (paquet installé depuis, dépôt déplacé, ou raccourci activé
+avant la 0.6.0, sans `--notifier`) : ils sont signalés « à mettre à jour », et
+jamais réécrits sans toi.
 
 **Dans le terminal** :
 
@@ -807,9 +859,11 @@ ccs raccourcis off                 # retire tous les raccourcis de CCS
 ccs raccourcis set suivant Super+Alt+B
 ```
 
-`set` accepte « Super+Alt+B », « Ctrl+Maj+F5 » ou la forme de GNOME
-« <Super><Alt>b ». Code de sortie : 2 pour un usage incorrect, 1 si le bureau
-n'est pas pris en charge ou si le raccourci est refusé.
+Alias : `ccs shortcuts`. `set` accepte « Super+Alt+B », « Ctrl+Maj+F5 » ou la
+forme de GNOME « <Super><Alt>b ». `ccs raccourcis on <action>` met aussi à
+jour la commande d'un raccourci signalé « à mettre à jour ». Code de sortie :
+2 pour un usage incorrect, 1 si le bureau n'est pas pris en charge ou si le
+raccourci est refusé.
 
 **Ce que CCS touche** : ce sont des raccourcis personnalisés, les mêmes que
 ceux de Paramètres › Clavier › Raccourcis personnalisés, où tu les retrouves
@@ -819,9 +873,10 @@ ne retire jamais un raccourci qui n'est pas à lui et garde l'ordre de la
 liste, relue juste avant chaque écriture. La commande est écrite avec son
 chemin complet (`/usr/bin/ccs` pour le paquet installé).
 
-**Autre bureau que GNOME** : `ccs raccourcis` et les Réglages l'indiquent et
-donnent les commandes (avec un bouton pour les copier) : crée toi-même les
-raccourcis dans les réglages du clavier de ton bureau.
+**Autre bureau que GNOME** : `ccs raccourcis` (sur la sortie normale, code 1)
+et les Réglages l'indiquent et donnent les commandes (avec un bouton pour les
+copier) : crée toi-même les raccourcis dans les réglages du clavier de ton
+bureau.
 
 ## Bilan de santé
 
