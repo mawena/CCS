@@ -144,14 +144,19 @@ et montre si Claude **travaille**, **attend ta réponse** ou s'est arrêté.
   depuis les onglets Sessions et Conversations. Le terminal externe reste
   disponible dans les menus « ⋮ », et « Terminal ici » ouvre un shell dans un
   onglet.
-- **Reprise automatique après une limite** : quand une session d'un onglet est
-  bloquée, CCS bascule sur un autre compte puis tape « continue » à ta place,
-  une seule fois, dès que Claude attend une nouvelle demande (interrupteur dans
-  le menu de la page Terminaux ; rien n'est relancé pendant une pause).
-- Deux sessions **côte à côte** ; un message mis en attente pendant que Claude
-  travaille part quand il a fini son tour ; au redémarrage de l'application,
-  les onglets ouverts sont proposés (bandeau) ou rouverts d'eux-mêmes si tu
-  l'as choisi.
+- **Reprise automatique après une limite** (avec `ccs integrate on`) : quand
+  une session d'un onglet est bloquée, CCS bascule sur un autre compte puis
+  tape « continue » à ta place, une seule fois, dès que Claude attend une
+  nouvelle demande — jamais si tu as écrit dans l'onglet entre-temps, ni
+  pendant une pause. Interrupteur dans le menu « ⋮ » de la page Terminaux.
+- **Côte à côte** (Ctrl+Maj+E) : deux sessions dans la même vue, séparation
+  réglable.
+- **Messages en attente** (Ctrl+Maj+M) : prépare la suite pendant que Claude
+  travaille ; chaque message part quand il a fini son tour, un par tour.
+- **Onglets rouverts** : au redémarrage de l'application, un bandeau propose de
+  rouvrir les sessions de la dernière fois (conversations reprises avec leurs
+  options et leurs messages en attente), ou c'est automatique si tu l'as
+  choisi dans le menu « ⋮ ».
 
 Le terminal intégré utilise VTE (`gir1.2-vte-3.91`, dépendance du paquet). S'il
 manque, tout s'ouvre dans un terminal externe comme avant et l'onglet Sessions
@@ -224,7 +229,7 @@ L'application affiche un bandeau quand un problème est détecté au démarrage.
 | **Alertes** | 80 % et 95 % (avec un bouton « Basculer sur … »), fin de session imminente, semaine épuisée dans 2 jours ou moins, bascule effectuée, tous comptes épuisés, compte réinitialisé, connexion expirée, session terminée ou en attente (avec un rappel après 10 min), pause terminée, nouvelle version. Une fois par seuil et par fenêtre. |
 | **Intégration Claude Code** | Ligne d'état dans chaque session, bascule automatique quand une session est bloquée. |
 | **Sessions** | Sessions ouvertes, consommation, reprise de conversations, nouvelle session (dossier, compte, modèle, permissions), terminal / dossier du projet. |
-| **Terminal intégré** | Sessions Claude Code dans des onglets de l'application : activité, reprise après arrêt ou après une limite, deux sessions côte à côte, onglets rouverts, copier/coller, liens, confirmation avant fermeture. |
+| **Terminal intégré** | Sessions Claude Code dans des onglets de l'application : activité, reprise après arrêt ou après une limite, deux sessions côte à côte, messages en attente, onglets rouverts au redémarrage, copier/coller, liens, confirmation avant fermeture. |
 | **Conversations** | Historique de toutes les conversations du PC, recherche, aperçu, export Markdown, coût, reprise dans l'application, VS Code ou un terminal externe, renommage, projets déplacés. |
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets. |
 | **Bilan de santé** | `ccs doctor` : service, versions, barre du haut, intégration, comptes, Claude Code, terminal ; une commande à copier par problème. |
@@ -373,6 +378,7 @@ problème trouvé.
 | Icône absente de la barre du haut | Extension « Ubuntu AppIndicators » (voir Installation), puis `claude-accounts tray &`. |
 | Pas de ligne d'état dans Claude Code | `ccs integrate status`, puis relance la session. |
 | Les sessions s'ouvrent dans un terminal externe | Terminal intégré indisponible : `sudo apt install gir1.2-vte-3.91`, puis rouvre l'application. |
+| Une session bloquée n'est pas relancée dans l'onglet | `ccs integrate on` (le hook est nécessaire), interrupteur « Reprise automatique après une limite » du menu « ⋮ » de la page Terminaux, pas de pause en cours ; une touche tapée dans l'onglet après la limite annule la reprise. |
 
 Journaux du service : `journalctl --user -u ccs-daemon -f`.
 

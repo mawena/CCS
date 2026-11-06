@@ -33,15 +33,27 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - `CCS_APP_ID` et `CCS_NO_VTE` documentés pour essayer une copie de
   développement.
 - **Suite du terminal intégré** :
-  - **reprise automatique après une limite** : quand une session d'un onglet
-    est bloquée, CCS bascule puis envoie « continue » dans l'onglet, une fois
-    par limite, dès que Claude attend une nouvelle demande ; garde anti-boucle
-    (au plus 3 reprises par heure et par onglet) ; interrupteur dans le menu de
-    la page Terminaux ;
-  - onglets rouverts au redémarrage de l'application (proposés par un bandeau,
-    ou automatiquement si activé) ;
-  - deux sessions côte à côte ;
-  - messages en attente envoyés quand Claude a fini son tour.
+  - **reprise automatique après une limite** (avec `ccs integrate`) : quand
+    une session d'un onglet est bloquée, le hook bascule et laisse un marqueur
+    (`~/.claude-accounts/limits/`), puis la page Terminaux envoie « continue »
+    une fois par limite, dès que Claude attend une nouvelle demande (jamais
+    pendant une demande de permission), avec un bandeau. Gardes : au plus
+    3 reprises par heure et par onglet, 2 min d'écart, rien si quelqu'un a
+    tapé dans l'onglet depuis la limite ou si elle a plus de 15 min.
+    Interrupteur « Reprise automatique après une limite » (activé par défaut)
+    dans le menu « ⋮ » de la page Terminaux ;
+  - **onglets rouverts** au redémarrage de l'application, avec leurs options
+    et leurs messages en attente : bandeau « Rouvrir les N sessions de la
+    dernière fois ? », ou réouverture directe avec l'interrupteur « Rouvrir
+    les onglets au démarrage » ; dossier disparu ou conversation déjà ouverte
+    sautés ; état dans `~/.claude-accounts/terminals.json` ;
+  - **côte à côte** (Ctrl+Maj+E) : deux onglets dans une vue partagée
+    redimensionnable, sans relancer les terminaux ;
+  - **messages en attente** (Ctrl+Maj+M) : file « Envoyer quand Claude sera
+    libre », modifiable et réordonnable, un message envoyé par tour quand
+    Claude a fini ;
+  - les options d'une nouvelle session (`--model`, `--permission-mode`) sont
+    gardées par l'onglet pour Reprendre et la réouverture.
 - **Mode pause** : bascule automatique et orchestrateur suspendus 1 h, 4 h,
   jusqu'à la prochaine plage horaire ou jusqu'à reprise manuelle ; levée
   automatique à l'échéance avec la notification « Pause terminée ». Pendant une

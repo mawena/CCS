@@ -4,7 +4,7 @@
             ┌──────────────── ~/.claude-accounts/ ─────────────────┐
             │ <profil>/oauth.json  account.json  usage.json        │
             │ history.db  settings.json  state.json  .lock         │
-            │ pause.json  updates.json                             │
+            │ pause.json  updates.json  terminals.json  limits/    │
             │ conversations-cache.json  conversations-moves.json   │
             └───────▲───────────────▲──────────────▲───────────────┘
                     │               │              │
@@ -38,11 +38,13 @@
 | `conversations` | Historique de `~/.claude/projects/*/*.jsonl` : index incrémental (cache), titres, recherche, groupes par date, reprise (VS Code, terminal), projets déplacés (`relocate`), renommage (`rename` : ligne `custom-title` ajoutée en O_APPEND) |
 | `launch_options` | Options d'une nouvelle session (`LaunchSpec` : dossier, compte, `--model`, `--permission-mode`), arguments de `claude`, commande à copier ; ne bascule jamais |
 | `sessions` | Sessions Claude Code ouvertes (`~/.claude/sessions`), consommation d'une conversation, titre lu en fin de journal, conversations et projets récents, transitions d'état, actions (terminal externe, dossier, terminer) |
-| `terminal` | Terminal intégré sans GTK (pur, testé) : commande et environnement de lancement (`Launch`), choix intégré / externe, état des onglets (`TabState`, `sync_tabs`), textes de fin et de confirmation |
-| `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état, hook `StopFailure` |
+| `terminal` | Terminal intégré sans GTK (pur, testé) : commande et environnement de lancement (`Launch`, `extra_args`), choix intégré / externe, état des onglets (`TabState`, `sync_tabs`), textes de fin et de confirmation, reprise après une limite (`resume_decision`), réouverture (`tab_record`, `restore_plan`), messages en attente (`queue_next`, `queue_*`) |
+| `terminal_store` | `terminals.json` : interrupteurs de la page Terminaux, onglets à rouvrir (écriture atomique, fichier illisible ignoré) |
+| `limit_events` | Marqueurs « limite atteinte » par conversation (`limits/<session_id>.json`) : écrits par le hook, lus puis consommés par le terminal intégré |
+| `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état (⏸ en pause), hook `StopFailure` (bascule, sauf en pause ; marqueur de limite) |
 | `desktop` | Boucle GLib du service : boutons des notifications (ActionInvoked), moniteur de `~/.claude/sessions` |
 | `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie |
-| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande) ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) |
+| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version ; se relance seul quand le code installé change |
 | `cli` | Point d'entrée `claude-accounts` |
 
@@ -65,24 +67,31 @@ l'application et l'indicateur l'appellent.
 ```
 
 - `ccs_app/terminal.py` ne dépend pas de GTK. `claude_launch(cwd, resume=None,
-  title=None)` et `shell_launch(cwd)` renvoient un `Launch` (`kind`, `cwd`,
-  `argv`, `env`, `title`, `session_id`, `envv()`). Les variables posées par une
+  title=None, environ=None, extra_args=())` et `shell_launch(cwd)` renvoient un
+  `Launch` (`kind`, `cwd`, `argv`, `env`, `title`, `session_id`, `extra_args`,
+  `envv()`) ; les arguments supplémentaires (`--model`, `--permission-mode`)
+  suivent `claude` (et `--resume <id>`), échappés dans `bash -lc "exec …"`, et
+  l'onglet les garde pour Reprendre et la réouverture. Les variables posées par une
   session Claude Code parente (`CLAUDECODE`, `CLAUDE_CODE_SSE_PORT`…) sont
   retirées par `env -u`, VTE ne sachant qu'en ajouter.
 - `ccs_app/gui/terminals.py` : `vte()` importe VTE 3.91 à la première demande
   (None s'il manque ou si `CCS_NO_VTE=1`). `TerminalsPage` (page « terminals »
   du `ViewStack`, cachée sans onglet) gère un `Adw.TabView` de `TerminalTab`.
+  Chaque onglet garde son contenu (bandeau, terminal, file de messages, barre
+  de fin) dans `tab.panel`, que la vue côte à côte emprunte.
 
 API pour les autres fonctions de l'application (`window.terminals`) :
 
 | Appel | Effet |
 |---|---|
 | `available` | VTE est là (sinon tout passe par le terminal externe) |
-| `open_claude(cwd, resume=None, title=None)` → `TerminalTab` | Nouvel onglet affiché et lancé ; `open_shell(cwd)`, `open(launch)` pour un `Launch` |
+| `open_claude(cwd, resume=None, title=None, extra_args=())` → `TerminalTab` | Nouvel onglet affiché et lancé ; `open_shell(cwd)`, `open(launch, present=True)` pour un `Launch` |
 | `find(pid=None, session_id=None)` → `TerminalTab` ou None | Onglet d'un processus ou d'une conversation (arrêté compris) |
 | `present(tab)` | Affiche la page et l'onglet, focus clavier dans le terminal |
 | `close(tab)` | Ferme l'onglet (confirmation si claude ou un programme tourne) |
-| `tabs()`, `states()` | Onglets ouverts, leurs `TabState` (`kind`, `cwd`, `title`, `session_id`, `pid`, `running`, `state`, `exit_status`) |
+| `tabs()`, `states()` | Onglets ouverts, leurs `TabState` (`kind`, `cwd`, `title`, `session_id`, `pid`, `running`, `state`, `exit_status`, `extra_args`, `waiting_for`, `queue`…) |
+| `split_with(tab)`, `unsplit(keep=None)`, `toggle_split()` | Vue côte à côte (avec l'onglet affiché ou son voisin) / retour aux onglets |
+| `tab.toggle_queue(show=None)`, `send_queue(tab)` | Panneau des messages en attente ; envoi du premier message si claude est libre |
 | `tab.send_text(text, enter=False)` | Écrit dans le terminal comme au clavier (`\r` pour Entrée) ; False si arrêté |
 | `tab.set_title(title)`, `tab.relaunch()`, `tab.hang_up()` | Titre de l'onglet ; relance après arrêt ; SIGHUP au processus et au programme au premier plan |
 | signal `tab-started` (tab) | Processus lancé (aussi à chaque relance) |
@@ -94,6 +103,79 @@ API pour les autres fonctions de l'application (`window.terminals`) :
 terminal externe et renvoient « integre » ou « externe » ;
 `Window.rename_conversation(session_id, cwd=None, path=None, current="")` ouvre
 le dialogue de renommage.
+
+### Reprise après une limite
+
+```
+ claude (onglet) ─ limite ─► hook StopFailure (integration.stop_failure)
+                               limit_events.record(session_id, ts, from, to, switched, outcome)
+                               ~/.claude-accounts/limits/<session_id>.json (600, dossier 700)
+ TerminalsPage, toutes les 3 s : limit_events.load_all() → terminal.resume_decision(tab, event, now)
+     « resume » → tab.send_auto("continue") + Entrée, bandeau ; « drop » → bandeau éventuel ;
+     « wait » → marqueur gardé (et file de messages bloquée) ; puis limit_events.consume()
+```
+
+- `outcome` : `pending` (le hook décide encore), `switched`, `already` (compte
+  déjà changé par une autre session ou le service), `failed` (`ccs use` en
+  échec), `exhausted` (aucun autre compte), `paused` (CCS en pause : ni bascule
+  ni reprise). Le hook écrit `pending` d'abord, puis le résultat ; un marqueur
+  impossible à écrire ne fait jamais échouer le hook ; les marqueurs de plus
+  de 24 h sont retirés.
+- `resume_decision` (pure) : un marqueur ne concerne que l'onglet de la même
+  conversation ; il est abandonné si l'onglet est arrêté, si la limite a plus
+  de 15 min ou précède le lancement de l'onglet, si quelqu'un a tapé dans
+  l'onglet depuis (`typed_at`), si l'interrupteur est coupé ; il attend tant
+  que claude n'est pas libre (`free_for_input` : repos, ou attente d'une
+  saisie, jamais une demande de permission) ; au plus 3 reprises par heure et
+  par onglet (`resumes`), espacées de 2 min. Un événement n'est traité qu'une
+  fois (`limits_done`, clé `(session_id, ts)`).
+
+### Messages en attente
+
+`TabState.queue` (messages d'une ligne) ; `queue_add`, `queue_edit`,
+`queue_remove`, `queue_move` (purs). `terminal.queue_next(tab, now, blocked)`
+renvoie le message à envoyer ou la raison d'attendre : un message par tour
+(tour commencé après le dernier envoi, ou message ajouté pendant que claude
+était libre), après 2 s de repos ; jamais pendant un tour (`busy`), une
+demande de permission, une limite non reprise (`limit_at`, ou marqueur en
+attente), ni si une touche a été tapée depuis le début du dernier tour. Si un
+envoi ne semble lancer aucun tour (tour plus court que le relevé de 3 s), le
+message suivant attend 30 s. `TerminalsPage` l'appelle à chaque relevé et à
+chaque changement de file.
+
+### Onglets rouverts et options
+
+`terminal_store` gère `~/.claude-accounts/terminals.json` (600, écriture
+atomique ; fichier illisible ou d'un autre format ignoré puis remplacé, entrée
+d'onglet inattendue sautée) :
+
+```json
+{"version": 1,
+ "options": {"auto_resume": true, "reopen_at_start": false},
+ "saved_at": 1793000000.0, "selected": 0,
+ "tabs": [{"kind": "claude", "cwd": "/home/u/Work/App", "title": "Export CSV",
+           "session_id": "0f3c…", "extra_args": ["--model", "opus"],
+           "queue": ["lance les tests"]}]}
+```
+
+- Enregistrement 1 s après chaque changement (onglet ouvert, fermé, déplacé,
+  file modifiée) et à la fermeture de la fenêtre : `terminal.tab_record`.
+- Au lancement (`TerminalsPage.startup`), `terminal.restore_plan` écarte les
+  dossiers disparus, les conversations ouvertes dans une session Claude Code
+  (`conversations.open_ids`) ou déjà dans un onglet, les doublons ; une
+  conversation jamais écrite repart en nouvelle session. Avec
+  `reopen_at_start`, réouverture directe ; sinon bandeau et toast « Rouvrir »,
+  et tant qu'on n'a pas répondu, `merge_records` garde la liste de la dernière
+  fois en plus des nouveaux onglets. `restore_summary` donne le message final.
+
+### Côte à côte
+
+`gui/terminal_split.SplitView` : un `Gtk.Paned` dont chaque moitié (`Half`)
+emprunte le `tab.panel` de son onglet (un widget GTK n'a qu'un parent) et le
+rend au retour à la vue par onglets ; processus et `Vte.Terminal` ne sont
+jamais recréés. La page bascule entre `tabs`, `split` et `empty` (page de la
+proposition de réouverture) dans un `Gtk.Stack`. Raccourcis de la page :
+Ctrl+Maj+E (côte à côte / retour), Ctrl+Maj+M (messages en attente).
 
 ## Pause
 
@@ -117,8 +199,11 @@ le dialogue de renommage.
   impossible à lever (fichier non supprimable) ne compte plus et n'interrompt
   jamais le relevé.
 - Bascules manuelles, alertes et warm-up programmés ne regardent pas la pause.
-  Le hook `StopFailure` et la reprise automatique du terminal intégré la
-  respectent aussi (en cours de branchement, voir plus bas).
+- Le hook `StopFailure` relit la pause (une pause illisible ne le fait jamais
+  échouer) : pas de bascule, marqueur `paused`, une seule notification « CCS
+  est en pause jusqu'à HH:MM : pas de bascule automatique. » pour des sessions
+  bloquées en même temps. La ligne d'état ajoute « ⏸ » devant son texte quand
+  `state.json` contient une pause.
 
 ## Nouvelles versions
 
@@ -194,20 +279,6 @@ construit l'affichage par paquets de 150 pour ne pas figer la fenêtre.
   `needs_switch` → onglet du terminal intégré avec `spec.args()` ;
   notifications de session cliquables (ouverture de l'onglet) ; badge du
   nombre de sessions en attente sur l'onglet Sessions.
-- **Pause partout** : le hook `StopFailure` ne bascule pas pendant une pause
-  (notification « CCS est en pause jusqu'à HH:MM : pas de bascule
-  automatique ») ; la ligne d'état affiche ⏸.
-- **Suite du terminal intégré** : le hook `StopFailure` écrit un marqueur par
-  conversation, `~/.claude-accounts/limits/<session_id>.json` (en cours,
-  bascule faite, compte déjà changé, bascule impossible, aucun compte ;
-  retirés après 24 h) ; `terminal.resume_decision` (pure) décide d'envoyer
-  « continue » dans l'onglet (une fois par marqueur, au plus 3 par heure et
-  par onglet, 2 min d'écart, jamais si l'utilisateur a écrit depuis) ;
-  interrupteur gardé dans `~/.claude-accounts/terminals.json`.
-  `claude_launch(..., extra_args=())` garde les options de lancement
-  (`Launch.extra_args`, `TabState.extra_args`) pour les relances. Onglets
-  rouverts au redémarrage, sessions côte à côte et messages en attente :
-  à compléter.
 
 ## Règles de sécurité des jetons
 

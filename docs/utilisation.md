@@ -348,18 +348,23 @@ l'onglet Sessions indique `sudo apt install gir1.2-vte-3.91`.
 - **Lancement** : `claude --resume <id>` (ou `claude`) dans le dossier du
   projet, par un bash de connexion comme le terminal externe (ton profil est
   lu), avec `TERM=xterm-256color` et `COLORTERM=truecolor` ; `~/.local/bin`
-  est ajouté au `PATH` si besoin. « Terminal ici » ouvre ton shell (`$SHELL`).
+  est ajouté au `PATH` si besoin. Les options choisies dans « Nouvelle
+  session… » (`--model`, `--permission-mode`) sont gardées par l'onglet et
+  réutilisées par Reprendre et à la réouverture. « Terminal ici » ouvre ton
+  shell (`$SHELL`).
 - **Onglets** : titre de la conversation (celui que tu lui as donné, sinon le
   titre automatique), sablier quand Claude **travaille**, point
   d'interrogation quand il **attend ta réponse**, carré quand il est arrêté ;
   un onglet en arrière-plan qui a fini de travailler est signalé. Clic droit
   sur un onglet ou bouton « ⋮ » : renommer la conversation, ouvrir le dossier,
-  fermer.
+  côte à côte, messages en attente, fermer ; le bouton « ⋮ » porte aussi les
+  interrupteurs de la page.
 - **Clavier et souris** : Ctrl+Maj+C / Ctrl+Maj+V copient et collent (aussi au
   clic droit), Ctrl+Maj+A sélectionne tout, Ctrl+clic ouvre un lien,
-  Ctrl+plus / Ctrl+moins / Ctrl+0 changent la taille du texte. 100 000 lignes
-  de défilement arrière. Police à chasse fixe du bureau, couleurs qui suivent
-  le thème clair ou sombre.
+  Ctrl+plus / Ctrl+moins / Ctrl+0 changent la taille du texte, Ctrl+Maj+E met
+  deux sessions côte à côte, Ctrl+Maj+M ouvre les messages en attente.
+  100 000 lignes de défilement arrière. Police à chasse fixe du bureau,
+  couleurs qui suivent le thème clair ou sombre.
 - **Fin de Claude** : un bandeau l'indique, avec **Reprendre** (relance
   `claude --resume` de la même conversation) et **Fermer**.
 - **Fermeture** : fermer un onglet où Claude tourne, ou la fenêtre avec des
@@ -367,26 +372,76 @@ l'onglet Sessions indique `sudo apt install gir1.2-vte-3.91`.
   tu pourras la reprendre. »). La session reçoit alors le signal de fermeture
   d'un terminal (SIGHUP) et s'arrête proprement. Un shell n'est confirmé que si
   un programme y tourne au premier plan.
-- **Reprise automatique après une limite** : quand la session d'un onglet est
-  bloquée par la limite, le hook de CCS bascule sur le meilleur autre compte
-  (voir [Intégration](#intégration-dans-claude-code)) ; la page Terminaux tape
-  alors « continue » puis Entrée dans l'onglet, **une seule fois par limite**,
-  dès que Claude attend une nouvelle demande (jamais pendant une demande de
-  permission), et l'indique par un bandeau « Limite atteinte sur X : bascule
-  sur Y, conversation relancée ». Garde anti-boucle : au plus 3 reprises par
-  heure et par onglet, espacées d'au moins 2 min ; rien n'est envoyé si tu as
-  écrit dans l'onglet depuis la limite ou si la limite date de plus de 15 min.
-  Bascule impossible ou aucun compte disponible : un bandeau l'explique, rien
-  n'est envoyé. Pendant une [pause](#pause), rien n'est relancé.
-  Interrupteur **Reprise automatique après une limite** (activé par défaut) dans
-  le menu « ⋮ » de la page Terminaux.
-- **Onglets rouverts** : au redémarrage de l'application, les onglets qui
-  étaient ouverts sont proposés par un bandeau, ou rouverts d'eux-mêmes si tu
-  l'as activé ; chaque conversation reprend avec `claude --resume`.
-- **Côte à côte** : deux sessions s'affichent l'une à côté de l'autre, pour
-  suivre deux conversations à la fois.
-- **Messages en attente** : un message préparé pendant que Claude travaille est
-  envoyé dans l'onglet quand Claude a fini son tour.
+
+### Reprise automatique après une limite
+
+Quand la session d'un onglet est bloquée par la limite, le hook de CCS bascule
+sur le meilleur autre compte (voir [Intégration](#intégration-dans-claude-code))
+et laisse un marqueur pour cette conversation. La page Terminaux tape alors
+« continue » puis Entrée dans l'onglet, **une seule fois par limite**, dès que
+Claude attend une nouvelle demande, et l'indique par un bandeau « Limite
+atteinte sur X : bascule sur Y, conversation relancée. ».
+
+Garde-fous :
+
+- jamais pendant une demande de permission (Entrée y validerait un choix) :
+  seulement quand Claude est au repos ou attend une saisie libre ;
+- au plus 3 reprises par heure et par onglet, espacées d'au moins 2 min ;
+- rien n'est envoyé si quelqu'un a tapé dans l'onglet depuis la limite (toute
+  touche compte), si la limite date de plus de 15 min ou d'avant le lancement
+  de l'onglet ;
+- bascule impossible, aucun compte disponible ou CCS en [pause](#pause) : un
+  bandeau l'explique, rien n'est envoyé.
+
+Interrupteur **Reprise automatique après une limite** (activé par défaut) dans
+le menu « ⋮ » de la page Terminaux ; désactivé, le bandeau te dit seulement de
+taper « continue ». Il faut `ccs integrate on` : sans le hook, aucun marqueur
+n'est écrit et rien n'est relancé. Les marqueurs
+(`~/.claude-accounts/limits/<conversation>.json`) sont retirés une fois lus, ou
+au bout de 24 h.
+
+### Côte à côte
+
+**Ctrl+Maj+E**, ou « Côte à côte » dans le menu d'un onglet ou le menu « ⋮ » :
+l'onglet s'affiche à côté de celui qui est affiché (ou de son voisin), avec une
+séparation que tu peux déplacer. Les terminaux ne sont pas relancés : ce sont
+les mêmes sessions. La moitié active est bordée de la couleur d'accent ; chaque
+moitié a ses boutons « Afficher seul » et « Fermer l'onglet ». Ctrl+Maj+E de
+nouveau (ou « Revenir aux onglets »), choisir un troisième onglet ou fermer
+une moitié ramène à la vue par onglets.
+
+### Messages en attente
+
+**Ctrl+Maj+M**, ou « Messages en attente… » dans le menu d'un onglet : le
+panneau « Envoyer quand Claude sera libre » s'ouvre sous le terminal. Tape la
+suite pendant que Claude travaille : la file se modifie (clic sur un message),
+se réordonne, se vide message par message, et « Envoyer maintenant » force
+l'envoi d'un message. Replié, le panneau laisse un bandeau « N messages en
+attente — raison ».
+
+Un message part **par tour** : quand Claude a fini de travailler, ou tout de
+suite s'il est déjà libre. Jamais pendant un tour, une demande de permission
+ou une limite pas encore reprise, ni si quelqu'un a tapé dans l'onglet depuis
+le début du dernier tour (le texte se mélangerait). Un message tient sur une
+ligne. La file est gardée avec les onglets. Un tour très court (moins de 3 s)
+peut retarder le message suivant jusqu'à 30 s.
+
+### Onglets rouverts au redémarrage
+
+Les onglets ouverts sont enregistrés (une seconde après chaque changement et à
+la fermeture) dans `~/.claude-accounts/terminals.json`, avec leurs options de
+lancement et leurs messages en attente. Au lancement suivant, un bandeau en
+haut de la page Terminaux demande « Rouvrir les N sessions de la dernière
+fois ? » (**Rouvrir** / **Ignorer**), et un message avec un bouton « Rouvrir »
+s'affiche dans la fenêtre. Sans réponse, la liste reste enregistrée pour la
+fois suivante.
+
+Interrupteur **Rouvrir les onglets au démarrage** (désactivé par défaut) dans
+le menu « ⋮ » de la page Terminaux : les onglets sont rouverts sans question.
+Chaque conversation reprend avec `claude --resume` et ses options (`--model`,
+`--permission-mode`) ; un shell rouvre dans son dossier de départ. Ne sont pas
+rouverts : un dossier disparu, une conversation ouverte ailleurs ou déjà dans un
+onglet ; un message récapitule ce qui l'a été.
 
 Pour essayer une copie de développement sans réveiller l'application ouverte :
 `CCS_APP_ID=io.ccs.ClaudeAccounts.Dev bin/claude-accounts gui` ; `CCS_NO_VTE=1`
@@ -406,10 +461,11 @@ fois, écriture atomique ; une `statusLine` existante est conservée.
   rafraîchit l'usage si besoin, choisit le meilleur autre compte (données
   fraîches, sans erreur, sous 95 %), bascule et notifie « Limite atteinte dans
   X : basculé sur Y ». Tape « continue » dans la session (dans le terminal
-  intégré, la [reprise automatique](#terminal-intégré) peut le faire).
+  intégré, la [reprise automatique](#reprise-automatique-après-une-limite)
+  peut le faire : le hook laisse pour cela un marqueur par conversation).
 - **En pause**, la ligne d'état commence par ⏸ et le hook ne bascule pas : la
   notification indique « CCS est en pause jusqu'à HH:MM : pas de bascule
-  automatique ».
+  automatique. » (une seule pour plusieurs sessions bloquées en même temps).
 
 `ccs integrate off` retire uniquement les entrées de CCS.
 
