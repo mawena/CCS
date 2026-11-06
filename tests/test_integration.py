@@ -222,3 +222,178 @@ class ReviewHookTest(HookBase):
         with mock.patch.object(core, "run_ccs", return_value=ok) as run:
             integration.stop_failure(["bizarre"], notifier=self.sent.append)
         run.assert_called_once()   # le matcher rate_limit filtre déjà : champ absent = blocage
+
+
+class LimitMarkerTest(HookBase):
+    """Le hook laisse un marqueur par conversation pour la reprise automatique du terminal
+    intégré, sans rien changer à ce qu'il décide ni à ce qu'il notifie."""
+
+    SID = "5b1d0c3e-aaaa-4bbb-8ccc-0123456789ab"
+
+    def event(self):
+        from ccs_app import limit_events
+        return limit_events.load_all().get(self.SID)
+
+    def payload(self, **kw):
+        return {"error": "rate_limit", "cwd": "/w/GiGit", "session_id": self.SID, **kw}
+
+    def test_switch_is_recorded(self):
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok):
+            msg = integration.stop_failure(self.payload(), notifier=self.sent.append)
+        self.assertEqual(msg, "basculé sur boulot")
+        e = self.event()
+        self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", "boulot", True, "switched"))
+        self.assertAlmostEqual(e.ts, time.time(), delta=60)
+
+    def test_failed_switch_is_recorded_as_not_switched(self):
+        ko = subprocess.CompletedProcess([], 1, "", "ccs: erreur")
+        with mock.patch.object(core, "run_ccs", return_value=ko):
+            self.assertEqual(integration.stop_failure(self.payload(), notifier=self.sent.append),
+                             "bascule impossible")
+        e = self.event()
+        self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", "boulot", False, "failed"))
+
+    def test_no_other_account_is_recorded(self):
+        st = json.loads((self.store / "state.json").read_text())
+        st["accounts"] = st["accounts"][:1]   # plus d'autre compte connu
+        write(self.store / "state.json", st)
+        with mock.patch.object(core, "run_ccs") as run:
+            integration.stop_failure(self.payload(), notifier=self.sent.append)
+        run.assert_not_called()
+        e = self.event()
+        self.assertEqual((e.target, e.switched, e.outcome), (None, False, "exhausted"))
+
+    def test_second_blocked_session_is_recorded_as_already_switched(self):
+        other = "6c2e1d4f-bbbb-4ccc-8ddd-0123456789ab"
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok) as run:
+            integration.stop_failure(self.payload(session_id=other), notifier=self.sent.append)
+            self.assertEqual(integration.stop_failure(self.payload(), notifier=self.sent.append),
+                             "déjà basculé")
+        self.assertEqual(run.call_count, 1)
+        e = self.event()
+        self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", "boulot", True, "already"))
+
+    def test_active_account_changed_during_refresh_is_recorded_as_already_switched(self):
+        def refresh():
+            write(self.home / ".claude.json",
+                  {"oauthAccount": json.loads((self.store / "pro" / "account.json").read_text())})
+            return json.loads((self.store / "state.json").read_text())
+        with mock.patch.object(integration, "_fresh_state", side_effect=refresh), \
+                mock.patch.object(core, "run_ccs"):
+            integration.stop_failure(self.payload(), notifier=self.sent.append)
+        e = self.event()
+        self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", "pro", True, "already"))
+
+    def test_pending_marker_written_before_the_decision(self):
+        seen = []
+
+        def refresh():
+            seen.append(self.event())
+            return json.loads((self.store / "state.json").read_text())
+        with mock.patch.object(integration, "_fresh_state", side_effect=refresh), \
+                mock.patch.object(core, "run_ccs", return_value=subprocess.CompletedProcess([], 0, "", "")):
+            integration.stop_failure(self.payload(), notifier=self.sent.append)
+        self.assertEqual((seen[0].outcome, seen[0].switched), ("pending", False))
+        self.assertEqual(self.event().outcome, "switched")
+
+    def test_nothing_recorded_without_usable_session_or_for_other_errors(self):
+        from ccs_app import limit_events
+        ok = subprocess.CompletedProcess([], 0, "", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok):
+            integration.stop_failure({"error": "overloaded", "session_id": self.SID}, notifier=self.sent.append)
+            integration.stop_failure(self.payload(session_id="../../etc"), notifier=self.sent.append)
+            integration.stop_failure({"error": "rate_limit", "cwd": "/w"}, notifier=self.sent.append)
+        self.assertEqual(limit_events.load_all(), {})
+
+    def test_marker_failure_never_breaks_the_hook(self):
+        write(self.store / "limits", "un fichier à la place du dossier")
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok):
+            self.assertEqual(integration.stop_failure(self.payload(), notifier=self.sent.append),
+                             "basculé sur boulot")
+        self.assertIn("continue", self.sent[0].body)
+
+
+class PauseHookTest(HookBase):
+    """Pendant une pause, le hook ne bascule pas (ni la reprise automatique du terminal)."""
+
+    SID = LimitMarkerTest.SID
+
+    def payload(self):
+        return {"error": "rate_limit", "cwd": "/w/GiGit", "session_id": self.SID}
+
+    def event(self):
+        from ccs_app import limit_events
+        return limit_events.load_all().get(self.SID)
+
+    def test_active_pause_blocks_the_switch_and_says_so(self):
+        from ccs_app import pause
+        now = datetime.now(timezone.utc)
+        until = now + timedelta(hours=1)
+        pause.set_pause(until, now=now)
+        with mock.patch.object(core, "run_ccs") as run, \
+                mock.patch.object(integration, "_fresh_state") as fresh:
+            msg = integration.stop_failure(self.payload(), notifier=self.sent.append)
+        run.assert_not_called()
+        fresh.assert_not_called()
+        self.assertEqual(msg, "en pause")
+        self.assertEqual(len(self.sent), 1)
+        self.assertIn("GiGit", self.sent[0].title)
+        self.assertEqual(self.sent[0].body, f"CCS est en pause jusqu'à {until.astimezone():%H:%M} : "
+                                            "pas de bascule automatique.")
+        e = self.event()
+        self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", None, False, "paused"))
+
+    def test_pause_until_manual_resume(self):
+        from ccs_app import pause
+        pause.set_pause(None)
+        with mock.patch.object(core, "run_ccs") as run:
+            self.assertEqual(integration.stop_failure(self.payload(), notifier=self.sent.append), "en pause")
+        run.assert_not_called()
+        self.assertEqual(self.sent[0].body,
+                         "CCS est en pause jusqu'à reprise manuelle : pas de bascule automatique.")
+
+    def test_several_blocked_sessions_during_a_pause_notify_once(self):
+        from ccs_app import pause
+        pause.set_pause(None)
+        with mock.patch.object(core, "run_ccs"):
+            integration.stop_failure(self.payload(), notifier=self.sent.append)
+            integration.stop_failure(dict(self.payload(), cwd="/w/B"), notifier=self.sent.append)
+        self.assertEqual(len(self.sent), 1)
+
+    def test_expired_pause_switches_as_usual(self):
+        from ccs_app import pause
+        now = datetime.now(timezone.utc)
+        pause.set_pause(now - timedelta(minutes=1), now=now - timedelta(hours=1))
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok) as run:
+            self.assertEqual(integration.stop_failure(self.payload(), notifier=self.sent.append),
+                             "basculé sur boulot")
+        run.assert_called_once_with(["use", "boulot"])
+        self.assertEqual(self.event().outcome, "switched")
+
+    def test_unreadable_pause_never_breaks_the_hook(self):
+        from ccs_app import pause
+        write(self.store / "pause.json", "{pas du json")
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok):
+            self.assertEqual(integration.stop_failure(self.payload(), notifier=self.sent.append),
+                             "basculé sur boulot")
+        with mock.patch.object(pause, "pause_state", side_effect=OSError("illisible")), \
+                mock.patch.object(core, "run_ccs", return_value=ok), \
+                mock.patch.object(integration.Store, "events", return_value=[]):
+            self.assertEqual(integration.stop_failure(self.payload(), notifier=self.sent.append),
+                             "basculé sur boulot")
+
+
+class StatuslinePauseTest(HomeTestCase):
+    def test_pause_symbol(self):
+        st = dict(STATE, pause={"since": "…", "until": None, "label": "jusqu'à reprise manuelle"})
+        self.assertTrue(integration.statusline_text(st, NOW).startswith("⏸ "))
+        self.assertIn("perso 85 %", integration.statusline_text(st, NOW))
+        self.assertNotIn("⏸", integration.statusline_text(dict(STATE, pause=None), NOW))
+        self.assertNotIn("⏸", integration.statusline_text(STATE, NOW))
+        self.assertEqual(integration.statusline_text({"pause": {"until": None}}, NOW),
+                         "⏸ CCS : pas encore de données")
