@@ -15,7 +15,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from . import autoswitch, core, daemon, notify
+from . import autoswitch, core, daemon, limit_events, notify, pause
 from .alerts import Alert
 from .settings import load_settings
 from .store import Store
@@ -153,6 +153,12 @@ def _hm(iso):
 
 
 def statusline_text(state, now):
+    """Ligne d'état ; « ⏸ » en tête pendant une pause de CCS."""
+    text = _statusline(state, now)
+    return f"⏸ {text}" if (state or {}).get("pause") else text
+
+
+def _statusline(state, now):
     active = (state or {}).get("active")
     acc = next((a for a in (state or {}).get("accounts") or [] if a.get("name") == active), None)
     if not acc or not acc.get("limits"):
@@ -209,13 +215,31 @@ def _hook_lock():
     return f
 
 
+def _paused(now):
+    """Pause de CCS en cours, ou None (une pause illisible ne fait jamais échouer le hook)."""
+    try:
+        return pause.pause_state(now)
+    except (OSError, ValueError, TypeError, OverflowError):
+        return None
+
+
 def stop_failure(payload, notifier=notify.send):
     """Hook StopFailure (matcher rate_limit) : une seule bascule même si plusieurs
-    sessions sont bloquées en même temps, aucune si le compte vient de changer."""
+    sessions sont bloquées en même temps, aucune si le compte vient de changer ni
+    pendant une pause de CCS.
+
+    Laisse aussi un marqueur par conversation (`limit_events`) : le terminal intégré s'en
+    sert pour relancer la conversation bloquée d'un de ses onglets."""
     if not isinstance(payload, dict):
         payload = {}
     if payload.get("error", "rate_limit") != "rate_limit":
         return "ignoré : pas une limite d'usage"
+    session_id = payload.get("session_id")
+
+    def mark(outcome, source=None, target=None, switched=False):
+        limit_events.record(session_id, time.time(), source, target, switched, outcome)
+
+    mark("pending")
     cwd = str(payload.get("cwd") or "")
     project = os.path.basename(cwd.rstrip("/")) or "une session"
     title = f"Limite atteinte dans {project}"
@@ -223,9 +247,20 @@ def stop_failure(payload, notifier=notify.send):
         now = datetime.now(timezone.utc)
         store = Store()
         before = core.active_profile_name()
+        paused = _paused(now)
+        if paused is not None:
+            # Pause : ni bascule ni reprise automatique ; une notification pour toutes les
+            # sessions bloquées en même temps.
+            mark("paused", before)
+            if not store.events(now.timestamp() - RECENT_SWITCH_S, type="alert", profile="blocage"):
+                store.add_event(now.timestamp(), "alert", "blocage", {"key": "pause"})
+                notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
+                               f"CCS est en pause {pause.label(paused, now)} : pas de bascule automatique.", 2))
+            return "en pause"
         recent = [e for e in store.events(now.timestamp() - RECENT_SWITCH_S, type="switch")]
         if recent:
             # Une autre session bloquée (ou le service) vient de basculer : on ne rebascule pas.
+            mark("already", recent[-1].detail.get("from"), recent[-1].profile, True)
             if not store.events(now.timestamp() - RECENT_SWITCH_S, type="alert", profile="blocage"):
                 store.add_event(now.timestamp(), "alert", "blocage", {"key": "deja"})
                 notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
@@ -236,6 +271,7 @@ def stop_failure(payload, notifier=notify.send):
         now = datetime.now(timezone.utc)
         after = core.active_profile_name()
         if after != before:
+            mark("already", before, after, True)
             notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                            f"Compte déjà changé pour {after}. Tape « continue » dans la session pour reprendre.", 2))
             return "déjà basculé"
@@ -245,13 +281,16 @@ def stop_failure(payload, notifier=notify.send):
         store.add_event(now.timestamp(), "alert", "blocage", {"key": f"blocage:{now.timestamp():.0f}"})
         if decision.action == "switch":
             if autoswitch.execute(decision, store, now, mode="blocage"):
+                mark("switched", after, decision.target, True)
                 notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                                f"Basculé sur {decision.target}. Tape « continue » dans la session pour reprendre.", 2))
                 return f"basculé sur {decision.target}"
+            mark("failed", after, decision.target)
             notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                            f"Bascule vers {decision.target} impossible : ouvre « Comptes Claude » "
                            "pour voir l'erreur.", 2))
             return "bascule impossible"
+        mark("exhausted", after)
         notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                        f"Aucun autre compte disponible — {decision.reason}.", 2))
         return decision.reason
