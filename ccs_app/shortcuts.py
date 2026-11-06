@@ -17,7 +17,7 @@ d'un raccourci sont posées avant son ajout à la liste et effacées après son
 retrait. Toutes les lectures et écritures passent par un « moteur » : `GioBackend`
 (vrais réglages, Gio.Settings) ou `MemoryBackend` (tests, essais).
 
-API : ACTIONS, action(), parse_binding(), normalize(), label(), same(),
+API : ACTIONS, action(), parse_binding(), normalize(), label(), same(), is_modifier_key(),
 supported(), status(), install(), remove(), remove_all(), set_binding(),
 update_commands(), conflicts(), format_text(), command() (`ccs raccourcis`).
 """
@@ -278,6 +278,12 @@ def _loose(text):
         return _parse(text, strict=False)
     except ShortcutError:
         return None
+
+
+def is_modifier_key(name):
+    """Touche de modification seule (Shift_L, Super_R, ISO_Level3_Shift…) : la capture
+    d'un raccourci attend la touche suivante."""
+    return bool(name) and name.lower() in _MODIFIER_KEYS
 
 
 def normalize(text):

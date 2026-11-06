@@ -135,6 +135,12 @@ class ParseTest(unittest.TestCase):
         self.assertFalse(sc.same("", ""))
         self.assertFalse(sc.same("Print", "Print!"))
 
+    def test_is_modifier_key(self):
+        for name in ("Shift_L", "super_r", "ISO_Level3_Shift", "Control_L", "Alt_R"):
+            self.assertTrue(sc.is_modifier_key(name), name)
+        for name in ("c", "space", "", None, "Super"):
+            self.assertFalse(sc.is_modifier_key(name), name)
+
     def test_same_accepts_bindings_without_modifier(self):
         """Les raccourcis du bureau peuvent être une touche seule (Print) : ils se comparent."""
         self.assertTrue(sc.same("Print", "Print"))
