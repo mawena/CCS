@@ -104,7 +104,7 @@ Terminal intégré, suite :
 - [x] Messages en attente envoyés quand la session est libre
 
 Documentation et release :
-- [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
 - [ ] Release 0.5.0 (genre choisi par Charles), `main`, `develop` et le tag poussés
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
