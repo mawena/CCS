@@ -122,8 +122,8 @@ Conseils :
 - [ ] Bilan de la semaine
 
 Journal et projets :
-- [ ] Journal lisible des bascules dans l'application
-- [ ] Compte par projet
+- [x] Journal lisible des bascules dans l'application
+- [x] Compte par projet
 
 Bureau :
 - [ ] Raccourcis clavier globaux
