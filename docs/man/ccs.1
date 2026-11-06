@@ -49,8 +49,9 @@ comptes en avance sur leur semaine.
 .B ccs pause \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBmanuel\fR|\fBoff\fR|\fBstatus\fR]
 Suspend la bascule automatique et l'orchestrateur pendant 1 h, 4 h, jusqu'au
 début de la prochaine plage horaire (\fBdemain\fR) ou jusqu'à reprise
-(\fBmanuel\fR) ; \fBoff\fR reprend aussitôt, \fBstatus\fR (défaut) affiche
-l'état. Pendant une pause, CCS ne change plus de compte tout seul, même quand
+(\fBmanuel\fR) ; \fBoff\fR (ou \fBreprendre\fR) reprend aussitôt,
+\fBstatus\fR (défaut) affiche l'état. \fBdemain\fR suit la plage horaire de
+l'orchestrateur. Pendant une pause, CCS ne change plus de compte tout seul, même quand
 une session est bloquée par la limite ; les bascules manuelles, les alertes et
 les warm-up continuent. La pause se lève seule à l'échéance.
 .TP
@@ -75,10 +76,13 @@ Affiche une conversation en Markdown sur la sortie standard, sans la reprendre :
 demandes, réponses, outils utilisés en une ligne. L'en-tête donne le coût :
 tokens consommés (sous-agents compris) et équivalent au tarif de l'API
 Anthropic, à titre de comparaison (un abonnement ne facture pas au token).
-Alias : \fBccs apercu\fR.
+L'identifiant s'écrit comme pour \fBccs resume\fR. Alias : \fBccs apercu\fR.
 .TP
-.B ccs export \fIid\fR [\fIfichier.md\fR]
-Enregistre la conversation en Markdown.
+.B ccs export \fIid\fR [\fIfichier.md\fR|\fIdossier\fR]
+Enregistre la conversation en Markdown, coût compris, puis affiche le chemin
+absolu du fichier écrit. Sans argument, \fI<titre>.md\fR (titre simplifié)
+dans le dossier courant ; un dossier reçoit ce même nom ; un fichier existant
+est remplacé. Alias : \fBccs exporter\fR.
 .TP
 .B ccs integrate on\fR|\fBoff\fR|\fBstatus
 Ligne d'état dans Claude Code et bascule automatique quand une session atteint
@@ -94,7 +98,7 @@ Active ou désactive la bascule automatique (seuil par défaut : 98 %).
 Consommation locale par projet, modèle, heure et compte, avec conseils.
 .TP
 .B ccs doctor
-Bilan de santé : service et relevés, version installée et version qui tourne,
+Bilan de santé (alias \fBccs bilan\fR) : service et relevés, version installée et version qui tourne,
 extension et indicateur de la barre du haut, intégration dans Claude Code,
 connexion de chaque compte, \fBclaude\fR, \fBjq\fR, terminal intégré. Pour
 chaque problème, affiche la commande qui le corrige, à copier : rien n'est
@@ -133,6 +137,13 @@ renommage (\fBccs title\fR).
 .B ccs doctor
 renvoie 0 si toutes les vérifications sont bonnes, 1 s'il y a au moins un
 avertissement ou une erreur.
+.B ccs preview
+et
+.B ccs export
+renvoient 1 si l'identifiant est inconnu ou ambigu, ou si la lecture ou
+l'écriture échoue.
+.B ccs pause
+renvoie 2 pour un choix inconnu.
 .SH ENVIRONNEMENT
 .TP
 .B CLAUDE_CONFIG_DIR
