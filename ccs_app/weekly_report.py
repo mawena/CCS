@@ -287,7 +287,8 @@ def sections(report):
         parts = []
         if a.weekly_peak is not None:
             parts.append(f"semaine à {a.weekly_peak:.0f} % au plus ({a.weekly_used:.0f} points consommés)")
-        parts.append(_plural(a.windows, "fenêtre de 5 h", "fenêtres de 5 h"))
+        if a.windows:
+            parts.append(_plural(a.windows, "fenêtre de 5 h", "fenêtres de 5 h"))
         if a.session_hits:
             parts.append(_plural(a.session_hits, "limite de session atteinte",
                                  "limites de session atteintes"))

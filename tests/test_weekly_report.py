@@ -221,6 +221,7 @@ class AggregateTest(unittest.TestCase):
         text = weekly_report.format_text(r)
         self.assertTrue(text.startswith("Bilan de la semaine du 29 oct. au 5 nov."))
         self.assertIn("perso : semaine à 50 % au plus", text)
+        self.assertIn("pro : 1 bascule vers ce compte", text)   # pas de « 0 fenêtres de 5 h »
         self.assertIn("2 conversations, 3 sessions, 5 réponses", text)
         self.assertIn("2 bascules (1 automatique, 1 manuelle)", text)
         self.assertIn("2 alertes (1 session à 80 %, 1 session à 95 %)", text)

@@ -175,8 +175,6 @@ class WeeklyReportCard(Gtk.Box):
         if error:
             self.body.append(caption(f"Bilan impossible : {error}", error=True))
         else:
-            self.body.append(Gtk.Label(label=weekly_report.title(report), xalign=0, wrap=True,
-                                       css_classes=["title-4"]))
             for head, rows in weekly_report.sections(report):
                 self.body.append(Gtk.Label(label=head, xalign=0, margin_top=6,
                                            css_classes=["caption-heading", "dim-label"]))

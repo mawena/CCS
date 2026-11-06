@@ -89,7 +89,7 @@ class CardsTest(unittest.TestCase):
         self.assertEqual(built, [weeks[1]])
         self.assertEqual(card.dropdown.get_model().get_n_items(), 3)
         self.assertTrue(card.dropdown.get_model().get_string(0).startswith("Semaine en cours"))
-        self.assertTrue(any(t.startswith("Bilan de la semaine du") for t in texts(card)))
+        self.assertIn("Bascules et alertes", texts(card))
         card.dropdown.set_selected(2)
         spin(lambda: len(built) == 2 and any("Aucune bascule" in t for t in texts(card)))
         self.assertEqual(built[-1], weeks[2])
