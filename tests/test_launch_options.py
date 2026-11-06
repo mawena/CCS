@@ -144,6 +144,15 @@ class SwitchTest(HomeTestCase):
                             via="projet", project="/w/App")
         self.assertEqual(switch_log.take_origin("pro"), {"via": "projet", "project": "/w/App"})
 
+    def test_origin_carried_by_the_spec(self):
+        import subprocess
+        run = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+        spec = LaunchSpec(cwd="/w/App/src", profile="pro", origin="projet")
+        lo.switch_if_needed(spec, active="perso", run=run)
+        self.assertEqual(switch_log.take_origin("pro"), {"via": "projet", "project": "/w/App/src"})
+        with self.assertRaises(ValueError):
+            LaunchSpec(cwd="/w", profile="pro", origin="ailleurs")
+
     def test_switch_failure_gives_the_reason(self):
         import subprocess
         run = mock.Mock(return_value=subprocess.CompletedProcess(
