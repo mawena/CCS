@@ -36,6 +36,15 @@ RESUME_TEXT = "continue"
 RESUME_MAX_PER_HOUR = 3
 RESUME_MIN_GAP_S = 120
 RESUME_MAX_AGE_S = 15 * 60
+# Messages en attente : délai après la fin d'un tour, envoi précédent jamais suivi d'un tour.
+QUEUE_GRACE_S = 2
+QUEUE_STALL_S = 30
+# Claude Code date ses états à la milliseconde (tronquée) : un tour lancé par notre envoi
+# peut sembler commencer juste avant lui. Sans risque : on n'envoie qu'après QUEUE_GRACE_S
+# de repos, le tour précédent a donc commencé bien plus tôt.
+SENT_SLACK_S = 1.0
+# De même, la touche Entrée d'une demande précède le début du tour qu'elle lance.
+TYPED_SLACK_S = 0.05
 
 
 @dataclass(frozen=True)
@@ -68,12 +77,15 @@ class TabState:
     exit_status: int | None = None
     extra_args: tuple = ()            # claude : arguments du lancement, repris à la relance
     waiting_for: str | None = None    # motif d'attente de la fiche de session
+    state_since: float | None = None  # depuis quand claude est dans cet état
     started_at: float | None = None   # lancement du processus de l'onglet
     busy_since: float | None = None   # début du dernier tour de travail de claude
     typed_at: float | None = None     # dernière saisie au clavier (ou collage) dans l'onglet
     sent_at: float | None = None      # dernier texte envoyé par l'application (reprise, file)
     resumes: list = field(default_factory=list)  # dates des reprises automatiques
     queue: list = field(default_factory=list)    # messages à envoyer quand claude sera libre
+    queued_at: float | None = None    # dernier message ajouté à la file
+    limit_at: float | None = None     # limite non reprise automatiquement : la file attend
 
 
 # ---- lancement ------------------------------------------------------------------------
@@ -202,6 +214,8 @@ def sync_tabs(tabs, live, now=None):
             done.append(tab)
         if s.state == "busy" and (s.state_since or tab.state != "busy" or tab.busy_since is None):
             tab.busy_since = s.state_since or now
+        if s.state != tab.state or tab.state_since is None:
+            tab.state_since = s.state_since or now
         tab.state = s.state
         tab.waiting_for = s.waiting_for
     return done
@@ -420,3 +434,79 @@ def merge_records(pending, pending_selected, current, current_selected):
         return merged, len(kept) + current_selected
     index = next((k for k, (i, _r) in enumerate(kept) if i == pending_selected), None)
     return merged, index
+
+
+# ---- messages en attente ----------------------------------------------------------------
+
+@dataclass(frozen=True)
+class QueueDecision:
+    """`text` : message à envoyer maintenant (puis Entrée) ; sinon `reason` : pourquoi la
+    file attend (None : rien à signaler)."""
+    text: str | None
+    reason: str | None = None
+
+
+def clean_message(text):
+    """Message sur une ligne (Entrée l'enverrait en plusieurs morceaux), ou None s'il est vide."""
+    text = " ".join((text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
+    return text or None
+
+
+def queue_add(queue, text):
+    text = clean_message(text)
+    return list(queue) + [text] if text else list(queue)
+
+
+def queue_edit(queue, index, text):
+    """Remplace le message `index` ; un message vidé est retiré."""
+    if not 0 <= index < len(queue):
+        return list(queue)
+    text = clean_message(text)
+    return list(queue[:index]) + ([text] if text else []) + list(queue[index + 1:])
+
+
+def queue_remove(queue, index):
+    return [m for i, m in enumerate(queue) if i != index]
+
+
+def queue_move(queue, index, delta):
+    out, target = list(queue), index + delta
+    if 0 <= index < len(out) and 0 <= target < len(out):
+        out[index], out[target] = out[target], out[index]
+    return out
+
+
+def queue_next(tab, now, blocked=False, grace=QUEUE_GRACE_S, stall=QUEUE_STALL_S):
+    """Premier message de la file à envoyer maintenant, ou la raison d'attendre.
+
+    Un message par tour : quand claude a fini de travailler (tour commencé après le dernier
+    envoi), ou tout de suite s'il a été ajouté pendant que claude était libre. Jamais pendant
+    un tour, une demande de permission, une limite pas encore reprise, ni si quelqu'un a
+    écrit dans l'onglet depuis le début du dernier tour (son texte serait mêlé au message)."""
+    if tab.kind != "claude" or not tab.queue:
+        return QueueDecision(None)
+    if not tab.running:
+        return QueueDecision(None, "Session arrêtée.")
+    if tab.state == "busy":
+        return QueueDecision(None, "Claude travaille : envoi à la fin du tour.")
+    if tab.state == "waiting" and not free_for_input(tab):
+        return QueueDecision(None, "Claude attend ta réponse : rien n'est envoyé.")
+    if not free_for_input(tab):
+        return QueueDecision(None)
+    limited = tab.limit_at is not None and (tab.busy_since is None or tab.busy_since < tab.limit_at)
+    if blocked or limited:
+        return QueueDecision(None, "Session bloquée par une limite : envoi après la reprise.")
+    if tab.state_since is not None and now - tab.state_since < grace:
+        return QueueDecision(None)  # tour à peine fini : une limite peut encore être signalée
+    busy, sent = tab.busy_since, tab.sent_at
+    in_flight = sent is not None and (busy is None or busy < sent - SENT_SLACK_S)
+    if in_flight and now - sent < stall:
+        return QueueDecision(None, "Envoi précédent en cours.")
+    last = max(x for x in (busy, sent, 0.0) if x is not None)
+    if tab.typed_at is not None and tab.typed_at > last + TYPED_SLACK_S:
+        return QueueDecision(None, "Tu as écrit dans la session : envoi à la fin du prochain tour.")
+    turn_done = busy is not None and (sent is None or busy >= sent - SENT_SLACK_S)
+    added_free = tab.queued_at is not None and tab.queued_at > last
+    if turn_done or added_free or in_flight:
+        return QueueDecision(tab.queue[0])
+    return QueueDecision(None, "Envoi à la fin du prochain tour de Claude.")

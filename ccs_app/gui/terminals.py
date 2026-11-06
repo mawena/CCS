@@ -30,6 +30,7 @@ PALETTE = ("#171421", "#c01c28", "#26a269", "#a2734c", "#12488b", "#a347ba", "#2
 COLORS = {False: ("#1e1e1e", "#ffffff"), True: ("#ffffff", "#1e1e1e")}  # sombre ? -> (texte, fond)
 SAVE_DELAY_MS = 1000
 SPLIT_ACCEL = "<Control><Shift>e"
+QUEUE_ACCEL = "<Control><Shift>m"
 CSS = b"""
 .ccs-restore { padding: 6px 12px; background-color: alpha(@accent_bg_color, 0.18); }
 .ccs-split-half { border: 2px solid transparent; border-radius: 8px; margin: 2px; }
@@ -37,6 +38,8 @@ CSS = b"""
 .ccs-split-header { padding: 2px 4px 2px 10px; }
 .ccs-split-half:not(.active) .ccs-split-header { opacity: 0.55; }
 .ccs-split-half.active .ccs-split-header > label { font-weight: bold; }
+.ccs-queue { padding: 6px 10px; border-top: 1px solid alpha(currentColor, 0.15); }
+.ccs-queue-strip { padding: 2px 6px 2px 10px; border-top: 1px solid alpha(currentColor, 0.15); }
 """
 
 _vte = None
@@ -97,8 +100,9 @@ def system_font():
 
 class TerminalTab(Gtk.Box):
     """Un onglet : le terminal, sa barre de défilement, le bandeau d'information (reprise
-    après une limite) et le bandeau de fin, réunis dans `panel` : la vue côte à côte
-    emprunte ce panneau puis le rend (l'onglet reste l'enfant de sa page d'Adw.TabView)."""
+    après une limite), la file de messages (claude) et le bandeau de fin, réunis dans
+    `panel` : la vue côte à côte emprunte ce panneau puis le rend (l'onglet reste l'enfant
+    de sa page d'Adw.TabView)."""
 
     def __init__(self, owner, launch):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
@@ -111,6 +115,9 @@ class TerminalTab(Gtk.Box):
         self.menu_uri = None
         self.feeding = False       # texte envoyé par l'application : pas une saisie
         self.limits_done = set()   # (session_id, date) des limites déjà traitées
+        self.queue_rev = None      # file de messages (onglets de claude)
+        self.queue_reason = None
+        self.queue_shown = None
 
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
         self.notice = Adw.Banner(revealed=False, button_label="OK", use_markup=False)
@@ -139,6 +146,8 @@ class TerminalTab(Gtk.Box):
         body.append(Gtk.Scrollbar(orientation=Gtk.Orientation.VERTICAL,
                                   adjustment=self.term.get_vadjustment()))
         self.panel.append(body)
+        if launch.kind == "claude":
+            self.build_queue()
 
         self.bar = Gtk.ActionBar(revealed=False)
         self.bar_label = Gtk.Label(xalign=0, wrap=True, css_classes=["heading"])
@@ -151,6 +160,131 @@ class TerminalTab(Gtk.Box):
         self.bar.pack_end(close)
         self.panel.append(self.bar)
         self.append(self.panel)
+
+    # ---- messages en attente ---------------------------------------------------------
+
+    def build_queue(self):
+        """« Envoyer quand Claude sera libre » : bandeau replié (N en attente) et panneau
+        (file éditable, champ de saisie)."""
+        self.queue_count = Gtk.Label(xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END)
+        show = Gtk.Button(label="Afficher", css_classes=["flat"])
+        show.connect("clicked", lambda *_: self.toggle_queue(True))
+        strip = Gtk.Box(spacing=8, css_classes=["ccs-queue-strip"])
+        for w in (Gtk.Image(icon_name="mail-send-symbolic"), self.queue_count, show):
+            strip.append(w)
+        self.queue_strip = Gtk.Revealer(child=strip)
+
+        head = Gtk.Box(spacing=8)
+        head.append(Gtk.Label(label="Envoyer quand Claude sera libre", xalign=0, css_classes=["heading"]))
+        self.queue_status = Gtk.Label(xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
+                                      css_classes=["dim-label", "caption"])
+        head.append(self.queue_status)
+        fold = Gtk.Button(icon_name="pan-down-symbolic", css_classes=["flat"], tooltip_text="Replier")
+        fold.connect("clicked", lambda *_: self.toggle_queue(False))
+        head.append(fold)
+        self.queue_rows = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.queue_entry = Gtk.Entry(hexpand=True, placeholder_text="Message à envoyer quand Claude aura fini…")
+        self.queue_entry.connect("activate", lambda *_: self.add_message())
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self.on_queue_key)
+        self.queue_entry.add_controller(keys)
+        add = Gtk.Button(label="Ajouter", css_classes=["suggested-action"])
+        add.connect("clicked", lambda *_: self.add_message())
+        line = Gtk.Box(spacing=6)
+        line.append(self.queue_entry)
+        line.append(add)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, css_classes=["ccs-queue"])
+        for w in (head, self.queue_rows, line):
+            box.append(w)
+        self.queue_rev = Gtk.Revealer(child=box)
+        self.panel.append(self.queue_strip)
+        self.panel.append(self.queue_rev)
+        self.refresh_queue()
+
+    def on_queue_key(self, _ctrl, keyval, _code, _state):
+        if keyval == Gdk.KEY_Escape:
+            self.toggle_queue(False)
+            return True
+        return False
+
+    def toggle_queue(self, show=None):
+        if self.queue_rev is None:
+            return
+        show = not self.queue_rev.get_reveal_child() if show is None else show
+        self.queue_rev.set_reveal_child(show)
+        self.refresh_queue()
+        if show:
+            GLib.idle_add(lambda: (self.queue_entry.grab_focus(), False)[1])
+        else:
+            self.focus()
+
+    def refresh_queue(self):
+        """Bandeau, état et lignes de la file (lignes refaites seulement si elle a changé,
+        pour ne pas interrompre une modification en cours)."""
+        if self.queue_rev is None:
+            return
+        queue, reason = list(self.state.queue), self.queue_reason
+        n = len(queue)
+        count = "1 message en attente" if n == 1 else f"{n} messages en attente"
+        self.queue_count.set_label(count + (f" — {reason}" if reason else ""))
+        self.queue_strip.set_reveal_child(bool(queue) and not self.queue_rev.get_reveal_child())
+        self.queue_status.set_label(reason or ("" if queue else "Aucun message en attente."))
+        if queue == self.queue_shown:
+            return
+        self.queue_shown = queue
+        while (child := self.queue_rows.get_first_child()) is not None:
+            self.queue_rows.remove(child)
+        for i, text in enumerate(queue):
+            row = Gtk.Box(spacing=4)
+            row.append(Gtk.Label(label=f"{i + 1}.", css_classes=["dim-label"]))
+            label = Gtk.EditableLabel(text=text, hexpand=True, tooltip_text="Cliquer pour modifier")
+            label.connect("notify::editing", lambda w, _p, i=i, old=text: None if w.get_editing()
+                          else self.edit_message(i, w.get_text(), old))
+            row.append(label)
+            for icon, tip, handler, sensitive in (
+                    ("go-up-symbolic", "Monter", lambda i=i: self.move_message(i, -1), i > 0),
+                    ("mail-send-symbolic", "Envoyer maintenant", lambda i=i: self.send_message_now(i), True),
+                    ("edit-delete-symbolic", "Retirer", lambda i=i: self.remove_message(i), True)):
+                b = Gtk.Button(icon_name=icon, tooltip_text=tip, css_classes=["flat"], sensitive=sensitive)
+                b.connect("clicked", lambda *_a, h=handler: h())
+                row.append(b)
+            self.queue_rows.append(row)
+
+    def set_queue(self, queue, added=False):
+        if queue != self.state.queue:
+            self.state.queue[:] = queue
+            if added:
+                self.state.queued_at = time.time()
+            self.owner.queue_changed(self)
+
+    def add_message(self):
+        queue = terminal.queue_add(self.state.queue, self.queue_entry.get_text())
+        if len(queue) > len(self.state.queue):
+            self.queue_entry.set_text("")
+            self.set_queue(queue, added=True)
+
+    def edit_message(self, index, text, old):
+        """Fin de modification d'une ligne ; ignorée si la file a changé entre-temps (message
+        envoyé pendant la modification : la ligne ne désigne plus le même message)."""
+        if 0 <= index < len(self.state.queue) and self.state.queue[index] == old:
+            self.set_queue(terminal.queue_edit(self.state.queue, index, text))
+
+    def move_message(self, index, delta):
+        self.set_queue(terminal.queue_move(self.state.queue, index, delta))
+
+    def remove_message(self, index):
+        self.set_queue(terminal.queue_remove(self.state.queue, index))
+
+    def send_message_now(self, index):
+        """« Envoyer maintenant » : tout de suite, sauf pendant une demande de permission."""
+        st = self.state
+        if not 0 <= index < len(st.queue):
+            return
+        if st.state == "waiting" and not terminal.free_for_input(st):
+            self.queue_status.set_label("Claude attend ta réponse : rien n'est envoyé.")
+            return
+        if self.send_auto(st.queue[index]):
+            self.set_queue(terminal.queue_remove(st.queue, index))
 
     # ---- confort -------------------------------------------------------------------
 
@@ -269,7 +403,8 @@ class TerminalTab(Gtk.Box):
         self.launch = launch or self.launch
         st = self.state
         st.exit_status, st.state, st.waiting_for = None, None, None
-        st.started_at = st.busy_since = st.typed_at = st.sent_at = None
+        st.started_at = st.busy_since = st.typed_at = st.sent_at = st.state_since = None
+        st.queued_at = st.limit_at = None  # file gardée : envoi après le prochain tour
         self.bar.set_revealed(False)
         self.term.spawn_async(Vte.PtyFlags.DEFAULT, self.launch.cwd, list(self.launch.argv),
                               self.launch.envv(), GLib.SpawnFlags.DEFAULT, None, None, -1, None,
@@ -425,12 +560,14 @@ class TerminalsPage(Gtk.Box):
         tab_menu.append("Ouvrir le dossier", "tabs.folder")
         tab_menu.append_item(menu_item("Côte à côte", "tabs.split", SPLIT_ACCEL))
         tab_menu.append_item(menu_item("Revenir aux onglets", "tabs.unsplit", SPLIT_ACCEL))
+        tab_menu.append_item(menu_item("Messages en attente…", "tabs.queue", QUEUE_ACCEL))
         tab_menu.append("Fermer l'onglet", "tabs.close")
         self.view.set_menu_model(tab_menu)
 
         self.tab_actions = Gio.SimpleActionGroup()
         for name, handler in (("rename", self.rename_tab), ("folder", self.folder_of_tab),
-                              ("split", self.split_with), ("close", self.close)):
+                              ("split", self.split_with), ("queue", lambda tab: tab.toggle_queue()),
+                              ("close", self.close)):
             a = Gio.SimpleAction.new(name, None)
             a.connect("activate", lambda *_a, h=handler: self.with_tab(h))
             self.tab_actions.add_action(a)
@@ -440,9 +577,10 @@ class TerminalsPage(Gtk.Box):
         self.tab_actions.add_action(unsplit)
         self.insert_action_group("tabs", self.tab_actions)
         keys = Gtk.ShortcutController(propagation_phase=Gtk.PropagationPhase.CAPTURE)
-        keys.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string(SPLIT_ACCEL),
-                                       action=Gtk.CallbackAction.new(
-                                           lambda *_: (self.toggle_split(), True)[1])))
+        for accel, handler in ((SPLIT_ACCEL, self.toggle_split), (QUEUE_ACCEL, self.toggle_queue)):
+            keys.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string(accel),
+                                           action=Gtk.CallbackAction.new(
+                                               lambda *_a, h=handler: (h(), True)[1])))
         self.add_controller(keys)
 
         # Interrupteurs de la page (gardés dans terminals.json, pas dans les réglages généraux).
@@ -782,6 +920,7 @@ class TerminalsPage(Gtk.Box):
         for item in plan.tabs:
             tab = self.open(item.launch(), present=False)
             tab.state.queue[:] = list(item.queue)
+            tab.refresh_queue()
             opened.append(tab)
         self.pending = None
         target = (opened[plan.selected] if plan.selected is not None else opened[0]) if opened else None
@@ -867,6 +1006,7 @@ class TerminalsPage(Gtk.Box):
         self.tab_actions.lookup_action("split").set_enabled(
             tab is not None and len(self.tabs()) >= 2 and not (split and self.split_view.contains(tab)))
         self.tab_actions.lookup_action("unsplit").set_enabled(split)
+        self.tab_actions.lookup_action("queue").set_enabled(bool(tab and tab.state.kind == "claude"))
 
     def with_tab(self, handler):
         tab = self.menu_target()
@@ -911,7 +1051,10 @@ class TerminalsPage(Gtk.Box):
             self.window.terminals_changed()
         for tab in moved:
             self.emit("tab-state-changed", tab)
-        self.handle_limits(tabs, limits)
+        blocked = self.handle_limits(tabs, limits)
+        for tab in tabs:
+            if tab.state.kind == "claude" and (tab.state.queue or tab.queue_reason):
+                self.send_queue(tab, tab in blocked)
         self.schedule_save()
         wanted = [(t, t.state.cwd, t.state.session_id) for t in tabs
                   if t.state.kind == "claude" and t.state.session_id]
@@ -922,21 +1065,48 @@ class TerminalsPage(Gtk.Box):
     def handle_limits(self, tabs, limits):
         """Reprise automatique : « continue » dans l'onglet dont la conversation a été bloquée
         par une limite, une fois le compte changé par le hook StopFailure."""
-        now = time.time()
+        now, blocked = time.time(), set()
         for tab in tabs:
             event = limits.get(tab.state.session_id) if tab.state.session_id else None
             decision = terminal.resume_decision(tab.state, event, now, enabled=self.options["auto_resume"])
-            if decision is None or decision.action == "wait":
+            if decision is None:
+                continue
+            if decision.action == "wait":
+                blocked.add(tab)  # limite en cours de traitement : la file attend aussi
                 continue
             key = (event.session_id, event.ts)
             if key not in tab.limits_done:  # une seule fois par événement
                 tab.limits_done.add(key)
                 if decision.action == "resume" and tab.send_auto(terminal.RESUME_TEXT):
                     tab.state.resumes.append(now)
+                elif decision.text:
+                    tab.state.limit_at = event.ts  # pas relancée : la file attend un nouveau tour
                 if decision.text:
                     tab.show_notice(decision.text)
                     tab.attention()
             limit_events.consume(event.session_id, event.ts)
+        return blocked
+
+    # ---- messages en attente ---------------------------------------------------------
+
+    def queue_changed(self, tab):
+        tab.refresh_queue()
+        self.schedule_save()
+        self.send_queue(tab)
+
+    def send_queue(self, tab, blocked=False):
+        """Envoie le premier message de la file si claude est libre (terminal.queue_next)."""
+        decision = terminal.queue_next(tab.state, time.time(), blocked)
+        tab.queue_reason = decision.reason
+        if decision.text is not None and tab.send_auto(decision.text):
+            tab.state.queue[:] = tab.state.queue[1:]
+            self.schedule_save()
+        tab.refresh_queue()
+
+    def toggle_queue(self):
+        tab = self.selected_tab()
+        if tab is not None and tab.state.kind == "claude":
+            tab.toggle_queue()
 
     # ---- apparence -----------------------------------------------------------------
 

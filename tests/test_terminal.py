@@ -451,3 +451,110 @@ class RestoreTest(HomeTestCase):
         self.assertEqual((len(merged), selected), (3, 1))
         merged, selected = terminal.merge_records(pending, 1, current, None)
         self.assertIsNone(selected)  # « b » est maintenant un onglet ouvert
+
+
+class MessageQueueTest(HomeTestCase):
+    def test_clean_message(self):
+        self.assertEqual(terminal.clean_message("  lance les tests \n"), "lance les tests")
+        self.assertEqual(terminal.clean_message("a\r\nb\nc"), "a b c")
+        self.assertIsNone(terminal.clean_message(" \n "))
+        self.assertIsNone(terminal.clean_message(None))
+
+    def test_add_edit_remove_move(self):
+        q = terminal.queue_add([], "un")
+        q = terminal.queue_add(q, "deux\n")
+        q = terminal.queue_add(q, "   ")
+        self.assertEqual(q, ["un", "deux"])
+        self.assertEqual(terminal.queue_edit(q, 1, "deux bis"), ["un", "deux bis"])
+        self.assertEqual(terminal.queue_edit(q, 0, ""), ["deux"])       # vidé : retiré
+        self.assertEqual(terminal.queue_edit(q, 5, "x"), q)             # hors de la file
+        self.assertEqual(terminal.queue_remove(q, 0), ["deux"])
+        self.assertEqual(terminal.queue_remove(q, 9), q)
+        self.assertEqual(terminal.queue_move(["a", "b", "c"], 2, -1), ["a", "c", "b"])
+        self.assertEqual(terminal.queue_move(["a", "b", "c"], 0, -1), ["a", "b", "c"])
+        self.assertEqual(terminal.queue_move(["a", "b", "c"], 2, 1), ["a", "b", "c"])
+        self.assertEqual(q, ["un", "deux"])  # jamais modifiée sur place
+
+
+class QueueDecisionTest(HomeTestCase):
+    NOW = 50_000.0
+
+    def tab(self, **kw):
+        base = {"kind": "claude", "cwd": "/w/App", "title": "App", "pid": 10, "running": True,
+                "session_id": "s-1", "state": "idle", "state_since": self.NOW - 10,
+                "busy_since": self.NOW - 60, "queue": ["premier", "second"]}
+        return TabState(**{**base, **kw})
+
+    def next(self, tab, **kw):
+        return terminal.queue_next(tab, self.NOW, **kw)
+
+    def test_turn_finished_sends_the_first_message(self):
+        self.assertEqual(self.next(self.tab()), terminal.QueueDecision("premier", None))
+
+    def test_nothing_queued_or_not_claude(self):
+        self.assertEqual(self.next(self.tab(queue=[])), terminal.QueueDecision(None, None))
+        shell = TabState("shell", "/w", "t", running=True, queue=["x"])
+        self.assertEqual(self.next(shell), terminal.QueueDecision(None, None))
+
+    def test_never_while_working_or_waiting_for_a_permission(self):
+        d = self.next(self.tab(state="busy"))
+        self.assertEqual(d, terminal.QueueDecision(None, "Claude travaille : envoi à la fin du tour."))
+        d = self.next(self.tab(state="waiting", waiting_for="permission to run Bash"))
+        self.assertEqual(d, terminal.QueueDecision(None, "Claude attend ta réponse : rien n'est envoyé."))
+        self.assertEqual(self.next(self.tab(state="waiting", waiting_for="input needed")).text, "premier")
+        self.assertIsNone(self.next(self.tab(state=None)).text)
+
+    def test_stopped_session(self):
+        self.assertEqual(self.next(self.tab(running=False)).reason, "Session arrêtée.")
+
+    def test_turn_just_finished_waits_a_moment(self):
+        d = self.next(self.tab(state_since=self.NOW - 1))
+        self.assertEqual(d, terminal.QueueDecision(None, None))
+
+    def test_one_message_per_turn(self):
+        tab = self.tab(sent_at=self.NOW - 5)            # envoyé, claude n'a pas encore travaillé
+        self.assertEqual(self.next(tab).reason, "Envoi précédent en cours.")
+        tab = self.tab(sent_at=self.NOW - 5, busy_since=self.NOW - 4)   # tour suivant terminé
+        self.assertEqual(self.next(tab).text, "premier")
+        tab = self.tab(sent_at=self.NOW - terminal.QUEUE_STALL_S - 1)  # aucun tour observé
+        self.assertEqual(self.next(tab).text, "premier")
+
+    def test_turn_date_truncated_to_the_millisecond(self):
+        # Claude Code date ses changements d'état à la milliseconde : un tour lancé dans la
+        # même milliseconde que l'envoi paraît commencer juste avant lui.
+        tab = self.tab(sent_at=self.NOW - 5.0004, busy_since=self.NOW - 5.001)
+        self.assertEqual(self.next(tab).text, "premier")
+        # Entrée tapée par l'utilisateur (sa demande) dans la milliseconde du début du tour.
+        tab = self.tab(typed_at=self.NOW - 59.9996, busy_since=self.NOW - 60.0)
+        self.assertEqual(self.next(tab).text, "premier")
+
+    def test_user_typed_in_the_session(self):
+        d = self.next(self.tab(typed_at=self.NOW - 30))  # après le début du dernier tour
+        self.assertEqual(d.reason, "Tu as écrit dans la session : envoi à la fin du prochain tour.")
+        self.assertEqual(self.next(self.tab(typed_at=self.NOW - 90)).text, "premier")  # avant le tour
+
+    def test_added_while_claude_is_free(self):
+        tab = self.tab(busy_since=None, queued_at=self.NOW - 5)
+        self.assertEqual(self.next(tab).text, "premier")
+        tab = self.tab(busy_since=self.NOW - 60, sent_at=self.NOW - 50, queued_at=self.NOW - 5)
+        self.assertEqual(self.next(tab).text, "premier")
+
+    def test_restored_queue_waits_for_a_turn(self):
+        tab = self.tab(busy_since=None, queued_at=None)
+        self.assertEqual(self.next(tab).reason, "Envoi à la fin du prochain tour de Claude.")
+
+    def test_limit_blocks_until_a_new_turn(self):
+        d = self.next(self.tab(), blocked=True)
+        self.assertEqual(d.reason, "Session bloquée par une limite : envoi après la reprise.")
+        d = self.next(self.tab(limit_at=self.NOW - 20))
+        self.assertEqual(d.reason, "Session bloquée par une limite : envoi après la reprise.")
+        self.assertEqual(self.next(self.tab(limit_at=self.NOW - 70)).text, "premier")  # tour depuis
+
+    def test_sync_records_when_the_state_changed(self):
+        tab = TabState("claude", "/w/App", "App", pid=10, running=True, state="busy", state_since=1.0)
+        terminal.sync_tabs([tab], [live_at(10, "busy", 0.0)], now=5.0)
+        self.assertEqual(tab.state_since, 1.0)
+        terminal.sync_tabs([tab], [live_at(10, "idle", 7.0)], now=8.0)
+        self.assertEqual(tab.state_since, 7.0)
+        terminal.sync_tabs([tab], [live_at(10, "busy", 0.0)], now=9.0)
+        self.assertEqual(tab.state_since, 9.0)
