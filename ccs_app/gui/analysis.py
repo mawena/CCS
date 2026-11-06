@@ -5,6 +5,7 @@ import time
 from gi.repository import Adw, Gtk
 
 from .. import core, transcripts
+from .advisor_cards import AdvisorCard
 from .charts import HourBars
 from .common import caption, clear, in_thread
 
@@ -17,6 +18,9 @@ class AnalysisPage(Gtk.ScrolledWindow):
         self.loaded = False
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14,
                         margin_top=18, margin_bottom=18, margin_start=12, margin_end=12)
+        # Conseils calculés sur leurs propres périodes (relevés et journaux), dans un fil.
+        self.advisor = AdvisorCard()
+        outer.append(self.advisor)
         toggles = Gtk.Box(css_classes=["linked"], halign=Gtk.Align.CENTER)
         first = None
         for days in (7, 30):
@@ -39,6 +43,7 @@ class AnalysisPage(Gtk.ScrolledWindow):
     def ensure_loaded(self):
         if not self.loaded:
             self.load()
+            self.advisor.load()
 
     def load(self):
         self.loaded = True
