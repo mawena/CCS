@@ -69,6 +69,9 @@ class ChoicesTest(unittest.TestCase):
         self.assertEqual(lo.model_label("opus"), "Opus")
         self.assertEqual(lo.model_label("claude-opus-5-5"), "claude-opus-5-5")
         self.assertIn("modifications", lo.permission_label("acceptEdits"))
+        for value in [None, *lo.PERMISSION_MODE_VALUES]:
+            self.assertTrue(lo.permission_help(value), value)
+            self.assertLessEqual(len(lo.permission_label(value)), 30, value)  # tient dans la liste déroulante
         self.assertTrue(lo.is_dangerous("bypassPermissions"))
         self.assertFalse(lo.is_dangerous("plan"))
 

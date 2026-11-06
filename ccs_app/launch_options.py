@@ -29,15 +29,24 @@ MODELS = (
 
 # (libellé, valeur de --permission-mode) ; None : pas d'option (réglage de Claude Code).
 PERMISSION_MODES = (
-    ("Par défaut (réglage de Claude Code)", None),
-    ("Manuel : demande avant chaque action", "manual"),
-    ("Accepte les modifications de fichiers", "acceptEdits"),
-    ("Plan : analyse et propose, sans rien modifier", "plan"),
-    ("Auto : Claude décide seul des actions sans risque", "auto"),
-    ("Sans question : refuse ce qui demanderait une permission", "dontAsk"),
-    ("Aucune vérification (dangereux)", "bypassPermissions"),
+    ("Par défaut", None),
+    ("Manuel", "manual"),
+    ("Accepter les modifications", "acceptEdits"),
+    ("Plan", "plan"),
+    ("Auto", "auto"),
+    ("Sans question", "dontAsk"),
+    ("Aucune vérification", "bypassPermissions"),
 )
 PERMISSION_MODE_VALUES = tuple(v for _label, v in PERMISSION_MODES if v)
+PERMISSION_HELP = {
+    None: "Réglage habituel de Claude Code",
+    "manual": "Demande avant chaque action",
+    "acceptEdits": "Modifie les fichiers sans demander, demande pour le reste",
+    "plan": "Analyse et propose un plan, sans rien modifier",
+    "auto": "Claude décide seul des actions sans risque",
+    "dontAsk": "Refuse ce qui demanderait une permission",
+    "bypassPermissions": "Aucune vérification : dangereux",
+}
 DANGEROUS_MODES = frozenset({"bypassPermissions"})
 
 DEFAULT_WORDS = {"default", "défaut", "par défaut"}
@@ -92,6 +101,11 @@ def model_label(value):
 
 def permission_label(value):
     return next((label for label, v in PERMISSION_MODES if v == value), value or PERMISSION_MODES[0][0])
+
+
+def permission_help(value):
+    """Explication d'un mode de permissions, en une ligne."""
+    return PERMISSION_HELP.get(value or None, "")
 
 
 def is_dangerous(mode):
