@@ -125,6 +125,25 @@ class DaemonTest(DaemonBase):
         self.assertEqual(self.state()["accounts"], [])
 
 
+class WeeklyForecastDaemonTest(DaemonBase):
+    def test_state_contains_weekly_forecast(self):
+        # Semaine : 4 jours écoulés (réinitialisation dans 3 jours).
+        with fake_http(per_account(perso=usage(30, weekly=60), pro=usage(5, weekly=20))):
+            self.d.tick(self.settings, NOW)
+        perso, pro = self.state()["accounts"]
+        self.assertEqual(perso["weekly_forecast"]["verdict"], "limit")
+        self.assertAlmostEqual(perso["weekly_forecast"]["rate_per_day"], 15)
+        self.assertEqual(pro["weekly_forecast"]["verdict"], "ok")
+
+    def test_alert_two_days_before_once(self):
+        with fake_http(per_account(perso=usage(30, weekly=80), pro=usage(5, weekly=20))):
+            self.d.tick(self.settings, NOW)
+            self.d.tick(self.settings, NOW + timedelta(minutes=5))
+        titles = [a.title for a in self.sent if "semaine" in a.title]
+        self.assertEqual(len(titles), 1)
+        self.assertIn("perso : semaine épuisée", titles[0])
+
+
 class PidTest(HomeTestCase):
     """Revue finale I1 : un pid recyclé ne doit jamais être pris pour le daemon."""
 

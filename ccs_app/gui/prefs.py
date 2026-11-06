@@ -157,6 +157,13 @@ class PrefsPage(Adw.PreferencesPage):
                             "alerts", "eta_minutes", 5, 60, 5))
         g.add(self.spin_row("Avance hebdomadaire (pts)", "Écart au rythme idéal de la semaine",
                             "alerts", "weekly_ahead_points", 5, 50, 5))
+        g.add(self.switch_row("Fin de semaine prévue",
+                              "Quand la limite hebdomadaire sera atteinte avant la réinitialisation "
+                              "au rythme actuel (une fois par semaine et par compte)",
+                              "alerts", "weekly_forecast"))
+        g.add(self.spin_row("Prévenir avant l'épuisement de la semaine (jours)",
+                            "Pour l'alerte de fin de semaine prévue",
+                            "alerts", "weekly_forecast_days", 1, 6))
         g.add(self.switch_row("Réinitialisations", "Quand un compte redevient disponible",
                               "alerts", "resets"))
         g.add(self.switch_row("Connexions expirées", "Quand un profil doit être rajouté",

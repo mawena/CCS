@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import alerts, autoswitch, core, notify, orchestrator
 from .forecast import (AccountState, best_account, capacity, effective_percent,
-                       session_forecast, weekly_pace)
+                       session_forecast, weekly_forecast, weekly_pace)
 from .settings import load_settings
 from .store import RETENTION_S, Store
 
@@ -199,6 +199,7 @@ class Daemon:
 
         forecasts = {s.name: self._forecast(s, now) for s in states}
         paces = {s.name: weekly_pace(s.weekly, now) for s in states}
+        weeklies = {s.name: weekly_forecast(s.weekly, now) for s in states}
         fc = forecasts.get(active)
         act = next((s for s in states if s.name == active), None)
         fast = act is not None and (
@@ -237,7 +238,7 @@ class Daemon:
         sent = {e.detail.get("key") for e in
                 self.store.events((now - ALERTS_LOOKBACK).timestamp(), type="alert")}
         pending = alerts.pending_alerts(states, active, fc, paces, best, settings, now,
-                                        sent, self.previous_sessions)
+                                        sent, self.previous_sessions, weeklies)
         da = alerts.decision_alert(decision, now)
         if decision.action == "switch" and not switched:
             da = None  # échec journalisé (event error), pas d'annonce trompeuse
@@ -260,7 +261,7 @@ class Daemon:
 
         self.previous_sessions = {s.name: s.session for s in states}
         self.write_state(states, profiles, forecasts, paces, best, decision, settings, now,
-                         reserve)
+                         reserve, weeklies)
         if self.last_prune is None or now - self.last_prune > timedelta(days=1):
             self.store.prune(now.timestamp() - RETENTION_S)
             self.last_prune = now
@@ -274,12 +275,13 @@ class Daemon:
     # ---- état partagé -------------------------------------------------------
 
     def write_state(self, states, profiles, forecasts, paces, best, decision, settings, now,
-                    reserve=frozenset()):
+                    reserve=frozenset(), weeklies=None):
         last_auto = self.store.last_event("switch")
         accounts = []
         for s in states:
             p = profiles[s.name]
             fc, pace = forecasts.get(s.name), paces.get(s.name)
+            wf = (weeklies or {}).get(s.name)
             accounts.append({
                 "name": s.name, "email": p.email, "org": p.org, "plan": p.plan,
                 "active": s.active, "error": s.error, "fetched_at": s.fetched_at,
@@ -291,6 +293,7 @@ class Daemon:
                 "pace": pace and {"ideal": pace.ideal, "margin": pace.margin,
                                   "per_day_budget": pace.per_day_budget,
                                   "days_left": pace.days_left},
+                "weekly_forecast": wf and wf.as_dict(),
             })
         core.atomic_write_json(state_path(), {
             "updated_at": now.timestamp(),

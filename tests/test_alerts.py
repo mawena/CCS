@@ -84,6 +84,7 @@ class AlertsTest(unittest.TestCase):
         self.assertEqual(self.alerts([state("pro", 0)], active=None, previous=previous), [])
 
     def test_weekly_ahead_15_points(self):
+        self.settings["alerts"]["weekly_forecast"] = False  # testée à part
         acc = state("perso", 10, True, w=60)  # 3/7 de semaine écoulée ≈ 42.9 % idéal
         paces = {"perso": weekly_pace(acc.weekly, NOW)}
         a = self.alerts([acc], paces=paces)
@@ -114,6 +115,72 @@ class AlertsTest(unittest.TestCase):
         a = self.alerts([state("perso", 82, True)], best=best)
         self.assertIn("pro", a[0].body)
         self.assertIn("ccs pro", a[0].body)
+
+
+def week(name, w, reset_days=4, active=False, jitter_s=0):
+    reset = NOW + timedelta(days=reset_days, seconds=jitter_s)
+    return AccountState(name, active, [session(10), Limit("weekly_all", "W", w, reset)],
+                        NOW.timestamp(), None)
+
+
+class WeeklyForecastAlertTest(AlertsTest):
+    def weekly_alerts(self, accounts, sent=(), compute=True):
+        from ccs_app.forecast import weekly_forecast
+        weekly = {a.name: weekly_forecast(a.weekly, NOW) for a in accounts} if compute else None
+        return [a for a in pending_alerts(accounts, "perso", None, {}, None, self.settings, NOW,
+                                          set(sent), {}, weekly)
+                if a.key.startswith("weekly_forecast:")]
+
+    def test_alert_when_exhaustion_within_two_days(self):
+        # 3 jours écoulés, 60 % : 20 %/jour, limite dans 2 jours (2 jours avant la fin).
+        a = self.weekly_alerts([week("perso", 60, active=True), week("pro", 30)])
+        self.assertEqual(len(a), 1)
+        self.assertIn("perso", a[0].title)
+        self.assertIn("20 %/jour", a[0].body)
+        self.assertEqual(a[0].urgency, 1)
+
+    def test_inactive_account_is_warned_too(self):
+        self.assertEqual(len(self.weekly_alerts([week("pro", 65)])), 1)
+
+    def test_no_alert_when_exhaustion_is_further_away(self):
+        # 50 % en 3 jours : limite dans 3 jours, avant la réinitialisation mais pas encore à 2 jours.
+        self.assertEqual(self.weekly_alerts([week("perso", 50, active=True)]), [])
+
+    def test_no_alert_when_reset_comes_first(self):
+        self.assertEqual(self.weekly_alerts([week("perso", 30, active=True)]), [])
+
+    def test_once_per_week_and_account(self):
+        first = self.weekly_alerts([week("perso", 60, active=True)])
+        sent = {first[0].key}
+        self.assertEqual(self.weekly_alerts([week("perso", 62, active=True)], sent=sent), [])
+        # Heure de réinitialisation qui varie de quelques secondes : même semaine.
+        self.assertEqual(self.weekly_alerts([week("perso", 63, active=True, jitter_s=40)],
+                                            sent=sent), [])
+        # Autre semaine (autre heure de réinitialisation) : nouvelle alerte possible.
+        self.assertEqual(len(self.weekly_alerts([week("perso", 75, reset_days=3)], sent=sent)), 1)
+        # Autre compte : sa propre alerte.
+        self.assertEqual(len(self.weekly_alerts([week("pro", 60)], sent=sent)), 1)
+
+    def test_threshold_in_days_is_a_setting(self):
+        self.settings["alerts"]["weekly_forecast_days"] = 3
+        self.assertEqual(len(self.weekly_alerts([week("perso", 50, active=True)])), 1)
+
+    def test_can_be_disabled(self):
+        self.settings["alerts"]["weekly_forecast"] = False
+        self.assertEqual(self.weekly_alerts([week("perso", 60, active=True)]), [])
+
+    def test_computed_when_not_given(self):
+        self.assertEqual(len(self.weekly_alerts([week("perso", 60, active=True)], compute=False)), 1)
+
+    def test_replaces_the_milder_weekly_ahead_alert(self):
+        # 60 % après 3 jours : en avance de 17 pts ET limite dans 2 jours → une seule alerte.
+        acc = week("perso", 60, active=True)
+        paces = {"perso": weekly_pace(acc.weekly, NOW)}
+        a = self.alerts([acc], paces=paces)
+        self.assertEqual(self.keys(a), ["weekly_forecast"])
+        self.assertIn("Pour tenir jusqu'au bout", a[0].body)
+        # Ni au relevé suivant, une fois la prévision envoyée.
+        self.assertEqual(self.alerts([acc], paces=paces, sent={a[0].key}), [])
 
 
 class DecisionAlertTest(unittest.TestCase):

@@ -143,3 +143,83 @@ class WindowOpenTest(unittest.TestCase):
         self.assertTrue(window_open(acc("w", session(0, 290)), NOW))
         self.assertFalse(window_open(acc("w", session(0, None)), NOW))
         self.assertFalse(window_open(acc("w", session(40, -1)), NOW))
+
+
+class WeeklyForecastTest(unittest.TestCase):
+    """Fin de semaine prévue au rythme moyen depuis le début de la semaine."""
+
+    def wf(self, pct, reset_in_days):
+        from ccs_app.forecast import weekly_forecast
+        return weekly_forecast(weekly(pct, reset_in_days), NOW)
+
+    def test_limit_before_reset(self):
+        # 3 jours écoulés, 60 % utilisés : 20 %/jour, 100 % dans 2 jours, 2 jours avant la fin.
+        wf = self.wf(60, 4)
+        self.assertEqual(wf.verdict, "limit")
+        self.assertAlmostEqual(wf.rate_per_day, 20)
+        self.assertEqual(wf.eta, NOW + timedelta(days=2))
+        self.assertAlmostEqual(wf.days_before_reset, 2)
+
+    def test_ok_when_reset_comes_first(self):
+        wf = self.wf(30, 4)  # 10 %/jour : 100 % dans 7 jours, après la réinitialisation
+        self.assertEqual(wf.verdict, "ok")
+        self.assertAlmostEqual(wf.rate_per_day, 10)
+        self.assertIsNone(wf.days_before_reset)
+
+    def test_unused_week_is_ok(self):
+        wf = self.wf(0, 4)
+        self.assertEqual(wf.verdict, "ok")
+        self.assertIsNone(wf.eta)
+
+    def test_unknown_at_the_very_start_of_the_week(self):
+        # 2 h 24 écoulées : le rythme d'un début de semaine n'est pas significatif.
+        self.assertEqual(self.wf(10, 6.9).verdict, "unknown")
+
+    def test_already_full(self):
+        wf = self.wf(100, 4)
+        self.assertEqual(wf.verdict, "limit")
+        self.assertEqual(wf.eta, NOW)
+        self.assertAlmostEqual(wf.days_before_reset, 4)
+
+    def test_none_without_usable_limit(self):
+        from ccs_app.forecast import weekly_forecast
+        self.assertIsNone(weekly_forecast(None, NOW))
+        self.assertIsNone(weekly_forecast(Limit("weekly_all", "W", 10, None), NOW))
+        self.assertIsNone(weekly_forecast(weekly(10, -1), NOW))
+
+    def test_as_dict_for_state(self):
+        d = self.wf(60, 4).as_dict()
+        self.assertEqual(d["verdict"], "limit")
+        self.assertEqual(d["eta"], (NOW + timedelta(days=2)).isoformat())
+        self.assertAlmostEqual(d["rate_per_day"], 20)
+        self.assertAlmostEqual(d["days_before_reset"], 2)
+
+
+class WeeklyForecastTextTest(unittest.TestCase):
+    def test_fmt_when(self):
+        from ccs_app.forecast import fmt_when
+        local = NOW.astimezone()
+        self.assertEqual(fmt_when(NOW, NOW), f"aujourd'hui à {local:%H:%M}")
+        tomorrow = NOW + timedelta(days=1)
+        self.assertEqual(fmt_when(tomorrow, NOW), f"demain à {tomorrow.astimezone():%H:%M}")
+        later = (NOW + timedelta(days=3)).astimezone()
+        self.assertIn(f" {later.day} ", fmt_when(later, NOW))
+        self.assertTrue(fmt_when(later, NOW).endswith(f"à {later:%H:%M}"))
+
+    def test_fmt_days(self):
+        from ccs_app.forecast import fmt_days
+        self.assertEqual(fmt_days(1.5), "1,5 j")
+        self.assertEqual(fmt_days(0.25), "6 h")
+        self.assertEqual(fmt_days(0.01), "moins d'une heure")
+
+    def test_text_for_limit_and_ok(self):
+        from ccs_app.forecast import weekly_forecast, weekly_forecast_text
+        limit = weekly_forecast(weekly(60, 4), NOW).as_dict()
+        text = weekly_forecast_text(limit, NOW)
+        self.assertIn("limite prévue", text)
+        self.assertIn("20 %/jour", text)
+        self.assertIn("2,0 j avant la réinitialisation", text)
+        ok = weekly_forecast_text(weekly_forecast(weekly(30, 4), NOW).as_dict(), NOW)
+        self.assertIn("tient jusqu'à la réinitialisation", ok)
+        self.assertIsNone(weekly_forecast_text(None, NOW))
+        self.assertIsNone(weekly_forecast_text({"verdict": "unknown"}, NOW))

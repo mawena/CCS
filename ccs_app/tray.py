@@ -4,6 +4,7 @@ import subprocess
 import sys
 
 from . import core, daemon
+from .forecast import fmt_when
 from .settings import load_settings, save_settings
 
 REFRESH_S = 30
@@ -121,6 +122,12 @@ def menu_lines(state, now):
     fc = ((_active_account(state) or {}).get("forecast") or {})
     if fc.get("verdict") == "limit" and fc.get("eta"):
         out.append((f"⏱ Limite estimée vers {_hm(fc['eta'])}", None))
+    for a in accounts:
+        wf = a.get("weekly_forecast") or {}
+        eta = core.parse_dt(wf.get("eta")) if wf.get("verdict") == "limit" else None
+        if eta is not None and eta > now:
+            out.append((f"⚠ {a['name']} : semaine épuisée {fmt_when(eta, now)} au rythme actuel",
+                        None))
     if o.get("enabled"):
         ends = sorted((core.parse_dt(w["end"]), w["name"]) for w in o.get("plan") or []
                       if core.parse_dt(w["end"]) and core.parse_dt(w["end"]) > now)

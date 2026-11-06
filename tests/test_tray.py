@@ -97,6 +97,18 @@ class MenuLinesTest(unittest.TestCase):
     def test_empty_state(self):
         self.assertEqual(self.lines({})[0], "Pas encore de données — lance le service")
 
+    def test_weekly_forecast_line_only_when_limit_comes_first(self):
+        import copy
+        st = copy.deepcopy(FULL)
+        st["accounts"][1]["weekly_forecast"] = {"verdict": "limit", "eta": iso(36 * 60),
+                                                "rate_per_day": 22, "days_before_reset": 1.2}
+        st["accounts"][0]["weekly_forecast"] = {"verdict": "ok", "eta": None,
+                                                "rate_per_day": 9, "days_before_reset": None}
+        week = [l for l in self.lines(st) if "semaine épuisée" in l]
+        self.assertEqual(len(week), 1)
+        self.assertIn("boulot", week[0])
+        self.assertNotIn("semaine épuisée", "\n".join(self.lines()))
+
 
 class SessionLinesTest(unittest.TestCase):
     def test_session_lines(self):

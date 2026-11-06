@@ -16,6 +16,8 @@ DEFAULTS = {
         "session_thresholds": [80, 95],
         "eta_minutes": 20,
         "weekly_ahead_points": 15,
+        "weekly_forecast": True,
+        "weekly_forecast_days": 2,
         "resets": True,
         "auth": True,
         "sessions": True,

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from .forecast import effective_percent
+from .forecast import effective_percent, fmt_days, fmt_when, weekly_forecast
 
 # L'API renvoie des heures de réinitialisation qui varient de quelques
 # secondes d'un appel à l'autre : on identifie une fenêtre à 10 min près.
@@ -81,12 +81,40 @@ def _reset_alert(acc, prev, now, sent):
                  f"Session réinitialisée ({effective_percent(cur, now):.0f} %).", 0)
 
 
-def pending_alerts(accounts, active, fc, paces, best, settings, now, sent_keys, previous_sessions):
+def _weekly_forecast_alert(acc, wf, pace, cfg, now, sent):
+    """Limite hebdomadaire prévue dans moins de N jours, avant la réinitialisation."""
+    if not cfg["weekly_forecast"] or wf is None or wf.verdict != "limit" or wf.eta is None:
+        return None
+    if wf.eta - now > timedelta(days=cfg["weekly_forecast_days"]):
+        return None
+    key = f"weekly_forecast:{acc.name}:{window_id(acc.weekly.resets_at)}"
+    if key in sent:
+        return None
+    reset = acc.weekly.resets_at
+    if wf.eta <= now:
+        return Alert(key, f"{acc.name} : limite de la semaine atteinte",
+                     f"Réinitialisation {fmt_when(reset, now)}.", 1)
+    rate = f" ({wf.rate_per_day:.0f} %/jour)" if wf.rate_per_day else ""
+    budget = (f" Pour tenir jusqu'au bout : {pace.per_day_budget:.0f} %/jour."
+              if pace is not None else "")
+    return Alert(key, f"{acc.name} : semaine épuisée {fmt_when(wf.eta, now)}",
+                 f"Au rythme actuel{rate}, la limite hebdomadaire sera atteinte "
+                 f"{fmt_days(wf.days_before_reset or 0)} avant la réinitialisation "
+                 f"({fmt_when(reset, now)}).{budget}", 1)
+
+
+def pending_alerts(accounts, active, fc, paces, best, settings, now, sent_keys, previous_sessions,
+                   weekly=None):
     cfg = settings["alerts"]
     if not cfg["enabled"]:
         return []
     out = []
     for acc in accounts:
+        wf = (weekly.get(acc.name) if weekly is not None
+              else weekly_forecast(acc.weekly, now))
+        wa = _weekly_forecast_alert(acc, wf, paces.get(acc.name), cfg, now, sent_keys)
+        if wa:
+            out.append(wa)
         if acc.name == active and acc.session is not None:
             out += _session_alerts(acc, fc, best, cfg, now, sent_keys)
         if cfg["resets"]:
@@ -96,7 +124,9 @@ def pending_alerts(accounts, active, fc, paces, best, settings, now, sent_keys, 
         pace = paces.get(acc.name)
         if pace is not None and -pace.margin > cfg["weekly_ahead_points"]:
             key = f"weekly_ahead:{acc.name}:{window_id(acc.weekly.resets_at)}"
-            if key not in sent_keys:
+            # La prévision d'épuisement (envoyée ou en cours) dit déjà plus que l'avance.
+            stronger = f"weekly_forecast:{acc.name}:{window_id(acc.weekly.resets_at)}"
+            if key not in sent_keys and wa is None and stronger not in sent_keys:
                 used = acc.weekly.percent
                 out.append(Alert(key, f"{acc.name} : semaine en avance sur le rythme",
                                  f"{used:.0f} % utilisés pour {pace.ideal:.0f} % de la semaine "

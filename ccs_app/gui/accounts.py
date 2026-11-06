@@ -6,6 +6,7 @@ import time
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from .. import core, daemon
+from ..forecast import weekly_forecast_text
 from .charts import Sparkline
 from .common import (ask_name, bar_for, caption, clear, now_utc, parse_ts, run_ccs_async)
 
@@ -147,6 +148,12 @@ class AccountsPage(Gtk.ScrolledWindow):
         for text in (forecast_text(a.get("forecast"), now), pace_text(a.get("pace"))):
             if text:
                 card.append(Gtk.Label(label=text, xalign=0, wrap=True))
+        week = weekly_forecast_text(a.get("weekly_forecast"), now)
+        if week:
+            label = Gtk.Label(label=week, xalign=0, wrap=True)
+            if (a.get("weekly_forecast") or {}).get("verdict") == "limit":
+                label.add_css_class("warning")
+            card.append(label)
 
         t1 = time.time()
         samples = [(ts, p) for ts, p, _ in store.samples(a["name"], "session", t1 - DAY_S)]
