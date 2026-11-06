@@ -93,6 +93,30 @@ class ConversationTest(HomeTestCase):
         self.assertEqual(convs[0].title, "ajoute un export CSV")
 
 
+    def test_recent_conversation_titles_follow_titles_and_renames(self):
+        ts = datetime.now(timezone.utc).isoformat()
+        p = self.transcript("/home/u/App", "s1", [
+            {"type": "user", "message": {"role": "user", "content": "première demande"}, "timestamp": ts},
+            {"type": "ai-title", "aiTitle": "Titre automatique", "sessionId": "s1"}])
+        self.assertEqual(sessions.recent_conversations("/home/u/App")[0].title, "Titre automatique")
+        with open(p, "a") as f:
+            f.write(json.dumps({"type": "custom-title", "sessionId": "s1", "customTitle": "Mon titre"}) + "\n")
+            f.write(json.dumps({"type": "ai-title", "aiTitle": "Autre titre auto", "sessionId": "s1"}) + "\n")
+        self.assertEqual(sessions.recent_conversations("/home/u/App")[0].title, "Mon titre")
+        self.assertEqual(sessions.conversation_title("/home/u/App", "s1"), "Mon titre")
+        self.assertIsNone(sessions.conversation_title("/home/u/App", "absent"))
+
+    def test_title_is_read_from_the_end_of_long_journals(self):
+        ts = datetime.now(timezone.utc).isoformat()
+        filler = {"type": "assistant", "message": {"content": "x" * 1000}, "timestamp": ts}
+        self.transcript("/home/u/App", "long", [
+            {"type": "user", "message": {"role": "user", "content": "début"}, "timestamp": ts},
+            {"type": "custom-title", "customTitle": "Ancien titre", "sessionId": "long"}]
+            + [filler] * 400 + [{"type": "custom-title", "customTitle": "Récent", "sessionId": "long"}])
+        with mock.patch.object(sessions, "TITLE_TAIL", 64 * 1024):
+            self.assertEqual(sessions.conversation_title("/home/u/App", "long"), "Récent")
+
+
 class TransitionsTest(HomeTestCase):
     def sess(self, pid, state, since):
         return Session(pid, f"s{pid}", f"app{pid}", "/x", f"P{pid}", state, None,

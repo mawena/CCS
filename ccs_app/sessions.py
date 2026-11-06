@@ -18,6 +18,7 @@ from pathlib import Path
 from . import core, transcripts
 
 REPORT_MIN_BUSY_S = 60
+TITLE_TAIL = 256 * 1024  # Claude Code réécrit régulièrement les titres en fin de journal
 INJECTED_PREFIXES = ("Base directory for this skill", "Caveat:", "This session is being continued",
                      "[Request interrupted by user")
 STATE_LABELS = {"busy": "travaille", "waiting": "attend ta réponse", "idle": "au repos"}
@@ -169,11 +170,46 @@ def _first_prompt(path):
                                     if isinstance(c, dict) and c.get("type") == "text"), None)
                 if (isinstance(content, str) and content.strip() and not content.startswith("<")
                         and not content.startswith(INJECTED_PREFIXES)):
-                    line = content.strip().splitlines()[0]
-                    return line[:70] + ("…" if len(line) > 70 else "")
+                    return _short(content.strip().splitlines()[0])
     except OSError:
         pass
     return "(sans titre)"
+
+
+def _short(line):
+    return line[:70] + ("…" if len(line) > 70 else "")
+
+
+def journal_title(path):
+    """Titre donné à la conversation (`custom-title`, `/rename`), sinon titre automatique
+    (`ai-title`), cherchés dans la fin du journal ; None s'il n'y en a pas."""
+    try:
+        with open(path, "rb") as fh:
+            size = fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, size - TITLE_TAIL))
+            tail = fh.read()
+    except OSError:
+        return None
+    custom = ai = None
+    for raw in tail.splitlines():
+        if b'"custom-title"' not in raw and b'"ai-title"' not in raw:
+            continue
+        try:
+            d = json.loads(raw)
+        except ValueError:
+            continue  # première ligne coupée par la lecture de la fin, ou ligne en cours d'écriture
+        if not isinstance(d, dict):
+            continue
+        if d.get("type") == "custom-title" and d.get("customTitle"):
+            custom = str(d["customTitle"])
+        elif d.get("type") == "ai-title" and d.get("aiTitle"):
+            ai = str(d["aiTitle"])
+    title = " ".join((custom or ai or "").split())
+    return _short(title) if title else None
+
+
+def conversation_title(cwd, session_id):
+    return journal_title(transcript_path(cwd, session_id)) if cwd and session_id else None
 
 
 def recent_conversations(cwd, limit=8):
@@ -181,7 +217,7 @@ def recent_conversations(cwd, limit=8):
     if not d.is_dir():
         return []
     files = sorted(d.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
-    return [Conversation(f.stem, f.stat().st_mtime, _first_prompt(f)) for f in files]
+    return [Conversation(f.stem, f.stat().st_mtime, journal_title(f) or _first_prompt(f)) for f in files]
 
 
 def _cwd_of(path):
