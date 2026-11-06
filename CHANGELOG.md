@@ -3,6 +3,78 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Ajouté
+
+- **Conseiller de formule** : `ccs formule` (alias `ccs conseil`) et carte de
+  l'onglet Analyse. Besoin mesuré sur les relevés des dernières semaines en
+  unités Pro (semaine et fenêtres de 5 h simultanées, semaines bridées
+  majorées), combinaison Pro / Max / Ultra la moins chère qui le couvre avec
+  20 % de marge, raisonnement détaillé, économie ou surcoût par rapport à la
+  formule actuelle et équivalent mensuel au tarif de l'API (journaux de ce
+  PC). Prix relevés sur claude.com/pricing le 2026-11-06 (Pro 20 $/mois, 17 $
+  en annuel ; Max 100 $ « 5x » ; Ultra 200 $, l'ancien Max 20x), signalés « à
+  vérifier » après 120 jours. Formule de chaque compte détectée
+  (`subscriptionType`, `rateLimitTier`). Réglages `advisor.weeks`,
+  `advisor.margin_pct`, `advisor.plan_prices`, `advisor.profile_plans`,
+  `advisor.max_accounts`.
+- **Conseil de modèle près des limites** : au-delà de 80 % (session ou
+  semaine) avec un modèle cher, une notification par fenêtre de 5 h propose
+  la famille moins chère (Fable → Opus → Sonnet → Haiku) et le gain en ordre
+  de grandeur (« ×N », tarifs de l'API appliqués aux réponses des 30 dernières
+  minutes) ; « → sonnet ? » dans la ligne d'état de Claude Code. Réglages
+  `alerts.model_advice`, `alerts.model_advice_pct`.
+- **Bilan de la semaine** : `ccs semaine [--precedente N]`, carte de l'onglet
+  Analyse avec choix de la semaine et notification hebdomadaire (comptes,
+  activité, tokens et équivalent API, modèles, projets, bascules et alertes,
+  comparaison avec la semaine précédente). Semaine alignée sur la plupart des
+  comptes ou sur un jour fixe : `alerts.weekly_report`,
+  `alerts.weekly_report_day`, `alerts.weekly_report_hour`.
+- **Journal des bascules** : section de l'onglet Historique et
+  `ccs journal [--jours N | --tout]`. Chaque bascule avec sa raison en clair
+  (automatique avec le pourcentage, anticipée par l'orchestrateur, après un
+  blocage avec le projet, manuelle et son origine), échecs, limites atteintes
+  sans bascule et démarrages de fenêtre ; groupes par jour, filtre 7 jours /
+  30 jours / tout.
+- **Compte par projet** : `ccs projet [<dossier>] [<compte>|aucun]` et
+  « Compte de ce projet… » dans le menu d'un projet ; héritage par les
+  sous-dossiers (`~/.claude-accounts/projects.json`). En ouvrant une session ou
+  une conversation du projet depuis l'application, la bascule est proposée
+  (Basculer et ouvrir / Ouvrir sans basculer / Annuler, « Ne plus demander
+  pour ce projet ») ; « Nouvelle session » présélectionne le compte du projet.
+  Rien n'est proposé pendant une pause.
+- **Raccourcis clavier globaux** (bureau GNOME, même application fermée,
+  désactivés par défaut) : ouvrir l'application (Super+Alt+C), sessions
+  (Super+Alt+V), nouvelle session (Super+Alt+N), compte suivant (Super+Alt+B),
+  meilleur compte (Super+Alt+M), pause 1 h (Super+Alt+P), reprendre
+  (Super+Alt+R). Groupe « Raccourcis clavier » des Réglages (capture d'une
+  combinaison, conflits signalés) et
+  `ccs raccourcis [status|on|off [action…]|set <action> <raccourci>]`. CCS
+  n'écrit que ses propres raccourcis personnalisés et ne retire jamais les
+  autres.
+- `claude-accounts gui --page <nom>` (ouvre un onglet) et
+  `claude-accounts gui --new-session` (ouvre le dialogue « Nouvelle session »).
+- Réglages : interrupteurs et champs du conseil de modèle et du bilan de la
+  semaine.
+
+### Modifié
+
+- **Un seul onglet « Sessions »** remplace les onglets Sessions et
+  Conversations : projets à gauche (« Tous », point d'activité, nombre de
+  conversations, compte du projet), à droite les sessions ouvertes du projet
+  puis ses conversations groupées par date ; recherche et filtre d'origine
+  communs, bouton « Nouvelle session… ». Toutes les actions sont conservées
+  (reprise, aperçu, coût, renommage, badge des sessions en attente,
+  notifications cliquables).
+- Événements `switch` et `error` de l'historique : nouveaux champs pour le
+  journal (compte quitté, pourcentage et seuil, quota qui expire, origine
+  d'une bascule manuelle, projet). Les anciens événements restent lisibles.
+  L'origine d'une bascule lancée par l'application est notée dans
+  `~/.claude-accounts/switch-origin.json`, lue puis retirée par le service.
+- README : tableau des formules aux prix du 2026-11-06 (Ultra à 200 $, l'ancien
+  Max 20×).
+
 ## [0.5.0] — 2026-11-06
 
 ### Ajouté
