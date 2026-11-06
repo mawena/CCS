@@ -10,7 +10,8 @@ import os
 import pwd
 import shlex
 import shutil
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 
 from . import core, sessions
 
@@ -30,6 +31,11 @@ INDICATORS = {  # état de la session -> (sablier, icône, infobulle)
     "idle": (False, None, "au repos"),
 }
 STOPPED = (False, "media-playback-stop-symbolic", "arrêtée")
+# Reprise automatique après une limite : texte envoyé et garde anti-boucle.
+RESUME_TEXT = "continue"
+RESUME_MAX_PER_HOUR = 3
+RESUME_MIN_GAP_S = 120
+RESUME_MAX_AGE_S = 15 * 60
 
 
 @dataclass(frozen=True)
@@ -59,6 +65,12 @@ class TabState:
     state: str | None = None      # "busy" | "waiting" | "idle" (fiche de session de claude)
     busy: bool = False            # shell : un programme tourne au premier plan
     exit_status: int | None = None
+    waiting_for: str | None = None    # motif d'attente de la fiche de session
+    started_at: float | None = None   # lancement du processus de l'onglet
+    busy_since: float | None = None   # début du dernier tour de travail de claude
+    typed_at: float | None = None     # dernière saisie au clavier (ou collage) dans l'onglet
+    sent_at: float | None = None      # dernier texte envoyé par l'application (reprise, file)
+    resumes: list = field(default_factory=list)  # dates des reprises automatiques
 
 
 # ---- lancement ------------------------------------------------------------------------
@@ -165,10 +177,12 @@ def find_tab(tabs, pid=None, session_id=None):
     return None
 
 
-def sync_tabs(tabs, live):
+def sync_tabs(tabs, live, now=None):
     """Met à jour les onglets de claude d'après les fiches de session (`live`, trouvées par
-    pid) : identifiant de la conversation (connu après le démarrage, changé par /resume)
-    et état. Renvoie les onglets qui viennent de finir de travailler."""
+    pid) : identifiant de la conversation (connu après le démarrage, changé par /resume),
+    état, motif d'attente et début du dernier tour de travail (date de la fiche, sinon
+    première fois qu'on le voit). Renvoie les onglets qui viennent de finir de travailler."""
+    now = time.time() if now is None else now
     by_pid = {s.pid: s for s in live}
     done = []
     for tab in tabs:
@@ -179,8 +193,19 @@ def sync_tabs(tabs, live):
             tab.session_id = s.session_id
         if tab.state == "busy" and s.state != "busy":
             done.append(tab)
+        if s.state == "busy" and (s.state_since or tab.state != "busy" or tab.busy_since is None):
+            tab.busy_since = s.state_since or now
         tab.state = s.state
+        tab.waiting_for = s.waiting_for
     return done
+
+
+def free_for_input(tab):
+    """Claude attend une nouvelle demande : au repos, ou en attente d'une saisie libre.
+    Jamais pendant une demande de permission (Entrée y validerait un choix)."""
+    if tab.state == "idle":
+        return True
+    return tab.state == "waiting" and (tab.waiting_for or "").lower().startswith("input")
 
 
 def indicator(tab):
@@ -227,3 +252,60 @@ def tab_close_question(tab):
     body = (f"Claude Code sera arrêté. {_saved(1)}" if tab.kind == "claude"
             else "Le programme en cours sera arrêté.")
     return f"Fermer « {tab.title} » ?", body
+
+
+# ---- reprise automatique après une limite ----------------------------------------------
+
+@dataclass(frozen=True)
+class ResumeDecision:
+    """« resume » : envoyer RESUME_TEXT puis Entrée ; « drop » : consommer le marqueur sans
+    rien envoyer ; « wait » : le garder pour le prochain passage. `text` : bandeau à afficher."""
+    action: str
+    text: str | None = None
+
+
+def _limit_head(event):
+    return f"Limite atteinte sur {event.source}" if event.source else "Limite atteinte"
+
+
+def _limit_text(event, tail):
+    return f"{_limit_head(event)} : bascule sur {event.target or 'un autre compte'}. {tail}"
+
+
+def resume_decision(tab, event, now, enabled=True, max_per_hour=RESUME_MAX_PER_HOUR,
+                    min_gap=RESUME_MIN_GAP_S, max_age=RESUME_MAX_AGE_S):
+    """Que faire du marqueur de limite `event` (limit_events.LimitEvent) pour l'onglet `tab` ?
+
+    None si le marqueur ne concerne pas cet onglet. On ne relance que si le compte a changé,
+    que claude attend une nouvelle demande, que personne n'a écrit dans l'onglet depuis la
+    limite, et au plus `max_per_hour` fois par heure (espacées d'au moins `min_gap` s)."""
+    if event is None or tab.kind != "claude" or not tab.session_id or event.session_id != tab.session_id:
+        return None
+    if not tab.running or now - event.ts > max_age:
+        return ResumeDecision("drop")
+    if tab.started_at is not None and event.ts < tab.started_at:
+        return ResumeDecision("drop")  # limite d'un processus précédent de la conversation
+    if event.outcome == "pending":
+        return ResumeDecision("wait")  # le hook choisit encore le compte
+    if not event.switched:
+        why = (f"bascule vers {event.target} impossible" if event.target
+               else "aucun autre compte disponible")
+        return ResumeDecision("drop", f"{_limit_head(event)} : {why}, pas de reprise automatique.")
+    manual = "tape « continue » pour reprendre."
+    if not enabled:
+        return ResumeDecision("drop", _limit_text(event, manual.capitalize()))
+    if tab.typed_at is not None and tab.typed_at > event.ts:
+        return ResumeDecision("drop", _limit_text(
+            event, "Pas de reprise automatique : tu as écrit dans la session."))
+    if not free_for_input(tab):
+        return ResumeDecision("wait")
+    recent = [t for t in tab.resumes if now - t < 3600]
+    if len(recent) >= max_per_hour:
+        return ResumeDecision("drop", _limit_text(
+            event, f"Reprise automatique suspendue ({len(recent)} reprises en une heure) : {manual}"))
+    if recent and now - max(recent) < min_gap:
+        return ResumeDecision("drop", _limit_text(
+            event, f"Reprise automatique suspendue (la précédente date de moins de "
+                   f"{min_gap // 60} min) : {manual}"))
+    return ResumeDecision("resume", f"{_limit_head(event)} : bascule sur "
+                                    f"{event.target or 'un autre compte'}, conversation relancée.")

@@ -219,3 +219,125 @@ class EnvironTest(HomeTestCase):
                 mock.patch.object(sessions, "_claude_bin", return_value="claude"):
             env = terminal.claude_launch("/w").env
         self.assertEqual(env["PATH"], f"{self.home}/.local/bin:/opt/bin")
+
+
+def live_at(pid, state, since, sid="s-1", waiting_for=None):
+    return Session(pid, sid, "app", "/w/App", "App", state, waiting_for, 0.0, since, "interactive", "cli")
+
+
+class SyncTurnTest(HomeTestCase):
+    def tab(self, **kw):
+        return TabState(**{"kind": "claude", "cwd": "/w/App", "title": "App", "pid": 10, "running": True, **kw})
+
+    def test_busy_start_comes_from_the_session_record(self):
+        a = self.tab(state="idle")
+        terminal.sync_tabs([a], [live_at(10, "busy", 500.0)], now=600.0)
+        self.assertEqual(a.busy_since, 500.0)
+        terminal.sync_tabs([a], [live_at(10, "idle", 700.0)], now=800.0)
+        self.assertEqual(a.busy_since, 500.0)  # gardé : début du dernier tour
+
+    def test_busy_start_without_date_is_the_first_time_it_was_seen(self):
+        a = self.tab(state="idle")
+        terminal.sync_tabs([a], [live_at(10, "busy", 0.0)], now=600.0)
+        terminal.sync_tabs([a], [live_at(10, "busy", 0.0)], now=603.0)
+        self.assertEqual(a.busy_since, 600.0)
+
+    def test_waiting_reason_is_kept(self):
+        a = self.tab()
+        terminal.sync_tabs([a], [live_at(10, "waiting", 1.0, waiting_for="input needed")], now=2.0)
+        self.assertEqual((a.state, a.waiting_for), ("waiting", "input needed"))
+        terminal.sync_tabs([a], [live_at(10, "idle", 3.0)], now=4.0)
+        self.assertIsNone(a.waiting_for)
+
+
+class ResumeDecisionTest(HomeTestCase):
+    NOW = 10_000.0
+
+    def tab(self, **kw):
+        return TabState(**{"kind": "claude", "cwd": "/w/App", "title": "App", "pid": 10, "running": True,
+                           "session_id": "s-1", "state": "idle", "started_at": self.NOW - 3600, **kw})
+
+    def event(self, **kw):
+        from ccs_app.limit_events import LimitEvent
+        return LimitEvent(**{"session_id": "s-1", "ts": self.NOW - 20, "source": "perso", "target": "pro",
+                             "switched": True, "outcome": "switched", **kw})
+
+    def decide(self, tab=None, event=None, **kw):
+        return terminal.resume_decision(tab or self.tab(), event or self.event(), self.NOW, **kw)
+
+    def test_switched_and_idle_resumes_with_a_banner(self):
+        d = self.decide()
+        self.assertEqual(d.action, "resume")
+        self.assertEqual(d.text, "Limite atteinte sur perso : bascule sur pro, conversation relancée.")
+        self.assertEqual(terminal.RESUME_TEXT, "continue")
+
+    def test_already_switched_by_someone_else_resumes_too(self):
+        self.assertEqual(self.decide(event=self.event(outcome="already")).action, "resume")
+
+    def test_not_for_another_conversation_or_a_shell(self):
+        self.assertIsNone(terminal.resume_decision(self.tab(), None, self.NOW))
+        self.assertIsNone(self.decide(event=self.event(session_id="s-2")))
+        self.assertIsNone(self.decide(tab=self.tab(session_id=None)))
+        self.assertIsNone(self.decide(tab=TabState("shell", "/w", "t", pid=3, running=True)))
+
+    def test_waits_while_the_hook_decides_or_claude_still_works(self):
+        self.assertEqual(self.decide(event=self.event(outcome="pending", switched=False)).action, "wait")
+        self.assertEqual(self.decide(tab=self.tab(state="busy")).action, "wait")
+        self.assertEqual(self.decide(tab=self.tab(state=None)).action, "wait")
+
+    def test_never_types_into_a_permission_prompt(self):
+        tab = self.tab(state="waiting", waiting_for="permission to run Bash")
+        self.assertEqual(self.decide(tab=tab).action, "wait")
+        self.assertEqual(self.decide(tab=self.tab(state="waiting")).action, "wait")
+        tab = self.tab(state="waiting", waiting_for="input needed")
+        self.assertEqual(self.decide(tab=tab).action, "resume")
+
+    def test_failed_or_impossible_switch_only_explains(self):
+        d = self.decide(event=self.event(switched=False, outcome="failed"))
+        self.assertEqual(d.action, "drop")
+        self.assertEqual(d.text, "Limite atteinte sur perso : bascule vers pro impossible, "
+                                 "pas de reprise automatique.")
+        d = self.decide(event=self.event(switched=False, target=None, outcome="exhausted"))
+        self.assertEqual(d.text, "Limite atteinte sur perso : aucun autre compte disponible, "
+                                 "pas de reprise automatique.")
+
+    def test_user_typed_since_the_limit(self):
+        d = self.decide(tab=self.tab(typed_at=self.NOW - 5))
+        self.assertEqual(d.action, "drop")
+        self.assertEqual(d.text, "Limite atteinte sur perso : bascule sur pro. "
+                                 "Pas de reprise automatique : tu as écrit dans la session.")
+        self.assertEqual(self.decide(tab=self.tab(typed_at=self.NOW - 60)).action, "resume")  # avant
+
+    def test_disabled_only_explains(self):
+        d = self.decide(enabled=False)
+        self.assertEqual(d.action, "drop")
+        self.assertEqual(d.text, "Limite atteinte sur perso : bascule sur pro. Tape « continue » pour reprendre.")
+
+    def test_stale_or_stopped_or_older_than_the_tab_is_dropped_silently(self):
+        old = self.event(ts=self.NOW - terminal.RESUME_MAX_AGE_S - 1)
+        self.assertEqual(self.decide(event=old), terminal.ResumeDecision("drop"))
+        self.assertEqual(self.decide(tab=self.tab(running=False)), terminal.ResumeDecision("drop"))
+        tab = self.tab(started_at=self.NOW - 10)   # onglet (re)lancé après la limite
+        self.assertEqual(self.decide(tab=tab), terminal.ResumeDecision("drop"))
+
+    def test_loop_guard_per_hour(self):
+        tab = self.tab(resumes=[self.NOW - 3000, self.NOW - 2000, self.NOW - 1000])
+        d = self.decide(tab=tab)
+        self.assertEqual(d.action, "drop")
+        self.assertEqual(d.text, "Limite atteinte sur perso : bascule sur pro. Reprise automatique "
+                                 "suspendue (3 reprises en une heure) : tape « continue » pour reprendre.")
+        tab = self.tab(resumes=[self.NOW - 4000, self.NOW - 2000, self.NOW - 1000])  # une hors de l'heure
+        self.assertEqual(self.decide(tab=tab).action, "resume")
+        self.assertEqual(self.decide(tab=tab, max_per_hour=2).action, "drop")
+
+    def test_loop_guard_when_the_previous_resume_is_too_recent(self):
+        tab = self.tab(resumes=[self.NOW - 60])
+        d = self.decide(tab=tab)
+        self.assertEqual(d.action, "drop")
+        self.assertEqual(d.text, "Limite atteinte sur perso : bascule sur pro. Reprise automatique "
+                                 "suspendue (la précédente date de moins de 2 min) : tape « continue » "
+                                 "pour reprendre.")
+
+    def test_unknown_account_names(self):
+        d = self.decide(event=self.event(source=None, target=None))
+        self.assertEqual(d.text, "Limite atteinte : bascule sur un autre compte, conversation relancée.")

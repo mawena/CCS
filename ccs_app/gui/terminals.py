@@ -8,11 +8,12 @@ décide sans GTK (commande, environnement, textes, état des onglets) est dans
 
 import os
 import signal
+import time
 
 import gi
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
-from .. import sessions, terminal
+from .. import limit_events, sessions, terminal, terminal_store
 from .common import in_thread
 
 SCROLLBACK_LINES = 100_000
@@ -63,7 +64,8 @@ def system_font():
 
 
 class TerminalTab(Gtk.Box):
-    """Un onglet : le terminal, sa barre de défilement et le bandeau de fin."""
+    """Un onglet : le terminal, sa barre de défilement, le bandeau d'information (reprise
+    après une limite) et le bandeau de fin."""
 
     def __init__(self, owner, launch):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
@@ -73,6 +75,12 @@ class TerminalTab(Gtk.Box):
         self.state = terminal.TabState(launch.kind, launch.cwd, launch.title, launch.session_id)
         self.page = None
         self.menu_uri = None
+        self.feeding = False       # texte envoyé par l'application : pas une saisie
+        self.limits_done = set()   # (session_id, date) des limites déjà traitées
+
+        self.notice = Adw.Banner(revealed=False, button_label="OK", use_markup=False)
+        self.notice.connect("button-clicked", lambda b: b.set_revealed(False))
+        self.append(self.notice)
 
         self.term = Vte.Terminal(hexpand=True, vexpand=True, css_classes=["ccs-terminal"])
         self.term.set_scrollback_lines(SCROLLBACK_LINES)
@@ -88,6 +96,7 @@ class TerminalTab(Gtk.Box):
         self.term.connect("window-title-changed", self.on_window_title)
         self.term.connect("contents-changed", self.on_contents)
         self.term.connect("bell", lambda *_: self.attention())
+        self.term.connect("commit", self.on_commit)
         self.install_input()
 
         body = Gtk.Box()
@@ -195,15 +204,36 @@ class TerminalTab(Gtk.Box):
         if not self.state.running:
             return False
         data = (text + ("\r" if enter else "")).encode()
-        self.term.feed_child(data)
+        self.feeding = True
+        try:
+            self.term.feed_child(data)
+        finally:
+            self.feeding = False
         return True
+
+    def send_auto(self, text):
+        """Envoi décidé par l'application (reprise, file de messages) : texte puis Entrée."""
+        if not self.send_text(text, enter=True):
+            return False
+        self.state.sent_at = time.time()
+        return True
+
+    def on_commit(self, *_):
+        if not self.feeding:
+            self.state.typed_at = time.time()
+
+    def show_notice(self, text):
+        self.notice.set_title(text)
+        self.notice.set_revealed(True)
 
     # ---- processus -----------------------------------------------------------------
 
     def spawn(self, launch=None):
         Vte = vte()
         self.launch = launch or self.launch
-        self.state.exit_status, self.state.state = None, None
+        st = self.state
+        st.exit_status, st.state, st.waiting_for = None, None, None
+        st.started_at = st.busy_since = st.typed_at = st.sent_at = None
         self.bar.set_revealed(False)
         self.term.spawn_async(Vte.PtyFlags.DEFAULT, self.launch.cwd, list(self.launch.argv),
                               self.launch.envv(), GLib.SpawnFlags.DEFAULT, None, None, -1, None,
@@ -215,6 +245,7 @@ class TerminalTab(Gtk.Box):
             self.show_bar(f"Lancement impossible : {error.message if error else 'erreur inconnue'}")
         else:
             self.state.pid, self.state.running = pid, True
+            self.state.started_at = time.time()
         self.owner.changed(self)
         if self.state.running:
             self.owner.emit("tab-started", self)
@@ -325,6 +356,7 @@ class TerminalsPage(Gtk.Box):
         self.style = Adw.StyleManager.get_default()
         self.dark = self.style.get_dark()
         self.font = system_font()
+        self.options = terminal_store.load_options()
         if not self.available:
             return
 
@@ -358,8 +390,21 @@ class TerminalsPage(Gtk.Box):
             self.tab_actions.add_action(a)
         self.insert_action_group("tabs", self.tab_actions)
 
-        more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=tab_menu, css_classes=["flat"],
-                              tooltip_text="Onglet")
+        # Interrupteurs de la page (gardés dans terminals.json, pas dans les réglages généraux).
+        self.page_actions = Gio.SimpleActionGroup()
+        for name, key in (("auto-resume", "auto_resume"),):
+            a = Gio.SimpleAction.new_stateful(name, None, GLib.Variant.new_boolean(self.options[key]))
+            a.connect("change-state", lambda act, value, k=key: self.set_option(act, k, value))
+            self.page_actions.add_action(a)
+        self.insert_action_group("terms", self.page_actions)
+        options = Gio.Menu()
+        options.append("Reprise automatique après une limite", "terms.auto-resume")
+        page_menu = Gio.Menu()
+        page_menu.append_section(None, tab_menu)
+        page_menu.append_section(None, options)
+
+        more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=page_menu, css_classes=["flat"],
+                              tooltip_text="Onglet et options")
         more.connect("notify::active", lambda b, _p: b.get_active() and self.prepare_menu(None))
         self.bar = Adw.TabBar(view=self.view, autohide=False, end_action_widget=more)
         self.append(self.bar)
@@ -537,16 +582,22 @@ class TerminalsPage(Gtk.Box):
 
     # ---- suivi des sessions ----------------------------------------------------------
 
+    def set_option(self, action, key, value):
+        action.set_state(value)
+        self.options[key] = value.get_boolean()
+        terminal_store.save_options(self.options)
+
     def poll(self):
         states = self.states()
         if not terminal.running_claude(states):
             self.polling = False
             return False
 
-        in_thread(sessions.list_sessions, self.synced)
+        in_thread(lambda: (sessions.list_sessions(), limit_events.load_all()), self.synced)
         return True
 
-    def synced(self, live):
+    def synced(self, found):
+        live, limits = found
         tabs = self.tabs()
         before = {id(t.state): (t.state.session_id, t.state.state) for t in tabs}
         done = terminal.sync_tabs([t.state for t in tabs], live)
@@ -560,11 +611,31 @@ class TerminalsPage(Gtk.Box):
             self.window.terminals_changed()
         for tab in moved:
             self.emit("tab-state-changed", tab)
+        self.handle_limits(tabs, limits)
         wanted = [(t, t.state.cwd, t.state.session_id) for t in tabs
                   if t.state.kind == "claude" and t.state.session_id]
         if wanted:
             in_thread(lambda: [(t, sessions.conversation_title(cwd, sid)) for t, cwd, sid in wanted],
                       lambda found: [t.set_title(title) for t, title in found if title])
+
+    def handle_limits(self, tabs, limits):
+        """Reprise automatique : « continue » dans l'onglet dont la conversation a été bloquée
+        par une limite, une fois le compte changé par le hook StopFailure."""
+        now = time.time()
+        for tab in tabs:
+            event = limits.get(tab.state.session_id) if tab.state.session_id else None
+            decision = terminal.resume_decision(tab.state, event, now, enabled=self.options["auto_resume"])
+            if decision is None or decision.action == "wait":
+                continue
+            key = (event.session_id, event.ts)
+            if key not in tab.limits_done:  # une seule fois par événement
+                tab.limits_done.add(key)
+                if decision.action == "resume" and tab.send_auto(terminal.RESUME_TEXT):
+                    tab.state.resumes.append(now)
+                if decision.text:
+                    tab.show_notice(decision.text)
+                    tab.attention()
+            limit_events.consume(event.session_id, event.ts)
 
     # ---- apparence -----------------------------------------------------------------
 
