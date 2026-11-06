@@ -114,7 +114,7 @@ En haut de l'onglet **Analyse**, et dans le terminal :
 - **Conseil de modèle près des limites** : quand le compte actif dépasse 80 %
   (session ou semaine) avec un modèle cher, une notification — une par fenêtre
   de 5 h — propose la famille suivante (Fable → Opus → Sonnet → Haiku) et le
-  gain en ordre de grandeur (« ferait durer ce qui reste environ ×5 ») ; la
+  gain en ordre de grandeur (« ferait durer ce qui reste environ ×1,7 ») ; la
   ligne d'état de Claude Code ajoute « → sonnet ? ».
 - **Bilan de la semaine** (`ccs semaine`) : usage de chaque compte,
   conversations, sessions, tokens et équivalent API, modèles, projets, bascules
