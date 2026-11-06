@@ -41,6 +41,21 @@ def states_from_state(state):
     return out
 
 
+def waiting_reminders(sessions, reminded, ts, threshold_s):
+    """Sessions en attente depuis au moins `threshold_s` et pas encore rappelées,
+    et instant du prochain rappel (None s'il n'y en a pas) : ([Session], float | None)."""
+    due, next_at = [], None
+    for s in sessions:
+        if s.state != "waiting" or s.pid in reminded:
+            continue
+        at = (s.state_since or ts) + threshold_s
+        if at <= ts:
+            due.append(s)
+        elif next_at is None or at < next_at:
+            next_at = at
+    return due, next_at
+
+
 def state_path():
     return core.paths().store / "state.json"
 
@@ -62,6 +77,9 @@ class Daemon:
         self.prev_sessions = None   # pid -> Session (dernier état vu)
         self.sessions_lock = threading.Lock()
         self.session_notified = {}  # pid -> instant de la dernière notification
+        self.reminded = set()       # pid des sessions en attente déjà rappelées (cette attente)
+        self.next_reminder = None   # instant du prochain rappel d'attente (secondes)
+        self.waiting_seen = {}      # pid -> premier relevé où la session attendait
         self.hooks = []             # fonctions (daemon, states, settings, now) appelées à chaque tick
 
     # ---- collecte ---------------------------------------------------------
@@ -149,9 +167,11 @@ class Daemon:
         from . import sessions
         cur = sessions.list_sessions()
         prev, self.prev_sessions = self.prev_sessions, {s.pid: s for s in cur}
-        if prev is None or not (settings["alerts"]["enabled"] and settings["alerts"]["sessions"]):
-            return
+        cfg = settings["alerts"]
         ts = now.timestamp()
+        self._remind_waiting(cur, prev is None, cfg, ts)
+        if prev is None or not (cfg["enabled"] and cfg["sessions"]):
+            return
         for s, kind in sessions.transitions(prev, cur, ts):
             if ts - self.session_notified.get(s.pid, 0) < SESSION_NOTIFY_GAP_S:
                 continue
@@ -162,6 +182,36 @@ class Daemon:
             else:
                 title, body = f"{s.project} a terminé", f"Session {s.name} — prête pour la suite."
             self.notifier(alerts.Alert(f"session:{s.pid}:{ts:.0f}", title, body, 1))
+
+    def _remind_waiting(self, cur, first, cfg, ts):
+        """Rappel unique par attente : session « waiting » depuis plus de N minutes."""
+        threshold = cfg["waiting_reminder_min"] * 60
+        waiting = {s.pid for s in cur if s.state == "waiting"}
+        # Session qui n'attend plus (ou disparue) : rappel de nouveau possible à sa prochaine attente.
+        self.reminded &= waiting
+        # Fiche sans date de changement d'état : l'attente part du premier relevé qui l'a vue.
+        self.waiting_seen = {pid: t for pid, t in self.waiting_seen.items() if pid in waiting}
+        for s in cur:
+            if s.state == "waiting":
+                self.waiting_seen.setdefault(s.pid, ts)
+                if not s.state_since:
+                    s.state_since = self.waiting_seen[s.pid]
+        if first:
+            # Service (re)démarré : une attente déjà ancienne n'est pas rappelée à nouveau.
+            self.reminded |= {s.pid for s in cur if s.state == "waiting"
+                              and ts - (s.state_since or ts) >= threshold}
+        if not (cfg["enabled"] and cfg["waiting_reminder"] and threshold > 0):
+            self.next_reminder = None
+            return
+        due, self.next_reminder = waiting_reminders(cur, self.reminded, ts, threshold)
+        for s in due:
+            self.reminded.add(s.pid)
+            minutes = int((ts - (s.state_since or ts)) // 60)
+            body = f"Session {s.name} — en attente depuis {minutes} min"
+            if s.waiting_for:
+                body += f" ({s.waiting_for})"
+            self.notifier(alerts.Alert(f"rappel:{s.pid}:{ts:.0f}",
+                                       f"{s.project} attend toujours ta réponse", body, 1))
 
     def detect_manual_switch(self, now):
         active = core.active_profile_name()
@@ -261,6 +311,9 @@ class Daemon:
             self.on_sessions(settings, now)
         except Exception:
             log.exception("suivi des sessions en échec")
+        if self.next_reminder is not None:
+            # Réveil à l'heure du prochain rappel d'attente.
+            delay = max(5.0, min(delay, self.next_reminder - now.timestamp() + 1))
 
         for hook in self.hooks:
             try:

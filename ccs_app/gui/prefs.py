@@ -170,6 +170,11 @@ class PrefsPage(Adw.PreferencesPage):
                               "alerts", "auth"))
         g.add(self.switch_row("Sessions Claude Code", "Quand une session a terminé ou attend ta réponse",
                               "alerts", "sessions"))
+        g.add(self.switch_row("Rappel des sessions en attente",
+                              "Une seule fois par attente, même si les notifications de sessions "
+                              "sont coupées", "alerts", "waiting_reminder"))
+        g.add(self.spin_row("Rappeler après (min)", "Durée d'attente de ta réponse avant le rappel",
+                            "alerts", "waiting_reminder_min", 2, 120))
         return g
 
     def integration_group(self):

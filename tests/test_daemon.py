@@ -374,6 +374,93 @@ class ActionsAndSessionsTest(DaemonBase):
         self.assertEqual(self.sent, [])
 
 
+class WaitingReminderTest(ActionsAndSessionsTest):
+    """Rappel unique quand une session attend une réponse depuis plus de N minutes."""
+
+    def run_seq(self, steps):
+        """steps : [(secondes après NOW, [sessions])] ; renvoie les titres notifiés."""
+        from ccs_app import sessions
+        with mock.patch.object(sessions, "list_sessions", side_effect=[s for _, s in steps]):
+            for offset, _ in steps:
+                self.d.on_sessions(self.settings, NOW + timedelta(seconds=offset))
+        return [a.title for a in self.sent]
+
+    def test_reminder_after_ten_minutes_once(self):
+        t = NOW.timestamp()
+        waiting = [self._sess(1, "waiting", t)]
+        titles = self.run_seq([(0, [self._sess(1, "busy", t - 300)]), (1, waiting),
+                               (300, waiting), (601, waiting), (1200, waiting), (3600, waiting)])
+        self.assertEqual(titles, ["GiGit attend ta réponse", "GiGit attend toujours ta réponse"])
+        self.assertIn("10 min", self.sent[-1].body)
+
+    def test_reminder_again_after_a_new_wait(self):
+        t = NOW.timestamp()
+        titles = self.run_seq([(0, []), (601, [self._sess(1, "waiting", t)]),
+                               (700, [self._sess(1, "busy", t + 700)]),
+                               (800, [self._sess(1, "waiting", t + 800)]),
+                               (1401, [self._sess(1, "waiting", t + 800)]),
+                               (1500, [self._sess(1, "waiting", t + 800)])])
+        self.assertEqual(titles.count("GiGit attend toujours ta réponse"), 2)
+
+    def test_no_reminder_for_a_wait_older_than_the_service(self):
+        # Service (re)démarré alors que la session attend depuis 1 h : pas de rappel.
+        t = NOW.timestamp()
+        old = [self._sess(1, "waiting", t - 3600)]
+        self.assertEqual(self.run_seq([(0, old), (60, old), (600, old)]), [])
+
+    def test_wait_started_just_before_the_service_is_reminded(self):
+        t = NOW.timestamp()
+        recent = [self._sess(1, "waiting", t - 300)]
+        self.assertEqual(self.run_seq([(0, recent), (301, recent)]),
+                         ["GiGit attend toujours ta réponse"])
+
+    def test_threshold_setting(self):
+        self.settings["alerts"]["waiting_reminder_min"] = 2
+        t = NOW.timestamp()
+        w = [self._sess(1, "waiting", t)]
+        self.assertEqual(self.run_seq([(0, []), (60, w), (121, w)]),
+                         ["GiGit attend toujours ta réponse"])
+
+    def test_can_be_disabled(self):
+        self.settings["alerts"]["waiting_reminder"] = False
+        t = NOW.timestamp()
+        w = [self._sess(1, "waiting", t)]
+        self.assertEqual(self.run_seq([(0, []), (700, w), (1400, w)]), [])
+
+    def test_independent_from_immediate_session_notifications(self):
+        # Notifications immédiates coupées : le rappel (plus discret) reste possible.
+        self.settings["alerts"]["sessions"] = False
+        t = NOW.timestamp()
+        titles = self.run_seq([(0, [self._sess(1, "busy", t - 300)]),
+                               (1, [self._sess(1, "waiting", t)]),
+                               (601, [self._sess(1, "waiting", t)])])
+        self.assertEqual(titles, ["GiGit attend toujours ta réponse"])
+
+    def test_session_without_state_date_counts_from_first_sight(self):
+        steps = [(0, []), (60, [self._sess(1, "waiting", 0)]), (600, [self._sess(1, "waiting", 0)]),
+                 (661, [self._sess(1, "waiting", 0)])]
+        self.assertEqual(self.run_seq(steps), ["GiGit attend toujours ta réponse"])
+
+    def test_pure_selection_and_next_due(self):
+        t = NOW.timestamp()
+        cur = [self._sess(1, "waiting", t - 700), self._sess(2, "waiting", t - 100),
+               self._sess(3, "busy", t - 900), self._sess(4, "waiting", t - 900)]
+        due, next_at = daemon.waiting_reminders(cur, {4}, t, 600)
+        self.assertEqual([s.pid for s in due], [1])
+        self.assertEqual(next_at, t + 500)
+        self.assertEqual(daemon.waiting_reminders([], set(), t, 600), ([], None))
+
+    def test_tick_wakes_up_for_the_next_reminder(self):
+        from ccs_app import sessions
+        t = NOW.timestamp()
+        self.d.prev_sessions = {}
+        with fake_http(per_account(perso=usage(30), pro=usage(5))), \
+                mock.patch.object(sessions, "list_sessions",
+                                  return_value=[self._sess(1, "waiting", t - 500)]):
+            delay = self.d.tick(self.settings, NOW)
+        self.assertAlmostEqual(delay, 101, delta=1)
+
+
 class ActionRevalidationTest(DaemonBase):
     def test_button_refused_when_target_no_longer_good(self):
         with fake_http(per_account(perso=usage(30), pro=usage(99))):

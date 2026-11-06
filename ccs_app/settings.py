@@ -21,6 +21,8 @@ DEFAULTS = {
         "resets": True,
         "auth": True,
         "sessions": True,
+        "waiting_reminder": True,
+        "waiting_reminder_min": 10,
     },
     "poll": {"normal_s": 300, "fast_s": 60},
     "warmup": {},
