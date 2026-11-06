@@ -4,15 +4,23 @@ choix du compte d'un projet (« Compte de ce projet… »).
 Le compte actif est global : basculer pour un projet fait aussi changer de compte toutes
 les sessions ouvertes, d'où la question avant d'ouvrir. Jamais de proposition pendant une
 pause de CCS ; une bascule choisie explicitement (« Nouvelle session ») reste possible.
+
+Briques réutilisables par toute page qui liste des projets ou des conversations :
+- `confirm_switch(window, cwd, ouvrir)` : à appeler à la place de l'ouverture directe ;
+- `load_associations()` (hors de l'interface), `account_label(...)` (ligne d'une carte
+  de projet), `account_menu_item(cwd, action)` et `account_action(window, done)`
+  (entrée « Compte de ce projet… » et son action, paramètre : le dossier).
 """
 
 from datetime import datetime, timezone
 
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, Gio, GLib, Gtk
 
 from .. import core, daemon, launch_options, pause, project_accounts
 from ..launch_options import LaunchSpec
 from .common import in_thread
+
+MENU_LABEL = "Compte de ce projet…"
 
 
 def paused_now():
@@ -93,6 +101,47 @@ def switch_then(window, cwd, proposal, proceed):
                          "à leur prochaine requête")
         proceed()
     in_thread(work, done)
+
+
+# --------------------------------------------------------------------------
+# Carte d'un projet : compte affiché, entrée de menu
+# --------------------------------------------------------------------------
+
+def load_associations():
+    """Comptes par projet (liste vide si le fichier est illisible) ; peut tourner hors de
+    l'interface, avec le reste d'un chargement."""
+    try:
+        return project_accounts.all()
+    except OSError:
+        return []
+
+
+def account_label(cwd, active, associations, paused=None):
+    """Ligne « Compte du projet : … » d'une carte de projet (None sans compte associé),
+    mise en avant quand ce n'est pas le compte actif. `paused` : lu s'il n'est pas donné."""
+    a = project_accounts.resolve(cwd, associations)
+    if a is None:
+        return None
+    if paused is None:
+        paused = paused_now()
+    text = project_accounts.card_text(cwd, active, paused, associations)
+    return Gtk.Label(label=text, xalign=0, wrap=True,
+                     css_classes=["caption", "accent" if a.profile != active else "dim-label"])
+
+
+def account_menu_item(cwd, action):
+    """Entrée « Compte de ce projet… » d'un menu (`action` : « groupe.nom », paramètre s)."""
+    item = Gio.MenuItem.new(MENU_LABEL, None)
+    item.set_action_and_target_value(action, GLib.Variant.new_string(cwd))
+    return item
+
+
+def account_action(window, done=None, name="account"):
+    """Action (paramètre : dossier) qui ouvre « Compte de ce projet… » ; `done()` après
+    l'enregistrement (pour relire la page)."""
+    action = Gio.SimpleAction.new(name, GLib.VariantType.new("s"))
+    action.connect("activate", lambda _a, v: choose_account(window, v.get_string(), done))
+    return action
 
 
 # --------------------------------------------------------------------------

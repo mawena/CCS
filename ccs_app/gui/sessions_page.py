@@ -5,9 +5,10 @@ import time
 
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
-from .. import attention, conversations, core, costs, project_accounts, sessions, terminal, transcripts
+from .. import attention, conversations, core, costs, sessions, terminal, transcripts
 from .common import caption, clear, in_thread
-from .project_account_dialog import choose_account, confirm_switch, paused_now
+from .project_account_dialog import (account_action, account_label, account_menu_item, confirm_switch,
+                                     load_associations, paused_now)
 
 REFRESH_S = 15
 HIGHLIGHT_S = 12   # mise en évidence de la session désignée par une notification
@@ -68,11 +69,11 @@ class SessionsPage(Gtk.ScrolledWindow):
                 ("shell", "s", lambda v: self.window.open_shell(v.get_string(), external=True)),
                 ("rename", "(ss)", lambda v: self.rename(*v.unpack())),
                 ("preview", "(ss)", lambda v: self.preview(*v.unpack())),
-                ("new", "s", lambda v: self.window.new_session(v.get_string())),
-                ("account", "s", lambda v: choose_account(self.window, v.get_string(), self.load))):
+                ("new", "s", lambda v: self.window.new_session(v.get_string()))):
             a = Gio.SimpleAction.new(name, GLib.VariantType.new(kind))
             a.connect("activate", lambda _a, v, h=handler: h(v))
             actions.add_action(a)
+        actions.add_action(account_action(self.window, self.load))
         self.insert_action_group("sess", actions)
         GLib.timeout_add_seconds(REFRESH_S, self._tick)
 
@@ -94,11 +95,7 @@ class SessionsPage(Gtk.ScrolledWindow):
             journals += [sessions.transcript_path(cwd, c.session_id) for cwd, group in convs.items()
                          for c in group]
             stamps = {str(p): _stamp(p) for p in journals}
-            try:
-                assocs = project_accounts.all()
-            except OSError:
-                assocs = []
-            return found, usage, projects, convs, titles, stamps, assocs
+            return found, usage, projects, convs, titles, stamps, load_associations()
         in_thread(work, self.show)
 
     def rerender(self):
@@ -209,7 +206,7 @@ class SessionsPage(Gtk.ScrolledWindow):
             history.connect("clicked", lambda *_: self.window.stack.set_visible_child_name("conversations"))
             title.append(history)
             self.box.append(title)
-        paused = paused_now() if any(project_accounts.resolve(cwd, self.assocs) for cwd, _m in projects) else False
+        paused = paused_now() if self.assocs else False
         for cwd, _mtime in projects:
             self.box.append(self.project_card(cwd, convs.get(cwd) or [], opened, active_name, paused))
         if target_card is not None:
@@ -307,15 +304,6 @@ class SessionsPage(Gtk.ScrolledWindow):
         card.append(top)
         return card
 
-    def account_line(self, cwd, active, paused=False):
-        """Compte associé au projet (ou hérité d'un dossier parent), ou None."""
-        text = project_accounts.card_text(cwd, active, paused, self.assocs)
-        if text is None:
-            return None
-        other = project_accounts.resolve(cwd, self.assocs).profile != active
-        return Gtk.Label(label=text, xalign=0, wrap=True,
-                         css_classes=["caption", "accent" if other else "dim-label"])
-
     def project_card(self, cwd, convs, opened, active=None, paused=False):
         embedded = self.window.terminals.available
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, css_classes=["card", "profile-card"])
@@ -330,9 +318,7 @@ class SessionsPage(Gtk.ScrolledWindow):
         item = Gio.MenuItem.new("Avec des options…", None)
         item.set_action_and_target_value("sess.new", GLib.Variant.new_string(cwd))
         menu.append_item(item)
-        item = Gio.MenuItem.new("Compte de ce projet…", None)
-        item.set_action_and_target_value("sess.account", GLib.Variant.new_string(cwd))
-        menu.append_item(item)
+        menu.append_item(account_menu_item(cwd, "sess.account"))
         new = Adw.SplitButton(label="Nouvelle session", menu_model=menu, valign=Gtk.Align.CENTER,
                               tooltip_text="Nouvelle session dans l'application" if embedded
                               else "Nouvelle session dans un terminal")
@@ -340,7 +326,7 @@ class SessionsPage(Gtk.ScrolledWindow):
         head.append(new)
         card.append(head)
         card.append(caption(cwd))
-        account = self.account_line(cwd, active, paused)
+        account = account_label(cwd, active, self.assocs, paused)
         if account is not None:
             card.append(account)
         for c in convs:
