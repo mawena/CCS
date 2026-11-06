@@ -52,7 +52,9 @@ Garde-fous :
 Les sessions Claude Code ouvertes suivent à leur prochaine requête. Si une
 session a déjà atteint la limite avant la bascule, tape « continue ».
 
-Pendant une [pause](#pause), aucune bascule automatique n'a lieu.
+Pendant une [pause](#pause), aucune bascule automatique n'a lieu. Chaque
+bascule, et sa raison, se retrouve dans le [journal des
+bascules](#journal-des-bascules).
 
 ## Orchestrateur
 
@@ -124,11 +126,49 @@ ni bascule à seuil, ni bascule anticipée, ni bascule après blocage (le hook
 `StopFailure` prévient « CCS est en pause jusqu'à HH:MM : pas de bascule
 automatique »), ni reprise automatique dans le terminal intégré ; l'orchestrateur
 ne démarre aucune fenêtre et le planning ne montre que les fenêtres en cours.
+L'application ne propose pas non plus de basculer sur le [compte d'un
+projet](#compte-par-projet), et « Nouvelle session… » ne le présélectionne pas.
 Restent actifs : tes bascules manuelles, les alertes et les warm-up programmés.
 
 À l'échéance, le service lève la pause de lui-même (il se réveille à l'heure
 dite) et envoie « Pause terminée ». L'état est gardé dans
 `~/.claude-accounts/pause.json` : une pause survit à un redémarrage.
+
+## Journal des bascules
+
+Section **Journal des bascules** de l'onglet **Historique**, sous les courbes,
+ou `ccs journal` : chaque changement de compte, de la plus récente à la plus
+ancienne, groupé par jour (*Aujourd'hui*, *Hier*, *Lundi 2 novembre*…), avec
+l'heure, « compte quitté → compte choisi » et la raison en clair :
+
+| Genre | Raison affichée |
+|---|---|
+| Automatique | « Bascule automatique avant la coupure (perso à 98 %) », avec « 100 % prévu avant le prochain relevé » quand c'est la projection qui a décidé |
+| Anticipée | « Bascule anticipée de l'orchestrateur : boulot allait perdre 42 % de quota dans 35 min » |
+| Après un blocage | « Bascule après un blocage (limite atteinte dans Portail) » : le projet de la session bloquée, sinon le compte quitté |
+| Manuelle | « Bascule manuelle depuis une notification », « Bascule pour une nouvelle session (compte choisi) », « Bascule vers le compte du projet Portail »… ; « Bascule manuelle (application, icône ou « ccs use ») » quand l'origine n'est pas connue |
+| Échec | « Échec de la bascule automatique vers boulot : … », avec le message de `ccs` |
+| Limite sans bascule | « Limite atteinte dans Portail pendant une pause : pas de bascule », « … : aucun autre compte disponible » |
+| Démarrage de fenêtre | « Fenêtre de 5 h démarrée par l'orchestrateur », « Warm-up de 07:00 : fenêtre de 5 h démarrée », ou son échec |
+| Début du suivi | « Début du suivi : perso était le compte actif » (premier relevé du service) |
+
+Les échecs et les limites sans bascule sont marqués (✗ dans le terminal, icône
+d'erreur ou d'avertissement dans l'application) ; le texte brut de la décision
+s'affiche au survol. Boutons **7 jours**, **30 jours** et **Tout** ; « Afficher
+100 de plus » en bas d'une longue liste.
+
+```sh
+ccs journal              # 7 derniers jours
+ccs journal --jours 30
+ccs journal --tout       # tout l'historique gardé
+```
+
+Tout vient de l'historique du service (`history.db`) : bascules, échecs,
+alertes du hook et démarrages de fenêtre. Le projet d'une session bloquée est
+lu dans les marqueurs de limite (`~/.claude-accounts/limits/`) tant qu'ils
+existent (24 h au plus). Les bascules d'avant la 0.6.0 restent lisibles,
+avec moins de détails (pourcentage relu dans la raison, compte quitté déduit
+de la bascule précédente).
 
 ## Alertes
 
@@ -148,10 +188,14 @@ Réglables dans **Réglages → Alertes** :
   [Sessions](#sessions-claude-code)) et **rappel** d'une session qui attend ta
   réponse depuis plus de 10 min (`alerts.waiting_reminder`,
   `alerts.waiting_reminder_min`) ;
-- nouvelle version de CCS (voir [Mises à jour](#mises-à-jour)).
+- nouvelle version de CCS (voir [Mises à jour](#mises-à-jour)) ;
+- **conseil de modèle** près des limites (`alerts.model_advice`,
+  `alerts.model_advice_pct`) et **bilan de la semaine**
+  (`alerts.weekly_report`, `alerts.weekly_report_day`,
+  `alerts.weekly_report_hour`) : voir [Conseils](#conseils).
 
 Chaque alerte n'est envoyée qu'une fois par fenêtre (une fois par semaine pour
-la fin de semaine prévue).
+la fin de semaine prévue et le bilan).
 
 ## Warm-up à heure fixe
 
@@ -172,6 +216,128 @@ entrée + écriture de cache + sortie × 5 + lecture de cache × 0,1, une
 approximation du poids de chaque réponse dans les limites. La répartition par
 compte commence avec le service de collecte (« inconnu » avant).
 
+En haut de l'onglet, deux cartes calculées à la première ouverture, l'une
+après l'autre et sans figer la fenêtre (bouton « Recalculer » de chaque
+carte) : le **Bilan de la semaine** et le **Conseiller de formule** (voir
+[Conseils](#conseils)).
+
+## Conseils
+
+### Conseiller de formule
+
+`ccs formule` (alias `ccs conseil`), ou la carte **Conseiller de formule** de
+l'onglet Analyse : la combinaison de comptes Pro, Max ou Ultra la moins chère
+pour ton usage réel, et pourquoi.
+
+```
+Conseiller de formule
+Conseil : 2 Pro — 40 $/mois
+
+• Relevés analysés : 4 semaines (du 9 octobre au 6 novembre).
+• Usage par semaine : 1,3 Pro en moyenne, 1,6 au plus (semaine du 23 octobre) — 1 Pro = …
+• Fenêtres de 5 h : jusqu'à 1,4 sessions Pro consommées en même temps, tous comptes confondus.
+• Limite atteinte 3 fois, 2 semaines sur 4.
+• Capacité inutilisée : 35 % en moyenne de ce que tu paies (2 Pro, 2,0 Pro par semaine) ; la semaine la plus chargée en a utilisé 80 %.
+• Avec 20 % de marge : il te faut 1,9 Pro par semaine et 1,7 sessions Pro sur 5 h.
+• La moins chère qui couvre ce besoin : 2 Pro — 40 $/mois (2,0 Pro par semaine, 2,0 sessions Pro sur 5 h).
+• C'est ta formule actuelle : rien à changer.
+• Sans bascule entre comptes : Max — 100 $/mois.
+• Équivalent API : ≈ 412,30 $ sur 28 jours de journaux Claude Code de ce PC, soit ≈ 448,23 $/mois, contre 40 $/mois payés (×11). claude.ai et les autres appareils n'y figurent pas.
+• Tarifs du 6 novembre 2026 (claude.com/pricing), facturation mensuelle, hors taxes : Pro 20 $, Max 100 $, Ultra 200 $.
+```
+
+- **Le besoin** se lit dans les relevés du service (`history.db`), sur les
+  4 dernières semaines glissantes (`advisor.weeks`), en **unités Pro** : 1 Pro
+  = la limite hebdomadaire (ou de 5 h) d'un compte Pro ; 1 % d'un Max vaut 5 %
+  d'un Pro. Pour la semaine, chaque compte compte pour le plus haut pourcentage
+  de ses propres fenêtres (une semaine en cours depuis plus d'un jour est
+  projetée à son rythme) ; pour les fenêtres de 5 h, CCS retient le plus fort
+  usage cumulé de fenêtres ouvertes en même temps sur plusieurs comptes.
+- Une semaine trop peu couverte par les relevés (moins de la moitié) est
+  ignorée ; il faut au moins **3 jours** de collecte pour un premier conseil.
+  Une semaine où tu as été bloqué sans autre compte disponible compte 15 % de
+  plus : l'usage mesuré y était bridé.
+- **La combinaison** : la moins chère (puis celle qui a le moins de comptes)
+  qui couvre le besoin le plus haut, **marge de 20 %** comprise
+  (`advisor.margin_pct`), parmi les combinaisons d'au plus 3 comptes
+  (`advisor.max_accounts`). Quand elle demande plusieurs comptes, la meilleure
+  formule à un seul compte est donnée aussi (« Sans bascule entre comptes :
+  … »).
+- **Les formules** (claude.com/pricing, relevé le 6 novembre 2026, facturation
+  mensuelle, hors taxes) : Pro 20 $/mois (17 $ en annuel), la référence ; Max
+  100 $, « 5x » (5 Pro par fenêtre de 5 h et par semaine) ; Ultra 200 $ —
+  l'ancien Max 20x —, sans limite de 5 h et 10 Pro par semaine. Après
+  120 jours, la table est signalée « à vérifier ». Le réglage
+  `advisor.plan_prices` remplace ces prix
+  (`{"pro": 20, "max5": 100, "max20": 200}`, en $ par mois).
+- **La formule de chaque compte** est lue dans sa connexion
+  (`subscriptionType`, et `rateLimitTier` pour distinguer Max et Ultra). Un Max
+  sans palier connu est supposé « 5x » (le raisonnement le dit) ; si la
+  détection se trompe, `advisor.profile_plans` l'impose
+  (`{"perso": "max20"}`, valeurs `pro`, `max5`, `max20`). Un compte d'une autre
+  formule est ignoré.
+- **L'équivalent API** : ce que tes conversations Claude Code de la période
+  auraient coûté au tarif de l'API (voir [Coût d'une
+  conversation](#coût-dune-conversation)), ramené au mois et comparé à ce que
+  tu paies. Il ne compte que les journaux **de ce PC** : claude.ai et tes
+  autres appareils n'y figurent pas.
+
+La carte reprend le conseil, ce que tu paies, ce qui est conseillé et
+l'équivalent API mensuel, puis le raisonnement complet.
+
+### Conseil de modèle près des limites
+
+Quand le compte actif dépasse **80 %** (`alerts.model_advice_pct`) de sa
+session de 5 h ou de sa semaine, CCS regarde le modèle de tes réponses des
+30 dernières minutes. Si c'est surtout un modèle cher, une notification
+propose la famille suivante — **Fable → Opus → Sonnet → Haiku** :
+
+> perso : session à 86 % avec Opus — Passer à Sonnet (/model sonnet) ferait
+> durer ce qui reste environ ×1,7, d'après les tarifs de l'API appliqués à tes
+> réponses des 30 dernières minutes (ordre de grandeur : les limites ne suivent
+> pas exactement ces tarifs).
+
+Le gain « ×N » applique les tarifs de l'API aux tokens réellement consommés :
+c'est un **ordre de grandeur** (« plus de ×5 » au-delà ; pas de notification
+sous ×1,25). **Une seule notification par fenêtre de 5 h** et par compte. Dans
+Claude Code, la [ligne d'état](#intégration-dans-claude-code) ajoute
+« → sonnet ? » tant que la session utilise un modèle cher au-delà du seuil.
+Interrupteur : `alerts.model_advice` (activé par défaut).
+
+### Bilan de la semaine
+
+`ccs semaine`, la carte **Bilan de la semaine** de l'onglet Analyse (menu pour
+choisir la semaine en cours ou l'une des 6 précédentes, la dernière terminée
+par défaut) et une **notification hebdomadaire** qui le résume :
+
+- **Comptes** : semaine au plus haut, points consommés, fenêtres de 5 h
+  entamées, limites de session atteintes, bascules vers ce compte ;
+- **Activité** : conversations, sessions, réponses, tokens et équivalent au
+  tarif de l'API ;
+- **Modèles** et **Projets** : répartition en tokens pondérés (5 premiers) ;
+- **Bascules et alertes** : par genre (automatique, anticipée, manuelle, après
+  blocage), alertes par genre, blocages sur une limite ;
+- **Par rapport à la semaine précédente** : tokens, équivalent API,
+  conversations, fenêtres, bascules, semaine de chaque compte.
+
+```sh
+ccs semaine                 # semaine écoulée
+ccs semaine --precedente 1  # celle d'avant
+```
+
+**Quelle semaine ?** Par défaut, elle commence quand la plupart de tes comptes
+ont commencé leur nouvelle semaine (heures de réinitialisation hebdomadaires
+relevées par le service ; lundi 9:00 faute de relevé). `alerts.weekly_report_day`
+(0 = lundi … 6 = dimanche) et `alerts.weekly_report_hour` (9 par défaut) la
+fixent à un jour et une heure. La notification part une fois par semaine, dans
+les deux jours qui suivent ce début, si les relevés couvrent au moins 3 jours
+de la semaine écoulée ; le bilan est calculé à part, sans retarder les
+relevés. Interrupteur : `alerts.weekly_report` (activé par défaut).
+
+Comme l'équivalent API, l'activité, les modèles et les projets ne viennent que
+des journaux Claude Code **de ce PC** ; l'usage des comptes, lui, vient des
+relevés (claude.ai et autres appareils compris).
+
 ## Service
 
 ```sh
@@ -188,25 +354,41 @@ cas de doute : `ccs doctor` (voir [Bilan de santé](#bilan-de-santé)).
 
 ## Sessions Claude Code
 
-`ccs sessions` ou l'onglet **Sessions** : chaque session ouverte (terminal ou
-VS Code) avec son projet, son état — *travaille*, *attend ta réponse* (et
-pourquoi : permission, question…), *au repos* —, sa durée, son modèle et sa
-consommation (tokens pondérés de la conversation). CCS lit les fiches de
-`~/.claude/sessions` en lecture seule et ignore les fichiers `.key`.
+L'onglet **Sessions** réunit les sessions ouvertes et l'historique des
+conversations (il remplace les anciens onglets Sessions et Conversations) :
+
+- **À gauche, les projets** : « Tous » en tête, puis chaque projet avec un
+  point d'activité quand une session y est ouverte, son nombre de
+  conversations et son [compte](#compte-par-projet) s'il en a un.
+- **À droite, le projet choisi** : d'abord ses **sessions ouvertes**, puis
+  **ses conversations**, groupées par date (voir [Historique des
+  conversations](#historique-des-conversations)).
+- **En haut**, la recherche et le filtre d'origine (VS Code ou terminal)
+  valent pour les sessions comme pour les conversations, et le bouton
+  **Nouvelle session…** ouvre le [dialogue](#nouvelle-session).
+
+`ccs sessions` liste aussi les sessions ouvertes. Chaque session ouverte
+(terminal ou VS Code) montre son projet, son état — *travaille*, *attend ta
+réponse* (et pourquoi : permission, question…), *au repos* —, sa durée, son
+modèle et sa consommation (tokens pondérés de la conversation). CCS lit les
+fiches de `~/.claude/sessions` en lecture seule et ignore les fichiers `.key`.
 
 Actions : ouvrir un terminal (« Terminal ici ») ou le dossier du projet ;
 terminer une session (après confirmation : la conversation est conservée et peut
-être reprise) ; **Reprendre** une conversation récente (`claude --resume`) ou
-lancer une **Nouvelle session** dans un projet récent. Ces actions ouvrent un
-onglet du [terminal intégré](#terminal-intégré) ; le menu « ⋮ » (ou la flèche de
-« Nouvelle session ») garde le terminal externe. Une session déjà ouverte dans
+être reprise) ; **Reprendre** une conversation (`claude --resume`) ou lancer une
+**Nouvelle session** dans un projet. Ces actions ouvrent un onglet du [terminal
+intégré](#terminal-intégré) ; le menu « ⋮ » (ou la flèche de « Nouvelle
+session ») garde le terminal externe. Une session déjà ouverte dans
 l'application affiche **Afficher**, qui mène à son onglet ; une conversation
 ouverte ailleurs (autre terminal, VS Code) n'est pas reprise une seconde fois.
 « Renommer… » et « Aperçu… » sont dans le menu « ⋮ » de chaque session et
-conversation. La carte d'une session ouverte et chaque conversation récente
-affichent le [coût](#coût-dune-conversation) de la conversation.
+conversation, « Compte de ce projet… » dans le menu d'un projet. La carte d'une
+session ouverte et chaque conversation affichent le
+[coût](#coût-dune-conversation) de la conversation.
 
-Le bouton **Tout l'historique** ouvre l'onglet Conversations.
+`claude-accounts gui --page sessions` ouvre l'application sur cet onglet, et
+`claude-accounts gui --new-session` directement sur le dialogue « Nouvelle
+session » (voir [Raccourcis clavier globaux](#raccourcis-clavier-globaux)).
 
 ### Nouvelle session
 
@@ -216,8 +398,12 @@ dans le menu ☰ de la fenêtre, ou « Avec des options… » dans le menu de
 
 - **Dossier** : le projet d'où tu pars, un projet récent ou un autre dossier
   (bouton dossier) ;
-- **Compte Claude** : le compte actif par défaut. Un autre compte s'affiche avec
-  un avertissement : « La bascule s'applique à toutes les sessions ouvertes ».
+- **Compte Claude** : le compte du projet s'il en a un (« Compte du projet :
+  boulot », « hérité de ~/Work » pour un sous-dossier), sinon le compte actif.
+  Un compte choisi à la main n'est plus changé quand tu changes de dossier ;
+  rien n'est présélectionné pendant une pause ni pour un projet réglé sur « Ne
+  plus demander ». Un autre compte que l'actif s'affiche avec un
+  avertissement : « La bascule s'applique à toutes les sessions ouvertes ».
   CCS bascule (comme `ccs <nom>`) avant de lancer la session, et les sessions
   déjà ouvertes passent elles aussi sur ce compte à leur requête suivante ;
 - **Modèle** (`--model`) : par défaut (réglage de Claude Code), Opus, Sonnet,
@@ -257,11 +443,53 @@ sessions sont coupées, et s'ouvre de la même façon au clic. Réglages : **Rap
 des sessions en attente** et **Rappeler après (min)**
 (`alerts.waiting_reminder`, `alerts.waiting_reminder_min`).
 
+## Compte par projet
+
+Un dossier de projet peut avoir un **compte préféré** : « boulot » pour
+`~/Work`, « perso » pour le reste, par exemple.
+
+- **Choisir** : « Compte de ce projet… » dans le menu d'un projet de l'onglet
+  Sessions (un compte, ou « Aucun » ; interrupteur **Proposer la bascule**), ou
+  `ccs projet` :
+
+  ```sh
+  ccs projet                    # projets associés à un compte
+  ccs projet ~/Work/App         # compte de ce dossier (le sien ou celui d'un parent)
+  ccs projet boulot             # associe le dossier courant à « boulot »
+  ccs projet ~/Work/App boulot  # associe ce dossier
+  ccs projet ~/Work/App aucun   # retire l'association
+  ```
+
+- **Héritage** : un sous-dossier prend le compte du dossier associé le plus
+  proche (« hérité de ~/Work »). Limite : choisir « Aucun » pour un
+  sous-dossier retire seulement *son* association ; il continue d'hériter du
+  compte de son parent.
+- **À l'ouverture** : reprendre une conversation ou démarrer une session d'un
+  projet depuis l'application, alors qu'un autre compte est actif, demande
+  d'abord « Ce projet utilise le compte « boulot » — Basculer ? » :
+  **Basculer et ouvrir**, **Ouvrir sans basculer** ou **Annuler**. La case
+  **Ne plus demander pour ce projet** coupe la proposition (à rétablir avec
+  « Proposer la bascule »). Le compte actif est **commun à toutes les
+  sessions** : basculer fait passer toutes les sessions ouvertes sur ce compte
+  à leur requête suivante. Si la bascule échoue, rien ne s'ouvre et un message
+  l'explique.
+- **Nouvelle session…** présélectionne le compte du projet (voir [Nouvelle
+  session](#nouvelle-session)).
+- **Pendant une [pause](#pause)**, rien n'est proposé ni présélectionné ; une
+  bascule choisie explicitement dans « Nouvelle session… » reste possible.
+
+La carte d'un projet indique « Compte du projet : boulot · bascule proposée à
+l'ouverture » (mis en avant quand ce n'est pas le compte actif). CCS ne bascule
+jamais de lui-même pour un projet : seulement quand tu le confirmes, et
+seulement pour ce que tu ouvres depuis l'application. Les associations sont
+gardées dans `~/.claude-accounts/projects.json`.
+
 ## Historique des conversations
 
-`ccs conv` ou l'onglet **Conversations** : toutes les conversations Claude Code
-du PC (`~/.claude/projects/*/*.jsonl`, terminal et VS Code), de la plus récente
-à la plus ancienne, groupées par date.
+`ccs conv`, ou l'onglet **Sessions** (projet « Tous » pour tout voir, ou un
+projet à gauche) : toutes les conversations Claude Code du PC
+(`~/.claude/projects/*/*.jsonl`, terminal et VS Code), de la plus récente à la
+plus ancienne, groupées par date.
 
 - **Titre** : celui donné avec `/rename` ou dans VS Code, sinon le titre
   automatique de Claude Code, sinon la première demande. Le contexte ajouté par
@@ -279,7 +507,9 @@ du PC (`~/.claude/projects/*/*.jsonl`, terminal et VS Code), de la plus récente
   commande. Dans l'application, le bouton **Terminal** reprend dans un onglet du
   terminal intégré (le terminal externe est au menu « … »), et **Afficher**
   remplace les boutons d'une conversation déjà ouverte dans un onglet. Une
-  conversation déjà ouverte dans une session n'est pas relancée.
+  conversation déjà ouverte dans une session n'est pas relancée. Si le projet a
+  un [compte](#compte-par-projet) qui n'est pas le compte actif, l'application
+  propose d'abord de basculer (VS Code utilise lui aussi le compte actif).
 - **Projet déplacé** : Claude Code range les conversations selon le chemin du
   projet ; après un déplacement, `claude --resume` ne les retrouve plus. CCS
   marque ces conversations « dossier introuvable », propose le dossier du même
@@ -294,9 +524,8 @@ pour 2 Go) ; ensuite il ne relit que les lignes ajoutées depuis, grâce au cach
 
 ### Aperçu et export
 
-« Aperçu… » (menu « ⋮ » d'une conversation de l'onglet Conversations, d'une
-conversation récente ou d'une session ouverte de l'onglet Sessions) relit une
-conversation sans la reprendre : tes demandes, les réponses de Claude
+« Aperçu… » (menu « ⋮ » d'une conversation ou d'une session ouverte de
+l'onglet Sessions) relit une conversation sans la reprendre : tes demandes, les réponses de Claude
 (un seul bloc par réponse), chaque appel d'outil résumé en une ligne (outil et
 cible : fichier, commande, recherche…) avec son résultat raccourci, et deux
 repères (conversation compactée, demande interrompue). La réflexion de Claude,
@@ -332,8 +561,8 @@ et le coût (« - Coût : 1,2 M tokens · ≈ 3,40 $ (équivalent API) »), puis
 Chaque conversation affiche son coût : le nombre de tokens consommés (entrée,
 sortie, écriture et lecture du cache), **sous-agents compris**, et
 l'**équivalent en dollars au tarif de l'API Anthropic**, par exemple
-« 1,2 M tokens · ≈ 3,40 $ ». Dans les listes (onglet Conversations,
-conversations récentes et sessions ouvertes de l'onglet Sessions), le montant
+« 1,2 M tokens · ≈ 3,40 $ ». Dans l'onglet Sessions (conversations et
+sessions ouvertes), le montant
 « ≈ 3,40 $ » s'ajoute à chaque ligne une fois la liste affichée (lignes visibles
 d'abord), avec le nombre de tokens au survol ; l'aperçu, l'export et
 `ccs preview` le donnent en en-tête.
@@ -353,8 +582,8 @@ modification).
 
 ### Renommer une conversation
 
-« Renommer… » (menus « ⋮ » des onglets Sessions et Conversations, menu d'un
-onglet du terminal intégré) ou `ccs title <id> <titre>` : comme `/rename` dans
+« Renommer… » (menu « ⋮ » d'une session ou d'une conversation de l'onglet
+Sessions, menu d'un onglet du terminal intégré) ou `ccs title <id> <titre>` : comme `/rename` dans
 Claude Code, CCS ajoute à la fin du journal une ligne
 `{"type":"custom-title","sessionId":"…","customTitle":"…"}`. Le dernier titre
 l'emporte, partout : liste de l'application, `ccs conv`, `claude --resume`,
@@ -487,8 +716,10 @@ fois, écriture atomique ; une `statusLine` existante est conservée.
 
 - **Ligne d'état** : `claude-accounts statusline` affiche le compte actif, la
   session et sa recharge (↻), la limite estimée (⏱), la semaine, le nombre de
-  comptes, et `→ compte` quand un autre compte est conseillé. Relance tes
-  sessions pour la voir.
+  comptes, et `→ compte` quand un autre compte est conseillé. Avec un modèle
+  cher (Fable, Opus, Sonnet) et le compte actif au-delà du seuil du [conseil de
+  modèle](#conseil-de-modèle-près-des-limites) (80 %), elle ajoute
+  « → sonnet ? » (la famille moins chère). Relance tes sessions pour la voir.
 - **Bascule après blocage** : hook `StopFailure` (erreur `rate_limit`). CCS
   rafraîchit l'usage si besoin, choisit le meilleur autre compte (données
   fraîches, sans erreur, sous 95 %), bascule et notifie « Limite atteinte dans
@@ -500,6 +731,63 @@ fois, écriture atomique ; une `statusLine` existante est conservée.
   automatique. » (une seule pour plusieurs sessions bloquées en même temps).
 
 `ccs integrate off` retire uniquement les entrées de CCS.
+
+## Raccourcis clavier globaux
+
+Des raccourcis du bureau GNOME, qui marchent **même quand l'application est
+fermée** : c'est le bureau qui lance la commande. Tous sont **désactivés par
+défaut**.
+
+| Action (`ccs raccourcis`) | Raccourci par défaut | Commande lancée |
+|---|---|---|
+| Ouvrir Comptes Claude (`ouvrir`) | Super+Alt+C | `claude-accounts gui` |
+| Afficher les sessions (`sessions`) | Super+Alt+V | `claude-accounts gui --page sessions` |
+| Nouvelle session (`nouvelle-session`) | Super+Alt+N | `claude-accounts gui --new-session` |
+| Basculer sur le compte suivant (`suivant`) | Super+Alt+B | `ccs next` |
+| Basculer sur le meilleur compte (`meilleur`) | Super+Alt+M | `ccs best` |
+| Pause 1 h (`pause`) | Super+Alt+P | `ccs pause 1h` |
+| Reprendre (lever la pause) (`reprendre`) | Super+Alt+R | `ccs pause off` |
+
+Super+Alt+lettre : aucune de ces combinaisons n'est prise par GNOME, le Dock ou
+l'assistant de tuilage d'Ubuntu, et des lettres plutôt que des chiffres
+marchent pareil en AZERTY.
+
+**Dans l'application** : **Réglages → Raccourcis clavier**, une ligne par
+action avec un interrupteur, le raccourci et **Modifier** : appuie sur la
+nouvelle combinaison (Échap annule, Retour arrière désactive le raccourci). Une
+combinaison doit comporter Super, Ctrl ou Alt (seule ou avec Maj, une touche
+serait prise à toutes les applications), sauf les touches multimédia. Une
+combinaison déjà utilisée par le bureau, un autre raccourci personnalisé ou
+une autre action de CCS est signalée (⚠) sans être refusée. Le groupe suit les
+changements faits ailleurs tant qu'il est affiché ; **Mettre à jour les
+commandes** apparaît quand des raccourcis lancent CCS depuis un autre endroit
+(paquet installé depuis, dépôt déplacé).
+
+**Dans le terminal** :
+
+```sh
+ccs raccourcis                     # état (comme « ccs raccourcis status »)
+ccs raccourcis on                  # active toutes les actions
+ccs raccourcis on suivant pause    # ou seulement celles-ci
+ccs raccourcis off                 # retire tous les raccourcis de CCS
+ccs raccourcis set suivant Super+Alt+B
+```
+
+`set` accepte « Super+Alt+B », « Ctrl+Maj+F5 » ou la forme de GNOME
+« <Super><Alt>b ». Code de sortie : 2 pour un usage incorrect, 1 si le bureau
+n'est pas pris en charge ou si le raccourci est refusé.
+
+**Ce que CCS touche** : ce sont des raccourcis personnalisés, les mêmes que
+ceux de Paramètres › Clavier › Raccourcis personnalisés, où tu les retrouves
+(« CCS : … »). CCS n'écrit que sous ses propres chemins
+(`/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/ccs-<action>/`),
+ne retire jamais un raccourci qui n'est pas à lui et garde l'ordre de la
+liste, relue juste avant chaque écriture. La commande est écrite avec son
+chemin complet (`/usr/bin/ccs` pour le paquet installé).
+
+**Autre bureau que GNOME** : `ccs raccourcis` et les Réglages l'indiquent et
+donnent les commandes (avec un bouton pour les copier) : crée toi-même les
+raccourcis dans les réglages du clavier de ton bureau.
 
 ## Bilan de santé
 
