@@ -13,7 +13,7 @@ import time
 import gi
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
-from .. import limit_events, sessions, terminal, terminal_store
+from .. import conversations, limit_events, sessions, terminal, terminal_store
 from .common import in_thread
 
 SCROLLBACK_LINES = 100_000
@@ -27,8 +27,24 @@ PCRE2_CASELESS = 0x00000008
 PALETTE = ("#171421", "#c01c28", "#26a269", "#a2734c", "#12488b", "#a347ba", "#2aa1b3", "#d0cfcc",
            "#5e5c64", "#f66151", "#33d17a", "#e9ad0c", "#2a7bde", "#c061cb", "#33c7de", "#ffffff")
 COLORS = {False: ("#1e1e1e", "#ffffff"), True: ("#ffffff", "#1e1e1e")}  # sombre ? -> (texte, fond)
+SAVE_DELAY_MS = 1000
+CSS = b"""
+.ccs-restore { padding: 6px 12px; background-color: alpha(@accent_bg_color, 0.18); }
+"""
 
 _vte = None
+_css = False
+
+
+def install_css():
+    """Styles propres à la page Terminaux (une fois par affichage)."""
+    global _css
+    if not _css:
+        _css = True
+        provider = Gtk.CssProvider()
+        provider.load_from_data(CSS, -1)
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider,
+                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
 
 def vte():
@@ -302,6 +318,7 @@ class TerminalTab(Gtk.Box):
         if title and title != self.state.title:
             self.state.title = title
             self.update_page()
+            self.owner.schedule_save()
 
     def on_window_title(self, *_):
         if self.state.kind == "shell":  # titre posé par le shell (dossier courant…)
@@ -358,8 +375,12 @@ class TerminalsPage(Gtk.Box):
         self.dark = self.style.get_dark()
         self.font = system_font()
         self.options = terminal_store.load_options()
+        # Onglets de la dernière fois : gardés tant que la proposition n'a pas de réponse.
+        self.pending, self.pending_selected, self.offering = None, None, False
+        self.save_source, self.last_saved, self.closed = None, None, False
         if not self.available:
             return
+        install_css()
 
         self.context_menu = Gio.Menu()
         edit = Gio.Menu()
@@ -377,6 +398,7 @@ class TerminalsPage(Gtk.Box):
         self.view.connect("page-detached", self.on_detached)
         self.view.connect("notify::selected-page", self.on_selected)
         self.view.connect("setup-menu", self.on_setup_menu)
+        self.view.connect("page-reordered", lambda *_: self.schedule_save())
         tab_menu = Gio.Menu()
         tab_menu.append("Renommer la conversation…", "tabs.rename")
         tab_menu.append("Ouvrir le dossier", "tabs.folder")
@@ -393,13 +415,14 @@ class TerminalsPage(Gtk.Box):
 
         # Interrupteurs de la page (gardés dans terminals.json, pas dans les réglages généraux).
         self.page_actions = Gio.SimpleActionGroup()
-        for name, key in (("auto-resume", "auto_resume"),):
+        for name, key in (("auto-resume", "auto_resume"), ("reopen-at-start", "reopen_at_start")):
             a = Gio.SimpleAction.new_stateful(name, None, GLib.Variant.new_boolean(self.options[key]))
             a.connect("change-state", lambda act, value, k=key: self.set_option(act, k, value))
             self.page_actions.add_action(a)
         self.insert_action_group("terms", self.page_actions)
         options = Gio.Menu()
         options.append("Reprise automatique après une limite", "terms.auto-resume")
+        options.append("Rouvrir les onglets au démarrage", "terms.reopen-at-start")
         page_menu = Gio.Menu()
         page_menu.append_section(None, tab_menu)
         page_menu.append_section(None, options)
@@ -408,8 +431,30 @@ class TerminalsPage(Gtk.Box):
                               tooltip_text="Onglet et options")
         more.connect("notify::active", lambda b, _p: b.get_active() and self.prepare_menu(None))
         self.bar = Adw.TabBar(view=self.view, autohide=False, end_action_widget=more)
+
+        # Bandeau « Rouvrir les N sessions de la dernière fois ? » et page vide qui l'accompagne.
+        self.restore_label = Gtk.Label(xalign=0, hexpand=True, wrap=True)
+        ignore = Gtk.Button(label="Ignorer", valign=Gtk.Align.CENTER)
+        ignore.connect("clicked", lambda *_: self.decline_restore())
+        reopen = Gtk.Button(label="Rouvrir", valign=Gtk.Align.CENTER, css_classes=["suggested-action"])
+        reopen.connect("clicked", lambda *_: self.accept_restore())
+        box = Gtk.Box(spacing=12, css_classes=["ccs-restore"])
+        for w in (self.restore_label, ignore, reopen):
+            box.append(w)
+        self.restore_bar = Gtk.Revealer(child=box, reveal_child=False)
+        self.empty = Adw.StatusPage(icon_name="document-open-recent-symbolic",
+                                    title="Sessions de la dernière fois")
+
+        self.content = Gtk.Stack(vexpand=True, hhomogeneous=False, vhomogeneous=False)
+        self.content.add_named(self.view, "tabs")
+        self.content.add_named(self.empty, "empty")
+        self.append(self.restore_bar)
         self.append(self.bar)
-        self.append(self.view)
+        self.append(self.content)
+
+        window.connect("close-request", self.on_window_close)  # avant celui de la fenêtre
+        window.connect("destroy", lambda *_: setattr(self, "closed", True))
+        GLib.idle_add(self.startup)
 
         self.style.connect("notify::dark", self.on_dark)
         schema = "org.gnome.desktop.interface"
@@ -440,13 +485,16 @@ class TerminalsPage(Gtk.Box):
     def open_shell(self, cwd):
         return self.open(terminal.shell_launch(cwd))
 
-    def open(self, launch):
-        """Nouvel onglet pour un `terminal.Launch`, affiché et lancé ; renvoie le TerminalTab."""
+    def open(self, launch, present=True):
+        """Nouvel onglet pour un `terminal.Launch`, lancé et affiché (sauf `present=False`) ;
+        renvoie le TerminalTab."""
         tab = TerminalTab(self, launch)
         tab.page = self.view.append(tab)
         tab.update_page()
         tab.spawn()
-        self.present(tab)
+        self.update_content()
+        if present:
+            self.present(tab)
         self.changed(tab)
         return tab
 
@@ -469,6 +517,7 @@ class TerminalsPage(Gtk.Box):
             page.set_needs_attention(False)
             page.get_child().focus()
         self.update_badge()
+        self.schedule_save()
 
     def focus_selected(self):
         page = self.view.get_selected_page() if self.available else None
@@ -483,6 +532,7 @@ class TerminalsPage(Gtk.Box):
         self.update_badge()
         self.update_actions()
         self.window.terminals_changed()
+        self.schedule_save()
         if not self.polling and terminal.running_claude(self.states()):
             self.polling = True
             GLib.timeout_add_seconds(POLL_S, self.poll)
@@ -491,17 +541,157 @@ class TerminalsPage(Gtk.Box):
         page = self.window.terminals_page
         tabs = self.tabs()
         page.set_badge_number(len(tabs))
-        page.set_needs_attention(any(t.page.get_needs_attention() for t in tabs if t.page)
-                                 and self.window.stack.get_visible_child_name() != "terminals")
+        wanted = self.offering or any(t.page.get_needs_attention() for t in tabs if t.page)
+        page.set_needs_attention(wanted and self.window.stack.get_visible_child_name() != "terminals")
+
+    def update_content(self):
+        if self.available:
+            self.content.set_visible_child_name("tabs" if self.view.get_n_pages() else "empty")
+
+    def reveal_page(self):
+        """Onglet « Terminaux » visible dans la barre de la fenêtre, sans l'afficher."""
+        page = self.window.terminals_page
+        if not page.get_visible():
+            page.set_visible(True)
+            narrow = getattr(self.window, "narrow", None)
+            if narrow is not None and hasattr(self.window, "narrow_condition"):
+                narrow.set_condition(self.window.narrow_condition())
+        self.update_badge()
 
     def on_detached(self, _view, page, _position):
         tab = page.get_child()
         tab.page = None
         self.emit("tab-closed", tab)
         self.update_badge()
+        self.update_content()
         self.window.terminals_changed()
+        self.schedule_save()
+        if not self.tabs() and not self.offering:
+            self.window.hide_terminals()
+
+    # ---- mémoire des onglets ---------------------------------------------------------
+
+    def records(self):
+        """(onglets à enregistrer, indice de celui affiché) ; ceux de la dernière fois restent
+        tant que la proposition de les rouvrir n'a pas de réponse."""
+        tabs = self.tabs()
+        page = self.view.get_selected_page()
+        current = [terminal.tab_record(t.state) for t in tabs]
+        selected = next((i for i, t in enumerate(tabs) if page is not None and t.page is page), None)
+        if self.pending is not None:
+            return terminal.merge_records(self.pending, self.pending_selected, current, selected)
+        return current, selected
+
+    def schedule_save(self):
+        if self.available and not self.closed and self.save_source is None:
+            self.save_source = GLib.timeout_add(SAVE_DELAY_MS, self.save_due)
+
+    def save_due(self):
+        self.save_source = None
+        self.save_now()
+        return False
+
+    def save_now(self):
+        if self.closed or not self.available:
+            return
+        data = self.records()
+        if data != self.last_saved and terminal_store.save_tabs(*data):
+            self.last_saved = data
+
+    def flush_save(self):
+        if self.save_source is not None:
+            GLib.source_remove(self.save_source)
+            self.save_source = None
+        self.save_now()
+
+    def on_window_close(self, *_):
+        """Fermeture de la fenêtre : onglets enregistrés tels quels (avant l'arrêt des
+        sessions), puis plus rien tant que la fermeture n'est pas annulée."""
+        if self.available:
+            self.flush_save()
+            self.closed = True
+            GLib.idle_add(self.close_cancelled)
+        return False
+
+    def close_cancelled(self):
+        if self.window.get_visible():
+            self.closed = False  # « Annuler » dans la confirmation de fermeture
+        return False
+
+    def startup(self):
+        """Au lancement : onglets de la dernière fois rouverts (interrupteur) ou proposés."""
+        records, selected = terminal_store.load_tabs()
+        if records:
+            self.pending, self.pending_selected = records, selected
+            in_thread(lambda: self.plan(records, selected), self.offer)
+        return False
+
+    def plan(self, records, selected, present=()):
+        return terminal.restore_plan(records, selected, opened=conversations.open_ids(), present=present)
+
+    def offer(self, plan):
+        if self.pending is None or not plan.tabs:
+            return  # rien à rouvrir pour l'instant : proposé de nouveau au prochain lancement
+        if self.options["reopen_at_start"]:
+            self.reopen(plan, show=False)
+            return
+        self.offering = True
+        question = terminal.restore_question(len(plan.tabs))
+        self.restore_label.set_label(question)
+        names = [t.title or sessions.project_name(t.cwd) if t.kind == "shell" else
+                 f"{t.title or sessions.project_name(t.cwd)} — {sessions.project_name(t.cwd)}"
+                 for t in plan.tabs]
+        self.restore_label.set_tooltip_text("\n".join(names))
+        self.empty.set_description(GLib.markup_escape_text("\n".join(names[:12])))
+        self.restore_bar.set_reveal_child(True)
+        self.update_content()
+        self.reveal_page()
+        toasts = getattr(self.window, "toasts", None)
+        if toasts is not None:
+            toast = Adw.Toast(title=GLib.markup_escape_text(question), button_label="Rouvrir", timeout=10)
+            toast.connect("button-clicked", lambda *_: self.accept_restore())
+            toasts.add_toast(toast)
+
+    def accept_restore(self):
+        if self.pending is None:
+            return
+        records, selected = self.pending, self.pending_selected
+        present = {t.state.session_id for t in self.tabs() if t.state.session_id}
+        self.end_offer()
+        in_thread(lambda: self.plan(records, selected, present), lambda plan: self.reopen(plan, show=True))
+
+    def decline_restore(self):
+        self.end_offer()
+        self.pending = None
+        self.flush_save()
         if not self.tabs():
             self.window.hide_terminals()
+
+    def end_offer(self):
+        self.offering = False
+        self.restore_bar.set_reveal_child(False)
+        self.update_badge()
+
+    def reopen(self, plan, show):
+        """Rouvre les onglets du plan (sans voler l'affichage au démarrage si `show` est faux)."""
+        opened = []
+        for item in plan.tabs:
+            tab = self.open(item.launch(), present=False)
+            tab.state.queue[:] = list(item.queue)
+            opened.append(tab)
+        self.pending = None
+        target = (opened[plan.selected] if plan.selected is not None else opened[0]) if opened else None
+        if target is not None:
+            self.view.set_selected_page(target.page)
+            if show:
+                self.present(target)
+            else:
+                self.reveal_page()
+        elif not self.tabs():
+            self.window.hide_terminals()
+        self.update_content()
+        self.window.toast(terminal.restore_summary(len(opened), plan.skipped))
+        self.flush_save()
 
     # ---- fermeture -----------------------------------------------------------------
 
@@ -614,6 +804,7 @@ class TerminalsPage(Gtk.Box):
         for tab in moved:
             self.emit("tab-state-changed", tab)
         self.handle_limits(tabs, limits)
+        self.schedule_save()
         wanted = [(t, t.state.cwd, t.state.session_id) for t in tabs
                   if t.state.kind == "claude" and t.state.session_id]
         if wanted:
