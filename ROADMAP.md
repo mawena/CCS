@@ -134,7 +134,7 @@ Raccordement, documentation et release :
 - [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub
 
 Releases GitHub manquantes :
-- [ ] Releases GitHub 0.3.1, 0.3.2 et 0.4.0, avec leurs `.deb` reconstruits depuis les tags
+- [x] Releases GitHub 0.3.1, 0.3.2 et 0.4.0, avec leurs `.deb` reconstruits depuis les tags
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
