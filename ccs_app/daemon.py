@@ -331,7 +331,11 @@ class Daemon:
 
     def _pause(self, settings, now):
         """Pause en cours ; une pause échue est levée et annoncée une fois."""
-        ended = pause.expire(now)
+        try:
+            ended = pause.expire(now)
+        except OSError:  # fichier impossible à supprimer : la pause échue ne compte plus
+            log.exception("levée de la pause impossible")
+            ended = None
         if ended is not None and settings["alerts"]["enabled"]:
             a = alerts.Alert(f"pause_end:{ended.since.timestamp():.0f}", "Pause terminée",
                              "La bascule automatique et l'orchestrateur reprennent "
