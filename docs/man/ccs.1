@@ -97,6 +97,48 @@ Active ou désactive la bascule automatique (seuil par défaut : 98 %).
 .BI "ccs analyze \fR[\fB\-\-days \fIN\fR]"
 Consommation locale par projet, modèle, heure et compte, avec conseils.
 .TP
+.B ccs formule
+Conseiller de formule (alias \fBccs conseil\fR) : la combinaison de comptes
+Pro, Max ou Ultra la moins chère qui couvre l'usage mesuré des 4 dernières
+semaines, 20 % de marge comprise, avec le raisonnement et l'équivalent au
+tarif de l'API des journaux de ce PC. Tarifs datés du 6 novembre 2026,
+signalés « à vérifier » après 120 jours ; réglages \fIadvisor.*\fR.
+.TP
+.B ccs semaine \fR[\fB\-\-precedente \fIN\fR]
+Bilan de la semaine écoulée : usage de chaque compte, conversations, sessions,
+tokens et équivalent API, modèles, projets, bascules et alertes, comparés à la
+semaine précédente ; \fB\-\-precedente\fR \fIN\fR remonte de \fIN\fR
+semaines. L'activité ne vient que des journaux de ce PC.
+.TP
+.B ccs journal \fR[\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]
+Journal des bascules, groupé par jour, avec la raison de chacune en clair
+(automatique avec le pourcentage, anticipée par l'orchestrateur, après un
+blocage avec le projet, manuelle et son origine, échec, limite atteinte sans
+bascule, démarrage de fenêtre). 7 jours par défaut, \fB\-\-tout\fR pour tout
+l'historique gardé.
+.TP
+.B ccs projet \fR[\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]
+Compte par projet. Sans argument, liste les dossiers associés à un compte ;
+avec un dossier, affiche son compte (le sien ou celui d'un dossier parent) ;
+avec un compte (dossier courant par défaut), associe le dossier et ses
+sous-dossiers à ce compte ; \fBaucun\fR retire l'association du dossier (un
+sous-dossier hérite encore de son parent). En ouvrant une session de ce projet
+depuis l'application, CCS propose de basculer sur ce compte, sauf pendant une
+pause.
+.TP
+.B ccs raccourcis \fR[\fBstatus\fR|\fBon\fR [\fIaction\fR...]|\fBoff\fR [\fIaction\fR...]|\fBset\fR \fIaction raccourci\fR]
+Raccourcis clavier globaux du bureau GNOME, actifs même application fermée,
+tous désactivés par défaut. \fBstatus\fR (défaut) affiche leur état,
+\fBon\fR les active (tous, ou les actions données), \fBoff\fR les retire,
+\fBset\fR change une combinaison (par exemple
+\fBccs raccourcis set suivant Super+Alt+B\fR). Actions et raccourcis par
+défaut : \fBouvrir\fR (Super+Alt+C), \fBsessions\fR (Super+Alt+V),
+\fBnouvelle\-session\fR (Super+Alt+N), \fBsuivant\fR (Super+Alt+B),
+\fBmeilleur\fR (Super+Alt+M), \fBpause\fR (Super+Alt+P, pause 1 h),
+\fBreprendre\fR (Super+Alt+R). CCS n'écrit que ses propres raccourcis
+personnalisés, ne retire jamais les autres et garde leur ordre. Sur un autre
+bureau, affiche les commandes à associer à la main.
+.TP
 .B ccs doctor
 Bilan de santé (alias \fBccs bilan\fR) : service et relevés, version installée et version qui tourne,
 extension et indicateur de la barre du haut, intégration dans Claude Code,
@@ -125,7 +167,8 @@ Profils (jetons OAuth, droits 600), historique \fIhistory.db\fR, réglages
 l'historique des conversations \fIconversations-cache.json\fR, journaux copiés
 pour des projets déplacés \fIconversations-moves.json\fR, onglets et options du
 terminal intégré \fIterminals.json\fR, marqueurs de limite atteinte par
-conversation \fIlimits/\fR.
+conversation \fIlimits/\fR, comptes par projet \fIprojects.json\fR, origine
+de la dernière bascule demandée par l'application \fIswitch-origin.json\fR.
 .TP
 .I ~/.claude/.credentials.json\fR, \fI~/.claude.json
 Fichiers de Claude Code réécrits lors d'une bascule.
@@ -133,6 +176,10 @@ Fichiers de Claude Code réécrits lors d'une bascule.
 .I ~/.claude/projects/*/*.jsonl
 Journaux des conversations : lus, et complétés d'une ligne de titre lors d'un
 renommage (\fBccs title\fR).
+.TP
+.I /org/gnome/settings\-daemon/plugins/media\-keys/custom\-keybindings/ccs\-*/
+Raccourcis clavier de CCS dans les réglages de GNOME (dconf), écrits par
+\fBccs raccourcis\fR.
 .SH CODE DE RETOUR
 .B ccs doctor
 renvoie 0 si toutes les vérifications sont bonnes, 1 s'il y a au moins un
@@ -144,6 +191,14 @@ renvoient 1 si l'identifiant est inconnu ou ambigu, ou si la lecture ou
 l'écriture échoue.
 .B ccs pause
 renvoie 2 pour un choix inconnu.
+.B ccs journal
+renvoie 2 pour un usage incorrect.
+.B ccs projet
+renvoie 1 si le dossier ou le compte est introuvable, 2 pour un usage
+incorrect.
+.B ccs raccourcis
+renvoie 1 si le bureau n'est pas pris en charge ou si le raccourci est refusé,
+2 pour un usage incorrect.
 .SH ENVIRONNEMENT
 .TP
 .B CLAUDE_CONFIG_DIR
