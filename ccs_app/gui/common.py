@@ -19,8 +19,6 @@ progressbar.ok progress { background-color: @success_color; }
 progressbar.warn progress { background-color: @warning_color; }
 progressbar.crit progress { background-color: @error_color; }
 .pct { font-feature-settings: "tnum"; font-weight: bold; }
-.legend-session { color: #3584e4; font-weight: bold; }
-.legend-weekly { color: #e66100; font-weight: bold; }
 .ccs-terminal { padding: 6px 10px; }
 .ccs-highlight { box-shadow: inset 0 0 0 2px @accent_color; }
 .ccs-dot { min-width: 8px; min-height: 8px; border-radius: 99px; }
@@ -29,6 +27,7 @@ progressbar.crit progress { background-color: @error_color; }
 .ccs-projects { background: none; }
 .ccs-projects row { padding: 2px 0; }
 .ccs-count { font-feature-settings: "tnum"; }
+.ccs-days > button { padding-left: 8px; padding-right: 8px; }
 """
 
 
@@ -95,12 +94,18 @@ def existing_parent(path):
     return str(p) if p else None
 
 
-def string_factory(ellipsize):
-    """Fabrique de libellés pour un Gtk.DropDown de chaînes."""
+def string_factory(ellipsize, short=None):
+    """Fabrique de libellés pour un Gtk.DropDown de chaînes. `short` : {libellé: libellé
+    court} affiché à la place (bouton d'une barre étroite, liste gardant les libellés complets)."""
     f = Gtk.SignalListItemFactory()
     mode = Pango.EllipsizeMode.END if ellipsize else Pango.EllipsizeMode.NONE
+    short = short or {}
+
+    def bind(_f, item):
+        text = item.get_item().get_string()
+        item.get_child().set_label(short.get(text, text))
     f.connect("setup", lambda _f, item: item.set_child(Gtk.Label(xalign=0, ellipsize=mode)))
-    f.connect("bind", lambda _f, item: item.get_child().set_label(item.get_item().get_string()))
+    f.connect("bind", bind)
     return f
 
 
