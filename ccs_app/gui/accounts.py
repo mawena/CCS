@@ -5,7 +5,7 @@ import time
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from .. import core, daemon
+from .. import core, daemon, pause
 from ..forecast import weekly_forecast_text
 from .charts import Sparkline
 from .common import (ask_name, bar_for, caption, clear, now_utc, parse_ts, run_ccs_async)
@@ -35,6 +35,49 @@ def pace_text(pace):
     head = (f"Semaine : {margin:.0f} pts de marge sur le rythme" if margin >= 0
             else f"Semaine : {-margin:.0f} pts d'avance sur le rythme")
     return f"{head} · budget {pace['per_day_budget']:.0f} %/jour ({core.fr(days)} j restants)"
+
+
+def set_pause(window, choice):
+    """Pose ou lève la pause, réveille le service et rafraîchit l'affichage."""
+    st = pause.apply(choice)
+    daemon.request_refresh()
+    window.toast("Pause levée : la bascule automatique et l'orchestrateur reprennent" if st is None
+                 else f"Bascule automatique et orchestrateur en pause {pause.label(st, now_utc())}")
+    GLib.idle_add(lambda: (window.reload(), False)[1])
+
+
+def pause_box(window, now, offer=True):
+    """Ligne « en pause jusqu'à … · Reprendre », ou bouton « Mettre en pause » (si `offer`)."""
+    st = pause.pause_state(now)
+    if st is None and not offer:
+        return None
+    row = Gtk.Box(spacing=12)
+    if st is not None:
+        row.append(Gtk.Label(label=f"⏸ Bascule automatique et orchestrateur en pause "
+                                   f"{pause.label(st, now)}",
+                             xalign=0, hexpand=True, wrap=True, css_classes=["warning"]))
+        resume = Gtk.Button(label="Reprendre", css_classes=["pill"], valign=Gtk.Align.CENTER)
+        resume.connect("clicked", lambda *_: set_pause(window, "reprendre"))
+        row.append(resume)
+        return row
+    row.append(caption("Garder la main un moment : suspend la bascule automatique et "
+                       "l'orchestrateur, sans changer les réglages."))
+    row.get_last_child().set_hexpand(True)
+    popover = Gtk.Popover()
+    items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+    for choice, text in pause.choices(now):
+        b = Gtk.Button(label=text, css_classes=["flat"])
+        b.get_child().set_xalign(0)
+
+        def clicked(_b, c=choice):
+            popover.popdown()
+            set_pause(window, c)
+        b.connect("clicked", clicked)
+        items.append(b)
+    popover.set_child(items)
+    row.append(Gtk.MenuButton(label="Mettre en pause", popover=popover, valign=Gtk.Align.CENTER,
+                              tooltip_text="Suspend la bascule automatique et l'orchestrateur"))
+    return row
 
 
 class AccountsPage(Gtk.ScrolledWindow):
@@ -104,6 +147,7 @@ class AccountsPage(Gtk.ScrolledWindow):
             use.connect("clicked", lambda *_: self.window.switch(best["name"]))
             row.append(use)
         card.append(row)
+        card.append(pause_box(self.window, now_utc()))
         return card
 
     def card(self, a, store, now):

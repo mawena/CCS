@@ -51,6 +51,14 @@ class PeriodTest(unittest.TestCase):
     def test_outside_range(self):
         self.assertIsNone(orch.period_bounds(local(1, 3), self.hours))
 
+    def test_next_period_start(self):
+        self.assertEqual(orch.next_period_start(NOW, self.hours), local(1, 8))
+        self.assertEqual(orch.next_period_start(local(1, 3), self.hours), local(1, 8))
+        self.assertEqual(orch.next_period_start(local(0, 8), self.hours), local(1, 8))
+        monday_only = {"start": "09:00", "end": "18:00", "days": [0]}
+        self.assertEqual(orch.next_period_start(NOW, monday_only), local(7, 9))
+        self.assertIsNone(orch.next_period_start(NOW, {"start": "09:00", "end": "18:00", "days": []}))
+
     def test_simple_range_and_days(self):
         h = {"start": "09:00", "end": "18:00", "days": [0]}
         self.assertEqual(orch.period_bounds(local(0, 12), h), (local(0, 9), local(0, 18)))

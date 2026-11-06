@@ -3,7 +3,7 @@
 import subprocess
 import sys
 
-from . import core, daemon
+from . import core, daemon, pause
 from .forecast import fmt_when
 from .settings import load_settings, save_settings
 
@@ -30,7 +30,12 @@ def _active_account(state):
     return next((a for a in state.get("accounts") or [] if a.get("name") == active), None)
 
 
-def label_for(state):
+def label_for(state, paused=False):
+    text = _label(state)
+    return f"⏸ {text}" if paused else text
+
+
+def _label(state):
     acc = _active_account(state) if state else None
     limits = (acc or {}).get("limits") or []
     if not limits:
@@ -137,6 +142,14 @@ def menu_lines(state, now):
     return out
 
 
+def pause_menu(st, now, hours=None):
+    """(ligne d'état ou None, [(libellé, choix)]) : reprendre, ou durées de pause."""
+    if st is not None:
+        return (f"⏸ En pause {pause.label(st, now)} — bascule et orchestrateur suspendus",
+                [("Reprendre maintenant", "reprendre")])
+    return None, [(text, choice) for choice, text in pause.choices(now, hours)]
+
+
 def session_lines(found):
     from . import sessions
     return [(f"{s.project} — {sessions.state_label(s)}", s) for s in found]
@@ -201,14 +214,28 @@ def run():
         if not daemon.request_refresh():
             subprocess.Popen([sys.executable, sys.argv[0], "collect"], start_new_session=True)
 
+    def set_pause(_item, choice):
+        pause.apply(choice)
+        daemon.request_refresh()
+        GLib.idle_add(lambda: (rebuild(), False)[1])
+
     def rebuild():
         state = core.load_json(daemon.state_path())
+        now = datetime.now(timezone.utc)
+        s = load_settings()
+        # Lu directement (et non dans state.json) : le menu suit aussitôt un clic.
+        paused = pause.pause_state(now)
         name = icon_name_for(state)
         ensure_icon(name)
         ind.set_icon_full(name, "Usage du compte Claude actif")
-        ind.set_label(label_for(state), "⚠ 100 %")
+        ind.set_label(label_for(state, paused is not None), "⏸ ⚠ 100 %")
         menu = Gtk.Menu()
-        for text, action in menu_lines(state, datetime.now(timezone.utc)):
+        pause_line, pause_items = pause_menu(paused, now, s["orchestrator"]["active_hours"])
+        if pause_line:
+            it = Gtk.MenuItem(label=pause_line, use_underline=False)
+            it.set_sensitive(False)
+            menu.append(it)
+        for text, action in menu_lines(state, now):
             if text == "-":
                 menu.append(Gtk.SeparatorMenuItem())
                 continue
@@ -241,12 +268,25 @@ def run():
             root.set_submenu(sub)
             menu.append(root)
         menu.append(Gtk.SeparatorMenuItem())
-        s = load_settings()
         for label, section in (("Bascule automatique", "auto_switch"), ("Orchestrateur", "orchestrator")):
-            check = Gtk.CheckMenuItem(label=label)
+            check = Gtk.CheckMenuItem(label=label + (" (en pause)" if paused else ""))
             check.set_active(s[section]["enabled"])
             check.connect("toggled", toggle, section)
             menu.append(check)
+        if paused:
+            for text, choice in pause_items:
+                it = Gtk.MenuItem(label=f"▶ {text}")
+                it.connect("activate", set_pause, choice)
+                menu.append(it)
+        else:
+            root = Gtk.MenuItem(label="Mettre en pause")
+            sub = Gtk.Menu()
+            for text, choice in pause_items:
+                it = Gtk.MenuItem(label=text)
+                it.connect("activate", set_pause, choice)
+                sub.append(it)
+            root.set_submenu(sub)
+            menu.append(root)
         for label, cb in (("Actualiser", refresh), ("Ouvrir Comptes Claude", launch_gui)):
             it = Gtk.MenuItem(label=label)
             it.connect("activate", cb)

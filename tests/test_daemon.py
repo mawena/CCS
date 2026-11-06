@@ -6,7 +6,7 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
-from ccs_app import core, daemon
+from ccs_app import core, daemon, pause
 from ccs_app.settings import load_settings
 from ccs_app.store import Store
 from tests.helpers import HomeTestCase, fake_http, write
@@ -239,6 +239,67 @@ class ReviewDaemonTest(OrchestratorBase):
         leftover = tempfile.mkdtemp(prefix="ccs-warmup-")
         daemon.clean_warmup_leftovers()
         self.assertFalse(os.path.exists(leftover))
+
+
+class PauseDaemonTest(OrchestratorBase):
+    def test_pause_blocks_auto_switch(self):
+        pause.set_pause(NOW + timedelta(hours=1), now=NOW)
+        with fake_http(per_account(perso=usage(99), pro=usage(5))), \
+                mock.patch.object(core, "run_ccs") as run:
+            self.d.tick(self.settings, NOW)
+        run.assert_not_called()
+        st = self.state()
+        self.assertIn("pause", st["auto_switch"]["decision"]["reason"])
+        self.assertTrue(st["auto_switch"]["enabled"])  # le réglage n'est pas touché
+        self.assertTrue(st["auto_switch"]["paused"])
+        self.assertTrue(st["orchestrator"]["paused"])
+        self.assertEqual(st["pause"]["until"], (NOW + timedelta(hours=1)).isoformat())
+        self.assertFalse(any("Bascule" in a.title or "épuisés" in a.title for a in self.sent))
+
+    def test_pause_blocks_orchestrator_starts(self):
+        pause.set_pause(None, now=NOW)
+        self.settings["orchestrator"]["stagger"] = False
+        with fake_http(per_account(perso=usage(30), pro=idle_usage())):
+            self.d.tick(self.settings, NOW)
+        self.assertEqual(self.started, [])
+        o = self.state()["orchestrator"]
+        self.assertTrue(all(w["kind"] == "current" for w in o["plan"]))
+        self.assertIsNone(o["next_wake"])
+        self.assertIsNone(self.state()["pause"]["until"])
+
+    def test_pause_blocks_expiring_switch(self):
+        pause.set_pause(None, now=NOW)
+        with fake_http(per_account(perso=usage(40, reset_min=200), pro=usage(30, reset_min=40))), \
+                mock.patch.object(core, "run_ccs") as run:
+            self.d.tick(self.settings, NOW)
+        run.assert_not_called()
+
+    def test_pause_lifted_at_deadline(self):
+        pause.set_pause(NOW - timedelta(minutes=1), now=NOW - timedelta(hours=1))
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with fake_http(per_account(perso=usage(99), pro=usage(5))), \
+                mock.patch.object(core, "run_ccs", return_value=ok) as run:
+            self.d.tick(self.settings, NOW)
+            self.d.tick(self.settings, NOW + timedelta(seconds=60))
+        run.assert_called_once_with(["use", "pro"])
+        self.assertIsNone(self.state()["pause"])
+        self.assertFalse(self.state()["auto_switch"]["paused"])
+        self.assertEqual([a.title for a in self.sent].count("Pause terminée"), 1)
+        self.assertFalse((self.store / "pause.json").exists())
+
+    def test_wakes_up_at_pause_end(self):
+        self.settings["orchestrator"]["enabled"] = False
+        pause.set_pause(NOW + timedelta(minutes=2), now=NOW)
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            delay = self.d.tick(self.settings, NOW)
+        self.assertAlmostEqual(delay, 121, delta=1)
+
+    def test_no_pause_in_state_by_default(self):
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            self.d.tick(self.settings, NOW)
+        st = self.state()
+        self.assertIsNone(st["pause"])
+        self.assertFalse(st["auto_switch"]["paused"])
 
 
 class SelfRestartTest(unittest.TestCase):

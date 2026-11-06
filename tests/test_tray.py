@@ -110,6 +110,30 @@ class MenuLinesTest(unittest.TestCase):
         self.assertNotIn("semaine épuisée", "\n".join(self.lines()))
 
 
+class PauseMenuTest(unittest.TestCase):
+    HOURS = {"start": "08:00", "end": "02:00", "days": list(range(7))}
+
+    def test_choices_when_not_paused(self):
+        from ccs_app.tray import pause_menu
+        line, items = pause_menu(None, NOW, self.HOURS)
+        self.assertIsNone(line)
+        self.assertEqual([c for _, c in items], ["1h", "4h", "demain", "manuel"])
+        self.assertEqual(items[0][0], "1 heure")
+
+    def test_resume_when_paused(self):
+        from ccs_app.pause import PauseState
+        from ccs_app.tray import pause_menu
+        line, items = pause_menu(PauseState(NOW, NOW + timedelta(hours=1)), NOW, self.HOURS)
+        self.assertIn("En pause jusqu'à", line)
+        self.assertEqual(items, [("Reprendre maintenant", "reprendre")])
+        line, _ = pause_menu(PauseState(NOW, None), NOW, self.HOURS)
+        self.assertIn("reprise manuelle", line)
+
+    def test_label_shows_pause(self):
+        self.assertEqual(label_for(state(("session", 32)), paused=True), "⏸ ◔ 32 %")
+        self.assertEqual(label_for({}, paused=True), "⏸ —")
+
+
 class SessionLinesTest(unittest.TestCase):
     def test_session_lines(self):
         import time

@@ -8,7 +8,8 @@ from gi.repository import Adw, Gtk
 from .. import daemon
 from ..settings import load_settings, save_settings
 from .charts import PALETTE, _fg
-from .common import caption, clear, parse_ts
+from .accounts import pause_box
+from .common import caption, clear, now_utc, parse_ts
 from .geometry import span_to_x
 
 ROW_H = 34
@@ -132,6 +133,9 @@ class PlanningPage(Gtk.ScrolledWindow):
         sw.connect("notify::active", self.toggle)
         row.append(sw)
         head.append(row)
+        paused = pause_box(self.window, now_utc(), offer=False)
+        if paused is not None:
+            head.append(paused)
         self.box.append(head)
 
         plan = o.get("plan") or []

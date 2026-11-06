@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import alerts, autoswitch, core, notify, orchestrator
+from . import alerts, autoswitch, core, notify, orchestrator, pause
 from .forecast import (AccountState, best_account, capacity, effective_percent,
                        session_forecast, weekly_forecast, weekly_pace)
 from .settings import load_settings
@@ -178,6 +178,7 @@ class Daemon:
 
     def tick(self, settings, now):
         poll = settings["poll"]
+        paused = self._pause(settings, now)
         self.detect_manual_switch(now)
         profiles = {p.name: p for p in core.list_profiles()}
         active = next((n for n, p in profiles.items() if p.active), None)
@@ -208,10 +209,15 @@ class Daemon:
         delay = poll["fast_s"] if fast else poll["normal_s"]
 
         ocfg = settings["orchestrator"]
-        orch_on = ocfg["enabled"]
-        reserve = orchestrator.reserve_set(states, paces, ocfg) if orch_on else set()
+        # En pause : ni bascule automatique ni action de l'orchestrateur (la réserve
+        # reste calculée : elle oriente aussi la recommandation affichée).
+        orch_on = ocfg["enabled"] and paused is None
+        reserve = orchestrator.reserve_set(states, paces, ocfg) if ocfg["enabled"] else set()
         events = self.store.events((now - EVENTS_LOOKBACK).timestamp())
-        decision = autoswitch.decide(states, active, fc, settings, now, events, delay, reserve)
+        if paused is not None:
+            decision = autoswitch.none(f"en pause {pause.label(paused, now)}")
+        else:
+            decision = autoswitch.decide(states, active, fc, settings, now, events, delay, reserve)
         switched = False
         if decision.action == "switch":
             switched = autoswitch.execute(decision, self.store, now)
@@ -234,6 +240,9 @@ class Daemon:
             wake = orchestrator.next_wake(states, now, ocfg)
             if wake is not None:
                 delay = max(30.0, min(delay, (wake - now).total_seconds()))
+        if paused is not None and paused.until is not None:
+            # Réveil à l'échéance de la pause, pour reprendre sans attendre le relevé suivant.
+            delay = max(1.0, min(delay, (paused.until - now).total_seconds() + 1))
 
         sent = {e.detail.get("key") for e in
                 self.store.events((now - ALERTS_LOOKBACK).timestamp(), type="alert")}
@@ -261,11 +270,22 @@ class Daemon:
 
         self.previous_sessions = {s.name: s.session for s in states}
         self.write_state(states, profiles, forecasts, paces, best, decision, settings, now,
-                         reserve, weeklies)
+                         reserve, weeklies, paused)
         if self.last_prune is None or now - self.last_prune > timedelta(days=1):
             self.store.prune(now.timestamp() - RETENTION_S)
             self.last_prune = now
         return delay
+
+    def _pause(self, settings, now):
+        """Pause en cours ; une pause échue est levée et annoncée une fois."""
+        ended = pause.expire(now)
+        if ended is not None and settings["alerts"]["enabled"]:
+            a = alerts.Alert(f"pause_end:{ended.since.timestamp():.0f}", "Pause terminée",
+                             "La bascule automatique et l'orchestrateur reprennent "
+                             "selon les réglages.", 0)
+            self.notifier(a)
+            self.store.add_event(now.timestamp(), "alert", None, {"key": a.key, "title": a.title})
+        return pause.pause_state(now)
 
     def _forecast(self, s, now):
         samples = [(ts, pct) for ts, pct, _ in
@@ -275,7 +295,7 @@ class Daemon:
     # ---- état partagé -------------------------------------------------------
 
     def write_state(self, states, profiles, forecasts, paces, best, decision, settings, now,
-                    reserve=frozenset(), weeklies=None):
+                    reserve=frozenset(), weeklies=None, paused=None):
         last_auto = self.store.last_event("switch")
         accounts = []
         for s in states:
@@ -302,29 +322,34 @@ class Daemon:
             "best": best and {"name": best.name, "reason": best.reason},
             "auto_switch": {
                 "enabled": settings["auto_switch"]["enabled"],
+                "paused": paused is not None,
                 "decision": {"action": decision.action, "target": decision.target,
                              "reason": decision.reason},
                 "last": last_auto and {"ts": last_auto.ts, "profile": last_auto.profile,
                                        "mode": last_auto.detail.get("mode")},
             },
             "accounts": accounts,
-            "orchestrator": self._orchestrator_state(states, settings, now, reserve),
+            "orchestrator": self._orchestrator_state(states, settings, now, reserve, paused),
+            # Mode pause : {"since", "until" (None : reprise manuelle), "label"} ou None.
+            "pause": paused.as_dict(now) if paused is not None else None,
         })
 
-    def _orchestrator_state(self, states, settings, now, reserve):
+    def _orchestrator_state(self, states, settings, now, reserve, paused=None):
         ocfg = settings["orchestrator"]
+        running = ocfg["enabled"] and paused is None
         bounds = orchestrator.period_bounds(now, ocfg["active_hours"])
-        wake = orchestrator.next_wake(states, now, ocfg) if ocfg["enabled"] else None
+        wake = orchestrator.next_wake(states, now, ocfg) if running else None
         return {
             "enabled": ocfg["enabled"],
+            "paused": paused is not None,
             "active_now": bounds is not None,
             "period": bounds and [_iso(bounds[0]), _iso(bounds[1])],
             "reserve": sorted(reserve),
             "next_wake": _iso(wake),
-            # Désactivé : seulement les fenêtres en cours, rien de « prévu ».
+            # Désactivé ou en pause : seulement les fenêtres en cours, rien de « prévu ».
             "plan": [{"name": w.name, "start": _iso(w.start), "end": _iso(w.end), "kind": w.kind}
                      for w in orchestrator.plan(states, now, ocfg)
-                     if ocfg["enabled"] or w.kind == "current"],
+                     if running or w.kind == "current"],
         }
 
 
