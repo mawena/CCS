@@ -119,6 +119,36 @@ class IncrementsTest(unittest.TestCase):
         self.assertEqual(advisor.increments([]), [])
 
 
+class WindowsTest(unittest.TestCase):
+    R = 1_000_000.0
+    NOW_TS = 2_000_000.0
+
+    def windows(self, rows, span=WEEK):
+        return advisor.windows(rows, span, self.NOW_TS)
+
+    def test_usage_is_the_highest_percentage_of_each_window(self):
+        rows = [(self.R - 3 * DAY, 10, self.R), (self.R - 2 * DAY, 30, self.R + 40),
+                (self.R - DAY, 99.5, self.R), (self.R + 60, 5, self.R + WEEK)]
+        w = self.windows(rows)
+        self.assertEqual([(x.start, x.end, x.usage) for x in w],
+                         [(self.R - WEEK, self.R, 99.5), (self.R, self.R + WEEK, 5)])
+        self.assertEqual(w[0].hit_at, self.R - DAY)
+        self.assertIsNone(w[1].hit_at)
+
+    def test_samples_after_the_reset_or_without_window_are_ignored(self):
+        rows = [(self.R - DAY, 40, self.R), (self.R + 10, 40, self.R), (self.R + 20, 0, None)]
+        self.assertEqual([x.usage for x in self.windows(rows)], [40])
+
+    def test_ongoing_window_is_projected_at_its_average_rate(self):
+        reset = self.NOW_TS + 4 * DAY   # 3 jours écoulés sur 7
+        w = self.windows([(self.NOW_TS - DAY, 20, reset), (self.NOW_TS - 60, 30, reset)])
+        self.assertAlmostEqual(w[0].usage, 30 * 7 / 3)
+        heavy = self.windows([(self.NOW_TS - 60, 90, reset)])
+        self.assertEqual(heavy[0].usage, 100)
+        early = self.windows([(self.NOW_TS - 60, 10, self.NOW_TS + 6.5 * DAY)])
+        self.assertEqual(early[0].usage, 10)   # moins d'un jour écoulé : pas de projection
+
+
 class RecommendTest(unittest.TestCase):
     PRICES = {"pro": 20.0, "max5": 100.0, "max20": 200.0}
 
@@ -226,11 +256,35 @@ class AnalyzeTest(unittest.TestCase):
         self.assertEqual([c.label for c in a.alternatives], ["Max"])
         self.assertIn("Sans bascule", "\n".join(a.reasons))
 
-    def test_partial_week_is_scaled_and_short_history_is_not_enough(self):
+    def test_never_more_than_the_capacity(self):
+        # 100 % atteints en 20 h, chaque semaine et chaque fenêtre de 5 h : des fenêtres à
+        # cheval sur une semaine glissante ne comptent jamais double.
+        start = NOW.timestamp() - 15 * DAY
+        samples = {"perso": {"weekly_all": weekly_series(start, NOW.timestamp(), start + 2.5 * DAY, 5.0),
+                             "session": session_series(start, NOW.timestamp(), 100, busy_h=1)}}
+        a = self.analyze(samples, plans={"perso": "pro"})
+        for w in a.weeks:
+            self.assertLessEqual(w.weekly, 1.0 + 1e-9)
+            self.assertLessEqual(w.session_peak, 1.0 + 1e-9)
+            self.assertGreaterEqual(w.limit_hits, 7)
+
+    def test_windows_seen_late_still_count_whole(self):
+        # Pourcentages cumulés : une fenêtre vue en cours de route donne tout son usage.
         a = self.analyze(self.two_pro(start=NOW.timestamp() - 5 * DAY))
-        self.assertEqual(len(a.weeks), 1)  # l'autre semaine n'a aucun relevé
-        self.assertAlmostEqual(a.weeks[0].coverage, 5 / 7)
-        self.assertAlmostEqual(a.weeks[0].need, a.weeks[0].weekly * 7 / 5)
+        self.assertEqual(len(a.weeks), 1)   # la semaine d'avant n'est connue qu'à moitié
+        self.assertEqual(a.ignored, 1)
+        self.assertAlmostEqual(a.weeks[0].coverage, 1.0)
+        self.assertAlmostEqual(a.weeks[0].weekly, 1.26, delta=0.02)
+
+    def test_partly_known_week_uses_the_average_of_the_known_part(self):
+        start = NOW.timestamp() - 12 * DAY
+        samples = {"perso": {"weekly_all": weekly_series(start, NOW.timestamp(), start + 6.5 * DAY, 0.5)}}
+        a = self.analyze(samples, plans={"perso": "pro"})
+        older = a.weeks[1]
+        self.assertAlmostEqual(older.coverage, 5.5 / 7)
+        self.assertAlmostEqual(older.weekly, 0.84, delta=0.01)
+
+    def test_short_history_is_not_enough(self):
         a = self.analyze(self.two_pro(start=NOW.timestamp() - 2 * DAY))
         self.assertFalse(a.enough_data)
         self.assertIsNone(a.recommended)

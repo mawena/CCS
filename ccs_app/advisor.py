@@ -64,6 +64,8 @@ MIN_COVERAGE = 0.5           # part d'une semaine couverte par les relevés pour
 CAPPED_BONUS = 0.15          # majoration d'une semaine bridée (tous les comptes épuisés)
 BLOCK_SWITCH_S = 180         # un blocage suivi d'une bascule dans ce délai n'a rien bridé
 DAYS_PER_MONTH = 30.44
+MIN_HISTORY_S = 3 * 86400    # collecte minimale avant de conseiller
+PROJECT_AFTER_S = 86400      # semaine en cours projetée à son rythme après un jour
 
 
 def plan_key(subscription, tier=None):
@@ -147,14 +149,40 @@ def increments(samples):
     return out
 
 
-def _hits(samples):
-    """Instants où une fenêtre a atteint la limite (une fois par fenêtre)."""
-    first = {}
-    for ts, pct, reset in samples:
-        if pct >= LIMIT_HIT:
-            window = round(reset / 600) if reset is not None else int(ts // 3600)
-            first.setdefault(window, ts)
-    return sorted(first.values())
+@dataclass(frozen=True)
+class Window:
+    start: float           # début de la fenêtre (secondes)
+    end: float             # réinitialisation
+    usage: float           # % le plus haut relevé (projeté pour une semaine en cours)
+    hit_at: float | None   # premier relevé à la limite
+
+
+def windows(rows, span, now_ts):
+    """Fenêtres d'une limite d'après ses relevés [(ts, %, réinitialisation)] triés.
+
+    Les pourcentages sont cumulés dans une fenêtre : le plus haut relevé donne tout
+    l'usage de la fenêtre, même vue en cours de route (claude.ai et les autres appareils
+    compris). Une fenêtre hebdomadaire en cours depuis plus d'un jour est projetée à son
+    rythme moyen (plafonné à 100 %)."""
+    span_s = span.total_seconds() if isinstance(span, timedelta) else float(span)
+    groups = []
+    for ts, pct, reset in rows:
+        if reset is None or ts >= reset:
+            continue  # pas de fenêtre en cours, ou relevé périmé
+        if not groups or abs(reset - groups[-1]["end"]) > SAME_WINDOW_S:
+            groups.append({"end": reset, "usage": pct, "hit": None})
+        g = groups[-1]
+        g["usage"] = max(g["usage"], pct)
+        if pct >= LIMIT_HIT and g["hit"] is None:
+            g["hit"] = ts
+    out = []
+    for g in groups:
+        start, usage = g["end"] - span_s, g["usage"]
+        elapsed = now_ts - start
+        if span_s > SESSION_S and g["end"] > now_ts and elapsed >= PROJECT_AFTER_S:
+            usage = min(100.0, usage * span_s / elapsed)
+        out.append(Window(start, g["end"], usage, g["hit"]))
+    return out
 
 
 def _blocked(events):
@@ -174,16 +202,27 @@ def _blocked(events):
     return out
 
 
-def _peak(points, start, end, span=SESSION_S):
-    """Plus forte somme de `points` [(ts, valeur)] triés sur une durée `span` dans [start, end)."""
-    pts = [(t, v) for t, v in points if start <= t < end]
+def _average(wins, cap, s, e):
+    """(usage moyen en unités Pro sur la partie connue de [s, e), part connue)."""
+    covered = total = 0.0
+    for w in wins:
+        a, b = max(w.start, s), min(w.end, e)
+        if b > a:
+            covered += b - a
+            total += w.usage / 100 * cap * (b - a)
+    return (total / covered if covered else None), min(1.0, covered / (e - s))
+
+
+def _concurrent_peak(spans, s, e):
+    """Plus forte somme d'usages de fenêtres [(début, fin, unités)] ouvertes en même temps."""
+    points = []
+    for start, end, units in spans:
+        a, b = max(start, s), min(end, e)
+        if b > a and units > 0:
+            points += [(a, 1, units), (b, 0, -units)]  # une fin passe avant un début simultané
     best = total = 0.0
-    lo = 0
-    for t, v in pts:
-        total += v
-        while pts[lo][0] <= t - span:
-            total -= pts[lo][1]
-            lo += 1
+    for _t, _order, delta in sorted(points):
+        total += delta
         best = max(best, total)
     return best
 
@@ -192,59 +231,69 @@ def _peak(points, start, end, span=SESSION_S):
 class WeekNeed:
     start: datetime
     end: datetime
-    weekly: float          # unités Pro consommées dans la semaine (mesurées)
-    session_peak: float    # plus forte consommation sur 5 h, en sessions Pro
-    coverage: float        # part de la semaine couverte par les relevés
+    weekly: float          # unités Pro consommées par semaine (moyenne des fenêtres des comptes)
+    session_peak: float    # sessions Pro consommées dans des fenêtres de 5 h simultanées
+    coverage: float        # part de la semaine où l'usage des comptes est connu
     limit_hits: int        # fenêtres menées jusqu'à la limite
     blocked: int           # moments bridés (tous comptes épuisés)
 
     @property
-    def factor(self):
-        """Mise à l'échelle d'une semaine partielle et majoration d'une semaine bridée."""
-        return (1 + CAPPED_BONUS if self.blocked else 1.0) / max(self.coverage, MIN_COVERAGE)
+    def bonus(self):
+        return 1 + CAPPED_BONUS if self.blocked else 1.0
 
     @property
     def need(self):
-        return self.weekly * self.factor
+        return self.weekly * self.bonus
 
     @property
     def session_need(self):
-        return self.session_peak * (1 + CAPPED_BONUS if self.blocked else 1.0)
+        return self.session_peak * self.bonus
 
 
 def week_needs(samples, plans, now, weeks, events=()):
     """Besoin des `weeks` dernières semaines glissantes (la plus récente d'abord), sans les
-    semaines trop peu couvertes : ([WeekNeed], nombre de semaines ignorées)."""
-    weekly_pts, session_pts, hits = [], [], []
+    semaines trop peu connues : ([WeekNeed], nombre de semaines ignorées).
+
+    Rien avant 3 jours de relevés. Chaque compte compte pour l'usage de ses propres
+    fenêtres : une semaine glissante à cheval sur deux fenêtres ne compte jamais double."""
+    now_ts = now.timestamp()
+    weekly, sessions, hits = {}, [], []
     first = None
     for name, kinds in samples.items():
         plan = PLANS.get(plans.get(name))
         if plan is None:
             continue
-        for kind, rows in kinds.items():
+        for rows in kinds.values():
             if rows:
                 first = rows[0][0] if first is None else min(first, rows[0][0])
-            if kind == "weekly_all":
-                weekly_pts += [(t, d / 100 * plan.weekly) for t, d in increments(rows)]
-            elif kind == "session" and plan.session is not None:
-                session_pts += [(t, d / 100 * plan.session) for t, d in increments(rows)]
-            if kind in ("weekly_all", "session"):
-                hits += _hits(rows)
-    session_pts.sort()
+        wins = windows(kinds.get("weekly_all") or [], WEEK, now_ts)
+        if wins:
+            weekly[name] = (wins, plan.weekly)
+        hits += [w.hit_at for w in wins if w.hit_at is not None]
+        swins = windows(kinds.get("session") or [], SESSION_S, now_ts)
+        hits += [w.hit_at for w in swins if w.hit_at is not None]
+        if plan.session is not None:
+            sessions += [(w.start, w.end, w.usage / 100 * plan.session) for w in swins]
+    if first is None or now_ts - first < MIN_HISTORY_S:
+        return [], weeks
     blocked = _blocked(events)
     out, ignored = [], 0
     for i in range(weeks):
         end = now - i * WEEK
         start = end - WEEK
         s, e = start.timestamp(), end.timestamp()
-        coverage = 0.0 if first is None else max(0.0, min(1.0, (e - max(s, first)) / WEEK.total_seconds()))
+        total, shares = 0.0, []
+        for wins, cap in weekly.values():
+            avg, share = _average(wins, cap, s, e)
+            shares.append(share)
+            total += avg or 0.0
+        coverage = sum(shares) / len(shares) if shares else 0.0
         if coverage < MIN_COVERAGE:
             ignored += 1
             continue
         out.append(WeekNeed(
-            start, end,
-            weekly=sum(v for t, v in weekly_pts if s <= t < e),
-            session_peak=_peak(session_pts, s, e),
+            start, end, weekly=total,
+            session_peak=_concurrent_peak(sessions, s, e),
             coverage=coverage,
             limit_hits=sum(1 for t in hits if s <= t < e),
             blocked=sum(1 for t in blocked if s <= t < e)))
@@ -381,8 +430,8 @@ def analyze(samples, plans, now, settings, events=(), api=None, api_days=0.0, un
     a.current = combo_of(list(plans.values()), prices) if plans else None
     r = a.reasons
     if not weeks:
-        r.append("Pas assez de relevés : il faut au moins la moitié d'une semaine de collecte "
-                 "par le service pour estimer ton besoin.")
+        r.append("Pas assez de relevés : il faut au moins 3 jours de collecte par le service "
+                 "pour estimer ton besoin.")
     else:
         a.weekly_target = max(w.need for w in weeks) * (1 + margin)
         a.session_target = max(w.session_need for w in weeks) * (1 + margin)
@@ -403,13 +452,14 @@ def _explain(a, now):
     r.append(f"Relevés analysés : {_plural(len(weeks), 'semaine')} (du {_date(oldest)} au "
              f"{_date(now)})." + (f" {_plural(a.ignored, 'semaine')} sans assez de relevés "
                                   f"ignorée{'s' if a.ignored > 1 else ''}." if a.ignored else ""))
-    needs = [w.weekly / max(w.coverage, MIN_COVERAGE) for w in weeks]
+    needs = [w.weekly for w in weeks]
     top = max(weeks, key=lambda w: w.need)
     r.append(f"Usage par semaine : {_num(sum(needs) / len(needs))} Pro en moyenne, "
              f"{_num(max(needs))} au plus (semaine du {_date(top.start)}) — 1 Pro = la limite "
-             f"hebdomadaire d'un compte Pro.")
-    r.append(f"Pic sur 5 h : {_num(max(w.session_peak for w in weeks))} sessions Pro, "
-             f"tous comptes confondus.")
+             f"hebdomadaire d'un compte Pro ; la semaine en cours de chaque compte est projetée "
+             f"à son rythme moyen.")
+    r.append(f"Fenêtres de 5 h : jusqu'à {_num(max(w.session_peak for w in weeks))} sessions Pro "
+             f"consommées en même temps, tous comptes confondus.")
     hits = sum(w.limit_hits for w in weeks)
     blocked = sum(w.blocked for w in weeks)
     if not hits and not blocked:
