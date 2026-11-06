@@ -19,13 +19,14 @@ requête suivante.
 .B ccs
 Liste les profils ; le profil actif est marqué d'un rond vert.
 .TP
-.BI ccs " nom"
-Bascule sur le profil \fInom\fR (équivalent à \fBccs use\fR \fInom\fR).
+.B ccs \fInom\fR [\fB\-\-notifier\fR]
+Bascule sur le profil \fInom\fR (équivalent à \fBccs use\fR \fInom\fR) ;
+un argument en trop est refusé.
 .TP
-.B ccs next
+.B ccs next \fR[\fB\-\-notifier\fR]
 Bascule sur le profil suivant de la liste, en sautant ceux dont la connexion est perdue.
 .TP
-.B ccs best
+.B ccs best \fR[\fB\-\-notifier\fR]
 Bascule sur le meilleur compte du moment (marge restante, réinitialisation proche).
 .TP
 .BI "ccs save " nom
@@ -46,7 +47,7 @@ Active ou désactive l'orchestrateur : enchaînement et décalage des fenêtres 
 5 h pendant la plage horaire, bascule vers le quota qui expire, réserve des
 comptes en avance sur leur semaine.
 .TP
-.B ccs pause \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBmanuel\fR|\fBoff\fR|\fBstatus\fR]
+.B ccs pause \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBmanuel\fR|\fBoff\fR|\fBstatus\fR] [\fB\-\-notifier\fR]
 Suspend la bascule automatique et l'orchestrateur pendant 1 h, 4 h, jusqu'au
 début de la prochaine plage horaire (\fBdemain\fR) ou jusqu'à reprise
 (\fBmanuel\fR) ; \fBoff\fR (ou \fBreprendre\fR) reprend aussitôt,
@@ -54,6 +55,15 @@ début de la prochaine plage horaire (\fBdemain\fR) ou jusqu'à reprise
 l'orchestrateur. Pendant une pause, CCS ne change plus de compte tout seul, même quand
 une session est bloquée par la limite ; les bascules manuelles, les alertes et
 les warm-up continuent. La pause se lève seule à l'échéance.
+.TP
+.B \-\-notifier
+Avec \fBccs\fR \fInom\fR, \fBccs use\fR, \fBccs next\fR, \fBccs best\fR et
+\fBccs pause\fR : le résultat s'affiche aussi en notification passagère
+(« Bascule sur \fInom\fR », « Déjà sur \fInom\fR », « Bascule impossible »,
+« Aucun compte disponible », « Pause jusqu'à 14:00 », « Pause levée »,
+« Pause impossible »), par \fBclaude\-accounts notify\fR ou, à défaut,
+\fBnotify\-send\fR. C'est l'option des raccourcis clavier ; une bascule est
+alors notée « par un raccourci clavier » dans le journal des bascules.
 .TP
 .B ccs sessions
 Sessions Claude Code ouvertes : projet, état, durée, consommation.
@@ -102,13 +112,15 @@ Conseiller de formule (alias \fBccs conseil\fR) : la combinaison de comptes
 Pro, Max ou Ultra la moins chère qui couvre l'usage mesuré des 4 dernières
 semaines, 20 % de marge comprise, avec le raisonnement et l'équivalent au
 tarif de l'API des journaux de ce PC. Tarifs datés du 6 novembre 2026,
-signalés « à vérifier » après 120 jours ; réglages \fIadvisor.*\fR.
+signalés « à vérifier » après 120 jours ; réglages \fIadvisor.*\fR. Un
+message d'attente s'affiche sur la sortie d'erreur pendant le calcul quand
+c'est un terminal.
 .TP
 .B ccs semaine \fR[\fB\-\-precedente \fIN\fR]
 Bilan de la semaine écoulée : usage de chaque compte, conversations, sessions,
 tokens et équivalent API, modèles, projets, bascules et alertes, comparés à la
-semaine précédente ; \fB\-\-precedente\fR \fIN\fR remonte de \fIN\fR
-semaines. L'activité ne vient que des journaux de ce PC.
+semaine précédente ; \fB\-\-precedente\fR \fIN\fR (0 à 520) remonte de
+\fIN\fR semaines. L'activité ne vient que des journaux de ce PC.
 .TP
 .B ccs journal \fR[\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]
 Journal des bascules, groupé par jour, avec la raison de chacune en clair
@@ -135,9 +147,13 @@ tous désactivés par défaut. \fBstatus\fR (défaut) affiche leur état,
 défaut : \fBouvrir\fR (Super+Alt+C), \fBsessions\fR (Super+Alt+V),
 \fBnouvelle\-session\fR (Super+Alt+N), \fBsuivant\fR (Super+Alt+B),
 \fBmeilleur\fR (Super+Alt+M), \fBpause\fR (Super+Alt+P, pause 1 h),
-\fBreprendre\fR (Super+Alt+R). CCS n'écrit que ses propres raccourcis
-personnalisés, ne retire jamais les autres et garde leur ordre. Sur un autre
-bureau, affiche les commandes à associer à la main.
+\fBreprendre\fR (Super+Alt+R) ; les commandes de bascule et de pause
+portent \fB\-\-notifier\fR (par exemple \fBccs next \-\-notifier\fR). Un
+raccourci dont la commande a changé (dont ceux activés avant cette option) est
+signalé « à mettre à jour » ; \fBccs raccourcis on\fR \fIaction\fR le
+réécrit. CCS n'écrit que ses propres raccourcis personnalisés, ne retire
+jamais les autres et garde leur ordre. Sur un autre bureau, affiche les
+commandes à associer à la main. Alias : \fBccs shortcuts\fR.
 .TP
 .B ccs doctor
 Bilan de santé (alias \fBccs bilan\fR) : service et relevés, version installée et version qui tourne,
@@ -189,10 +205,21 @@ et
 .B ccs export
 renvoient 1 si l'identifiant est inconnu ou ambigu, ou si la lecture ou
 l'écriture échoue.
+.B ccs \fInom\fR
+et
+.B ccs use
+renvoient 1 pour un profil inconnu, un argument en trop ou une bascule
+impossible.
 .B ccs pause
 renvoie 2 pour un choix inconnu.
+.B ccs formule
+renvoie 1 si le calcul échoue.
+.B ccs semaine
+renvoie 2 pour un nombre de semaines invalide (négatif, illisible, plus de
+520), 1 si le calcul échoue.
 .B ccs journal
-renvoie 2 pour un usage incorrect.
+renvoie 2 pour un nombre de jours nul, négatif ou illisible, ou
+\fB\-\-jours\fR avec \fB\-\-tout\fR, 1 si l'historique est illisible.
 .B ccs projet
 renvoie 1 si le dossier ou le compte est introuvable, 2 pour un usage
 incorrect.
@@ -206,6 +233,14 @@ Dossier de configuration de Claude Code (défaut : \fI~/.claude\fR).
 .TP
 .B CCS_HOME
 Dossier des profils (défaut : \fI~/.claude-accounts\fR).
+.TP
+.B CCS_VIA
+Origine d'une bascule notée par \fBccs use\fR pour le journal des bascules
+(\fIswitch\-origin.json\fR). Absente : « ccs », ou « raccourci » avec
+\fB\-\-notifier\fR. Définie avec une origine connue (\fBapplication\fR,
+\fBicone\fR…) : celle-ci. Définie et vide : rien n'est noté (l'application, le
+service, le hook et l'icône lancent \fBccs\fR ainsi et notent leur origine
+eux-mêmes). Une note du même compte de moins de 60 s n'est jamais écrasée.
 .TP
 .B NO_COLOR
 Désactive les couleurs.
