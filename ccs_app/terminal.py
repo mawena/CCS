@@ -10,7 +10,8 @@ import os
 import pwd
 import shlex
 import shutil
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 
 from . import core, sessions
 
@@ -30,6 +31,20 @@ INDICATORS = {  # état de la session -> (sablier, icône, infobulle)
     "idle": (False, None, "au repos"),
 }
 STOPPED = (False, "media-playback-stop-symbolic", "arrêtée")
+# Reprise automatique après une limite : texte envoyé et garde anti-boucle.
+RESUME_TEXT = "continue"
+RESUME_MAX_PER_HOUR = 3
+RESUME_MIN_GAP_S = 120
+RESUME_MAX_AGE_S = 15 * 60
+# Messages en attente : délai après la fin d'un tour, envoi précédent jamais suivi d'un tour.
+QUEUE_GRACE_S = 2
+QUEUE_STALL_S = 30
+# Claude Code date ses états à la milliseconde (tronquée) : un tour lancé par notre envoi
+# peut sembler commencer juste avant lui. Sans risque : on n'envoie qu'après QUEUE_GRACE_S
+# de repos, le tour précédent a donc commencé bien plus tôt.
+SENT_SLACK_S = 1.0
+# De même, la touche Entrée d'une demande précède le début du tour qu'elle lance.
+TYPED_SLACK_S = 0.05
 
 
 @dataclass(frozen=True)
@@ -41,6 +56,7 @@ class Launch:
     env: dict
     title: str
     session_id: str | None = None
+    extra_args: tuple = ()        # claude : arguments ajoutés (--model, --permission-mode…)
 
     def envv(self):
         """Environnement au format attendu par VTE (« NOM=valeur »)."""
@@ -59,6 +75,17 @@ class TabState:
     state: str | None = None      # "busy" | "waiting" | "idle" (fiche de session de claude)
     busy: bool = False            # shell : un programme tourne au premier plan
     exit_status: int | None = None
+    extra_args: tuple = ()            # claude : arguments du lancement, repris à la relance
+    waiting_for: str | None = None    # motif d'attente de la fiche de session
+    state_since: float | None = None  # depuis quand claude est dans cet état
+    started_at: float | None = None   # lancement du processus de l'onglet
+    busy_since: float | None = None   # début du dernier tour de travail de claude
+    typed_at: float | None = None     # dernière saisie au clavier (ou collage) dans l'onglet
+    sent_at: float | None = None      # dernier texte envoyé par l'application (reprise, file)
+    resumes: list = field(default_factory=list)  # dates des reprises automatiques
+    queue: list = field(default_factory=list)    # messages à envoyer quand claude sera libre
+    queued_at: float | None = None    # dernier message ajouté à la file
+    limit_at: float | None = None     # limite non reprise automatiquement : la file attend
 
 
 # ---- lancement ------------------------------------------------------------------------
@@ -87,16 +114,19 @@ def _env(environ):
     return {**TERM_ENV, "PATH": path}
 
 
-def claude_launch(cwd, resume=None, title=None, environ=None):
-    """Claude Code dans `cwd` (`--resume <id>` pour reprendre une conversation).
+def claude_launch(cwd, resume=None, title=None, environ=None, extra_args=()):
+    """Claude Code dans `cwd` (`--resume <id>` pour reprendre une conversation), avec
+    `extra_args` ajoutés après (ex. `--model opus --permission-mode plan`).
 
     Comme pour le terminal externe, claude passe par un bash de connexion (profil de
     l'utilisateur) qui s'efface devant lui (`exec`) : le processus de l'onglet est claude
     lui-même, retrouvé ensuite dans les fiches de session par son pid."""
     environ = os.environ if environ is None else environ
-    claude = [sessions._claude_bin()] + (["--resume", resume] if resume else [])
+    extra_args = tuple(str(a) for a in extra_args or ())
+    claude = [sessions._claude_bin()] + (["--resume", resume] if resume else []) + list(extra_args)
     argv = _unset_prefix(environ) + [_tool("bash", "/bin/bash"), "-lc", "exec " + shlex.join(claude)]
-    return Launch("claude", cwd, tuple(argv), _env(environ), title or sessions.project_name(cwd), resume)
+    return Launch("claude", cwd, tuple(argv), _env(environ), title or sessions.project_name(cwd), resume,
+                  extra_args)
 
 
 def _user_shell(environ):
@@ -118,10 +148,11 @@ def shell_launch(cwd, environ=None):
 
 def relaunch(tab, environ=None):
     """Lancement qui reprend un onglet arrêté : la même conversation si son identifiant
-    est connu, sinon une nouvelle session ; le shell pour un onglet de shell."""
+    est connu, sinon une nouvelle session, avec les mêmes arguments ; le shell pour un
+    onglet de shell."""
     if tab.kind == "shell":
         return shell_launch(tab.cwd, environ)
-    return claude_launch(tab.cwd, tab.session_id, tab.title, environ)
+    return claude_launch(tab.cwd, tab.session_id, tab.title, environ, tab.extra_args)
 
 
 def relaunch_label(tab):
@@ -165,10 +196,12 @@ def find_tab(tabs, pid=None, session_id=None):
     return None
 
 
-def sync_tabs(tabs, live):
+def sync_tabs(tabs, live, now=None):
     """Met à jour les onglets de claude d'après les fiches de session (`live`, trouvées par
-    pid) : identifiant de la conversation (connu après le démarrage, changé par /resume)
-    et état. Renvoie les onglets qui viennent de finir de travailler."""
+    pid) : identifiant de la conversation (connu après le démarrage, changé par /resume),
+    état, motif d'attente et début du dernier tour de travail (date de la fiche, sinon
+    première fois qu'on le voit). Renvoie les onglets qui viennent de finir de travailler."""
+    now = time.time() if now is None else now
     by_pid = {s.pid: s for s in live}
     done = []
     for tab in tabs:
@@ -179,8 +212,21 @@ def sync_tabs(tabs, live):
             tab.session_id = s.session_id
         if tab.state == "busy" and s.state != "busy":
             done.append(tab)
+        if s.state == "busy" and (s.state_since or tab.state != "busy" or tab.busy_since is None):
+            tab.busy_since = s.state_since or now
+        if s.state != tab.state or tab.state_since is None:
+            tab.state_since = s.state_since or now
         tab.state = s.state
+        tab.waiting_for = s.waiting_for
     return done
+
+
+def free_for_input(tab):
+    """Claude attend une nouvelle demande : au repos, ou en attente d'une saisie libre.
+    Jamais pendant une demande de permission (Entrée y validerait un choix)."""
+    if tab.state == "idle":
+        return True
+    return tab.state == "waiting" and (tab.waiting_for or "").lower().startswith("input")
 
 
 def indicator(tab):
@@ -227,3 +273,240 @@ def tab_close_question(tab):
     body = (f"Claude Code sera arrêté. {_saved(1)}" if tab.kind == "claude"
             else "Le programme en cours sera arrêté.")
     return f"Fermer « {tab.title} » ?", body
+
+
+# ---- reprise automatique après une limite ----------------------------------------------
+
+@dataclass(frozen=True)
+class ResumeDecision:
+    """« resume » : envoyer RESUME_TEXT puis Entrée ; « drop » : consommer le marqueur sans
+    rien envoyer ; « wait » : le garder pour le prochain passage. `text` : bandeau à afficher."""
+    action: str
+    text: str | None = None
+
+
+def _limit_head(event):
+    return f"Limite atteinte sur {event.source}" if event.source else "Limite atteinte"
+
+
+def _limit_text(event, tail):
+    return f"{_limit_head(event)} : bascule sur {event.target or 'un autre compte'}. {tail}"
+
+
+def resume_decision(tab, event, now, enabled=True, max_per_hour=RESUME_MAX_PER_HOUR,
+                    min_gap=RESUME_MIN_GAP_S, max_age=RESUME_MAX_AGE_S):
+    """Que faire du marqueur de limite `event` (limit_events.LimitEvent) pour l'onglet `tab` ?
+
+    None si le marqueur ne concerne pas cet onglet. On ne relance que si le compte a changé,
+    que claude attend une nouvelle demande, que personne n'a écrit dans l'onglet depuis la
+    limite, et au plus `max_per_hour` fois par heure (espacées d'au moins `min_gap` s)."""
+    if event is None or tab.kind != "claude" or not tab.session_id or event.session_id != tab.session_id:
+        return None
+    if not tab.running or now - event.ts > max_age:
+        return ResumeDecision("drop")
+    if tab.started_at is not None and event.ts < tab.started_at:
+        return ResumeDecision("drop")  # limite d'un processus précédent de la conversation
+    if event.outcome == "pending":
+        return ResumeDecision("wait")  # le hook choisit encore le compte
+    if event.outcome == "paused":
+        return ResumeDecision("drop", f"{_limit_head(event)} : CCS est en pause, "
+                                      "pas de bascule ni de reprise automatique.")
+    if not event.switched:
+        why = (f"bascule vers {event.target} impossible" if event.target
+               else "aucun autre compte disponible")
+        return ResumeDecision("drop", f"{_limit_head(event)} : {why}, pas de reprise automatique.")
+    manual = "tape « continue » pour reprendre."
+    if not enabled:
+        return ResumeDecision("drop", _limit_text(event, manual.capitalize()))
+    if tab.typed_at is not None and tab.typed_at > event.ts:
+        return ResumeDecision("drop", _limit_text(
+            event, "Pas de reprise automatique : tu as écrit dans la session."))
+    if not free_for_input(tab):
+        return ResumeDecision("wait")
+    recent = [t for t in tab.resumes if now - t < 3600]
+    if len(recent) >= max_per_hour:
+        return ResumeDecision("drop", _limit_text(
+            event, f"Reprise automatique suspendue ({len(recent)} reprises en une heure) : {manual}"))
+    if recent and now - max(recent) < min_gap:
+        return ResumeDecision("drop", _limit_text(
+            event, f"Reprise automatique suspendue (la précédente date de moins de "
+                   f"{min_gap // 60} min) : {manual}"))
+    return ResumeDecision("resume", f"{_limit_head(event)} : bascule sur "
+                                    f"{event.target or 'un autre compte'}, conversation relancée.")
+
+
+# ---- onglets rouverts au redémarrage ---------------------------------------------------
+
+def tab_record(tab):
+    """Ce qu'on garde d'un onglet pour le rouvrir au prochain lancement (terminal_store)."""
+    claude = tab.kind == "claude"
+    return {"kind": tab.kind, "cwd": tab.cwd, "title": tab.title,
+            "session_id": tab.session_id if claude else None,
+            "extra_args": list(tab.extra_args) if claude else [],
+            "queue": list(tab.queue) if claude else []}
+
+
+@dataclass(frozen=True)
+class Reopen:
+    """Onglet à rouvrir : `session_id` est repris avec --resume (None : nouvelle session)."""
+    kind: str
+    cwd: str
+    title: str
+    session_id: str | None
+    extra_args: tuple
+    queue: tuple
+
+    def launch(self, environ=None):
+        if self.kind == "shell":
+            return shell_launch(self.cwd, environ)
+        return claude_launch(self.cwd, self.session_id, self.title or None, environ, self.extra_args)
+
+
+@dataclass
+class RestorePlan:
+    tabs: list            # [Reopen] dans l'ordre
+    selected: int | None  # onglet à afficher (indice dans `tabs`)
+    skipped: list         # [(titre, raison)]
+
+
+def _conversation_exists(cwd, session_id):
+    return sessions.transcript_path(cwd, session_id).exists()
+
+
+def restore_plan(records, selected=None, opened=(), present=(), folder_exists=os.path.isdir,
+                 conversation_exists=_conversation_exists):
+    """Onglets à rouvrir parmi `records` (terminal_store.load_tabs) : pas un dossier disparu,
+    ni une conversation ouverte ailleurs (`opened` : identifiants des sessions Claude Code
+    en cours) ou déjà dans un onglet (`present`) ; une conversation jamais écrite repart
+    en nouvelle session dans son dossier."""
+    tabs, skipped, seen, chosen = [], [], set(), None
+    for i, r in enumerate(records):
+        sid = r.get("session_id") if r["kind"] == "claude" else None
+        title = r.get("title") or sessions.project_name(r["cwd"])
+        if not folder_exists(r["cwd"]):
+            skipped.append((title, f"dossier introuvable : {r['cwd']}"))
+            continue
+        if sid and sid in seen:
+            skipped.append((title, "en double"))
+            continue
+        if sid and sid in opened:
+            skipped.append((title, "déjà ouverte dans une session Claude Code"))
+            continue
+        if sid and sid in present:
+            skipped.append((title, "déjà ouverte dans un onglet"))
+            continue
+        if sid:
+            seen.add(sid)
+            if not conversation_exists(r["cwd"], sid):
+                sid = None
+        if i == selected:
+            chosen = len(tabs)
+        tabs.append(Reopen(r["kind"], r["cwd"], r.get("title") or "", sid,
+                           tuple(r.get("extra_args") or ()), tuple(r.get("queue") or ())))
+    return RestorePlan(tabs, chosen, skipped)
+
+
+def restore_question(n):
+    return ("Rouvrir la session de la dernière fois ?" if n == 1 else
+            f"Rouvrir les {n} sessions de la dernière fois ?")
+
+
+def restore_summary(n, skipped):
+    """Texte affiché après la réouverture."""
+    head = "Aucun onglet rouvert" if n == 0 else "1 onglet rouvert" if n == 1 else f"{n} onglets rouverts"
+    if not skipped:
+        return head
+    if len(skipped) == 1:
+        title, reason = skipped[0]
+        return f"{head} ; « {title} » non rouvert : {reason}"
+    return f"{head} ; {len(skipped)} non rouverts (dossier disparu ou conversation déjà ouverte)"
+
+
+def merge_records(pending, pending_selected, current, current_selected):
+    """Onglets à enregistrer tant que la proposition de réouverture attend une réponse :
+    ceux de la dernière fois (sauf ceux rouverts entre-temps) puis ceux ouverts depuis.
+    Renvoie (records, indice de l'onglet affiché)."""
+    open_ids = {r["session_id"] for r in current if r["kind"] == "claude" and r.get("session_id")}
+    kept = [(i, r) for i, r in enumerate(pending)
+            if not (r["kind"] == "claude" and r.get("session_id") in open_ids)]
+    merged = [r for _, r in kept] + list(current)
+    if current_selected is not None:
+        return merged, len(kept) + current_selected
+    index = next((k for k, (i, _r) in enumerate(kept) if i == pending_selected), None)
+    return merged, index
+
+
+# ---- messages en attente ----------------------------------------------------------------
+
+@dataclass(frozen=True)
+class QueueDecision:
+    """`text` : message à envoyer maintenant (puis Entrée) ; sinon `reason` : pourquoi la
+    file attend (None : rien à signaler)."""
+    text: str | None
+    reason: str | None = None
+
+
+def clean_message(text):
+    """Message sur une ligne (Entrée l'enverrait en plusieurs morceaux), ou None s'il est vide."""
+    text = " ".join((text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
+    return text or None
+
+
+def queue_add(queue, text):
+    text = clean_message(text)
+    return list(queue) + [text] if text else list(queue)
+
+
+def queue_edit(queue, index, text):
+    """Remplace le message `index` ; un message vidé est retiré."""
+    if not 0 <= index < len(queue):
+        return list(queue)
+    text = clean_message(text)
+    return list(queue[:index]) + ([text] if text else []) + list(queue[index + 1:])
+
+
+def queue_remove(queue, index):
+    return [m for i, m in enumerate(queue) if i != index]
+
+
+def queue_move(queue, index, delta):
+    out, target = list(queue), index + delta
+    if 0 <= index < len(out) and 0 <= target < len(out):
+        out[index], out[target] = out[target], out[index]
+    return out
+
+
+def queue_next(tab, now, blocked=False, grace=QUEUE_GRACE_S, stall=QUEUE_STALL_S):
+    """Premier message de la file à envoyer maintenant, ou la raison d'attendre.
+
+    Un message par tour : quand claude a fini de travailler (tour commencé après le dernier
+    envoi), ou tout de suite s'il a été ajouté pendant que claude était libre. Jamais pendant
+    un tour, une demande de permission, une limite pas encore reprise, ni si quelqu'un a
+    écrit dans l'onglet depuis le début du dernier tour (son texte serait mêlé au message)."""
+    if tab.kind != "claude" or not tab.queue:
+        return QueueDecision(None)
+    if not tab.running:
+        return QueueDecision(None, "Session arrêtée.")
+    if tab.state == "busy":
+        return QueueDecision(None, "Claude travaille : envoi à la fin du tour.")
+    if tab.state == "waiting" and not free_for_input(tab):
+        return QueueDecision(None, "Claude attend ta réponse : rien n'est envoyé.")
+    if not free_for_input(tab):
+        return QueueDecision(None)
+    limited = tab.limit_at is not None and (tab.busy_since is None or tab.busy_since < tab.limit_at)
+    if blocked or limited:
+        return QueueDecision(None, "Session bloquée par une limite : envoi après la reprise.")
+    if tab.state_since is not None and now - tab.state_since < grace:
+        return QueueDecision(None)  # tour à peine fini : une limite peut encore être signalée
+    busy, sent = tab.busy_since, tab.sent_at
+    in_flight = sent is not None and (busy is None or busy < sent - SENT_SLACK_S)
+    if in_flight and now - sent < stall:
+        return QueueDecision(None, "Envoi précédent en cours.")
+    last = max(x for x in (busy, sent, 0.0) if x is not None)
+    if tab.typed_at is not None and tab.typed_at > last + TYPED_SLACK_S:
+        return QueueDecision(None, "Tu as écrit dans la session : envoi à la fin du prochain tour.")
+    turn_done = busy is not None and (sent is None or busy >= sent - SENT_SLACK_S)
+    added_free = tab.queued_at is not None and tab.queued_at > last
+    if turn_done or added_free or in_flight:
+        return QueueDecision(tab.queue[0])
+    return QueueDecision(None, "Envoi à la fin du prochain tour de Claude.")

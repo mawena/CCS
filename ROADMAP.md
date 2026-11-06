@@ -97,11 +97,11 @@ Lecture et outils :
 - [ ] Nouvelle session avancée (dossier, compte, modèle, mode de permissions)
 
 Terminal intégré, suite :
-- [ ] Reprise automatique après une limite (bascule puis « continue » dans l'onglet)
+- [x] Reprise automatique après une limite (bascule puis « continue » dans l'onglet)
 - [ ] Notification cliquable qui ouvre l'onglet de la session, badge des sessions en attente
-- [ ] Onglets rouverts au redémarrage de l'application
-- [ ] Deux sessions côte à côte
-- [ ] Messages en attente envoyés quand la session est libre
+- [x] Onglets rouverts au redémarrage de l'application
+- [x] Deux sessions côte à côte
+- [x] Messages en attente envoyés quand la session est libre
 
 Documentation et release :
 - [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
