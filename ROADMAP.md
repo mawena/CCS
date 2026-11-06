@@ -106,7 +106,7 @@ Terminal intégré, suite :
 Documentation et release :
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
 - [x] Release mineure 0.5.0 (genre choisi par Charles), `main`, `develop` et le tag poussés
-- [ ] Paquet `.deb` construit pour l'installation (`dist/ccs_0.5.0_all.deb`)
+- [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.5.0_all.deb`)
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
