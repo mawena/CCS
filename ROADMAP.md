@@ -82,20 +82,45 @@ onglets de terminal, au lieu d'une fenêtre de terminal séparée.
 - [ ] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
 - [ ] Suite de tests au vert, feature terminée et `develop` poussée
 
+## Phase 7 — Fonctions de la 0.5.0
+
+Service et alertes :
+- [ ] Prévision de fin de semaine par compte, alerte 2 jours avant
+- [ ] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain)
+- [ ] Rappel quand une session attend depuis plus de 10 min
+- [ ] Avertissement de nouvelle version et relance automatique de l'icône
+
+Lecture et outils :
+- [ ] `ccs doctor` : bilan de santé avec la commande qui corrige
+- [ ] Aperçu d'une conversation sans la reprendre, export Markdown
+- [ ] Coût par conversation (tokens, équivalent en dollars)
+- [ ] Nouvelle session avancée (dossier, compte, modèle, mode de permissions)
+
+Terminal intégré, suite :
+- [ ] Reprise automatique après une limite (bascule puis « continue » dans l'onglet)
+- [ ] Notification cliquable qui ouvre l'onglet de la session, badge des sessions en attente
+- [ ] Onglets rouverts au redémarrage de l'application
+- [ ] Deux sessions côte à côte
+- [ ] Messages en attente envoyés quand la session est libre
+
+Documentation et release :
+- [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [ ] Release 0.5.0 (genre choisi par Charles), `main`, `develop` et le tag poussés
+
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
 Recommandées :
-- [ ] `ccs doctor` : bilan de santé (service, version, extension, intégration, connexions) avec la commande qui corrige
-- [ ] Prévision de fin de semaine par compte, alerte 2 jours avant
-- [ ] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain)
-- [ ] Avertissement de nouvelle version et relance automatique de l'icône
+- [x] `ccs doctor` : bilan de santé (service, version, extension, intégration, connexions) avec la commande qui corrige → Phase 7
+- [x] Prévision de fin de semaine par compte, alerte 2 jours avant → Phase 7
+- [x] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain) → Phase 7
+- [x] Avertissement de nouvelle version et relance automatique de l'icône → Phase 7
 - [ ] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars
 
 Autres :
 - [ ] Conseil de modèle près des limites (Opus → Sonnet)
 - [ ] Bilan de la semaine
 - [ ] Raccourci clavier global
-- [ ] Rappel quand une session attend depuis plus de 10 min
+- [x] Rappel quand une session attend depuis plus de 10 min → Phase 7
 - [ ] Journal lisible des bascules dans l'application
 - [ ] Compte par projet
 
