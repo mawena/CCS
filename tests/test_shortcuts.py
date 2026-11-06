@@ -96,6 +96,13 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(sc.parse_binding("Super+Alt++").accel, "<Super><Alt>plus")
         self.assertEqual(sc.parse_binding("<Super>KP_5").accel, "<Super>KP_5")
         self.assertEqual(sc.parse_binding("<Super>eacute").accel, "<Super>eacute")
+        self.assertEqual(sc.parse_binding("Super+É").accel, "<Super>eacute")
+        self.assertEqual(sc.parse_binding("Ctrl+Alt+Retour arrière").accel, "<Control><Alt>BackSpace")
+
+    def test_labels_round_trip(self):
+        for accel in ("<Super><Alt>Page_Down", "<Control><Alt>space", "<Super>Left", "<Super>eacute",
+                      "<Super><Alt>plus", "<Super><Shift>F5", "<Control><Alt>Delete", "<Super>Print"):
+            self.assertEqual(sc.parse_binding(sc.label(accel)).accel, accel, accel)
 
     def test_media_key_alone_is_allowed(self):
         self.assertEqual(sc.parse_binding("XF86Launch1").accel, "XF86Launch1")

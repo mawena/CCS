@@ -179,7 +179,8 @@ _KEY_LABELS = {
     "agrave": "à", "ccedilla": "ç", "ugrave": "ù",
 }
 _CANON = {n.lower(): n for n in _NAMED}
-_CANON.update({lbl.lower(): name for name, lbl in _KEY_LABELS.items() if len(lbl) > 1 or not lbl.isalnum()})
+_CANON.update({lbl.lower(): name for name, lbl in _KEY_LABELS.items()  # « Page suiv. », « é »…
+               if not (len(lbl) == 1 and lbl.isascii() and lbl.isalnum())})
 _CANON.update({
     "prior": "Page_Up", "next": "Page_Down", "pageup": "Page_Up", "pagedown": "Page_Down",
     "pgup": "Page_Up", "pgdown": "Page_Down", "pgdn": "Page_Down", "esc": "Escape",
