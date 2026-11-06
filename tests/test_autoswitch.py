@@ -42,6 +42,13 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(d.source, "perso")
         self.assertEqual(d.source_reset, (NOW + timedelta(minutes=120)).timestamp())
 
+    def test_switch_detail_for_the_journal(self):
+        d = self.run_decide([acc("perso", 98.4, active=True), acc("pro", 10)])
+        self.assertEqual(d.detail, {"percent": 98.4, "threshold": 98})
+        fc = SessionForecast(5.0, None, "limit", 0)
+        d = self.run_decide([acc("perso", 96, active=True), acc("pro", 10)], fc=fc, poll_s=60)
+        self.assertEqual(d.detail, {"percent": 96.0, "threshold": 98, "projected": 101.0})
+
     def test_switch_on_projection(self):
         # 96 % + 5 %/min sur 60 s = 101 % au prochain relevé → bascule maintenant.
         fc = SessionForecast(5.0, None, "limit", 0)
@@ -115,6 +122,35 @@ class ExecuteTest(unittest.TestCase):
         store.add_event.assert_called_once_with(
             T, "switch", "pro", {"mode": "auto", "from": "perso", "from_reset": 123.0,
                                  "reason": "raison"})
+
+    def test_execute_records_the_decision_detail(self):
+        store = mock.Mock()
+        d = Decision("switch", "pro", "raison", "perso", None, {"percent": 98.4, "threshold": 98})
+        ok = subprocess.CompletedProcess([], 0, "✔ basculé", "")
+        with mock.patch.object(autoswitch.core, "run_ccs", return_value=ok):
+            autoswitch.execute(d, store, NOW, mode="anticipee")
+        detail = store.add_event.call_args.args[3]
+        self.assertEqual((detail["mode"], detail["percent"], detail["threshold"], detail["from"]),
+                         ("anticipee", 98.4, 98, "perso"))
+
+    def test_decision_detail_never_overrides_the_event_fields(self):
+        store = mock.Mock()
+        d = Decision("switch", "pro", "raison", "perso", None, {"mode": "x", "from": "y"})
+        ok = subprocess.CompletedProcess([], 0, "", "")
+        with mock.patch.object(autoswitch.core, "run_ccs", return_value=ok):
+            autoswitch.execute(d, store, NOW)
+        detail = store.add_event.call_args.args[3]
+        self.assertEqual((detail["mode"], detail["from"]), ("auto", "perso"))
+
+    def test_execute_failure_logs_mode_source_and_message(self):
+        store = mock.Mock()
+        d = Decision("switch", "pro", "perso bloqué → pro", "perso", None)
+        ko = subprocess.CompletedProcess([], 1, "", "ccs: verrou occupé\n")
+        with mock.patch.object(autoswitch.core, "run_ccs", return_value=ko):
+            autoswitch.execute(d, store, NOW, mode="blocage")
+        store.add_event.assert_called_once_with(T, "error", "pro", {
+            "op": "auto_switch", "message": "verrou occupé", "mode": "blocage", "from": "perso",
+            "reason": "perso bloqué → pro"})
 
     def test_execute_failure_logs_error(self):
         store = mock.Mock()

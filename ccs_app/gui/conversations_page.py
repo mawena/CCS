@@ -8,6 +8,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
 from .. import conversations, core, costs, sessions, terminal
 from .common import caption, clear, in_thread
+from .project_account_dialog import confirm_switch
 
 PAGE_SIZE = 60
 REFRESH_S = 30
@@ -463,6 +464,11 @@ class ConversationsPage(Gtk.ScrolledWindow):
                   else self.launch(r, target))
 
     def launch(self, conv, target):
+        """Reprise ; si le projet utilise un autre compte que l'actif, la bascule est
+        d'abord proposée (VS Code utilise aussi le compte actif)."""
+        confirm_switch(self.window, conv.cwd, lambda: self.launch_now(conv, target))
+
+    def launch_now(self, conv, target):
         try:
             if target == "vscode":
                 conversations.resume_vscode(conv)

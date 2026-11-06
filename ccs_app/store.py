@@ -31,6 +31,14 @@ class Event:
     detail: dict
 
 
+def _detail(text):
+    try:
+        value = json.loads(text)
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
 class Store:
     def __init__(self, path=None):
         self.path = path or core.paths().store / "history.db"
@@ -66,23 +74,32 @@ class Store:
         self._write("INSERT INTO events VALUES (?, ?, ?, ?)",
                     [(ts, type, profile, json.dumps(detail))])
 
-    def events(self, since, type=None, profile=None):
+    def events(self, since, type=None, profile=None, types=None):
+        """Événements depuis `since` (ordre chronologique), d'un type ou de plusieurs
+        (`types`). Un détail illisible devient {}."""
         sql, args = "SELECT ts, type, profile, detail FROM events WHERE ts >= ?", [since]
         if type:
             sql, args = sql + " AND type = ?", args + [type]
+        if types:
+            types = list(types)
+            sql += " AND type IN (" + ", ".join("?" * len(types)) + ")"
+            args += types
         if profile:
             sql, args = sql + " AND profile = ?", args + [profile]
         with self._lock:
             rows = self.db.execute(sql + " ORDER BY ts", args).fetchall()
-        return [Event(ts, t, p, json.loads(d)) for ts, t, p, d in rows]
+        return [Event(ts, t, p, _detail(d)) for ts, t, p, d in rows]
 
-    def last_event(self, type, profile=None):
+    def last_event(self, type, profile=None, before=None):
+        """Dernier événement de ce type (avant `before` s'il est donné), ou None."""
         sql, args = "SELECT ts, type, profile, detail FROM events WHERE type = ?", [type]
         if profile:
             sql, args = sql + " AND profile = ?", args + [profile]
+        if before is not None:
+            sql, args = sql + " AND ts < ?", args + [before]
         with self._lock:
             row = self.db.execute(sql + " ORDER BY ts DESC LIMIT 1", args).fetchone()
-        return Event(row[0], row[1], row[2], json.loads(row[3])) if row else None
+        return Event(row[0], row[1], row[2], _detail(row[3])) if row else None
 
     def active_periods(self, since, until):
         """Périodes (début, fin, profil) d'après les événements de bascule."""

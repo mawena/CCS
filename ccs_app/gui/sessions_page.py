@@ -7,6 +7,8 @@ from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .. import attention, conversations, core, costs, sessions, terminal, transcripts
 from .common import caption, clear, in_thread
+from .project_account_dialog import (account_action, account_label, account_menu_item, confirm_switch,
+                                     load_associations, paused_now)
 
 REFRESH_S = 15
 HIGHLIGHT_S = 12   # mise en évidence de la session désignée par une notification
@@ -45,6 +47,7 @@ class SessionsPage(Gtk.ScrolledWindow):
         self.visible_page = False
         self.last = None
         self.titles = {}
+        self.assocs = []             # comptes par projet (project_accounts), relus à chaque chargement
         self.highlighted = None      # (pid, identifiant, jusqu'à) : session d'une notification
         self.highlight_new = False   # premier rendu après la demande : prévenir si elle est fermée
         self.counting = False
@@ -58,7 +61,8 @@ class SessionsPage(Gtk.ScrolledWindow):
 
         # Menus « ⋮ » : sess.external((dossier, conversation)), sess.shell('dossier'),
         # sess.rename((dossier, conversation)), sess.preview((dossier, conversation)),
-        # sess.new('dossier') (nouvelle session avec options).
+        # sess.new('dossier') (nouvelle session avec options), sess.account('dossier')
+        # (compte du projet).
         actions = Gio.SimpleActionGroup()
         for name, kind, handler in (
                 ("external", "(ss)", lambda v: self.start(*v.unpack(), external=True)),
@@ -69,6 +73,7 @@ class SessionsPage(Gtk.ScrolledWindow):
             a = Gio.SimpleAction.new(name, GLib.VariantType.new(kind))
             a.connect("activate", lambda _a, v, h=handler: h(v))
             actions.add_action(a)
+        actions.add_action(account_action(self.window, self.load))
         self.insert_action_group("sess", actions)
         GLib.timeout_add_seconds(REFRESH_S, self._tick)
 
@@ -90,7 +95,7 @@ class SessionsPage(Gtk.ScrolledWindow):
             journals += [sessions.transcript_path(cwd, c.session_id) for cwd, group in convs.items()
                          for c in group]
             stamps = {str(p): _stamp(p) for p in journals}
-            return found, usage, projects, convs, titles, stamps
+            return found, usage, projects, convs, titles, stamps, load_associations()
         in_thread(work, self.show)
 
     def rerender(self):
@@ -158,7 +163,7 @@ class SessionsPage(Gtk.ScrolledWindow):
 
     def show(self, result):
         self.last = result
-        found, usage, projects, convs, titles, stamps = result
+        found, usage, projects, convs, titles, stamps, self.assocs = result
         self.titles = {c.session_id: c.title for group in convs.values() for c in group}
         self.titles.update({sid: t for sid, t in titles.items() if t})  # titre seul, sans repli
         opened = {s.session_id for s in found if s.session_id}
@@ -166,7 +171,8 @@ class SessionsPage(Gtk.ScrolledWindow):
         self.set_badge(found)
         target = self.highlight_target(found)
         clear(self.box)
-        active = core.active_profile_name() or "compte non enregistré"
+        active_name = core.active_profile_name()
+        active = active_name or "compte non enregistré"
         head = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, css_classes=["card", "best-card"])
         top = Gtk.Box(spacing=8)
         top.append(Gtk.Label(label=f"{len(found)} session(s) Claude Code ouverte(s)", xalign=0, hexpand=True,
@@ -200,8 +206,9 @@ class SessionsPage(Gtk.ScrolledWindow):
             history.connect("clicked", lambda *_: self.window.stack.set_visible_child_name("conversations"))
             title.append(history)
             self.box.append(title)
+        paused = paused_now() if self.assocs else False
         for cwd, _mtime in projects:
-            self.box.append(self.project_card(cwd, convs.get(cwd) or [], opened))
+            self.box.append(self.project_card(cwd, convs.get(cwd) or [], opened, active_name, paused))
         if target_card is not None:
             GLib.timeout_add(60, self.scroll_to, target_card)
         self.load_costs(stamps)
@@ -297,7 +304,7 @@ class SessionsPage(Gtk.ScrolledWindow):
         card.append(top)
         return card
 
-    def project_card(self, cwd, convs, opened):
+    def project_card(self, cwd, convs, opened, active=None, paused=False):
         embedded = self.window.terminals.available
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, css_classes=["card", "profile-card"])
         head = Gtk.Box(spacing=8)
@@ -311,6 +318,7 @@ class SessionsPage(Gtk.ScrolledWindow):
         item = Gio.MenuItem.new("Avec des options…", None)
         item.set_action_and_target_value("sess.new", GLib.Variant.new_string(cwd))
         menu.append_item(item)
+        menu.append_item(account_menu_item(cwd, "sess.account"))
         new = Adw.SplitButton(label="Nouvelle session", menu_model=menu, valign=Gtk.Align.CENTER,
                               tooltip_text="Nouvelle session dans l'application" if embedded
                               else "Nouvelle session dans un terminal")
@@ -318,6 +326,9 @@ class SessionsPage(Gtk.ScrolledWindow):
         head.append(new)
         card.append(head)
         card.append(caption(cwd))
+        account = account_label(cwd, active, self.assocs, paused)
+        if account is not None:
+            card.append(account)
         for c in convs:
             tab = self.window.terminals.find(session_id=c.session_id)
             row = Gtk.Box(spacing=8)
@@ -349,6 +360,11 @@ class SessionsPage(Gtk.ScrolledWindow):
     # ---- actions -------------------------------------------------------------
 
     def start(self, cwd, resume=None, title=None, external=False):
+        """Ouvre (ou reprend) une session ; si le projet utilise un autre compte que l'actif,
+        la bascule est d'abord proposée."""
+        confirm_switch(self.window, cwd, lambda: self.open_now(cwd, resume, title, external))
+
+    def open_now(self, cwd, resume=None, title=None, external=False):
         where = self.window.open_claude(cwd, resume or None, title, external)
         if where == "externe":
             self.window.toast("Conversation reprise dans un nouveau terminal" if resume
