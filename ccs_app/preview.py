@@ -325,9 +325,10 @@ def _short_path(path):
     return "~" + path[len(home):] if path and path.startswith(home + "/") else path
 
 
-def to_markdown(conv_meta, messages, results=False):
+def to_markdown(conv_meta, messages, results=False, cost=None):
     """Document Markdown : titre, projet, dates, puis les échanges.
-    `conv_meta` : une `conversations.Conversation`, un dict aux mêmes clés, ou None."""
+    `conv_meta` : une `conversations.Conversation`, un dict aux mêmes clés, ou None ;
+    `cost` : coût déjà mis en forme (costs.format_cost), ajouté à l'en-tête s'il est donné."""
     title = _meta(conv_meta, "title") or "Conversation"
     cwd = _meta(conv_meta, "cwd") or ""
     out = [f"# {title}", ""]
@@ -342,6 +343,8 @@ def to_markdown(conv_meta, messages, results=False):
         infos.append(f"- Dernière activité : {_date(_meta(conv_meta, 'updated_at'))}")
     if _meta(conv_meta, "session_id"):
         infos.append(f"- Conversation : {code(_meta(conv_meta, 'session_id'))}")
+    if cost:
+        infos.append(f"- Coût : {cost} (équivalent API)")
     if infos:
         out += infos + [""]
     out += ["---", ""]
@@ -374,15 +377,15 @@ def to_markdown(conv_meta, messages, results=False):
     return re.sub(r"\n{3,}", "\n\n", text).rstrip("\n") + "\n"
 
 
-def markdown_for(conv, results=False):
+def markdown_for(conv, results=False, cost=None):
     """Markdown de toute la conversation (objet `conversations.Conversation`)."""
-    return to_markdown(conv, read_messages(conv.path, results=results), results=results)
+    return to_markdown(conv, read_messages(conv.path, results=results), results=results, cost=cost)
 
 
-def export_markdown(conv, dest, results=False):
+def export_markdown(conv, dest, results=False, cost=None):
     dest = Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    text = markdown_for(conv, results)
+    text = markdown_for(conv, results, cost)
     tmp = dest.with_name(dest.name + ".ccs-tmp")
     tmp.write_text(text, encoding="utf-8")
     tmp.replace(dest)

@@ -50,13 +50,13 @@ def cmd_print(_args):
     return 0
 
 
-def cmd_gui(_args):
+def cmd_gui(args):
     try:
         from .gui.app import run
     except ImportError as e:
         print(f"Interface graphique indisponible : {e}", file=sys.stderr)
         return 1
-    return run()
+    return run(session=getattr(args, "session", None))
 
 
 def cmd_daemon(_args):
@@ -147,8 +147,42 @@ def cmd_status(_args):
     o = s["orchestrator"]
     print("Orchestrateur : " + (f"activé (plage {o['active_hours']['start']} → "
                                 f"{o['active_hours']['end']})" if o["enabled"] else "désactivé"))
+    paused = _pause_line()
+    if paused:
+        print(paused)
     print("Service : " + ("en marche" if daemon.running_pid() else "arrêté"))
     return 0
+
+
+def _pause_line():
+    from datetime import datetime, timezone
+    from . import pause
+    now = datetime.now(timezone.utc)
+    st = pause.pause_state(now)
+    if st is None:
+        return None
+    return (f"En pause {pause.label(st, now)} : bascule automatique et orchestrateur suspendus "
+            "(ccs pause off pour reprendre)")
+
+
+def cmd_pause(args):
+    from datetime import datetime, timezone
+    from . import daemon, pause
+    now = datetime.now(timezone.utc)
+    before = pause.pause_state(now)
+    code, message = pause.command(args.choice, now)
+    if code != 0:
+        print(message, file=sys.stderr)
+        return code
+    print(message)
+    if pause.pause_state(now) != before:
+        daemon.request_refresh()  # le service relit la pause et met à jour l'état partagé
+    return 0
+
+
+def cmd_doctor(_args):
+    from . import doctor
+    return doctor.main()
 
 
 def cmd_best(args):
@@ -383,6 +417,58 @@ def cmd_title(args):
     return 0
 
 
+def _conversation(ref):
+    """Conversation désignée comme pour `ccs resume` / `ccs title` ; None (erreur affichée) sinon."""
+    from . import conversations as conv
+    try:
+        return conv.find(conv.scan(), ref)
+    except LookupError as e:
+        print(f"Erreur : {e}", file=sys.stderr)
+        return None
+
+
+def _cost_text(c):
+    from . import costs
+    return costs.format_cost(costs.conversation_cost(c.path))
+
+
+def cmd_preview(args):
+    import os
+    from . import preview
+    c = _conversation(args.ref)
+    if c is None:
+        return 1
+    try:
+        text = preview.markdown_for(c, cost=_cost_text(c))
+    except OSError as e:
+        print(f"Erreur : {e}", file=sys.stderr)
+        return 1
+    try:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+    except BrokenPipeError:  # `ccs preview … | head` : lecteur parti, pas de trace Python
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    return 0
+
+
+def cmd_export(args):
+    from pathlib import Path
+    from . import preview
+    c = _conversation(args.ref)
+    if c is None:
+        return 1
+    dest = Path(args.file).expanduser() if args.file else Path.cwd()
+    if dest.is_dir():
+        dest = dest / preview.suggested_filename(c)
+    try:
+        written = preview.export_markdown(c, dest.absolute(), cost=_cost_text(c))
+    except OSError as e:
+        print(f"Erreur : {e}", file=sys.stderr)
+        return 1
+    print(written)
+    return 0
+
+
 def cmd_statusline(_args):
     from datetime import datetime, timezone
     from . import integration
@@ -433,11 +519,21 @@ def build_parser():
         description="Usage, prévisions et bascule entre comptes Claude Code.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command")
-    sub.add_parser("gui", help="ouvre l'application (défaut)").set_defaults(func=cmd_gui)
+    gui = sub.add_parser("gui", help="ouvre l'application (défaut)")
+    gui.add_argument("--session", metavar="PID:ID",
+                     help="affiche cette session Claude Code (pid, identifiant de conversation, "
+                          "ou les deux) : clic sur une notification")
+    gui.set_defaults(func=cmd_gui)
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
     sub.add_parser("collect", help="collecte immédiate").set_defaults(func=cmd_collect)
     sub.add_parser("status", help="compte actif, meilleur compte, capacité").set_defaults(func=cmd_status)
+    sub.add_parser("doctor", help="bilan de santé (code de sortie 1 au moindre problème)").set_defaults(
+        func=cmd_doctor)
+    pa = sub.add_parser("pause", help="suspend la bascule automatique et l'orchestrateur")
+    pa.add_argument("choice", nargs="?", default="status", metavar="1h|4h|demain|manuel|off|status",
+                    help="durée de la pause, « off » pour reprendre, « status » (défaut) pour l'état")
+    pa.set_defaults(func=cmd_pause)
     best = sub.add_parser("best", help="meilleur compte maintenant")
     best.add_argument("--switch", action="store_true", help="bascule dessus")
     best.set_defaults(func=cmd_best)
@@ -471,6 +567,15 @@ def build_parser():
     ttl.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
     ttl.add_argument("title", nargs="+", help="nouveau titre")
     ttl.set_defaults(func=cmd_title)
+    pv = sub.add_parser("preview", aliases=["apercu"],
+                        help="affiche une conversation en Markdown, avec son coût")
+    pv.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
+    pv.set_defaults(func=cmd_preview)
+    ex = sub.add_parser("export", help="exporte une conversation dans un fichier Markdown")
+    ex.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
+    ex.add_argument("file", nargs="?", metavar="fichier.md",
+                    help="fichier ou dossier de destination (défaut : <titre>.md dans le dossier courant)")
+    ex.set_defaults(func=cmd_export)
     sub.add_parser("statusline", help="ligne d'état pour Claude Code").set_defaults(func=cmd_statusline)
     hook = sub.add_parser("hook", help="hooks Claude Code")
     hook.add_argument("event", choices=["stop-failure"])

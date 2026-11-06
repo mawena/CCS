@@ -103,6 +103,7 @@ class PreviewDialog(Adw.Dialog):
                              f"{result.strerror or result} ({result.filename or self.conv.path})")
             return
         msgs, cost = result
+        self.cost = cost
         truncated = bool(self.limit) and len(msgs) > self.limit
         self.messages = msgs[1:] if truncated else msgs
         sub = [self.conv.project]
@@ -275,7 +276,8 @@ class PreviewDialog(Adw.Dialog):
             if not path:
                 return
             conv = self.conv
-            in_thread(lambda: _safe(lambda: preview.export_markdown(conv, path)), self.exported)
+            cost = costs.format_cost(self.cost) if getattr(self, "cost", None) is not None else None
+            in_thread(lambda: _safe(lambda: preview.export_markdown(conv, path, cost=cost)), self.exported)
         dialog.save(self.get_root(), None, done)
 
     def exported(self, result):

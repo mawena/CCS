@@ -180,6 +180,18 @@ def _to_conversation(path, e, cwd=None):
         size=e["size"], folder_exists=bool(cwd) and os.path.isdir(cwd))
 
 
+def from_journal(path, cwd=None):
+    """Conversation d'un seul journal (aperçu depuis l'onglet Sessions). L'index de scan()
+    sert s'il est à jour ; sinon seule la fin non lue est parcourue. `cwd` : dossier à
+    prendre si le journal n'en dit rien."""
+    path = Path(path)
+    entry = _load_cache().get(str(path))
+    st = path.stat()
+    if not entry or entry.get("size") != st.st_size or entry.get("mtime") != st.st_mtime:
+        entry = read_entry(path, entry)
+    return _to_conversation(path, entry, None if entry.get("cwd") else cwd)
+
+
 def scan():
     """Toutes les conversations (au moins une demande), de la plus récente à la plus
     ancienne. Met à jour le cache ; un fichier illisible est simplement ignoré."""

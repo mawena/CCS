@@ -6,7 +6,7 @@ from pathlib import Path
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
-from .. import conversations, core, sessions, terminal
+from .. import conversations, core, costs, sessions, terminal
 from .common import caption, clear, in_thread
 
 PAGE_SIZE = 60
@@ -81,6 +81,10 @@ class ConversationsPage(Gtk.ScrolledWindow):
         self.menus = []
         self.project_values = [None]
         self.syncing = False
+        # Coût de chaque ligne affichée, calculé après le rendu, un journal après l'autre.
+        self.cost_loader = costs.Loader()
+        self.known_costs = {}      # identifiant -> ((taille, date), Cost)
+        self.cost_rows = {}        # identifiant -> (ligne, libellé, texte, infobulle) des lignes affichées
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                       margin_top=18, margin_bottom=18, margin_start=12, margin_end=12)
@@ -106,12 +110,12 @@ class ConversationsPage(Gtk.ScrolledWindow):
         box.append(self.results)
         self.set_child(Adw.Clamp(maximum_size=820, child=box))
 
-        # Actions des menus « ⋮ » des lignes : conv.copy('<id>'), conv.folder, conv.relocate,
-        # conv.rename, conv.external.
+        # Actions des menus « ⋮ » des lignes : conv.preview('<id>'), conv.copy, conv.folder,
+        # conv.relocate, conv.rename, conv.external.
         actions = Gio.SimpleActionGroup()
-        for name, handler in (("copy", self.copy_command), ("folder", self.open_folder),
-                              ("relocate", self.choose_folder), ("rename", self.rename),
-                              ("external", lambda c: self.resume(c, "external"))):
+        for name, handler in (("preview", self.window.preview), ("copy", self.copy_command),
+                              ("folder", self.open_folder), ("relocate", self.choose_folder),
+                              ("rename", self.rename), ("external", lambda c: self.resume(c, "external"))):
             a = Gio.SimpleAction.new(name, GLib.VariantType.new("s"))
             a.connect("activate", lambda _a, v, h=handler: self.with_conv(v.get_string(), h))
             actions.add_action(a)
@@ -248,6 +252,8 @@ class ConversationsPage(Gtk.ScrolledWindow):
     def render(self):
         self.rendered_at = time.time()
         self.menus = []
+        self.cost_rows = {}
+        self.cost_loader.cancel()
         clear(self.results)
         if not self.convs:
             self.count.set_visible(False)
@@ -280,6 +286,41 @@ class ConversationsPage(Gtk.ScrolledWindow):
                               halign=Gtk.Align.CENTER, margin_top=6)
             more.connect("clicked", self.on_more)
             self.results.append(more)
+        self.load_costs(found[:self.limit])
+
+    # ---- coûts -----------------------------------------------------------------------
+
+    @staticmethod
+    def stamp(c):
+        return c.size, c.updated_at
+
+    def show_cost(self, session_id, cost):
+        shown = self.cost_rows.get(session_id)
+        if shown is None:
+            return
+        row, label, text, tooltip = shown
+        short = costs.format_short(cost)
+        if short:
+            label.set_label(f"{text} · {short}")
+            row.set_tooltip_text(f"{tooltip}\nCoût (équivalent API) : {costs.format_cost(cost)}")
+
+    def load_costs(self, shown):
+        """Coûts des lignes affichées : ceux déjà connus tout de suite, les autres calculés
+        hors de l'interface (les plus récentes d'abord), sans bloquer ni le défilement ni
+        l'affichage."""
+        todo = []
+        for c in shown:
+            known = self.known_costs.get(c.session_id)
+            if known is not None:
+                self.show_cost(c.session_id, known[1])
+            if known is None or known[0] != self.stamp(c):
+                todo.append((c.session_id, c.path))
+        stamps = {c.session_id: self.stamp(c) for c in shown}
+
+        def done(session_id, cost):
+            self.known_costs[session_id] = (stamps[session_id], cost)
+            self.show_cost(session_id, cost)
+        self.cost_loader.request(todo, done)
 
     def row(self, c, code):
         row = Gtk.ListBoxRow(activatable=True, tooltip_text=self.tooltip(c))
@@ -293,7 +334,9 @@ class ConversationsPage(Gtk.ScrolledWindow):
         info.append(top)
         meta = [c.project, c.origin_label] + ([c.git_branch] if c.git_branch else [])
         meta += [plural(c.prompts, "demande"), conversations.ago(c.updated_at)]
-        info.append(caption(" · ".join(meta)))
+        meta_label = caption(" · ".join(meta))
+        info.append(meta_label)
+        self.cost_rows[c.session_id] = (row, meta_label, " · ".join(meta), row.get_tooltip_text())
         suggestion = self.suggestions.get(c.session_id) if not c.folder_exists else None
         if not c.folder_exists:
             line = Gtk.Box()
@@ -324,7 +367,7 @@ class ConversationsPage(Gtk.ScrolledWindow):
             b.connect("clicked", lambda *_, t=target: self.resume(c, t))
             buttons.append(b)
         menu = Gio.Menu()
-        entries = [("Copier la commande", "conv.copy")]
+        entries = [("Aperçu…", "conv.preview"), ("Copier la commande", "conv.copy")]
         if embedded and tab is None and problem is None:
             entries.append(("Reprendre dans un terminal externe", "conv.external"))
         entries.append(("Ouvrir le dossier", "conv.folder") if c.folder_exists

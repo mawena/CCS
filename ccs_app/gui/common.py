@@ -21,6 +21,7 @@ progressbar.crit progress { background-color: @error_color; }
 .legend-session { color: #3584e4; font-weight: bold; }
 .legend-weekly { color: #e66100; font-weight: bold; }
 .ccs-terminal { padding: 6px 10px; }
+.ccs-highlight { box-shadow: inset 0 0 0 2px @accent_color; }
 """
 
 

@@ -116,5 +116,55 @@ class LaunchSpecTest(unittest.TestCase):
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
 
 
+class SwitchTest(unittest.TestCase):
+    """Bascule avant l'ouverture (faite hors de l'interface par l'application)."""
+
+    def test_nothing_to_do_on_the_active_account(self):
+        run = mock.Mock()
+        for spec in (LaunchSpec(cwd="/w", profile=None), LaunchSpec(cwd="/w", profile="perso")):
+            self.assertEqual(lo.switch_if_needed(spec, active="perso", run=run), (False, None))
+        run.assert_not_called()
+
+    def test_switch_then_ok(self):
+        import subprocess
+        run = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "✔ basculé sur 'pro'", ""))
+        self.assertEqual(lo.switch_if_needed(LaunchSpec(cwd="/w", profile="pro"), active="perso", run=run),
+                         (True, None))
+        run.assert_called_once_with(["use", "pro"])
+
+    def test_switch_failure_gives_the_reason(self):
+        import subprocess
+        run = mock.Mock(return_value=subprocess.CompletedProcess(
+            [], 1, "", "\x1b[31mccs: 'pro' : connexion perdue, reconnecte ce compte\x1b[0m\n"))
+        switched, error = lo.switch_if_needed(LaunchSpec(cwd="/w", profile="pro"), active="perso", run=run)
+        self.assertFalse(switched)
+        self.assertEqual(error, "'pro' : connexion perdue, reconnecte ce compte")
+
+
+class OpenSessionTest(unittest.TestCase):
+    def setUp(self):
+        self.tabs, self.external = [], []
+        self.spec = LaunchSpec(cwd="/w", profile=None, model="opus", permission_mode="plan")
+
+    def open(self, embedded):
+        return lo.open_session(self.spec, embedded,
+                               lambda cwd, extra_args=(): self.tabs.append((cwd, extra_args)),
+                               external=self.external.append)
+
+    def test_embedded_terminal_with_the_options(self):
+        self.assertEqual(self.open(True), "integre")
+        self.assertEqual(self.tabs, [("/w", ("--model", "opus", "--permission-mode", "plan"))])
+        self.assertEqual(self.external, [])
+
+    def test_without_embedded_terminal(self):
+        self.assertEqual(self.open(False), "externe")
+        self.assertEqual((self.tabs, self.external), ([], [self.spec]))
+
+    def test_options_reach_the_embedded_tab_argv(self):
+        from ccs_app import terminal
+        launch = terminal.claude_launch("/w", extra_args=self.spec.args(), environ={})
+        self.assertIn("--model opus --permission-mode plan", launch.argv[-1])
+
+
 if __name__ == "__main__":
     unittest.main()

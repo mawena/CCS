@@ -91,14 +91,14 @@ Service et alertes :
 - [x] Avertissement de nouvelle version et relance automatique de l'icône
 
 Lecture et outils :
-- [ ] `ccs doctor` : bilan de santé avec la commande qui corrige
-- [ ] Aperçu d'une conversation sans la reprendre, export Markdown
-- [ ] Coût par conversation (tokens, équivalent en dollars)
-- [ ] Nouvelle session avancée (dossier, compte, modèle, mode de permissions)
+- [x] `ccs doctor` : bilan de santé avec la commande qui corrige
+- [x] Aperçu d'une conversation sans la reprendre, export Markdown
+- [x] Coût par conversation (tokens, équivalent en dollars)
+- [x] Nouvelle session avancée (dossier, compte, modèle, mode de permissions)
 
 Terminal intégré, suite :
 - [x] Reprise automatique après une limite (bascule puis « continue » dans l'onglet)
-- [ ] Notification cliquable qui ouvre l'onglet de la session, badge des sessions en attente
+- [x] Notification cliquable qui ouvre l'onglet de la session, badge des sessions en attente
 - [x] Onglets rouverts au redémarrage de l'application
 - [x] Deux sessions côte à côte
 - [x] Messages en attente envoyés quand la session est libre

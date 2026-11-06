@@ -21,6 +21,7 @@ class Alert:
     body: str
     urgency: int  # 0 bas, 1 normal, 2 critique
     actions: tuple = ()  # ((clé, libellé), …) : boutons de la notification
+    default: str | None = None  # clé invoquée par un clic sur la notification elle-même
 
 
 def window_id(dt):

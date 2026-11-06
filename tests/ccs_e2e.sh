@@ -133,4 +133,35 @@ expect "$out" "ccs rm perso"; expect "$out" "ccs add perso"
 [[ "$(cat "$c" "$HOME/.claude.json" | sha256sum)" == "$before" ]] || fail "fichiers vivants modifiés par next"
 [[ "$("$CCS" current)" == lockb ]] || fail "compte actif changé par next"
 
+# Pause : bascule automatique et orchestrateur suspendus, visible dans le statut.
+out="$("$CCS" pause)"; expect "$out" "Pas de pause"
+out="$("$CCS" pause 4h)"; expect "$out" "en pause jusqu"
+out="$("$CCS" status)"; expect "$out" "En pause jusqu"
+out="$("$CCS" pause off)"; expect "$out" "Pause levée"
+out="$("$CCS" status)"; grep -q "En pause" <<<"$out" && fail "pause encore affichée : $out"
+out="$("$CCS" pause 2h 2>&1)" && fail "durée inconnue acceptée"
+expect "$out" "usage : ccs pause"
+out="$("$CCS" help)"; expect "$out" "ccs pause"; expect "$out" "ccs doctor"
+expect "$out" "ccs preview <id>"; expect "$out" "ccs export <id>"
+
+# Aperçu et export d'une conversation de l'historique (journal synthétique).
+proj="$HOME/Work/App"
+mkdir -p "$proj" "$HOME/.claude/projects/${proj//[^A-Za-z0-9]/-}"
+sid=5e1d0c2b-1111-4222-8333-444455556666
+cat >"$HOME/.claude/projects/${proj//[^A-Za-z0-9]/-}/$sid.jsonl" <<E
+{"type":"user","cwd":"$proj","sessionId":"$sid","entrypoint":"cli","timestamp":"2026-11-04T10:00:00.000Z","message":{"role":"user","content":"Explique le module de paie"}}
+{"type":"assistant","cwd":"$proj","timestamp":"2026-11-04T10:01:00.000Z","message":{"id":"m1","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"Le module calcule les salaires."}],"usage":{"input_tokens":2000,"output_tokens":300}}}
+{"type":"custom-title","customTitle":"Module de paie","sessionId":"$sid"}
+E
+out="$("$CCS" preview 5e1d)"; expect "$out" "# Module de paie"
+expect "$out" "Le module calcule les salaires."; expect "$out" "- Coût : "
+out="$("$CCS" apercu "$sid" | head -1)"; [[ "$out" == "# Module de paie" ]] || fail "alias apercu : $out"
+out="$("$CCS" preview zzzz 2>&1)" && fail "identifiant inconnu accepté"
+expect "$out" "aucune conversation"
+out="$(cd "$T" && "$CCS" export 5e1d)"; [[ "$out" == "$T/module-de-paie.md" ]] || fail "export : $out"
+grep -q "Le module calcule les salaires." "$T/module-de-paie.md" || fail "contenu exporté"
+out="$("$CCS" export 5e1d "$T/notes/paie.md")"; [[ -s "$T/notes/paie.md" ]] || fail "export vers un fichier : $out"
+out="$("$CCS" title 5e1d Paie mensuelle)"; expect "$out" "« Paie mensuelle »"
+out="$("$CCS" preview 5e1d | head -1)"; [[ "$out" == "# Paie mensuelle" ]] || fail "titre après ccs title : $out"
+
 echo "OK ccs_e2e"

@@ -3,7 +3,7 @@
 import re
 import subprocess
 
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, GLib, Gtk
 
 from .. import __version__, core, daemon, updates
 from ..settings import load_settings, save_settings
@@ -42,6 +42,8 @@ class PrefsPage(Adw.PreferencesPage):
         self.add_group(self.orchestrator_group())
         self.add_group(self.alerts_group())
         self.add_group(self.integration_group())
+        if self.window.terminals.available:
+            self.add_group(self.terminal_group())
         self.add_group(self.warmup_group())
         self.add_group(self.service_group())
 
@@ -202,6 +204,23 @@ class PrefsPage(Adw.PreferencesPage):
         btn.connect("clicked", toggle)
         row.add_suffix(btn)
         g.add(row)
+        return g
+
+    def terminal_group(self):
+        """Les deux interrupteurs du menu « ⋮ » de la page Terminaux (gardés dans
+        terminals.json) : changés par l'action de la page, qui reste la seule à écrire."""
+        terms = self.window.terminals
+        g = Adw.PreferencesGroup(title="Terminal intégré")
+        for title, subtitle, action, key in (
+                ("Reprise automatique après une limite",
+                 "Après une bascule due à une limite, la conversation reprend seule (« continue »)",
+                 "auto-resume", "auto_resume"),
+                ("Rouvrir les onglets au démarrage",
+                 "Sinon, l'application propose de les rouvrir", "reopen-at-start", "reopen_at_start")):
+            row = Adw.SwitchRow(title=title, subtitle=subtitle, active=terms.options[key])
+            row.connect("notify::active", lambda r, _p, a=action: terms.page_actions.change_action_state(
+                a, GLib.Variant.new_boolean(r.get_active())))
+            g.add(row)
         return g
 
     def warmup_group(self):
