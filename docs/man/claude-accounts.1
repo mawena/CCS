@@ -1,16 +1,29 @@
-.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.4.0" "Commandes utilisateur"
+.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.5.0" "Commandes utilisateur"
 .SH NOM
 claude-accounts \- application, service et outils d'usage des comptes Claude Code
 .SH SYNOPSIS
 .B claude-accounts
-[\fBgui\fR|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
+[\fBgui\fR [\fB\-\-session \fIréf\fR]|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBtitle \fIid titre\fR|\fBpreview \fIid\fR|\fBexport \fIid\fR [\fIfichier\fR]|\fBdoctor\fR|\fBpause\fR [\fIchoix\fR]|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
 .SH DESCRIPTION
 Sans argument, ouvre l'application graphique « Comptes Claude » : comptes et
-prévisions, historique, analyse de l'usage local et réglages.
+prévisions, sessions et historique des conversations, terminal intégré,
+analyse de l'usage local et réglages.
 .SH COMMANDES
 .TP
 .B gui
-Application GTK (défaut).
+Application GTK (défaut). Les sessions Claude Code reprises ou démarrées depuis
+l'application s'ouvrent dans des onglets de son terminal intégré (VTE,
+paquet \fIgir1.2-vte-3.91\fR) ; sans VTE, dans un terminal externe.
+Le terminal intégré met deux sessions côte à côte (Ctrl+Maj+E), garde des
+messages à envoyer quand Claude sera libre (Ctrl+Maj+M), relance une
+conversation bloquée par une limite après la bascule et rouvre les onglets au
+démarrage (\fI~/.claude-accounts/terminals.json\fR).
+« Nouvelle session… » choisit le dossier, le compte, le modèle et le mode de
+permissions ; « Aperçu… » relit une conversation et l'exporte en Markdown ;
+« Bilan de santé… » est dans le menu principal. Libadwaita 1.5 ou plus récent.
+\fB\-\-session\fR \fIpid\fR:\fIid\fR (ou l'un des deux) ouvre la fenêtre sur
+cette session Claude Code : c'est ce qu'utilise un clic sur une notification de
+session.
 .TP
 .B print
 Usage de tous les comptes dans le terminal.
@@ -29,11 +42,44 @@ Reprend une conversation : dans le terminal courant par défaut, dans VS Code
 ouverte. Pour un projet déplacé, propose le dossier du même nom (confirmation)
 ou utilise \fB\-\-dir\fR.
 .TP
+.B title \fIid titre\fR...
+Renomme une conversation, comme \fB/rename\fR dans Claude Code : ajoute une
+ligne \fIcustom-title\fR à la fin de son journal (le dernier titre l'emporte).
+Un titre vide est refusé.
+.TP
+.B preview \fIid\fR
+Conversation en Markdown sur la sortie standard (lecture seule) : demandes,
+réponses, appels d'outils résumés ; coût en en-tête (tokens, sous-agents
+compris, et équivalent au tarif de l'API Anthropic, pour comparer : un
+abonnement ne facture pas au token). Alias : \fBapercu\fR. Code de retour 1
+si l'identifiant est inconnu ou ambigu.
+.TP
+.B export \fIid\fR [\fIfichier.md\fR|\fIdossier\fR]
+Enregistre la conversation en Markdown, coût compris (défaut :
+\fI<titre>.md\fR dans le dossier courant ; fichier existant remplacé) et
+affiche le chemin absolu écrit. Code de retour 1 en cas d'erreur.
+.TP
+.B doctor
+Bilan de santé de CCS, avec pour chaque problème la commande qui le corrige (à
+copier, jamais exécutée). Code de retour : 0 si tout va bien, 1 au moindre
+avertissement ou erreur.
+.TP
+.B pause \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBmanuel\fR|\fBoff\fR|\fBstatus\fR]
+Met en pause la bascule automatique et l'orchestrateur (y compris la bascule
+du hook \fBstop-failure\fR), lève la pause (\fBoff\fR ou \fBreprendre\fR)
+ou affiche son état (\fBstatus\fR, défaut) ; réveille le service si l'état
+change. Code de retour 2 pour un choix inconnu. État dans
+\fI~/.claude-accounts/pause.json\fR.
+.TP
 .B statusline
-Ligne d'état pour Claude Code (lit le contexte sur l'entrée standard).
+Ligne d'état pour Claude Code (lit le contexte sur l'entrée standard) ;
+commence par un symbole de pause pendant une pause de CCS.
 .TP
 .B hook stop-failure
-Hook Claude Code : bascule quand une session est bloquée par la limite.
+Hook Claude Code : bascule quand une session est bloquée par la limite (sauf
+pendant une pause, qu'il signale) et laisse un marqueur dans
+\fI~/.claude-accounts/limits/\fR pour la reprise automatique du terminal
+intégré.
 .TP
 .B integrate on\fR|\fBoff\fR|\fBstatus
 Installe ou retire la ligne d'état et le hook dans ~/.claude/settings.json.
@@ -45,7 +91,7 @@ Planning de l'orchestrateur.
 Orchestrateur des fenêtres de 5 h.
 .TP
 .B status
-Résumé : compte actif, prévision, meilleur compte, capacité, service.
+Résumé : compte actif, prévision, meilleur compte, capacité, pause, service.
 .TP
 .B best \fR[\fB\-\-switch\fR]
 Affiche le meilleur compte ; avec \fB\-\-switch\fR, bascule dessus.
@@ -60,9 +106,22 @@ Collecte immédiate (demandée au service s'il tourne).
 Analyse des journaux locaux de Claude Code.
 .TP
 .B daemon
-Service de collecte, lancé par l'unité systemd utilisateur \fIccs-daemon.service\fR.
+Service de collecte, lancé par l'unité systemd utilisateur \fIccs-daemon.service\fR :
+relevés, bascule automatique, orchestrateur, alertes (dont la fin de semaine
+prévue et le rappel des sessions en attente), levée de la pause à l'échéance,
+recherche d'une nouvelle version sur GitHub au plus une fois par jour.
 .TP
 .B tray
-Indicateur de la barre du haut (nécessite l'extension GNOME AppIndicator).
+Indicateur de la barre du haut (nécessite l'extension GNOME AppIndicator) :
+jauge du compte actif, prévisions, sessions, pause, nouvelle version. Se
+relance seul quand le paquet est mis à jour.
+.SH ENVIRONNEMENT
+.TP
+.B CCS_APP_ID
+Identifiant d'application de \fBgui\fR (défaut : \fIio.ccs.ClaudeAccounts\fR) :
+une autre valeur lance une copie distincte de l'application déjà ouverte.
+.TP
+.B CCS_NO_VTE
+Non vide : terminal externe au lieu du terminal intégré.
 .SH VOIR AUSSI
 .BR ccs (1)

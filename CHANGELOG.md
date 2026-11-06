@@ -3,6 +3,140 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.5.0] — 2026-11-06
+
+### Ajouté
+
+- **Terminal intégré** : reprendre une conversation ou démarrer une session
+  l'ouvre dans la fenêtre de l'application, dans un onglet de terminal (VTE),
+  au lieu d'une fenêtre séparée.
+  - Page **Terminaux**, visible tant qu'un onglet est ouvert : plusieurs
+    sessions en onglets, titre de la conversation, activité (travaille, attend
+    ta réponse, arrêtée), onglet en arrière-plan signalé quand il a fini.
+  - Copier / coller Ctrl+Maj+C / Ctrl+Maj+V et clic droit, Ctrl+clic sur les
+    liens, taille du texte (Ctrl+plus / moins / 0), 100 000 lignes de
+    défilement arrière, police à chasse fixe du bureau, couleurs qui suivent
+    le thème clair ou sombre.
+  - Bandeau de fin avec **Reprendre** (même conversation) et **Fermer** ;
+    confirmation avant de fermer un onglet ou la fenêtre quand une session
+    tourne (« La conversation est enregistrée : tu pourras la reprendre. »).
+  - Onglets Sessions et Conversations : reprise, nouvelle session et
+    « Terminal ici » (shell) dans l'application, terminal externe dans les
+    menus, **Afficher** pour une session déjà ouverte dans un onglet.
+  - Sans `gir1.2-vte-3.91`, tout s'ouvre dans un terminal externe comme avant
+    et l'onglet Sessions indique comment installer le terminal intégré.
+- **Renommer une conversation**, comme `/rename` : « Renommer… » dans les
+  onglets Sessions et Conversations et dans le menu d'un onglet du terminal,
+  `ccs title <id> <titre>` / `claude-accounts title`. Une ligne de titre est
+  ajoutée à la fin du journal (une seule écriture en mode ajout, le journal
+  n'est jamais réécrit).
+- `CCS_APP_ID` et `CCS_NO_VTE` documentés pour essayer une copie de
+  développement.
+- **Suite du terminal intégré** :
+  - **reprise automatique après une limite** (avec `ccs integrate`) : quand
+    une session d'un onglet est bloquée, le hook bascule et laisse un marqueur
+    (`~/.claude-accounts/limits/`), puis la page Terminaux envoie « continue »
+    une fois par limite, dès que Claude attend une nouvelle demande (jamais
+    pendant une demande de permission), avec un bandeau. Gardes : au plus
+    3 reprises par heure et par onglet, 2 min d'écart, rien si quelqu'un a
+    tapé dans l'onglet depuis la limite ou si elle a plus de 15 min.
+    Interrupteur « Reprise automatique après une limite » (activé par défaut)
+    dans le menu « ⋮ » de la page Terminaux ;
+  - **onglets rouverts** au redémarrage de l'application, avec leurs options
+    et leurs messages en attente : bandeau « Rouvrir les N sessions de la
+    dernière fois ? », ou réouverture directe avec l'interrupteur « Rouvrir
+    les onglets au démarrage » ; dossier disparu ou conversation déjà ouverte
+    sautés ; état dans `~/.claude-accounts/terminals.json` ;
+  - **côte à côte** (Ctrl+Maj+E) : deux onglets dans une vue partagée
+    redimensionnable, sans relancer les terminaux ;
+  - **messages en attente** (Ctrl+Maj+M) : file « Envoyer quand Claude sera
+    libre », modifiable et réordonnable, un message envoyé par tour quand
+    Claude a fini ;
+  - les options d'une nouvelle session (`--model`, `--permission-mode`) sont
+    gardées par l'onglet pour Reprendre et la réouverture.
+- **Mode pause** : bascule automatique et orchestrateur suspendus 1 h, 4 h,
+  jusqu'à la prochaine plage horaire ou jusqu'à reprise manuelle ; levée
+  automatique à l'échéance avec la notification « Pause terminée ». Pendant une
+  pause, CCS ne change plus de compte tout seul, bascule après blocage (hook
+  `StopFailure`) et reprise automatique du terminal comprises ; les bascules
+  manuelles, alertes et warm-up continuent.
+  - `ccs pause [1h|4h|demain|manuel|off|status]` / `claude-accounts pause`
+    (`status` par défaut, `reprendre` comme `off`, code 2 pour un choix
+    inconnu).
+  - Menu de l'indicateur (« Mettre en pause », « Reprendre maintenant », ⏸
+    devant le pourcentage), carte « Meilleur compte » de l'onglet Comptes,
+    rappel dans l'onglet Planning, ⏸ dans la ligne d'état de Claude Code.
+  - En-tête de la fenêtre : « Auto ⏸ jusqu'à 14:00 », un clic propose
+    « Reprendre maintenant ».
+  - État dans `~/.claude-accounts/pause.json`.
+- **Prévision de fin de semaine** par compte, au rythme moyen de la semaine :
+  sur la carte du compte et dans le menu de l'indicateur. Alerte une fois par
+  semaine quand la limite hebdomadaire sera atteinte dans 2 jours ou moins
+  (réglages `alerts.weekly_forecast`, `alerts.weekly_forecast_days`).
+- **Rappel des sessions en attente** : une notification unique quand une
+  session attend ta réponse depuis plus de 10 min (`alerts.waiting_reminder`,
+  `alerts.waiting_reminder_min`), même si les notifications de sessions sont
+  coupées.
+- **Nouvelle version** : vérification sur GitHub au plus une fois par jour,
+  une seule notification par version, ligne dans l'indicateur, bandeau « CCS
+  x.y.z est disponible — Voir » dans la fenêtre (une fois par lancement, si la
+  version est plus récente que l'installée) et lien dans Réglages
+  (`updates.enabled`, cache `~/.claude-accounts/updates.json`).
+- **Bilan de santé** : `ccs doctor` (alias `ccs bilan`),
+  `claude-accounts doctor` et « Bilan de santé… » dans le menu ☰ de
+  l'application : service, relevés, versions, extension et indicateur,
+  intégration, connexion de chaque compte, `claude`, `jq`, terminal intégré.
+  Une commande à copier par problème (rien n'est exécuté) ; code de sortie 0 si
+  tout va bien, 1 au moindre avertissement. L'application fait le bilan 4 s
+  après son ouverture et affiche un bandeau « Un problème a été détecté… — Voir
+  le bilan » en cas d'erreur. Des jetons, seuls la présence et les dates
+  d'expiration sont lues.
+- **Aperçu d'une conversation** sans la reprendre : « Aperçu… » dans le menu
+  des conversations (onglet Conversations, conversations récentes et sessions
+  ouvertes de l'onglet Sessions) et `ccs preview <id>` (alias `ccs apercu`),
+  Markdown sur la sortie avec le coût en en-tête : demandes, réponses, outils
+  en une ligne ; copie et **export en Markdown** avec le coût. Journal lu en
+  flux, même très gros.
+- `ccs export <id> [fichier.md]` (alias `ccs exporter`) : `<titre>.md` dans le
+  dossier courant par défaut, ou dans le dossier donné ; affiche le chemin
+  écrit.
+- **Coût d'une conversation** : tokens consommés (sous-agents compris) et
+  équivalent au tarif de l'API Anthropic en dollars (tarifs du 2026-10-06),
+  affiché dans chaque ligne des onglets Conversations et Sessions (calculé
+  après l'affichage), sur la carte d'une session ouverte et en tête de
+  l'aperçu et de l'export. Un abonnement ne facture pas au token : le montant
+  sert à comparer les conversations.
+- **Nouvelle session avec options** : dialogue avec le dossier, le compte, le
+  modèle (`--model`) et le mode de permissions (`--permission-mode`), depuis le
+  bouton « Nouvelle session… » de l'onglet Sessions, le menu ☰ ou « Avec des
+  options… » dans le menu d'un projet. Bascule de compte d'abord si besoin
+  (avertissement : elle s'applique à toutes les sessions ouvertes ; en cas
+  d'échec, rien ne s'ouvre), puis ouverture dans le terminal intégré ;
+  avertissement en rouge pour `bypassPermissions`.
+- **Notifications de session cliquables** (« a terminé », « attend ta
+  réponse », rappel ; clic ou bouton « Afficher ») : l'application s'ouvre sur
+  l'onglet du terminal intégré de la session, sinon sur sa carte dans l'onglet
+  Sessions ; elle est lancée si elle ne tourne pas.
+- **Badge** du nombre de sessions qui attendent une réponse sur l'onglet
+  Sessions.
+- Réglages : groupe « Terminal intégré » avec les interrupteurs « Reprise
+  automatique après une limite » et « Rouvrir les onglets au démarrage ».
+
+### Modifié
+
+- L'onglet Sessions affiche les mêmes titres que l'onglet Conversations (titre
+  donné, sinon titre automatique, sinon première demande) et ne propose plus
+  de reprendre une conversation déjà ouverte ailleurs.
+- Paquet : dépend de `gir1.2-vte-3.91`.
+- L'alerte de fin de semaine prévue remplace l'alerte « semaine en avance sur
+  le rythme », moins précise, quand elle part.
+- L'indicateur se relance tout seul après une mise à jour du paquet, comme le
+  service. En venant de la 0.4.0 ou d'avant, relance-le une fois à la main.
+- `ccs status` affiche la pause en cours.
+- Paquet : libadwaita 1.5 au moins (`gir1.2-adw-1 (>= 1.5)`, Ubuntu 24.04 l'a).
+- `~/.claude-accounts/state.json` : nouvelles clés `pause`, `update`,
+  `auto_switch.paused`, `orchestrator.paused` et `accounts[].weekly_forecast`.
+
 ## [0.4.0] — 2026-11-04
 
 ### Ajouté

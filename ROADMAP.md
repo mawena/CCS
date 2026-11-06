@@ -61,23 +61,66 @@ de l'extension VS Code, et leur reprise en un clic.
 - [x] `claude-accounts conversations` / `ccs conv` (liste, recherche) et `claude-accounts resume` / `ccs resume` (reprise)
 - [x] Tests unitaires, suite au vert
 - [x] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
-- [ ] Release mineure 0.4.0 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
-- [ ] Paquet `.deb` construit pour l'installation (`dist/ccs_0.4.0_all.deb`)
+- [x] Release mineure 0.4.0 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
+- [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.4.0_all.deb`)
+
+## Phase 6 — Terminal intégré (0.5.0) ✅
+
+Les sessions Claude Code s'ouvrent dans la fenêtre de l'application, dans des
+onglets de terminal, au lieu d'une fenêtre de terminal séparée.
+
+- [x] `terminal` : commande et environnement de lancement (claude, `claude --resume`, shell), choix intégré ou externe, textes de fin, sans GTK (tests)
+- [x] Terminal intégré VTE (GTK4) : onglets, copier/coller, liens Ctrl+clic, défilement arrière, police et couleurs du système, focus
+- [x] Indicateur d'activité des onglets (travaille, attend ta réponse, arrêtée), bandeau de fin avec « Reprendre » et « Fermer »
+- [x] Confirmation à la fermeture d'un onglet ou de la fenêtre quand claude tourne encore
+- [x] Onglet Sessions : reprise, nouvelle session et « Terminal ici » dans l'application, terminal externe en option, « Afficher » pour une session déjà ouverte dans l'application
+- [x] Onglet Conversations : reprise dans l'application par défaut, terminal externe dans le menu « … », « Afficher »
+- [x] Repli sans VTE : terminal externe comme avant, message pour installer `gir1.2-vte-3.91`
+- [x] Renommer une conversation (ligne `custom-title` ajoutée au journal) : onglets Sessions et Conversations, onglets du terminal, `ccs title`
+- [x] Paquet : dépendance `gir1.2-vte-3.91`
+- [x] Essais réels dans une copie de développement (terminal intégré, repli sans VTE)
+- [x] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
+- [x] Suite de tests au vert, feature terminée et `develop` poussée
+
+## Phase 7 — Fonctions de la 0.5.0
+
+Service et alertes :
+- [x] Prévision de fin de semaine par compte, alerte 2 jours avant
+- [x] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain)
+- [x] Rappel quand une session attend depuis plus de 10 min
+- [x] Avertissement de nouvelle version et relance automatique de l'icône
+
+Lecture et outils :
+- [x] `ccs doctor` : bilan de santé avec la commande qui corrige
+- [x] Aperçu d'une conversation sans la reprendre, export Markdown
+- [x] Coût par conversation (tokens, équivalent en dollars)
+- [x] Nouvelle session avancée (dossier, compte, modèle, mode de permissions)
+
+Terminal intégré, suite :
+- [x] Reprise automatique après une limite (bascule puis « continue » dans l'onglet)
+- [x] Notification cliquable qui ouvre l'onglet de la session, badge des sessions en attente
+- [x] Onglets rouverts au redémarrage de l'application
+- [x] Deux sessions côte à côte
+- [x] Messages en attente envoyés quand la session est libre
+
+Documentation et release :
+- [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [ ] Release 0.5.0 (genre choisi par Charles), `main`, `develop` et le tag poussés
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
 Recommandées :
-- [ ] `ccs doctor` : bilan de santé (service, version, extension, intégration, connexions) avec la commande qui corrige
-- [ ] Prévision de fin de semaine par compte, alerte 2 jours avant
-- [ ] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain)
-- [ ] Avertissement de nouvelle version et relance automatique de l'icône
+- [x] `ccs doctor` : bilan de santé (service, version, extension, intégration, connexions) avec la commande qui corrige → Phase 7
+- [x] Prévision de fin de semaine par compte, alerte 2 jours avant → Phase 7
+- [x] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain) → Phase 7
+- [x] Avertissement de nouvelle version et relance automatique de l'icône → Phase 7
 - [ ] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars
 
 Autres :
 - [ ] Conseil de modèle près des limites (Opus → Sonnet)
 - [ ] Bilan de la semaine
 - [ ] Raccourci clavier global
-- [ ] Rappel quand une session attend depuis plus de 10 min
+- [x] Rappel quand une session attend depuis plus de 10 min → Phase 7
 - [ ] Journal lisible des bascules dans l'application
 - [ ] Compte par projet
 

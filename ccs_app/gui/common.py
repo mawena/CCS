@@ -20,6 +20,8 @@ progressbar.crit progress { background-color: @error_color; }
 .pct { font-feature-settings: "tnum"; font-weight: bold; }
 .legend-session { color: #3584e4; font-weight: bold; }
 .legend-weekly { color: #e66100; font-weight: bold; }
+.ccs-terminal { padding: 6px 10px; }
+.ccs-highlight { box-shadow: inset 0 0 0 2px @accent_color; }
 """
 
 
@@ -104,6 +106,33 @@ def ask_name(window, heading, placeholder, action_label, callback, initial=""):
         name = entry.get_text().strip()
         if r == "ok" and valid_name(name, initial):
             callback(name)
+    d.connect("response", on_response)
+    d.present(window)
+    entry.grab_focus()
+
+
+def ask_title(window, heading, initial, callback, max_length=0):
+    """Demande un titre (prérempli avec `initial`) ; refuse un titre vide ou inchangé."""
+    entry = Gtk.Entry(text=initial or "", activates_default=True, max_length=max_length,
+                      placeholder_text="Nouveau titre…")
+    d = Adw.AlertDialog(heading=heading, extra_child=entry,
+                        body="Comme /rename dans Claude Code : le titre est enregistré dans la "
+                             "conversation et s'affiche partout, VS Code compris.")
+    d.add_response("cancel", "Annuler")
+    d.add_response("ok", "Renommer")
+    d.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+    d.set_default_response("ok")
+    d.set_close_response("cancel")
+
+    def valid(text):
+        text = " ".join(text.split())
+        return bool(text) and text != " ".join((initial or "").split())
+    d.set_response_enabled("ok", False)
+    entry.connect("changed", lambda e: d.set_response_enabled("ok", valid(e.get_text())))
+
+    def on_response(_d, r):
+        if r == "ok" and valid(entry.get_text()):
+            callback(" ".join(entry.get_text().split()))
     d.connect("response", on_response)
     d.present(window)
     entry.grab_focus()

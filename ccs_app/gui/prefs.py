@@ -3,9 +3,9 @@
 import re
 import subprocess
 
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, GLib, Gtk
 
-from .. import core, daemon
+from .. import __version__, core, daemon, updates
 from ..settings import load_settings, save_settings
 
 DAY_LABELS = ["L", "M", "M", "J", "V", "S", "D"]
@@ -42,6 +42,8 @@ class PrefsPage(Adw.PreferencesPage):
         self.add_group(self.orchestrator_group())
         self.add_group(self.alerts_group())
         self.add_group(self.integration_group())
+        if self.window.terminals.available:
+            self.add_group(self.terminal_group())
         self.add_group(self.warmup_group())
         self.add_group(self.service_group())
 
@@ -157,12 +159,24 @@ class PrefsPage(Adw.PreferencesPage):
                             "alerts", "eta_minutes", 5, 60, 5))
         g.add(self.spin_row("Avance hebdomadaire (pts)", "Écart au rythme idéal de la semaine",
                             "alerts", "weekly_ahead_points", 5, 50, 5))
+        g.add(self.switch_row("Fin de semaine prévue",
+                              "Quand la limite hebdomadaire sera atteinte avant la réinitialisation "
+                              "au rythme actuel (une fois par semaine et par compte)",
+                              "alerts", "weekly_forecast"))
+        g.add(self.spin_row("Prévenir avant l'épuisement de la semaine (jours)",
+                            "Pour l'alerte de fin de semaine prévue",
+                            "alerts", "weekly_forecast_days", 1, 6))
         g.add(self.switch_row("Réinitialisations", "Quand un compte redevient disponible",
                               "alerts", "resets"))
         g.add(self.switch_row("Connexions expirées", "Quand un profil doit être rajouté",
                               "alerts", "auth"))
         g.add(self.switch_row("Sessions Claude Code", "Quand une session a terminé ou attend ta réponse",
                               "alerts", "sessions"))
+        g.add(self.switch_row("Rappel des sessions en attente",
+                              "Une seule fois par attente, même si les notifications de sessions "
+                              "sont coupées", "alerts", "waiting_reminder"))
+        g.add(self.spin_row("Rappeler après (min)", "Durée d'attente de ta réponse avant le rappel",
+                            "alerts", "waiting_reminder_min", 2, 120))
         return g
 
     def integration_group(self):
@@ -190,6 +204,23 @@ class PrefsPage(Adw.PreferencesPage):
         btn.connect("clicked", toggle)
         row.add_suffix(btn)
         g.add(row)
+        return g
+
+    def terminal_group(self):
+        """Les deux interrupteurs du menu « ⋮ » de la page Terminaux (gardés dans
+        terminals.json) : changés par l'action de la page, qui reste la seule à écrire."""
+        terms = self.window.terminals
+        g = Adw.PreferencesGroup(title="Terminal intégré")
+        for title, subtitle, action, key in (
+                ("Reprise automatique après une limite",
+                 "Après une bascule due à une limite, la conversation reprend seule (« continue »)",
+                 "auto-resume", "auto_resume"),
+                ("Rouvrir les onglets au démarrage",
+                 "Sinon, l'application propose de les rouvrir", "reopen-at-start", "reopen_at_start")):
+            row = Adw.SwitchRow(title=title, subtitle=subtitle, active=terms.options[key])
+            row.connect("notify::active", lambda r, _p, a=action: terms.page_actions.change_action_state(
+                a, GLib.Variant.new_boolean(r.get_active())))
+            g.add(row)
         return g
 
     def warmup_group(self):
@@ -260,6 +291,17 @@ class PrefsPage(Adw.PreferencesPage):
         row.add_suffix(btn)
         g.add(row)
         g.add(self.indicator_row())
+        g.add(self.switch_row("Nouvelles versions",
+                              f"Version installée : {__version__}. Vérifie une fois par jour sur "
+                              "GitHub et prévient une seule fois par version", "updates", "enabled"))
+        release = updates.available() if self.s["updates"]["enabled"] else None
+        if release:
+            new = Adw.ActionRow(title=f"CCS {release.version} est disponible",
+                                subtitle="Installe le nouveau paquet : le service et l'indicateur "
+                                         "se relancent tout seuls")
+            new.add_suffix(Gtk.LinkButton(uri=release.url, label="Voir la version",
+                                          valign=Gtk.Align.CENTER))
+            g.add(new)
         return g
 
     def indicator_row(self):

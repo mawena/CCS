@@ -1,12 +1,18 @@
 """Indicateur de la barre du haut (GTK 3 + AyatanaAppIndicator, processus séparé)."""
 
+import os
 import subprocess
 import sys
 
-from . import core, daemon
+from . import core, daemon, pause
+from .forecast import fmt_when
 from .settings import load_settings, save_settings
+from .updates import PROJECT_URL
 
 REFRESH_S = 30
+# Nouvelle version installée : le code est relu toutes les 10 s, et l'indicateur
+# se relance une fois l'empreinte stable (dpkg a fini de remplacer les fichiers).
+CODE_CHECK_S = 10
 WATCHER = "org.kde.StatusNotifierWatcher"
 EXTENSION = "ubuntu-appindicators@ubuntu.com"
 
@@ -29,7 +35,12 @@ def _active_account(state):
     return next((a for a in state.get("accounts") or [] if a.get("name") == active), None)
 
 
-def label_for(state):
+def label_for(state, paused=False):
+    text = _label(state)
+    return f"⏸ {text}" if paused else text
+
+
+def _label(state):
     acc = _active_account(state) if state else None
     limits = (acc or {}).get("limits") or []
     if not limits:
@@ -121,13 +132,42 @@ def menu_lines(state, now):
     fc = ((_active_account(state) or {}).get("forecast") or {})
     if fc.get("verdict") == "limit" and fc.get("eta"):
         out.append((f"⏱ Limite estimée vers {_hm(fc['eta'])}", None))
+    for a in accounts:
+        wf = a.get("weekly_forecast") or {}
+        eta = core.parse_dt(wf.get("eta")) if wf.get("verdict") == "limit" else None
+        if eta is not None and eta > now:
+            out.append((f"⚠ {a['name']} : semaine épuisée {fmt_when(eta, now)} au rythme actuel",
+                        None))
     if o.get("enabled"):
         ends = sorted((core.parse_dt(w["end"]), w["name"]) for w in o.get("plan") or []
                       if core.parse_dt(w["end"]) and core.parse_dt(w["end"]) > now)
         if ends:
             out.append((f"Prochaine recharge : {ends[0][0].astimezone():%H:%M} ({ends[0][1]})", None))
     out.append((f"Capacité restante : {core.fr(state.get('capacity') or 0)} session(s)", None))
+    update = state.get("update") or {}
+    url = update.get("url")
+    if update.get("version") and isinstance(url, str) and url.startswith(PROJECT_URL):
+        out.append((f"⬆ CCS {update['version']} disponible — voir la version", ("open", url)))
     return out
+
+
+def restart_due(start_stamp, previous, current):
+    """Relance quand le code a changé depuis le démarrage et n'a plus bougé depuis le
+    contrôle précédent (mise à jour terminée)."""
+    return current != start_stamp and current == previous
+
+
+def restart_command():
+    """Même interpréteur, mêmes arguments (y compris « -m ccs_app.cli »)."""
+    return [sys.executable, *sys.orig_argv[1:]]
+
+
+def pause_menu(st, now, hours=None):
+    """(ligne d'état ou None, [(libellé, choix)]) : reprendre, ou durées de pause."""
+    if st is not None:
+        return (f"⏸ En pause {pause.label(st, now)} — bascule et orchestrateur suspendus",
+                [("Reprendre maintenant", "reprendre")])
+    return None, [(text, choice) for choice, text in pause.choices(now, hours)]
 
 
 def session_lines(found):
@@ -194,20 +234,60 @@ def run():
         if not daemon.request_refresh():
             subprocess.Popen([sys.executable, sys.argv[0], "collect"], start_new_session=True)
 
+    def set_pause(_item, choice):
+        pause.apply(choice)
+        daemon.request_refresh()
+        GLib.idle_add(lambda: (rebuild(), False)[1])
+
+    def open_uri(_item, url):
+        subprocess.Popen(["gio", "open", url], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    stamp = daemon.code_stamp()
+    seen = [stamp]
+
+    def watch_code():
+        """Nouvelle version installée : l'indicateur se relance avec le nouveau code."""
+        current = daemon.code_stamp()
+        if not restart_due(stamp, seen[0], current):
+            seen[0] = current
+            return True
+        ind.set_status(AppIndicator.IndicatorStatus.PASSIVE)
+        if not current:  # plus aucun fichier : paquet désinstallé
+            Gtk.main_quit()
+            return False
+        print("nouvelle version installée : relance de l'indicateur", file=sys.stderr, flush=True)
+        try:
+            os.execv(sys.executable, restart_command())
+        except OSError:
+            Gtk.main_quit()
+        return False
+
     def rebuild():
         state = core.load_json(daemon.state_path())
+        now = datetime.now(timezone.utc)
+        s = load_settings()
+        # Lu directement (et non dans state.json) : le menu suit aussitôt un clic.
+        paused = pause.pause_state(now)
         name = icon_name_for(state)
         ensure_icon(name)
         ind.set_icon_full(name, "Usage du compte Claude actif")
-        ind.set_label(label_for(state), "⚠ 100 %")
+        ind.set_label(label_for(state, paused is not None), "⏸ ⚠ 100 %")
         menu = Gtk.Menu()
-        for text, action in menu_lines(state, datetime.now(timezone.utc)):
+        pause_line, pause_items = pause_menu(paused, now, s["orchestrator"]["active_hours"])
+        if pause_line:
+            it = Gtk.MenuItem(label=pause_line, use_underline=False)
+            it.set_sensitive(False)
+            menu.append(it)
+        for text, action in menu_lines(state, now):
             if text == "-":
                 menu.append(Gtk.SeparatorMenuItem())
                 continue
             it = Gtk.MenuItem(label=text, use_underline=False)
             if action and action[0] == "use" and daemon.state_fresh(state):
                 it.connect("activate", use, action[1])
+            elif action and action[0] == "open":
+                it.connect("activate", open_uri, action[1])
             else:
                 it.set_sensitive(False)
             menu.append(it)
@@ -234,12 +314,25 @@ def run():
             root.set_submenu(sub)
             menu.append(root)
         menu.append(Gtk.SeparatorMenuItem())
-        s = load_settings()
         for label, section in (("Bascule automatique", "auto_switch"), ("Orchestrateur", "orchestrator")):
-            check = Gtk.CheckMenuItem(label=label)
+            check = Gtk.CheckMenuItem(label=label + (" (en pause)" if paused else ""))
             check.set_active(s[section]["enabled"])
             check.connect("toggled", toggle, section)
             menu.append(check)
+        if paused:
+            for text, choice in pause_items:
+                it = Gtk.MenuItem(label=f"▶ {text}")
+                it.connect("activate", set_pause, choice)
+                menu.append(it)
+        else:
+            root = Gtk.MenuItem(label="Mettre en pause")
+            sub = Gtk.Menu()
+            for text, choice in pause_items:
+                it = Gtk.MenuItem(label=text)
+                it.connect("activate", set_pause, choice)
+                sub.append(it)
+            root.set_submenu(sub)
+            menu.append(root)
         for label, cb in (("Actualiser", refresh), ("Ouvrir Comptes Claude", launch_gui)):
             it = Gtk.MenuItem(label=label)
             it.connect("activate", cb)
@@ -250,5 +343,6 @@ def run():
 
     rebuild()
     GLib.timeout_add_seconds(REFRESH_S, rebuild)
+    GLib.timeout_add_seconds(CODE_CHECK_S, watch_code)
     Gtk.main()
     return 0

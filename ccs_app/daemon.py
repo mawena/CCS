@@ -9,9 +9,9 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import alerts, autoswitch, core, notify, orchestrator
+from . import alerts, autoswitch, core, notify, orchestrator, pause, updates
 from .forecast import (AccountState, best_account, capacity, effective_percent,
-                       session_forecast, weekly_pace)
+                       session_forecast, weekly_forecast, weekly_pace)
 from .settings import load_settings
 from .store import RETENTION_S, Store
 
@@ -41,6 +41,21 @@ def states_from_state(state):
     return out
 
 
+def waiting_reminders(sessions, reminded, ts, threshold_s):
+    """Sessions en attente depuis au moins `threshold_s` et pas encore rappelées,
+    et instant du prochain rappel (None s'il n'y en a pas) : ([Session], float | None)."""
+    due, next_at = [], None
+    for s in sessions:
+        if s.state != "waiting" or s.pid in reminded:
+            continue
+        at = (s.state_since or ts) + threshold_s
+        if at <= ts:
+            due.append(s)
+        elif next_at is None or at < next_at:
+            next_at = at
+    return due, next_at
+
+
 def state_path():
     return core.paths().store / "state.json"
 
@@ -49,11 +64,24 @@ def pid_path():
     return core.paths().store / "daemon.pid"
 
 
+def _show_session(ref, token=None):
+    from . import desktop
+    return desktop.show_session(ref, token)
+
+
+def _session_alert(key, title, body, session):
+    """Notification d'une session : un clic (ou « Afficher ») ouvre l'application dessus."""
+    from .attention import SHOW_PREFIX, session_ref
+    show = SHOW_PREFIX + session_ref(session)
+    return alerts.Alert(key, title, body, 1, ((show, "Afficher"),), default=show)
+
+
 class Daemon:
-    def __init__(self, store, notifier=notify.send, starter=None):
+    def __init__(self, store, notifier=notify.send, starter=None, shower=None):
         self.store = store
         self.notifier = notifier
         self.starter = starter or self._start_window
+        self.shower = shower or _show_session  # (référence de session, jeton d'activation)
         self.states = {}            # dernier AccountState connu par profil
         self.previous_sessions = {}  # limite session au tick précédent
         self.last_full = None
@@ -62,6 +90,9 @@ class Daemon:
         self.prev_sessions = None   # pid -> Session (dernier état vu)
         self.sessions_lock = threading.Lock()
         self.session_notified = {}  # pid -> instant de la dernière notification
+        self.reminded = set()       # pid des sessions en attente déjà rappelées (cette attente)
+        self.next_reminder = None   # instant du prochain rappel d'attente (secondes)
+        self.waiting_seen = {}      # pid -> premier relevé où la session attendait
         self.hooks = []             # fonctions (daemon, states, settings, now) appelées à chaque tick
 
     # ---- collecte ---------------------------------------------------------
@@ -109,9 +140,17 @@ class Daemon:
 
     # ---- actions de notification et sessions ---------------------------------
 
-    def handle_action(self, key, now, settings=None):
-        """Bouton cliqué dans une notification : « use:<profil> », revérifié au moment du clic."""
+    def handle_action(self, key, now, settings=None, token=None):
+        """Clic dans une notification. « use:<profil> » : bascule, revérifiée au moment du clic
+        (True si elle a eu lieu : relevé immédiat). « show:<session> » : ouvre l'application
+        sur cette session (`token` : jeton d'activation du bureau)."""
         kind, _, name = key.partition(":")
+        if kind == "show":
+            try:
+                self.shower(name, token)
+            except Exception:
+                log.exception("affichage de la session impossible")
+            return False
         if kind != "use":
             return False
         names = {p.name for p in core.list_profiles()}
@@ -149,9 +188,11 @@ class Daemon:
         from . import sessions
         cur = sessions.list_sessions()
         prev, self.prev_sessions = self.prev_sessions, {s.pid: s for s in cur}
-        if prev is None or not (settings["alerts"]["enabled"] and settings["alerts"]["sessions"]):
-            return
+        cfg = settings["alerts"]
         ts = now.timestamp()
+        self._remind_waiting(cur, prev is None, cfg, ts)
+        if prev is None or not (cfg["enabled"] and cfg["sessions"]):
+            return
         for s, kind in sessions.transitions(prev, cur, ts):
             if ts - self.session_notified.get(s.pid, 0) < SESSION_NOTIFY_GAP_S:
                 continue
@@ -161,7 +202,37 @@ class Daemon:
                 body = f"Session {s.name}" + (f" — {s.waiting_for}" if s.waiting_for else "")
             else:
                 title, body = f"{s.project} a terminé", f"Session {s.name} — prête pour la suite."
-            self.notifier(alerts.Alert(f"session:{s.pid}:{ts:.0f}", title, body, 1))
+            self.notifier(_session_alert(f"session:{s.pid}:{ts:.0f}", title, body, s))
+
+    def _remind_waiting(self, cur, first, cfg, ts):
+        """Rappel unique par attente : session « waiting » depuis plus de N minutes."""
+        threshold = cfg["waiting_reminder_min"] * 60
+        waiting = {s.pid for s in cur if s.state == "waiting"}
+        # Session qui n'attend plus (ou disparue) : rappel de nouveau possible à sa prochaine attente.
+        self.reminded &= waiting
+        # Fiche sans date de changement d'état : l'attente part du premier relevé qui l'a vue.
+        self.waiting_seen = {pid: t for pid, t in self.waiting_seen.items() if pid in waiting}
+        for s in cur:
+            if s.state == "waiting":
+                self.waiting_seen.setdefault(s.pid, ts)
+                if not s.state_since:
+                    s.state_since = self.waiting_seen[s.pid]
+        if first:
+            # Service (re)démarré : une attente déjà ancienne n'est pas rappelée à nouveau.
+            self.reminded |= {s.pid for s in cur if s.state == "waiting"
+                              and ts - (s.state_since or ts) >= threshold}
+        if not (cfg["enabled"] and cfg["waiting_reminder"] and threshold > 0):
+            self.next_reminder = None
+            return
+        due, self.next_reminder = waiting_reminders(cur, self.reminded, ts, threshold)
+        for s in due:
+            self.reminded.add(s.pid)
+            minutes = int((ts - (s.state_since or ts)) // 60)
+            body = f"Session {s.name} — en attente depuis {minutes} min"
+            if s.waiting_for:
+                body += f" ({s.waiting_for})"
+            self.notifier(_session_alert(f"rappel:{s.pid}:{ts:.0f}",
+                                         f"{s.project} attend toujours ta réponse", body, s))
 
     def detect_manual_switch(self, now):
         active = core.active_profile_name()
@@ -178,6 +249,7 @@ class Daemon:
 
     def tick(self, settings, now):
         poll = settings["poll"]
+        paused = self._pause(settings, now)
         self.detect_manual_switch(now)
         profiles = {p.name: p for p in core.list_profiles()}
         active = next((n for n, p in profiles.items() if p.active), None)
@@ -199,6 +271,7 @@ class Daemon:
 
         forecasts = {s.name: self._forecast(s, now) for s in states}
         paces = {s.name: weekly_pace(s.weekly, now) for s in states}
+        weeklies = {s.name: weekly_forecast(s.weekly, now) for s in states}
         fc = forecasts.get(active)
         act = next((s for s in states if s.name == active), None)
         fast = act is not None and (
@@ -207,10 +280,15 @@ class Daemon:
         delay = poll["fast_s"] if fast else poll["normal_s"]
 
         ocfg = settings["orchestrator"]
-        orch_on = ocfg["enabled"]
-        reserve = orchestrator.reserve_set(states, paces, ocfg) if orch_on else set()
+        # En pause : ni bascule automatique ni action de l'orchestrateur (la réserve
+        # reste calculée : elle oriente aussi la recommandation affichée).
+        orch_on = ocfg["enabled"] and paused is None
+        reserve = orchestrator.reserve_set(states, paces, ocfg) if ocfg["enabled"] else set()
         events = self.store.events((now - EVENTS_LOOKBACK).timestamp())
-        decision = autoswitch.decide(states, active, fc, settings, now, events, delay, reserve)
+        if paused is not None:
+            decision = autoswitch.none(f"en pause {pause.label(paused, now)}")
+        else:
+            decision = autoswitch.decide(states, active, fc, settings, now, events, delay, reserve)
         switched = False
         if decision.action == "switch":
             switched = autoswitch.execute(decision, self.store, now)
@@ -233,11 +311,14 @@ class Daemon:
             wake = orchestrator.next_wake(states, now, ocfg)
             if wake is not None:
                 delay = max(30.0, min(delay, (wake - now).total_seconds()))
+        if paused is not None and paused.until is not None:
+            # Réveil à l'échéance de la pause, pour reprendre sans attendre le relevé suivant.
+            delay = max(1.0, min(delay, (paused.until - now).total_seconds() + 1))
 
         sent = {e.detail.get("key") for e in
                 self.store.events((now - ALERTS_LOOKBACK).timestamp(), type="alert")}
         pending = alerts.pending_alerts(states, active, fc, paces, best, settings, now,
-                                        sent, self.previous_sessions)
+                                        sent, self.previous_sessions, weeklies)
         da = alerts.decision_alert(decision, now)
         if decision.action == "switch" and not switched:
             da = None  # échec journalisé (event error), pas d'annonce trompeuse
@@ -251,6 +332,9 @@ class Daemon:
             self.on_sessions(settings, now)
         except Exception:
             log.exception("suivi des sessions en échec")
+        if self.next_reminder is not None:
+            # Réveil à l'heure du prochain rappel d'attente.
+            delay = max(5.0, min(delay, self.next_reminder - now.timestamp() + 1))
 
         for hook in self.hooks:
             try:
@@ -260,11 +344,26 @@ class Daemon:
 
         self.previous_sessions = {s.name: s.session for s in states}
         self.write_state(states, profiles, forecasts, paces, best, decision, settings, now,
-                         reserve)
+                         reserve, weeklies, paused)
         if self.last_prune is None or now - self.last_prune > timedelta(days=1):
             self.store.prune(now.timestamp() - RETENTION_S)
             self.last_prune = now
         return delay
+
+    def _pause(self, settings, now):
+        """Pause en cours ; une pause échue est levée et annoncée une fois."""
+        try:
+            ended = pause.expire(now)
+        except OSError:  # fichier impossible à supprimer : la pause échue ne compte plus
+            log.exception("levée de la pause impossible")
+            ended = None
+        if ended is not None and settings["alerts"]["enabled"]:
+            a = alerts.Alert(f"pause_end:{ended.since.timestamp():.0f}", "Pause terminée",
+                             "La bascule automatique et l'orchestrateur reprennent "
+                             "selon les réglages.", 0)
+            self.notifier(a)
+            self.store.add_event(now.timestamp(), "alert", None, {"key": a.key, "title": a.title})
+        return pause.pause_state(now)
 
     def _forecast(self, s, now):
         samples = [(ts, pct) for ts, pct, _ in
@@ -274,12 +373,13 @@ class Daemon:
     # ---- état partagé -------------------------------------------------------
 
     def write_state(self, states, profiles, forecasts, paces, best, decision, settings, now,
-                    reserve=frozenset()):
+                    reserve=frozenset(), weeklies=None, paused=None):
         last_auto = self.store.last_event("switch")
         accounts = []
         for s in states:
             p = profiles[s.name]
             fc, pace = forecasts.get(s.name), paces.get(s.name)
+            wf = (weeklies or {}).get(s.name)
             accounts.append({
                 "name": s.name, "email": p.email, "org": p.org, "plan": p.plan,
                 "active": s.active, "error": s.error, "fetched_at": s.fetched_at,
@@ -291,6 +391,7 @@ class Daemon:
                 "pace": pace and {"ideal": pace.ideal, "margin": pace.margin,
                                   "per_day_budget": pace.per_day_budget,
                                   "days_left": pace.days_left},
+                "weekly_forecast": wf and wf.as_dict(),
             })
         core.atomic_write_json(state_path(), {
             "updated_at": now.timestamp(),
@@ -299,29 +400,43 @@ class Daemon:
             "best": best and {"name": best.name, "reason": best.reason},
             "auto_switch": {
                 "enabled": settings["auto_switch"]["enabled"],
+                "paused": paused is not None,
                 "decision": {"action": decision.action, "target": decision.target,
                              "reason": decision.reason},
                 "last": last_auto and {"ts": last_auto.ts, "profile": last_auto.profile,
                                        "mode": last_auto.detail.get("mode")},
             },
             "accounts": accounts,
-            "orchestrator": self._orchestrator_state(states, settings, now, reserve),
+            "orchestrator": self._orchestrator_state(states, settings, now, reserve, paused),
+            # Mode pause : {"since", "until" (None : reprise manuelle), "label"} ou None.
+            "pause": paused.as_dict(now) if paused is not None else None,
+            # Nouvelle version publiée : {"version", "url", "name"} ou None (cache, sans réseau).
+            "update": self._update_state(settings),
         })
 
-    def _orchestrator_state(self, states, settings, now, reserve):
+    @staticmethod
+    def _update_state(settings):
+        if not settings["updates"]["enabled"]:
+            return None
+        release = updates.available()
+        return release and {"version": release.version, "url": release.url, "name": release.name}
+
+    def _orchestrator_state(self, states, settings, now, reserve, paused=None):
         ocfg = settings["orchestrator"]
+        running = ocfg["enabled"] and paused is None
         bounds = orchestrator.period_bounds(now, ocfg["active_hours"])
-        wake = orchestrator.next_wake(states, now, ocfg) if ocfg["enabled"] else None
+        wake = orchestrator.next_wake(states, now, ocfg) if running else None
         return {
             "enabled": ocfg["enabled"],
+            "paused": paused is not None,
             "active_now": bounds is not None,
             "period": bounds and [_iso(bounds[0]), _iso(bounds[1])],
             "reserve": sorted(reserve),
             "next_wake": _iso(wake),
-            # Désactivé : seulement les fenêtres en cours, rien de « prévu ».
+            # Désactivé ou en pause : seulement les fenêtres en cours, rien de « prévu ».
             "plan": [{"name": w.name, "start": _iso(w.start), "end": _iso(w.end), "kind": w.kind}
                      for w in orchestrator.plan(states, now, ocfg)
-                     if ocfg["enabled"] or w.kind == "current"],
+                     if running or w.kind == "current"],
         }
 
 
@@ -428,8 +543,8 @@ def run():
     def now_utc():
         return datetime.now(timezone.utc)
 
-    def on_action(key):
-        if d.handle_action(key, now_utc()):
+    def on_action(key, token=None):
+        if d.handle_action(key, now_utc(), token=token):
             wake.set()
     bridge = desktop.Bridge(on_action, lambda: d.on_sessions(load_settings(), now_utc()),
                             sessions.sessions_dir())
@@ -440,6 +555,7 @@ def run():
         d.hooks.append(warmup.hook)
     except ImportError:
         pass
+    d.hooks.append(updates.hook)  # nouvelle version : au plus une vérification par jour
     log.info("daemon démarré")
     stamp = code_stamp()
     exit_code = 0

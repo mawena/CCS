@@ -1,3 +1,28 @@
+ccs (0.5.0) unstable; urgency=medium
+
+  * Terminal intégré : reprise d'une conversation, nouvelle session et
+    shell dans des onglets de l'application (VTE), page Terminaux, confort
+    de terminal, confirmation avant fermeture, repli sur un terminal externe.
+  * Suite du terminal : reprise automatique après une limite (avec
+    ccs integrate), onglets rouverts au redémarrage, deux sessions côte à
+    côte, messages en attente envoyés quand Claude est libre.
+  * Renommer une conversation (ccs title, application).
+  * Nouvelle session avancée : dossier, compte, modèle et mode de
+    permissions.
+  * Mode pause (ccs pause, indicateur, application) : plus aucune bascule
+    automatique, y compris après un blocage, ni orchestrateur.
+  * Prévision de fin de semaine par compte et alerte 2 jours avant ;
+    rappel quand une session attend depuis plus de 10 min.
+  * Notifications de session cliquables, badge des sessions en attente.
+  * ccs doctor : bilan de santé avec la commande qui corrige.
+  * Aperçu d'une conversation, export Markdown (ccs preview, ccs export),
+    coût par conversation en équivalent API.
+  * Avertissement de nouvelle version ; l'indicateur se relance seul après
+    une mise à jour.
+  * Dépendances : gir1.2-vte-3.91, gir1.2-adw-1 (>= 1.5).
+
+ -- mawena <gamligocharles@gmail.com>  Fri, 06 Nov 2026 12:00:00 +0000
+
 ccs (0.4.0) unstable; urgency=medium
 
   * Historique de toutes les conversations Claude Code du PC (terminal et

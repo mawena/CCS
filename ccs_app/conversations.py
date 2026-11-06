@@ -10,6 +10,7 @@ Titre affiché, comme dans l'extension VS Code : titre donné par l'utilisateur
 demande.
 """
 
+import glob
 import json
 import os
 import shlex
@@ -177,6 +178,18 @@ def _to_conversation(path, e, cwd=None):
         prompts=e["prompts"], started_at=e["started_at"], updated_at=e["mtime"],
         origin=ORIGINS.get(e["entrypoint"] or "", "autre"), git_branch=e["git_branch"] or "",
         size=e["size"], folder_exists=bool(cwd) and os.path.isdir(cwd))
+
+
+def from_journal(path, cwd=None):
+    """Conversation d'un seul journal (aperçu depuis l'onglet Sessions). L'index de scan()
+    sert s'il est à jour ; sinon seule la fin non lue est parcourue. `cwd` : dossier à
+    prendre si le journal n'en dit rien."""
+    path = Path(path)
+    entry = _load_cache().get(str(path))
+    st = path.stat()
+    if not entry or entry.get("size") != st.st_size or entry.get("mtime") != st.st_mtime:
+        entry = read_entry(path, entry)
+    return _to_conversation(path, entry, None if entry.get("cwd") else cwd)
 
 
 def scan():
@@ -384,6 +397,66 @@ def relocate(conv, new_cwd):
         moves[str(dest)] = new_cwd
         core.atomic_write_json(moves_path(), moves)
     return replace(conv, cwd=new_cwd, path=str(dest), folder_exists=True)
+
+
+# ---- renommage -------------------------------------------------------------------------
+
+RENAME_MAX = 200
+
+
+def clean_title(title):
+    """Titre sur une ligne ; ValueError s'il est vide ou trop long."""
+    title = " ".join((title or "").split())
+    if not title:
+        raise ValueError("le titre ne peut pas être vide")
+    if len(title) > RENAME_MAX:
+        raise ValueError(f"titre trop long ({RENAME_MAX} caractères au plus)")
+    return title
+
+
+def journal_of(session_id, cwd=None, path=None):
+    """Journal d'une conversation : `path` s'il est donné, sinon celui du dossier de projet
+    de `cwd`, sinon le plus récent des projets qui contiennent cet identifiant."""
+    if path:
+        found = Path(path)
+    else:
+        found = sessions.transcript_path(cwd, session_id) if cwd else None
+        if found is None or not found.is_file():
+            root = sessions.projects_dir()
+            copies = sorted(root.glob(f"*/{glob.escape(session_id)}.jsonl") if root.is_dir() else (),
+                            key=lambda p: p.stat().st_mtime, reverse=True)
+            found = copies[0] if copies else None
+    if found is None or not found.is_file():
+        raise FileNotFoundError(f"journal introuvable pour la conversation {session_id}")
+    return found
+
+
+def rename(session_id, title, cwd=None, path=None):
+    """Renomme une conversation comme `/rename` dans Claude Code : une ligne `custom-title`
+    ajoutée à la fin du journal (le dernier titre l'emporte). Renvoie le titre retenu.
+
+    Le journal n'est jamais réécrit : la ligne part en un seul write() en mode ajout
+    (O_APPEND), qui ne peut pas s'entremêler avec les lignes qu'une session ouverte écrit
+    au même moment. Une session ouverte relit la fin du journal avant de réécrire ses
+    métadonnées et garde donc ce titre."""
+    title = clean_title(title)
+    journal = journal_of(session_id, cwd, path)
+    data = json.dumps({"type": "custom-title", "sessionId": session_id, "customTitle": title},
+                      ensure_ascii=False, separators=(",", ":")) + "\n"
+    fd = os.open(journal, os.O_WRONLY | os.O_APPEND | os.O_CLOEXEC)
+    try:
+        size = os.fstat(fd).st_size
+        if size:
+            with open(journal, "rb") as fh:  # dernière ligne coupée : on la referme d'abord
+                fh.seek(size - 1)
+                if fh.read(1) != b"\n":
+                    data = "\n" + data
+        raw = data.encode()
+        if os.write(fd, raw) != len(raw):
+            raise OSError(f"écriture incomplète du titre dans {journal}")
+    finally:
+        os.close(fd)
+    return title
 
 
 def vscode_bin():

@@ -1,4 +1,4 @@
-.TH CCS 1 "novembre 2026" "ccs 0.4.0" "Commandes utilisateur"
+.TH CCS 1 "novembre 2026" "ccs 0.5.0" "Commandes utilisateur"
 .SH NOM
 ccs \- bascule entre plusieurs comptes Claude Code et suit leur usage
 .SH SYNOPSIS
@@ -35,7 +35,8 @@ Enregistre le compte actuellement connecté sous \fInom\fR.
 Connecte un nouveau compte avec \fBclaude auth login\fR et l'enregistre.
 .TP
 .B ccs status
-Compte actif, prévision de fin de session, meilleur compte, capacité restante.
+Compte actif, prévision de fin de session, meilleur compte, capacité restante,
+pause en cours.
 .TP
 .B ccs plan
 Planning des fenêtres de 5 h (en cours et prévues) et recharges à venir.
@@ -44,6 +45,15 @@ Planning des fenêtres de 5 h (en cours et prévues) et recharges à venir.
 Active ou désactive l'orchestrateur : enchaînement et décalage des fenêtres de
 5 h pendant la plage horaire, bascule vers le quota qui expire, réserve des
 comptes en avance sur leur semaine.
+.TP
+.B ccs pause \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBmanuel\fR|\fBoff\fR|\fBstatus\fR]
+Suspend la bascule automatique et l'orchestrateur pendant 1 h, 4 h, jusqu'au
+début de la prochaine plage horaire (\fBdemain\fR) ou jusqu'à reprise
+(\fBmanuel\fR) ; \fBoff\fR (ou \fBreprendre\fR) reprend aussitôt,
+\fBstatus\fR (défaut) affiche l'état. \fBdemain\fR suit la plage horaire de
+l'orchestrateur. Pendant une pause, CCS ne change plus de compte tout seul, même quand
+une session est bloquée par la limite ; les bascules manuelles, les alertes et
+les warm-up continuent. La pause se lève seule à l'échéance.
 .TP
 .B ccs sessions
 Sessions Claude Code ouvertes : projet, état, durée, consommation.
@@ -56,6 +66,23 @@ avec recherche et filtres.
 Reprend une conversation (identifiant complet ou ses 4 premiers caractères au
 moins) dans le terminal courant, dans VS Code ou dans un nouveau terminal.
 \fB\-\-dir\fR la reprend depuis un autre dossier (projet déplacé).
+.TP
+.B ccs title \fIid titre\fR...
+Renomme une conversation, comme \fB/rename\fR dans Claude Code (à ne pas
+confondre avec \fBccs rename\fR, qui renomme un profil).
+.TP
+.B ccs preview \fIid\fR
+Affiche une conversation en Markdown sur la sortie standard, sans la reprendre :
+demandes, réponses, outils utilisés en une ligne. L'en-tête donne le coût :
+tokens consommés (sous-agents compris) et équivalent au tarif de l'API
+Anthropic, à titre de comparaison (un abonnement ne facture pas au token).
+L'identifiant s'écrit comme pour \fBccs resume\fR. Alias : \fBccs apercu\fR.
+.TP
+.B ccs export \fIid\fR [\fIfichier.md\fR|\fIdossier\fR]
+Enregistre la conversation en Markdown, coût compris, puis affiche le chemin
+absolu du fichier écrit. Sans argument, \fI<titre>.md\fR (titre simplifié)
+dans le dossier courant ; un dossier reçoit ce même nom ; un fichier existant
+est remplacé. Alias : \fBccs exporter\fR.
 .TP
 .B ccs integrate on\fR|\fBoff\fR|\fBstatus
 Ligne d'état dans Claude Code et bascule automatique quand une session atteint
@@ -70,8 +97,16 @@ Active ou désactive la bascule automatique (seuil par défaut : 98 %).
 .BI "ccs analyze \fR[\fB\-\-days \fIN\fR]"
 Consommation locale par projet, modèle, heure et compte, avec conseils.
 .TP
+.B ccs doctor
+Bilan de santé (alias \fBccs bilan\fR) : service et relevés, version installée et version qui tourne,
+extension et indicateur de la barre du haut, intégration dans Claude Code,
+connexion de chaque compte, \fBclaude\fR, \fBjq\fR, terminal intégré. Pour
+chaque problème, affiche la commande qui le corrige, à copier : rien n'est
+exécuté. Voir CODE DE RETOUR.
+.TP
 .B ccs gui
-Ouvre l'application « Comptes Claude ».
+Ouvre l'application « Comptes Claude » ; les sessions qu'elle reprend ou démarre
+s'ouvrent dans des onglets de son terminal intégré.
 .TP
 .B ccs current
 Affiche le nom du profil actif.
@@ -85,12 +120,30 @@ Supprime un profil (le compte n'est pas déconnecté chez Anthropic).
 .TP
 .I ~/.claude-accounts/
 Profils (jetons OAuth, droits 600), historique \fIhistory.db\fR, réglages
-\fIsettings.json\fR, état courant \fIstate.json\fR, cache de l'historique des
-conversations \fIconversations-cache.json\fR, journaux copiés pour des projets
-déplacés \fIconversations-moves.json\fR.
+\fIsettings.json\fR, état courant \fIstate.json\fR, pause en cours
+\fIpause.json\fR, dernière version publiée \fIupdates.json\fR, cache de
+l'historique des conversations \fIconversations-cache.json\fR, journaux copiés
+pour des projets déplacés \fIconversations-moves.json\fR, onglets et options du
+terminal intégré \fIterminals.json\fR, marqueurs de limite atteinte par
+conversation \fIlimits/\fR.
 .TP
 .I ~/.claude/.credentials.json\fR, \fI~/.claude.json
 Fichiers de Claude Code réécrits lors d'une bascule.
+.TP
+.I ~/.claude/projects/*/*.jsonl
+Journaux des conversations : lus, et complétés d'une ligne de titre lors d'un
+renommage (\fBccs title\fR).
+.SH CODE DE RETOUR
+.B ccs doctor
+renvoie 0 si toutes les vérifications sont bonnes, 1 s'il y a au moins un
+avertissement ou une erreur.
+.B ccs preview
+et
+.B ccs export
+renvoient 1 si l'identifiant est inconnu ou ambigu, ou si la lecture ou
+l'écriture échoue.
+.B ccs pause
+renvoie 2 pour un choix inconnu.
 .SH ENVIRONNEMENT
 .TP
 .B CLAUDE_CONFIG_DIR
