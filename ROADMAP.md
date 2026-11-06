@@ -70,14 +70,14 @@ Les sessions Claude Code s'ouvrent dans la fenêtre de l'application, dans des
 onglets de terminal, au lieu d'une fenêtre de terminal séparée.
 
 - [x] `terminal` : commande et environnement de lancement (claude, `claude --resume`, shell), choix intégré ou externe, textes de fin, sans GTK (tests)
-- [ ] Terminal intégré VTE (GTK4) : onglets, copier/coller, liens Ctrl+clic, défilement arrière, police et couleurs du système, focus
-- [ ] Indicateur d'activité des onglets (travaille, attend ta réponse, arrêtée), bandeau de fin avec « Reprendre » et « Fermer »
-- [ ] Confirmation à la fermeture d'un onglet ou de la fenêtre quand claude tourne encore
-- [ ] Onglet Sessions : reprise, nouvelle session et « Terminal ici » dans l'application, terminal externe en option, « Afficher » pour une session déjà ouverte dans l'application
-- [ ] Onglet Conversations : reprise dans l'application par défaut, terminal externe dans le menu « … », « Afficher »
-- [ ] Repli sans VTE : terminal externe comme avant, message pour installer `gir1.2-vte-3.91`
-- [ ] Renommer une conversation (ligne `custom-title` ajoutée au journal) : onglets Sessions et Conversations, onglets du terminal, `ccs title`
-- [ ] Paquet : dépendance `gir1.2-vte-3.91`
+- [x] Terminal intégré VTE (GTK4) : onglets, copier/coller, liens Ctrl+clic, défilement arrière, police et couleurs du système, focus
+- [x] Indicateur d'activité des onglets (travaille, attend ta réponse, arrêtée), bandeau de fin avec « Reprendre » et « Fermer »
+- [x] Confirmation à la fermeture d'un onglet ou de la fenêtre quand claude tourne encore
+- [x] Onglet Sessions : reprise, nouvelle session et « Terminal ici » dans l'application, terminal externe en option, « Afficher » pour une session déjà ouverte dans l'application
+- [x] Onglet Conversations : reprise dans l'application par défaut, terminal externe dans le menu « … », « Afficher »
+- [x] Repli sans VTE : terminal externe comme avant, message pour installer `gir1.2-vte-3.91`
+- [x] Renommer une conversation (ligne `custom-title` ajoutée au journal) : onglets Sessions et Conversations, onglets du terminal, `ccs title`
+- [x] Paquet : dépendance `gir1.2-vte-3.91`
 - [ ] Essais réels dans une copie de développement (terminal intégré, repli sans VTE)
 - [ ] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
 - [ ] Suite de tests au vert, feature terminée et `develop` poussée
