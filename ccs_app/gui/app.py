@@ -9,14 +9,14 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from .. import attention, conversations, daemon, desktop, doctor, launch_options, pause, sessions, terminal  # noqa: E402,E501
+from .. import (attention, conversations, daemon, desktop, doctor, launch_options, pause, sessions,  # noqa: E402
+               switch_log, terminal)
 from ..settings import load_settings, save_settings  # noqa: E402
 from ..store import Store  # noqa: E402
 from .accounts import AccountsPage, add_account, set_pause  # noqa: E402
 from .analysis import AnalysisPage  # noqa: E402
-from .common import (ask_name, ask_title, in_thread, install_css, load_state, now_utc,  # noqa: E402
-                     refresh_data, run_ccs_async)
-from .conversations_page import ConversationsPage, cap, error_text  # noqa: E402
+from .common import (ask_name, ask_title, cap, error_text, in_thread, install_css, load_state,  # noqa: E402
+                     now_utc, refresh_data, run_ccs_async)
 from .doctor_dialog import show_doctor  # noqa: E402
 from .history import HistoryPage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
@@ -29,9 +29,9 @@ from .terminals import TerminalsPage  # noqa: E402
 APP_ID = desktop.APP_ID
 STALE_S = 600
 DOCTOR_DELAY_S = 4   # bilan de santé du démarrage : après le premier affichage
-# Sous cette largeur, les onglets passent dans la barre du bas : 7 onglets de même largeur
-# tiennent en 1350 px, 8 (avec « Terminaux ») en 1540 px.
-NARROW_SP = {False: 1350, True: 1540}
+# Sous cette largeur, les onglets passent dans la barre du bas : 6 onglets de même largeur
+# tiennent en 1080 px, 7 (avec « Terminaux ») en 1202 px (mesuré), plus une marge.
+NARROW_SP = {False: 1100, True: 1220}
 # Pendant une pause, « Auto ⏸ jusqu'à 14:00 » remplace « Auto » : le seuil monte de la
 # différence de largeur (mesurée), plus cette marge.
 PAUSE_MARGIN_SP = 16
@@ -87,7 +87,6 @@ class Window(Adw.ApplicationWindow):
         self.accounts = AccountsPage(self)
         self.planning = PlanningPage(self)
         self.sessions = SessionsPage(self)
-        self.conversations = ConversationsPage(self)
         self.terminals = TerminalsPage(self)
         self.history = HistoryPage(self)
         self.analysis = AnalysisPage(self)
@@ -96,7 +95,6 @@ class Window(Adw.ApplicationWindow):
                 (self.accounts, "accounts", "Comptes", "system-users-symbolic"),
                 (self.planning, "planning", "Planning", "x-office-calendar-symbolic"),
                 (self.sessions, "sessions", "Sessions", "utilities-terminal-symbolic"),
-                (self.conversations, "conversations", "Conversations", "chat-message-new-symbolic"),
                 (self.terminals, "terminals", "Terminaux", "tab-new-symbolic"),
                 (self.history, "history", "Historique", "document-open-recent-symbolic"),
                 (self.analysis, "analysis", "Analyse", "edit-find-symbolic"),
@@ -124,7 +122,7 @@ class Window(Adw.ApplicationWindow):
         view.add_bottom_bar(bottom_switcher)
         self.set_content(view)
         # Fenêtre étroite : onglets en bas, comme les applications GNOME (en dessous de
-        # NARROW_SP, « Conversations » serait tronqué en haut).
+        # NARROW_SP, les onglets du haut seraient tronqués).
         self.narrow = Adw.Breakpoint.new(self.narrow_condition())
         self.narrow.add_setter(top_switcher, "visible", False)
         self.narrow.add_setter(bottom_switcher, "reveal", True)
@@ -260,11 +258,8 @@ class Window(Adw.ApplicationWindow):
             self.back_to = name
             self.terminals.update_badge()
         self.sessions.visible_page = name == "sessions"
-        self.conversations.visible_page = name == "conversations"
         if name == "sessions":
             self.sessions.load()
-        elif name == "conversations":
-            self.conversations.load()
         if name == "history":
             self.history.render(load_state(), self.store)
         elif name == "analysis":
@@ -355,9 +350,21 @@ class Window(Adw.ApplicationWindow):
         for delay in (2000, 8000):  # le temps que la session apparaisse
             GLib.timeout_add(delay, lambda: (self.sessions.visible_page and self.sessions.load(), False)[1])
 
+    def show_page(self, name):
+        """Affiche l'onglet `name` (nom du ViewStack, cf. desktop.page_name). Terminaux sans
+        onglet ouvert : l'onglet Sessions, avec un message."""
+        name = desktop.page_name(name)
+        if name is None:
+            return None
+        if name == "terminals" and not self.terminals_page.get_visible():
+            self.toast("Aucun terminal ouvert dans l'application")
+            name = "sessions"
+        self.stack.set_visible_child_name(name)
+        return name
+
     def show_session(self, ref):
         """Session désignée par une notification : son onglet s'il y en a un, sinon sa carte
-        dans l'onglet Sessions, mise en évidence."""
+        dans l'onglet Sessions (projet de la session choisi), mise en évidence."""
         target = attention.focus_target(ref, self.terminals.states())
         if target is None:
             return None
@@ -376,11 +383,9 @@ class Window(Adw.ApplicationWindow):
 
     def terminals_changed(self):
         """Un onglet s'est ouvert, arrêté, fermé ou a appris sa conversation : les boutons
-        « Afficher » des onglets Sessions et Conversations suivent."""
+        « Afficher » de l'onglet Sessions suivent."""
         if self.sessions.visible_page:
             self.sessions.rerender()
-        if self.conversations.visible_page:
-            self.conversations.rerender()
 
     def on_close_request(self, *_):
         if self.closing:
@@ -429,9 +434,7 @@ class Window(Adw.ApplicationWindow):
         if tab is not None:
             tab.set_title(result)
         self.toast(f"Conversation renommée « {result} »")
-        if self.conversations.convs is not None:
-            self.conversations.load()
-        if self.sessions.visible_page:
+        if self.sessions.visible_page or self.sessions.convs is not None:
             self.sessions.load()
 
     # ---- actions -----------------------------------------------------------------
@@ -440,6 +443,7 @@ class Window(Adw.ApplicationWindow):
         self.toasts.add_toast(Adw.Toast(title=GLib.markup_escape_text(text), timeout=4))
 
     def switch(self, name):
+        switch_log.note_origin(name, "application")   # pour le journal des bascules
         run_ccs_async(self, ["use", name],
                       f"Basculé sur « {name} » — les sessions ouvertes suivront à leur prochaine requête")
 
@@ -471,17 +475,25 @@ class Window(Adw.ApplicationWindow):
 
 
 class App(Adw.Application):
-    """Instance unique. Action d'application « show-session » (paramètre : référence de
-    session, cf. attention.parse_session_ref) : appelée par le service quand on clique sur
-    une notification, ou par `claude-accounts gui --session <réf>`."""
+    """Instance unique. Actions d'application, appelées aussi par une deuxième instance
+    (`claude-accounts gui …` alors que l'application tourne) :
+    - « show-session » (paramètre : référence de session, cf. attention.parse_session_ref) :
+      clic sur une notification, ou `gui --session <réf>` ;
+    - « show-page » (paramètre : nom d'un onglet, cf. desktop.page_name) : `gui --page` ;
+    - « new-session » (sans paramètre) : `gui --new-session`."""
 
-    def __init__(self, session=None):
+    def __init__(self, session=None, page=None, new_session=False):
         # CCS_APP_ID : lancer une instance distincte (tests) sans réveiller l'application ouverte.
         super().__init__(application_id=desktop.app_id(), flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.pending_session = session
-        show = Gio.SimpleAction.new(desktop.SHOW_ACTION, GLib.VariantType.new("s"))
-        show.connect("activate", lambda _a, v: self.show_session(v.get_string()))
-        self.add_action(show)
+        self.pending_page = page
+        self.pending_new_session = bool(new_session)
+        for name, kind, handler in ((desktop.SHOW_ACTION, "s", lambda v: self.show_session(v.get_string())),
+                                    (desktop.SHOW_PAGE_ACTION, "s", lambda v: self.show_page(v.get_string())),
+                                    (desktop.NEW_SESSION_ACTION, None, lambda _v: self.new_session())):
+            action = Gio.SimpleAction.new(name, GLib.VariantType.new(kind) if kind else None)
+            action.connect("activate", lambda _a, v, h=handler: h(v))
+            self.add_action(action)
 
     def window(self):
         win = self.props.active_window or next(iter(self.get_windows()), None)
@@ -500,26 +512,57 @@ class App(Adw.Application):
     def do_activate(self):
         win = self.window()
         win.present()
+        if self.pending_page:
+            page, self.pending_page = self.pending_page, None
+            win.show_page(page)
         if self.pending_session:
             ref, self.pending_session = self.pending_session, None
             win.show_session(ref)
+        if self.pending_new_session:
+            self.pending_new_session = False
+            GLib.idle_add(lambda: (win.new_session(), False)[1])   # fenêtre affichée d'abord
 
     def show_session(self, ref):
         win = self.window()
         win.present()
         win.show_session(ref)
 
+    def show_page(self, name):
+        win = self.window()
+        win.present()
+        win.show_page(name)
 
-def run(session=None):
-    app = App(session)
+    def new_session(self):
+        win = self.window()
+        win.present()
+        win.new_session()
+
+
+def remote_actions(session=None, page=None, new_session=False):
+    """[(action, paramètre)] à envoyer à l'application déjà ouverte, dans l'ordre."""
+    out = []
+    if page:
+        out.append((desktop.SHOW_PAGE_ACTION, GLib.Variant("s", page)))
     if session:
+        out.append((desktop.SHOW_ACTION, GLib.Variant("s", session)))
+    if new_session:
+        out.append((desktop.NEW_SESSION_ACTION, None))
+    return out
+
+
+def run(session=None, page=None, new_session=False):
+    app = App(session, page, new_session)
+    actions = remote_actions(session, page, new_session)
+    if actions:
         try:
             app.register(None)
         except GLib.Error:
             pass
         if app.get_is_remote():
-            # Application déjà ouverte : elle affiche la session ; run() ci-dessous la met au
-            # premier plan et envoie les deux messages avant de rendre la main.
-            app.pending_session = None
-            app.activate_action(desktop.SHOW_ACTION, GLib.Variant("s", session))
+            # Application déjà ouverte : elle affiche l'onglet, la session ou le dialogue ;
+            # run() ci-dessous la met au premier plan et envoie les messages avant de rendre
+            # la main.
+            app.pending_session, app.pending_page, app.pending_new_session = None, None, False
+            for name, value in actions:
+                app.activate_action(name, value)
     return app.run([sys.argv[0]])

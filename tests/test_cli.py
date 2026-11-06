@@ -229,11 +229,32 @@ class GuiCliTest(HomeTestCase):
         for argv in ((), ("gui",)):
             code, launched = self.run_gui(*argv)
             self.assertEqual(code, 0)
-            launched.assert_called_once_with(session=None)
+            launched.assert_called_once_with(session=None, page=None, new_session=False)
 
     def test_session_from_a_notification(self):
         code, launched = self.run_gui("gui", "--session", "4242:3f2a9c1e")
-        launched.assert_called_once_with(session="4242:3f2a9c1e")
+        launched.assert_called_once_with(session="4242:3f2a9c1e", page=None, new_session=False)
+
+    def test_page(self):
+        for text, name in (("sessions", "sessions"), ("historique", "history"), ("Réglages", "prefs"),
+                           ("analysis", "analysis")):
+            code, launched = self.run_gui("gui", "--page", text)
+            self.assertEqual(code, 0)
+            launched.assert_called_once_with(session=None, page=name, new_session=False)
+
+    def test_unknown_page_is_refused(self):
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err), self.assertRaises(SystemExit) as raised:
+            self.run_gui("gui", "--page", "inconnu")
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("onglet inconnu", err.getvalue())
+        self.assertIn("sessions, comptes, planning", err.getvalue())
+
+    def test_new_session(self):
+        code, launched = self.run_gui("gui", "--new-session")
+        launched.assert_called_once_with(session=None, page=None, new_session=True)
+        code, launched = self.run_gui("gui", "--page", "comptes", "--new-session")
+        launched.assert_called_once_with(session=None, page="accounts", new_session=True)
 
 
 class DoctorCliTest(HomeTestCase):
