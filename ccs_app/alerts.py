@@ -1,9 +1,17 @@
-"""Alertes : quoi notifier, une seule fois par seuil et par fenêtre (pur)."""
+"""Alertes : quoi notifier, une seule fois par seuil et par fenêtre.
 
+Pur, sauf le conseil de modèle qui lit la fin des journaux récents (avec cache), et
+seulement quand le compte actif dépasse son seuil sans que le conseil de cette fenêtre
+ait déjà été donné.
+"""
+
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from .forecast import effective_percent, fmt_days, fmt_when, weekly_forecast
+
+log = logging.getLogger("ccs.alerts")
 
 # L'API renvoie des heures de réinitialisation qui varient de quelques
 # secondes d'un appel à l'autre : on identifie une fenêtre à 10 min près.
@@ -138,7 +146,20 @@ def pending_alerts(accounts, active, fc, paces, best, settings, now, sent_keys, 
             if key not in sent_keys:
                 out.append(Alert(key, f"{acc.name} : connexion expirée",
                                  f"Reconnecte ce compte : ccs rm {acc.name} puis ccs add {acc.name}.", 1))
+    advice = _model_advice(next((a for a in accounts if a.name == active), None), cfg, now, sent_keys)
+    if advice:
+        out.append(advice)
     return out
+
+
+def _model_advice(acc, cfg, now, sent_keys):
+    """Conseil de modèle du compte actif ; une lecture impossible n'empêche aucune alerte."""
+    from . import model_advice
+    try:
+        return model_advice.pending(acc, cfg, now, sent_keys)
+    except Exception:  # noqa: BLE001 — journaux illisibles : pas de conseil, jamais de tick en échec
+        log.exception("conseil de modèle impossible")
+        return None
 
 
 def decision_alert(decision, now):

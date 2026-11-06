@@ -388,6 +388,28 @@ class PauseHookTest(HookBase):
                              "basculé sur boulot")
 
 
+class StatuslineModelHintTest(HomeTestCase):
+    def test_hint_from_the_session_model(self):
+        payload = {"model": {"id": "claude-opus-5-5", "display_name": "Opus 5.5"}}
+        text = integration.statusline_text(STATE, NOW, payload)
+        self.assertIn("sem. 49 % · → sonnet ?", text)
+        self.assertNotIn("?", integration.statusline_text(STATE, NOW))
+        self.assertNotIn("?", integration.statusline_text(STATE, NOW, {"model": {"id": "claude-haiku-5-5"}}))
+
+    def test_hint_follows_the_settings(self):
+        s = copy.deepcopy(DEFAULTS)
+        s["alerts"]["model_advice"] = False
+        payload = {"model": {"id": "claude-opus-5-5"}}
+        self.assertNotIn("?", integration.statusline_text(STATE, NOW, payload, settings=s))
+        s["alerts"]["model_advice"] = True
+        s["alerts"]["model_advice_pct"] = 90
+        self.assertNotIn("?", integration.statusline_text(STATE, NOW, payload, settings=s))
+
+    def test_bad_payload_is_ignored(self):
+        for payload in ("texte", {"model": 3}, {"model": None}, None):
+            self.assertNotIn("?", integration.statusline_text(STATE, NOW, payload))
+
+
 class StatuslinePauseTest(HomeTestCase):
     def test_pause_symbol(self):
         st = dict(STATE, pause={"since": "…", "until": None, "label": "jusqu'à reprise manuelle"})

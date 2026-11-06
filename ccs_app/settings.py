@@ -23,6 +23,10 @@ DEFAULTS = {
         "sessions": True,
         "waiting_reminder": True,
         "waiting_reminder_min": 10,
+        # Conseil de modèle : compte actif au-delà de ce % (session ou semaine) avec un
+        # modèle cher → proposer la famille moins chère (une fois par fenêtre de 5 h).
+        "model_advice": True,
+        "model_advice_pct": 80,
     },
     "poll": {"normal_s": 300, "fast_s": 60},
     # Conseiller de formule (`advisor`) : semaines analysées, marge de sécurité,

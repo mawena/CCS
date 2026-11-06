@@ -152,13 +152,22 @@ def _hm(iso):
     return f"{dt.astimezone():%H:%M}" if dt else ""
 
 
-def statusline_text(state, now):
-    """Ligne d'état ; « ⏸ » en tête pendant une pause de CCS."""
-    text = _statusline(state, now)
+def statusline_text(state, now, payload=None, settings=None):
+    """Ligne d'état ; « ⏸ » en tête pendant une pause de CCS.
+
+    `payload` : contexte JSON envoyé par Claude Code (dont le `model` de la session).
+    Avec un modèle cher et le compte actif au-delà du seuil du conseil de modèle, la
+    ligne ajoute « → sonnet ? » ; rien sinon."""
+    hint = ""
+    model = payload.get("model") if isinstance(payload, dict) else None
+    if model:
+        from . import model_advice
+        hint = model_advice.statusline_hint(state, model, settings or load_settings(), now)
+    text = _statusline(state, now, hint)
     return f"⏸ {text}" if (state or {}).get("pause") else text
 
 
-def _statusline(state, now):
+def _statusline(state, now, hint=""):
     active = (state or {}).get("active")
     acc = next((a for a in (state or {}).get("accounts") or [] if a.get("name") == active), None)
     if not acc or not acc.get("limits"):
@@ -173,6 +182,8 @@ def _statusline(state, now):
         parts.append(f"⏱{_hm(fc['eta'])}")
     if w:
         parts.append(f"sem. {w['percent']:.0f} %")
+    if hint:
+        parts.append(hint)
     best = (state.get("best") or {}).get("name")
     if best and best != active and pct >= 80:
         parts.append(f"→ {best}")

@@ -1,7 +1,9 @@
 import copy
 import unittest
 from datetime import datetime, timedelta, timezone
+from unittest import mock
 
+from ccs_app import costs, model_advice
 from ccs_app.alerts import decision_alert, pending_alerts
 from ccs_app.autoswitch import Decision
 from ccs_app.core import Limit
@@ -24,6 +26,10 @@ def state(name, s, active=False, w=10, error=None):
 class AlertsTest(unittest.TestCase):
     def setUp(self):
         self.settings = copy.deepcopy(DEFAULTS)
+        # Jamais de lecture des vrais journaux : usage récent fourni par chaque test.
+        recent = mock.patch.object(model_advice, "recent_usage", return_value=None)
+        self.recent_usage = recent.start()
+        self.addCleanup(recent.stop)
 
     def alerts(self, accounts, active="perso", fc=None, best=None, sent=(), previous=None, paces=None):
         return pending_alerts(accounts, active, fc, paces or {}, best, self.settings, NOW,
@@ -211,3 +217,53 @@ class ActionsTest(AlertsTest):
     def test_no_button_when_best_is_active(self):
         a = self.alerts([state("perso", 82, True)], best=Recommendation("perso", "r"))[0]
         self.assertEqual(a.actions, ())
+
+
+def opus_usage():
+    tokens = (0, 1_000_000, 0, 0, 0)
+    return model_advice.summarize([costs.Answer(NOW.timestamp() - 60, "claude-opus-5-5", "/w", tokens,
+                                                costs.reprice(tokens, "claude-opus-5-5"))])
+
+
+class ModelAdviceAlertTest(AlertsTest):
+    def test_advice_with_the_session_threshold_alert(self):
+        self.recent_usage.return_value = opus_usage()
+        a = self.alerts([state("perso", 85, True)])
+        self.assertEqual(self.keys(a), ["session80", "model_advice"])
+        advice = a[1]
+        self.assertIn("avec Opus", advice.title)
+        self.assertIn("/model sonnet", advice.body)
+        # Une seule fois par fenêtre : la clé envoyée, les journaux ne sont même plus lus.
+        self.recent_usage.reset_mock()
+        self.assertEqual(self.keys(self.alerts([state("perso", 90, True)], sent={a[0].key, advice.key})), [])
+        self.recent_usage.assert_not_called()
+
+    def test_weekly_threshold_alone(self):
+        self.recent_usage.return_value = opus_usage()
+        keys = self.keys(self.alerts([state("perso", 20, True, w=85)]))
+        self.assertIn("model_advice", keys)
+        self.assertNotIn("session80", keys)
+
+    def test_below_threshold_reads_nothing(self):
+        self.recent_usage.return_value = opus_usage()
+        self.assertEqual(self.alerts([state("perso", 50, True)]), [])
+        self.recent_usage.assert_not_called()
+
+    def test_only_the_active_account(self):
+        self.recent_usage.return_value = opus_usage()
+        self.assertEqual(self.alerts([state("perso", 10, True), state("pro", 90)]), [])
+
+    def test_settings(self):
+        self.recent_usage.return_value = opus_usage()
+        self.settings["alerts"]["model_advice"] = False
+        self.assertEqual(self.keys(self.alerts([state("perso", 85, True)])), ["session80"])
+        self.settings["alerts"]["model_advice"] = True
+        self.settings["alerts"]["model_advice_pct"] = 90
+        self.assertEqual(self.keys(self.alerts([state("perso", 85, True)])), ["session80"])
+        self.settings["alerts"]["enabled"] = False
+        self.assertEqual(self.alerts([state("perso", 95, True)]), [])
+
+    def test_unreadable_journals_never_break_the_alerts(self):
+        self.recent_usage.side_effect = OSError("illisible")
+        with self.assertLogs("ccs.alerts", "ERROR"):
+            self.assertEqual(self.keys(self.alerts([state("perso", 85, True)])), ["session80"])

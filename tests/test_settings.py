@@ -20,6 +20,11 @@ class SettingsTest(HomeTestCase):
         self.assertEqual(a["waiting_reminder_min"], 10)
         self.assertEqual(settings.load_settings()["updates"], {"enabled": True})
 
+    def test_model_advice_defaults(self):
+        a = settings.load_settings()["alerts"]
+        self.assertTrue(a["model_advice"])
+        self.assertEqual(a["model_advice_pct"], 80)
+
     def test_advisor_defaults(self):
         adv = settings.load_settings()["advisor"]
         self.assertEqual(adv["weeks"], 4)
