@@ -6,7 +6,7 @@ from pathlib import Path
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
-from .. import conversations, core, sessions
+from .. import conversations, core, sessions, terminal
 from .common import caption, clear, in_thread
 
 PAGE_SIZE = 60
@@ -16,7 +16,9 @@ RELOAD_AFTER_RESUME_MS = (2000, 8000)  # le temps que la session reprise apparai
 ORIGIN_CHOICES = (("Toutes les origines", None), ("VS Code", "vscode"), ("Terminal", "terminal"))
 TARGETS = {  # icône, libellé du bouton, infobulle, message après reprise
     "vscode": ("text-editor-symbolic", "VS Code", "Reprendre dans VS Code", "Conversation rouverte dans VS Code"),
-    "terminal": ("utilities-terminal-symbolic", "Terminal", "Reprendre dans un terminal",
+    # « terminal » : terminal intégré à l'application s'il est disponible, sinon externe.
+    "terminal": ("utilities-terminal-symbolic", "Terminal", "Reprendre dans l'application", None),
+    "external": ("utilities-terminal-symbolic", "Terminal externe", "Reprendre dans un terminal externe",
                  "Conversation rouverte dans un nouveau terminal"),
 }
 
@@ -104,10 +106,12 @@ class ConversationsPage(Gtk.ScrolledWindow):
         box.append(self.results)
         self.set_child(Adw.Clamp(maximum_size=820, child=box))
 
-        # Actions des menus « ⋮ » des lignes : conv.copy('<id>'), conv.folder, conv.relocate.
+        # Actions des menus « ⋮ » des lignes : conv.copy('<id>'), conv.folder, conv.relocate,
+        # conv.rename, conv.external.
         actions = Gio.SimpleActionGroup()
         for name, handler in (("copy", self.copy_command), ("folder", self.open_folder),
-                              ("relocate", self.choose_folder)):
+                              ("relocate", self.choose_folder), ("rename", self.rename),
+                              ("external", lambda c: self.resume(c, "external"))):
             a = Gio.SimpleAction.new(name, GLib.VariantType.new("s"))
             a.connect("activate", lambda _a, v, h=handler: self.with_conv(v.get_string(), h))
             actions.add_action(a)
@@ -223,6 +227,11 @@ class ConversationsPage(Gtk.ScrolledWindow):
         self.limit += PAGE_SIZE
         self.render()
 
+    def rerender(self):
+        """Re-rendu après un changement des onglets du terminal intégré (boutons « Afficher »)."""
+        if self.convs and not self.user_busy():
+            self.render()
+
     # ---- rendu ---------------------------------------------------------------
 
     def show_waiting(self):
@@ -297,18 +306,30 @@ class ConversationsPage(Gtk.ScrolledWindow):
         box.append(info)
 
         buttons = Gtk.Box(spacing=2, valign=Gtk.Align.CENTER)
+        tab = self.window.terminals.find(session_id=c.session_id)
+        embedded = self.window.terminals.available
         problem = self.problem(c)
         where = f" depuis {short_path(suggestion)}" if suggestion else ""
-        for target in ("vscode", "terminal") if code else ("terminal",):
+        if tab is not None:
+            b = Gtk.Button(child=Adw.ButtonContent(icon_name="go-next-symbolic", label="Afficher"),
+                           css_classes=["flat"], tooltip_text="Ouverte dans l'application : aller à son onglet")
+            b.connect("clicked", lambda *_: self.window.terminals.present(tab))
+            buttons.append(b)
+        for target in () if tab is not None else ("vscode", "terminal") if code else ("terminal",):
             icon, short, label, _toast = TARGETS[target]
+            if target == "terminal" and not embedded:
+                label = f"Reprendre dans un terminal externe (terminal intégré : {terminal.VTE_PACKAGE})"
             b = Gtk.Button(child=Adw.ButtonContent(icon_name=icon, label=short), css_classes=["flat"],
                            sensitive=problem is None, tooltip_text=cap(problem) if problem else label + where)
             b.connect("clicked", lambda *_, t=target: self.resume(c, t))
             buttons.append(b)
         menu = Gio.Menu()
         entries = [("Copier la commande", "conv.copy")]
+        if embedded and tab is None and problem is None:
+            entries.append(("Reprendre dans un terminal externe", "conv.external"))
         entries.append(("Ouvrir le dossier", "conv.folder") if c.folder_exists
                        else ("Reprendre depuis un autre dossier…", "conv.relocate"))
+        entries.append(("Renommer…", "conv.rename"))
         for label, action in entries:
             item = Gio.MenuItem.new(label, None)
             item.set_action_and_target_value(action, GLib.Variant.new_string(c.session_id))
@@ -344,9 +365,17 @@ class ConversationsPage(Gtk.ScrolledWindow):
         return conversations.resume_problem(conv, self.opened)
 
     def activate(self, conv):
+        tab = self.window.terminals.find(session_id=conv.session_id)
+        if tab is not None:
+            self.window.terminals.present(tab)
+            return
         self.resume(conv, conversations.preferred_target(conv))
 
     def resume(self, conv, target, folder=None):
+        tab = self.window.terminals.find(session_id=conv.session_id)
+        if tab is not None and target != "vscode":
+            self.window.terminals.present(tab)  # déjà dans un onglet de l'application
+            return
         problem = self.problem(conv, elsewhere=bool(folder))
         if problem:
             self.window.toast(cap(problem))
@@ -394,12 +423,15 @@ class ConversationsPage(Gtk.ScrolledWindow):
         try:
             if target == "vscode":
                 conversations.resume_vscode(conv)
+                where = "vscode"
             else:
-                conversations.resume_terminal(conv)
+                where = self.window.open_claude(conv.cwd, conv.session_id, conv.title,
+                                                external=target == "external")
         except OSError as e:
             self.window.toast(error_text(e))
             return
-        self.window.toast(TARGETS[target][3])
+        if where != "integre":
+            self.window.toast(TARGETS["vscode" if where == "vscode" else "external"][3])
         for delay in RELOAD_AFTER_RESUME_MS:
             GLib.timeout_add(delay, lambda: (self.load(), False)[1])
 
@@ -409,6 +441,9 @@ class ConversationsPage(Gtk.ScrolledWindow):
 
     def open_folder(self, conv):
         sessions.open_folder(conv.cwd)
+
+    def rename(self, conv):
+        self.window.rename_conversation(conv.session_id, cwd=conv.cwd, path=conv.path, current=conv.title)
 
     def choose_folder(self, conv, target=None):
         """Reprise d'une conversation dont le dossier a disparu, depuis un dossier choisi."""
