@@ -15,7 +15,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from . import autoswitch, core, daemon, limit_events, notify
+from . import autoswitch, core, daemon, limit_events, notify, pause
 from .alerts import Alert
 from .settings import load_settings
 from .store import Store
@@ -153,6 +153,12 @@ def _hm(iso):
 
 
 def statusline_text(state, now):
+    """Ligne d'état ; « ⏸ » en tête pendant une pause de CCS."""
+    text = _statusline(state, now)
+    return f"⏸ {text}" if (state or {}).get("pause") else text
+
+
+def _statusline(state, now):
     active = (state or {}).get("active")
     acc = next((a for a in (state or {}).get("accounts") or [] if a.get("name") == active), None)
     if not acc or not acc.get("limits"):
@@ -209,9 +215,18 @@ def _hook_lock():
     return f
 
 
+def _paused(now):
+    """Pause de CCS en cours, ou None (une pause illisible ne fait jamais échouer le hook)."""
+    try:
+        return pause.pause_state(now)
+    except (OSError, ValueError, TypeError, OverflowError):
+        return None
+
+
 def stop_failure(payload, notifier=notify.send):
     """Hook StopFailure (matcher rate_limit) : une seule bascule même si plusieurs
-    sessions sont bloquées en même temps, aucune si le compte vient de changer.
+    sessions sont bloquées en même temps, aucune si le compte vient de changer ni
+    pendant une pause de CCS.
 
     Laisse aussi un marqueur par conversation (`limit_events`) : le terminal intégré s'en
     sert pour relancer la conversation bloquée d'un de ses onglets."""
@@ -232,6 +247,16 @@ def stop_failure(payload, notifier=notify.send):
         now = datetime.now(timezone.utc)
         store = Store()
         before = core.active_profile_name()
+        paused = _paused(now)
+        if paused is not None:
+            # Pause : ni bascule ni reprise automatique ; une notification pour toutes les
+            # sessions bloquées en même temps.
+            mark("paused", before)
+            if not store.events(now.timestamp() - RECENT_SWITCH_S, type="alert", profile="blocage"):
+                store.add_event(now.timestamp(), "alert", "blocage", {"key": "pause"})
+                notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
+                               f"CCS est en pause {pause.label(paused, now)} : pas de bascule automatique.", 2))
+            return "en pause"
         recent = [e for e in store.events(now.timestamp() - RECENT_SWITCH_S, type="switch")]
         if recent:
             # Une autre session bloquée (ou le service) vient de basculer : on ne rebascule pas.

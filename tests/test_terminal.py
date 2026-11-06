@@ -324,6 +324,14 @@ class ResumeDecisionTest(HomeTestCase):
         self.assertEqual(d.text, "Limite atteinte sur perso : aucun autre compte disponible, "
                                  "pas de reprise automatique.")
 
+    def test_pause_never_resumes(self):
+        d = self.decide(event=self.event(switched=False, target=None, outcome="paused"))
+        self.assertEqual(d.action, "drop")
+        self.assertEqual(d.text, "Limite atteinte sur perso : CCS est en pause, "
+                                 "pas de bascule ni de reprise automatique.")
+        d = self.decide(event=self.event(switched=True, outcome="paused"))  # marqueur incohérent
+        self.assertEqual(d.action, "drop")
+
     def test_user_typed_since_the_limit(self):
         d = self.decide(tab=self.tab(typed_at=self.NOW - 5))
         self.assertEqual(d.action, "drop")

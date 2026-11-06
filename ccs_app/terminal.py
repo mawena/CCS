@@ -294,6 +294,9 @@ def resume_decision(tab, event, now, enabled=True, max_per_hour=RESUME_MAX_PER_H
         return ResumeDecision("drop")  # limite d'un processus précédent de la conversation
     if event.outcome == "pending":
         return ResumeDecision("wait")  # le hook choisit encore le compte
+    if event.outcome == "paused":
+        return ResumeDecision("drop", f"{_limit_head(event)} : CCS est en pause, "
+                                      "pas de bascule ni de reprise automatique.")
     if not event.switched:
         why = (f"bascule vers {event.target} impossible" if event.target
                else "aucun autre compte disponible")

@@ -9,7 +9,8 @@ pour relancer la conversation bloquée d'un de ses onglets, puis les consomme.
 
 `outcome` : « pending » (bascule en cours de décision), « switched » (bascule faite),
 « already » (compte déjà changé par une autre session ou le service), « failed »
-(`ccs use` a échoué), « exhausted » (aucun autre compte disponible).
+(`ccs use` a échoué), « exhausted » (aucun autre compte disponible), « paused » (CCS en
+pause : ni bascule ni reprise automatique).
 """
 
 import json
@@ -22,7 +23,7 @@ from . import core
 
 KEEP_S = 24 * 3600
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
-OUTCOMES = ("pending", "switched", "already", "failed", "exhausted")
+OUTCOMES = ("pending", "switched", "already", "failed", "exhausted", "paused")
 
 
 @dataclass(frozen=True)
