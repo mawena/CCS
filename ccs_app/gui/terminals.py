@@ -15,6 +15,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
 from .. import conversations, limit_events, sessions, terminal, terminal_store
 from .common import in_thread
+from .terminal_split import SplitView
 
 SCROLLBACK_LINES = 100_000
 POLL_S = 3
@@ -28,8 +29,14 @@ PALETTE = ("#171421", "#c01c28", "#26a269", "#a2734c", "#12488b", "#a347ba", "#2
            "#5e5c64", "#f66151", "#33d17a", "#e9ad0c", "#2a7bde", "#c061cb", "#33c7de", "#ffffff")
 COLORS = {False: ("#1e1e1e", "#ffffff"), True: ("#ffffff", "#1e1e1e")}  # sombre ? -> (texte, fond)
 SAVE_DELAY_MS = 1000
+SPLIT_ACCEL = "<Control><Shift>e"
 CSS = b"""
 .ccs-restore { padding: 6px 12px; background-color: alpha(@accent_bg_color, 0.18); }
+.ccs-split-half { border: 2px solid transparent; border-radius: 8px; margin: 2px; }
+.ccs-split-half.active { border-color: @accent_bg_color; }
+.ccs-split-header { padding: 2px 4px 2px 10px; }
+.ccs-split-half:not(.active) .ccs-split-header { opacity: 0.55; }
+.ccs-split-half.active .ccs-split-header > label { font-weight: bold; }
 """
 
 _vte = None
@@ -62,6 +69,15 @@ def vte():
     return _vte or None
 
 
+def menu_item(label, action, accel=None):
+    """Entrée de menu cachée quand son action est indisponible (raccourci affiché)."""
+    item = Gio.MenuItem.new(label, action)
+    item.set_attribute_value("hidden-when", GLib.Variant.new_string("action-disabled"))
+    if accel:
+        item.set_attribute_value("accel", GLib.Variant.new_string(accel))
+    return item
+
+
 def _rgba(spec):
     color = Gdk.RGBA()
     color.parse(spec)
@@ -81,7 +97,8 @@ def system_font():
 
 class TerminalTab(Gtk.Box):
     """Un onglet : le terminal, sa barre de défilement, le bandeau d'information (reprise
-    après une limite) et le bandeau de fin."""
+    après une limite) et le bandeau de fin, réunis dans `panel` : la vue côte à côte
+    emprunte ce panneau puis le rend (l'onglet reste l'enfant de sa page d'Adw.TabView)."""
 
     def __init__(self, owner, launch):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
@@ -95,9 +112,10 @@ class TerminalTab(Gtk.Box):
         self.feeding = False       # texte envoyé par l'application : pas une saisie
         self.limits_done = set()   # (session_id, date) des limites déjà traitées
 
+        self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
         self.notice = Adw.Banner(revealed=False, button_label="OK", use_markup=False)
         self.notice.connect("button-clicked", lambda b: b.set_revealed(False))
-        self.append(self.notice)
+        self.panel.append(self.notice)
 
         self.term = Vte.Terminal(hexpand=True, vexpand=True, css_classes=["ccs-terminal"])
         self.term.set_scrollback_lines(SCROLLBACK_LINES)
@@ -120,7 +138,7 @@ class TerminalTab(Gtk.Box):
         body.append(self.term)
         body.append(Gtk.Scrollbar(orientation=Gtk.Orientation.VERTICAL,
                                   adjustment=self.term.get_vadjustment()))
-        self.append(body)
+        self.panel.append(body)
 
         self.bar = Gtk.ActionBar(revealed=False)
         self.bar_label = Gtk.Label(xalign=0, wrap=True, css_classes=["heading"])
@@ -131,7 +149,8 @@ class TerminalTab(Gtk.Box):
         self.relaunch_btn.connect("clicked", lambda *_: self.relaunch())
         self.bar.pack_end(self.relaunch_btn)
         self.bar.pack_end(close)
-        self.append(self.bar)
+        self.panel.append(self.bar)
+        self.append(self.panel)
 
     # ---- confort -------------------------------------------------------------------
 
@@ -327,11 +346,11 @@ class TerminalTab(Gtk.Box):
                 self.page and self.page.set_tooltip(title)
 
     def on_contents(self, *_):
-        if self.state.kind == "shell" and self.page and not self.page.get_selected():
+        if self.state.kind == "shell" and self.page and not self.owner.shown(self):
             self.attention()
 
     def attention(self):
-        if self.page and not (self.page.get_selected() and self.owner.on_screen()):
+        if self.page and not (self.owner.shown(self) and self.owner.on_screen()):
             self.page.set_needs_attention(True)
             self.owner.update_badge()
 
@@ -346,6 +365,8 @@ class TerminalTab(Gtk.Box):
         self.page.set_loading(loading)
         self.page.set_indicator_icon(Gio.ThemedIcon.new(icon) if icon else None)
         self.page.set_indicator_tooltip(tooltip or "")
+        if self.owner.is_split():
+            self.owner.split_view.update(self)
 
 
 class TerminalsPage(Gtk.Box):
@@ -402,16 +423,27 @@ class TerminalsPage(Gtk.Box):
         tab_menu = Gio.Menu()
         tab_menu.append("Renommer la conversation…", "tabs.rename")
         tab_menu.append("Ouvrir le dossier", "tabs.folder")
+        tab_menu.append_item(menu_item("Côte à côte", "tabs.split", SPLIT_ACCEL))
+        tab_menu.append_item(menu_item("Revenir aux onglets", "tabs.unsplit", SPLIT_ACCEL))
         tab_menu.append("Fermer l'onglet", "tabs.close")
         self.view.set_menu_model(tab_menu)
 
         self.tab_actions = Gio.SimpleActionGroup()
         for name, handler in (("rename", self.rename_tab), ("folder", self.folder_of_tab),
-                              ("close", self.close)):
+                              ("split", self.split_with), ("close", self.close)):
             a = Gio.SimpleAction.new(name, None)
             a.connect("activate", lambda *_a, h=handler: self.with_tab(h))
             self.tab_actions.add_action(a)
+        unsplit = Gio.SimpleAction.new("unsplit", None)
+        unsplit.connect("activate", lambda *_: (setattr(self, "menu_tab", None),
+                                                self.unsplit(self.selected_tab())))
+        self.tab_actions.add_action(unsplit)
         self.insert_action_group("tabs", self.tab_actions)
+        keys = Gtk.ShortcutController(propagation_phase=Gtk.PropagationPhase.CAPTURE)
+        keys.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string(SPLIT_ACCEL),
+                                       action=Gtk.CallbackAction.new(
+                                           lambda *_: (self.toggle_split(), True)[1])))
+        self.add_controller(keys)
 
         # Interrupteurs de la page (gardés dans terminals.json, pas dans les réglages généraux).
         self.page_actions = Gio.SimpleActionGroup()
@@ -445,8 +477,10 @@ class TerminalsPage(Gtk.Box):
         self.empty = Adw.StatusPage(icon_name="document-open-recent-symbolic",
                                     title="Sessions de la dernière fois")
 
+        self.split_view = SplitView(self.on_split_focus, lambda tab: self.unsplit(tab), self.close)
         self.content = Gtk.Stack(vexpand=True, hhomogeneous=False, vhomogeneous=False)
         self.content.add_named(self.view, "tabs")
+        self.content.add_named(self.split_view, "split")
         self.content.add_named(self.empty, "empty")
         self.append(self.restore_bar)
         self.append(self.bar)
@@ -499,9 +533,12 @@ class TerminalsPage(Gtk.Box):
         return tab
 
     def present(self, tab):
-        """Affiche l'onglet (page Terminaux, onglet choisi, focus clavier dans le terminal)."""
+        """Affiche l'onglet (page Terminaux, onglet choisi, focus clavier dans le terminal) ;
+        hors de la vue côte à côte, celle-ci laisse la place aux onglets."""
         if tab.page is None:
             return  # onglet fermé depuis l'affichage du bouton
+        if self.is_split() and not self.split_view.contains(tab):
+            self.unsplit()
         self.window.show_terminals()
         self.view.set_selected_page(tab.page)
         tab.page.set_needs_attention(False)
@@ -513,6 +550,11 @@ class TerminalsPage(Gtk.Box):
 
     def on_selected(self, *_):
         page = self.view.get_selected_page()
+        if self.is_split():
+            if page is not None and self.split_view.contains(page.get_child()):
+                self.split_view.set_active(page.get_child())
+            else:
+                self.unsplit()  # un autre onglet choisi dans la barre : retour aux onglets
         if page is not None:
             page.set_needs_attention(False)
             page.get_child().focus()
@@ -546,7 +588,67 @@ class TerminalsPage(Gtk.Box):
 
     def update_content(self):
         if self.available:
-            self.content.set_visible_child_name("tabs" if self.view.get_n_pages() else "empty")
+            self.content.set_visible_child_name(
+                "split" if self.is_split() else "tabs" if self.view.get_n_pages() else "empty")
+
+    # ---- côte à côte -----------------------------------------------------------------
+
+    def is_split(self):
+        return self.available and bool(self.split_view.halves)
+
+    def shown(self, tab):
+        """L'onglet est affiché dans la page (onglet choisi, ou moitié de la vue scindée)."""
+        if self.is_split():
+            return self.split_view.contains(tab)
+        return tab.page is not None and tab.page.get_selected()
+
+    def selected_tab(self):
+        page = self.view.get_selected_page() if self.available else None
+        return page.get_child() if page is not None else None
+
+    def split_with(self, tab):
+        """Affiche `tab` à côté de l'onglet affiché (ou de son voisin s'il l'est déjà)."""
+        tabs = self.tabs()
+        if tab is None or tab.page is None or len(tabs) < 2:
+            return
+        if self.split_view.contains(tab):
+            self.present(tab)
+            return
+        other = self.split_view.active if self.is_split() else self.selected_tab()
+        if other is None or other is tab or other not in tabs:
+            i = tabs.index(tab)
+            other = tabs[i + 1] if i + 1 < len(tabs) else tabs[i - 1]
+        left, right = sorted((tab, other), key=tabs.index)
+        self.split_view.show(left, right)
+        self.update_content()
+        self.view.set_selected_page(tab.page)
+        self.split_view.set_active(tab)
+        tab.focus()
+        self.update_actions()
+
+    def unsplit(self, keep=None):
+        """Retour à la vue par onglets (sur `keep` s'il est donné)."""
+        if not self.is_split():
+            return
+        self.split_view.release()
+        self.update_content()
+        if keep is not None and keep.page is not None:
+            self.view.set_selected_page(keep.page)
+        tab = self.selected_tab()
+        if tab is not None:
+            tab.focus()
+        self.update_actions()
+
+    def toggle_split(self):
+        if self.is_split():
+            self.unsplit(self.selected_tab())
+        else:
+            self.split_with(self.selected_tab())
+
+    def on_split_focus(self, tab):
+        if tab.page is not None and self.view.get_selected_page() is not tab.page:
+            self.view.set_selected_page(tab.page)
+        self.split_view.set_active(tab)
 
     def reveal_page(self):
         """Onglet « Terminaux » visible dans la barre de la fenêtre, sans l'afficher."""
@@ -561,6 +663,8 @@ class TerminalsPage(Gtk.Box):
     def on_detached(self, _view, page, _position):
         tab = page.get_child()
         tab.page = None
+        if self.is_split() and self.split_view.contains(tab):
+            self.unsplit()  # l'autre moitié revient dans son onglet
         self.emit("tab-closed", tab)
         self.update_badge()
         self.update_content()
@@ -759,6 +863,10 @@ class TerminalsPage(Gtk.Box):
         self.tab_actions.lookup_action("rename").set_enabled(can_rename)
         for name in ("folder", "close"):
             self.tab_actions.lookup_action(name).set_enabled(tab is not None)
+        split = self.is_split()
+        self.tab_actions.lookup_action("split").set_enabled(
+            tab is not None and len(self.tabs()) >= 2 and not (split and self.split_view.contains(tab)))
+        self.tab_actions.lookup_action("unsplit").set_enabled(split)
 
     def with_tab(self, handler):
         tab = self.menu_target()
