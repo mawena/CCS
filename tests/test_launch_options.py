@@ -116,5 +116,62 @@ class LaunchSpecTest(unittest.TestCase):
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
 
 
+class SwitchTest(unittest.TestCase):
+    """Bascule avant l'ouverture (faite hors de l'interface par l'application)."""
+
+    def test_nothing_to_do_on_the_active_account(self):
+        run = mock.Mock()
+        for spec in (LaunchSpec(cwd="/w", profile=None), LaunchSpec(cwd="/w", profile="perso")):
+            self.assertEqual(lo.switch_if_needed(spec, active="perso", run=run), (False, None))
+        run.assert_not_called()
+
+    def test_switch_then_ok(self):
+        import subprocess
+        run = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "✔ basculé sur 'pro'", ""))
+        self.assertEqual(lo.switch_if_needed(LaunchSpec(cwd="/w", profile="pro"), active="perso", run=run),
+                         (True, None))
+        run.assert_called_once_with(["use", "pro"])
+
+    def test_switch_failure_gives_the_reason(self):
+        import subprocess
+        run = mock.Mock(return_value=subprocess.CompletedProcess(
+            [], 1, "", "\x1b[31mccs: 'pro' : connexion perdue, reconnecte ce compte\x1b[0m\n"))
+        switched, error = lo.switch_if_needed(LaunchSpec(cwd="/w", profile="pro"), active="perso", run=run)
+        self.assertFalse(switched)
+        self.assertEqual(error, "'pro' : connexion perdue, reconnecte ce compte")
+
+
+class OpenSessionTest(unittest.TestCase):
+    def setUp(self):
+        self.tabs, self.external = [], []
+        self.spec = LaunchSpec(cwd="/w", profile=None, model="opus", permission_mode="plan")
+
+    def open(self, embedded, claude_launch):
+        return lo.open_session(self.spec, embedded, self.tabs.append, claude_launch=claude_launch,
+                               external=self.external.append)
+
+    def test_embedded_terminal_with_the_options(self):
+        calls = []
+
+        def claude_launch(cwd, resume=None, title=None, environ=None, extra_args=()):
+            calls.append((cwd, tuple(extra_args)))
+            return "launch"
+        self.assertEqual(self.open(True, claude_launch), "integre")
+        self.assertEqual(calls, [("/w", ("--model", "opus", "--permission-mode", "plan"))])
+        self.assertEqual((self.tabs, self.external), (["launch"], []))
+
+    def test_older_embedded_terminal_without_extra_args_falls_back(self):
+        def claude_launch(cwd, resume=None, title=None, environ=None):
+            return "launch"
+        self.assertEqual(self.open(True, claude_launch), "externe")
+        self.assertEqual((self.tabs, self.external), ([], [self.spec]))
+
+    def test_without_embedded_terminal(self):
+        launch = mock.Mock()
+        self.assertEqual(self.open(False, launch), "externe")
+        launch.assert_not_called()
+        self.assertEqual(self.external, [self.spec])
+
+
 if __name__ == "__main__":
     unittest.main()

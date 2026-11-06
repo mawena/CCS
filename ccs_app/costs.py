@@ -324,6 +324,15 @@ def format_cost(cost):
     return f"{_tokens(cost.total_tokens)} · {_amount(cost.dollars, cost.inconnu, 'tarif inconnu pour une partie')}"
 
 
+def format_short(cost):
+    """Montant seul, pour une ligne de liste : « ≈ 3,40 $ », « ≥ 3,40 $ », « » sans usage."""
+    if not cost.reponses and not cost.total_tokens:
+        return ""
+    if cost.inconnu:
+        return f"≥ {format_dollars(cost.dollars)}" if cost.dollars else "tarif inconnu"
+    return _amount(cost.dollars, False, "")
+
+
 def format_details(cost):
     """Une ligne par modèle, du plus cher au moins cher."""
     rows = sorted(cost.modeles.items(), key=lambda kv: (kv[1].dollars is None, -(kv[1].dollars or 0)))
@@ -333,3 +342,65 @@ def format_details(cost):
         out.append(f"{name} : {_tokens(mc.total_tokens)} · {amount} "
                    f"({mc.reponses} réponse{'s' if mc.reponses > 1 else ''})")
     return out
+
+
+# --------------------------------------------------------------------------
+# Calcul paresseux pour les listes de l'application
+# --------------------------------------------------------------------------
+
+class Loader:
+    """Coûts calculés hors de l'interface, un journal après l'autre, dans l'ordre demandé
+    (les lignes visibles d'abord). Une nouvelle demande remplace celle en cours : les
+    résultats d'une liste déjà redessinée sont jetés. `post(fonction, *args)` remet chaque
+    résultat dans le fil de l'interface (GLib.idle_add par défaut)."""
+
+    def __init__(self, post=None, compute=None):
+        self.post = post
+        self.compute = compute or conversation_cost
+        self.lock = threading.Lock()
+        self.pending = []
+        self.generation = 0
+        self.worker = None    # dernier fil lancé (join)
+        self.running = None   # fil en cours ; remis à None sous le verrou quand il s'arrête
+
+    def request(self, items, done):
+        """`items` : [(clé, chemin du journal)] ; `done(clé, Cost)` dans l'interface."""
+        with self.lock:
+            self.generation += 1
+            self.pending = [(self.generation, key, path, done) for key, path in items]
+            if self.pending and self.running is None:
+                self.running = self.worker = threading.Thread(target=self._run, name="ccs-couts",
+                                                              daemon=True)
+                self.worker.start()
+
+    def cancel(self):
+        with self.lock:
+            self.generation += 1
+            self.pending = []
+
+    def join(self, timeout=None):
+        worker = self.worker
+        if worker is not None:
+            worker.join(timeout)
+
+    def _run(self):
+        post = self.post
+        if post is None:
+            from gi.repository import GLib
+            post = GLib.idle_add
+        while True:
+            with self.lock:
+                if not self.pending:
+                    self.running = None
+                    return
+                generation, key, path, done = self.pending.pop(0)
+            try:
+                cost = self.compute(path)
+            except Exception:  # noqa: BLE001 — une ligne sans coût, jamais un fil arrêté
+                continue
+            post(self._deliver, generation, key, cost, done)
+
+    def _deliver(self, generation, key, cost, done):
+        if generation == self.generation:
+            done(key, cost)
+        return False

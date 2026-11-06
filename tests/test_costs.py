@@ -203,6 +203,13 @@ class FormatTest(unittest.TestCase):
     def test_format_empty(self):
         self.assertEqual(format_cost(costs.Cost.empty()), "aucun usage enregistré")
 
+    def test_short_format_for_lists(self):
+        self.assertEqual(costs.format_short(self.cost(1_200_000, 3.4)), "≈ 3,40 $")
+        self.assertEqual(costs.format_short(self.cost(800, 0.004)), "< 0,01 $")
+        self.assertEqual(costs.format_short(self.cost(1_200_000, 3.4, unknown=True)), "≥ 3,40 $")
+        self.assertEqual(costs.format_short(self.cost(1_200_000, 0.0, unknown=True)), "tarif inconnu")
+        self.assertEqual(costs.format_short(costs.Cost.empty()), "")
+
     def test_details_per_model(self):
         p = Path(tempfile.mkdtemp(prefix="ccs-costs-"))
         self.addCleanup(shutil.rmtree, p)
@@ -213,6 +220,63 @@ class FormatTest(unittest.TestCase):
         lines = costs.format_details(conversation_cost(f))
         self.assertEqual(lines[0], "claude-opus-5-5 : 1,0 M tokens · ≈ 20,00 $ (1 réponse)")
         self.assertEqual(lines[1], "claude-x : 10 tokens · tarif inconnu (1 réponse)")
+
+
+class LoaderTest(CostTestCase):
+    """Calcul paresseux pour les listes : un journal après l'autre, hors de l'interface."""
+
+    def setUp(self):
+        super().setUp()
+        self.posted = []
+        self.loader = costs.Loader(post=lambda f, *a: self.posted.append((f, a)))
+
+    def deliver(self):
+        self.loader.join(5)
+        posted, self.posted = self.posted, []
+        for f, a in posted:
+            f(*a)
+
+    def test_results_come_back_in_order_through_post(self):
+        a = self.journal([answer("m1", out=1000)], "a.jsonl")
+        b = self.journal([answer("m2", out=2000)], "b.jsonl")
+        got = []
+        self.loader.request([("a", a), ("b", b)], lambda key, cost: got.append((key, cost.total_tokens)))
+        self.assertEqual(got, [])  # rien n'est livré hors du fil de l'interface
+        self.deliver()
+        self.assertEqual(got, [("a", 1000), ("b", 2000)])
+
+    def test_new_request_replaces_the_old_one(self):
+        a = self.journal([answer("m1", out=1000)], "a.jsonl")
+        b = self.journal([answer("m2", out=2000)], "b.jsonl")
+        old, new = [], []
+        gate = __import__("threading").Event()
+        real = costs.conversation_cost
+        loader = costs.Loader(post=lambda f, *x: self.posted.append((f, x)),
+                              compute=lambda p: (gate.wait(5), real(p))[1])
+        loader.request([("a", a), ("b", b)], lambda k, c: old.append(k))
+        loader.request([("b", b)], lambda k, c: new.append(k))
+        gate.set()
+        loader.join(5)
+        for f, x in self.posted:
+            f(*x)
+        self.assertEqual(old, [])      # résultats d'une liste déjà remplacée : ignorés
+        self.assertEqual(new, ["b"])
+
+    def test_cancel_and_errors(self):
+        a = self.journal([answer("m1", out=1000)], "a.jsonl")
+        got = []
+        self.loader.request([("x", self.dir / "absent.jsonl"), ("a", a)], lambda k, c: got.append(k))
+        self.deliver()
+        self.assertEqual(got, ["x", "a"])  # journal absent : coût vide, jamais d'exception
+        loader = costs.Loader(post=lambda f, *x: self.posted.append((f, x)),
+                              compute=lambda p: 1 / 0)
+        loader.request([("a", a)], lambda k, c: got.append(k))
+        loader.join(5)
+        self.assertEqual(self.posted, [])
+        self.loader.request([("a", a)], lambda k, c: got.append("après annulation"))
+        self.loader.cancel()
+        self.deliver()
+        self.assertNotIn("après annulation", got)
 
 
 if __name__ == "__main__":

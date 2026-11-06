@@ -156,3 +156,43 @@ def launch(spec, claude_bin=None, resume=None):
     """Ouvre la session dans un nouveau terminal (à appeler après une éventuelle bascule)."""
     subprocess.Popen(terminal_command(spec, claude_bin, resume), start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def switch_if_needed(spec, active=None, run=None):
+    """Bascule sur le compte choisi s'il n'est pas le compte actif (« ccs use <profil> »).
+    Renvoie (a basculé, message d'erreur ou None). Lent (ccs, verrou) : hors de l'interface."""
+    from . import core
+    if active is None:
+        active = core.active_profile_name()
+    if not spec.needs_switch(active):
+        return False, None
+    r = (run or core.run_ccs)(["use", spec.profile])
+    if r.returncode == 0:
+        return True, None
+    lines = ANSI_RE.sub("", (r.stderr or "") + (r.stdout or "")).strip().splitlines()
+    text = lines[0] if lines else f"échec de la bascule sur « {spec.profile} »"
+    return False, text.removeprefix("ccs: ").strip()
+
+
+def open_session(spec, embedded, open_tab, claude_launch=None, external=None):
+    """Ouvre la session choisie (après l'éventuelle bascule) : onglet du terminal intégré si
+    `embedded` (`open_tab(Launch)`), sinon terminal externe. Renvoie « integre » ou « externe ».
+
+    Un terminal intégré qui ne sait pas encore ajouter d'arguments à claude
+    (`terminal.claude_launch` sans `extra_args`) passe la main au terminal externe : les
+    options choisies ne sont jamais perdues en silence."""
+    if embedded:
+        if claude_launch is None:
+            from .terminal import claude_launch
+        try:
+            tab_launch = claude_launch(spec.cwd, extra_args=tuple(spec.args()))
+        except TypeError:
+            pass
+        else:
+            open_tab(tab_launch)
+            return "integre"
+    (external or launch)(spec)
+    return "externe"
