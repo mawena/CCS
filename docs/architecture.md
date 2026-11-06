@@ -6,6 +6,7 @@
             │ history.db  settings.json  state.json  .lock         │
             │ pause.json  updates.json  terminals.json  limits/    │
             │ conversations-cache.json  conversations-moves.json   │
+            │ projects.json  switch-origin.json                    │
             └───────▲───────────────▲──────────────▲───────────────┘
                     │               │              │
   ccs (bash) ───────┤        ccs-daemon (systemd)  │      Comptes Claude (GTK 4)
@@ -17,37 +18,48 @@
                              GitHub (dernière version, 1 fois par jour)
 ```
 
+Autour : les journaux de Claude Code (`~/.claude/projects`, lus seulement, sauf
+renommage et projet déplacé) pour l'historique, le coût, l'analyse et les
+conseils ; les réglages de GNOME (dconf), où CCS n'écrit que ses propres
+raccourcis clavier.
+
 ## Modules (`ccs_app/`)
 
 | Module | Rôle |
 |---|---|
 | `core` | Chemins, profils, verrou, jetons (renouvellement), API d'usage, limites, formats, appel de `ccs` |
-| `store` | SQLite : relevés `samples` et événements `events` (bascules, alertes, warm-up, erreurs) |
+| `store` | SQLite : relevés `samples` et événements `events` (bascules, alertes, warm-up, erreurs) ; `events(since, types=…)` pour plusieurs types, `last_event(type, before=…)`, détail illisible lu comme `{}` |
 | `settings` | Réglages JSON fusionnés avec les valeurs par défaut |
 | `forecast` | Fonctions pures : fin de session (régression linéaire), rythme hebdo, fin de semaine prévue (`weekly_forecast` : rythme moyen depuis le début de la semaine, rien avant 12 h), capacité, meilleur compte |
-| `autoswitch` | Décision de bascule (pure) et exécution via `ccs use` |
-| `alerts` / `notify` | Quoi notifier (pur, anti-doublon par fenêtre ; fin de semaine prévue une fois par semaine, prioritaire sur l'avance hebdomadaire ; `Alert.default` : action d'un clic sur la notification) / envoi D-Bus (`actions_for`) |
+| `autoswitch` | Décision de bascule (pure) et exécution via `ccs use` ; `Decision.detail` (pourcentage, seuil, projection, quota qui expire) gardé dans l'événement pour le journal |
+| `alerts` / `notify` | Quoi notifier (pur, anti-doublon par fenêtre ; fin de semaine prévue une fois par semaine, prioritaire sur l'avance hebdomadaire ; conseil de modèle et bilan de la semaine, qui ne font jamais échouer un relevé ; `Alert.default` : action d'un clic sur la notification) / envoi D-Bus (`actions_for`) |
+| `switch_log` | Journal des bascules : entrées lisibles d'après les événements (`build`, pur), groupes par jour, texte de `ccs journal` ; note d'origine d'une bascule manuelle (`note_origin`, `take_origin`), échec d'une bascule lancée par l'application (`record_failure`) |
+| `project_accounts` | Compte par projet : `projects.json` (sous verrou), héritage par dossier parent (`resolve`), décisions pures (`proposal`, `preferred_profile`, `origin_for`), textes, `command()` de `ccs projet` |
+| `advisor` | Conseiller de formule : formules et tarifs datés, formule de chaque compte, besoin mesuré en unités Pro (fenêtres hebdomadaires et de 5 h), combinaison la moins chère, raisonnement, équivalent API (`compute`, `analyze` pur, `format_text`) |
+| `model_advice` | Conseil de modèle près des limites : usage des 30 dernières minutes (fin des journaux, cache), famille moins chère, gain « ×N », notification une fois par fenêtre, indice de la ligne d'état |
+| `weekly_report` | Bilan de la semaine : début de semaine (majorité des comptes ou jour fixe), agrégats (`aggregate`, pur), textes, notification hebdomadaire calculée dans un fil |
+| `shortcuts` | Raccourcis clavier globaux GNOME : actions, lecture et validation des raccourcis, moteurs `GioBackend` / `MemoryBackend`, installation sous les seuls chemins de CCS, conflits, `command()` de `ccs raccourcis` |
 | `daemon` | Boucle : relevés, prévisions, pause, décision, alertes, rappel des sessions en attente, warm-up, modules optionnels (`hooks`), écriture de `state.json` |
 | `pause` | Mode pause : `pause.json` (sous verrou), `set_pause`, `pause_state`, `expire`, `until_for` (1 h, 4 h, début de la plage suivante, reprise manuelle), libellés, `command()` de `ccs pause` |
 | `updates` | Nouvelle version : dernière release GitHub, comparaison SemVer, cache `updates.json`, une notification par version (module du daemon, dans un fil) |
 | `orchestrator` | Fonctions pures : plage horaire, créneaux décalés, démarrages dus, bascule vers le quota qui expire, réserve, planning, prochain réveil |
 | `warmup` | Créneaux fixes et requête minimale dans un `CLAUDE_CONFIG_DIR` temporaire (utilisée aussi par l'orchestrateur) |
-| `transcripts` | Lecture des journaux locaux, agrégats, conseils |
-| `costs` | Coût d'une conversation : tokens par type et équivalent API en dollars (table de tarifs datée), sous-agents compris, cache par chemin / taille / mtime ; `Loader` pour les listes de l'application |
+| `transcripts` | Lecture des journaux locaux, agrégats, conseils ; `weighted_tokens`, `project_label` (réutilisés par le bilan) |
+| `costs` | Coût d'une conversation : tokens par type et équivalent API en dollars (table de tarifs datée), sous-agents compris, cache par chemin / taille / mtime ; `Loader` pour les listes de l'application ; réponses d'une période (`period_answers`, `period_cost`), mêmes tokens au tarif d'un autre modèle (`reprice`) |
 | `preview` | Aperçu d'une conversation (lecture en flux du journal, messages lisibles seulement) et export Markdown, coût en en-tête |
 | `conversations` | Historique de `~/.claude/projects/*/*.jsonl` : index incrémental (cache), titres, recherche, groupes par date, reprise (VS Code, terminal), projets déplacés (`relocate`), renommage (`rename` : ligne `custom-title` ajoutée en O_APPEND), conversation d'un seul journal (`from_journal`) |
-| `launch_options` | Options d'une nouvelle session (`LaunchSpec` : dossier, compte, `--model`, `--permission-mode`), arguments de `claude`, commande à copier, bascule préalable (`switch_if_needed`) et ouverture (`open_session`) |
+| `launch_options` | Options d'une nouvelle session (`LaunchSpec` : dossier, compte, `--model`, `--permission-mode`, `origin`), arguments de `claude`, commande à copier, bascule préalable (`switch_if_needed`, qui note l'origine pour le journal et enregistre un échec) et ouverture (`open_session`) |
 | `sessions` | Sessions Claude Code ouvertes (`~/.claude/sessions`), consommation d'une conversation, titre lu en fin de journal, conversations et projets récents, transitions d'état, actions (terminal externe, dossier, terminer) |
 | `terminal` | Terminal intégré sans GTK (pur, testé) : commande et environnement de lancement (`Launch`, `extra_args`), choix intégré / externe, état des onglets (`TabState`, `sync_tabs`), textes de fin et de confirmation, reprise après une limite (`resume_decision`), réouverture (`tab_record`, `restore_plan`), messages en attente (`queue_next`, `queue_*`) |
 | `terminal_store` | `terminals.json` : interrupteurs de la page Terminaux, onglets à rouvrir (écriture atomique, fichier illisible ignoré) |
 | `limit_events` | Marqueurs « limite atteinte » par conversation (`limits/<session_id>.json`) : écrits par le hook, lus puis consommés par le terminal intégré |
-| `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état (⏸ en pause), hook `StopFailure` (bascule, sauf en pause ; marqueur de limite) |
+| `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état (⏸ en pause, « → sonnet ? » près des limites avec un modèle cher), hook `StopFailure` (bascule, sauf en pause ; marqueur de limite) |
 | `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` ; `show_session` : ouvrir l'application sur une session |
 | `attention` | Ce qui demande l'attention dans la fenêtre (pur) : libellé de pause de l'en-tête, bandeaux nouvelle version et bilan, badge des sessions en attente, référence de session (`<pid>:<id>`) et cible d'un clic sur une notification |
 | `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie |
-| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) |
+| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version ; se relance seul quand le code installé change |
-| `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `gui --session`) |
+| `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `journal`, `projet`, `raccourcis`, `gui --session`, `--page`, `--new-session`) |
 
 `ccs` (bash) reste **l'unique implémentation de la bascule** ; le service,
 l'application et l'indicateur l'appellent.
@@ -55,7 +67,7 @@ l'application et l'indicateur l'appellent.
 ## Terminal intégré
 
 ```
- Sessions / Conversations ──► Window.open_claude(cwd, resume, title, external)
+ onglet Sessions ───────────► Window.open_claude(cwd, resume, title, external)
                                  │  terminal.choose(VTE présent ?, external)
                  ┌───────────────┴───────────────┐
             « integre »                      « externe »
@@ -299,21 +311,33 @@ qui demande l'attention :
   fois par lancement, bouton « Voir ») ; bilan de santé (`doctor.run_checks`
   dans un fil 4 s après l'ouverture, `attention.doctor_banner` seulement en
   cas d'erreur, « Voir le bilan », retiré quand le bilan est ouvert).
-- **Onglet Sessions** : badge = `attention.waiting_count` (avec attention si
-  l'onglet n'est pas affiché) ; bouton « Nouvelle session… » et « Avec des
-  options… » dans le menu de chaque projet ; « Aperçu… » et coût
-  (`costs.Loader`) sur les sessions ouvertes et les conversations récentes ;
-  `highlight(pid, id)` met une carte en évidence. Onglet Conversations :
-  « Aperçu… » et coût de chaque ligne de la même façon.
+- **Onglet Sessions** (unique : il remplace les anciens onglets Sessions et
+  Conversations) : projets à gauche (« Tous », point d'activité, nombre de
+  conversations, compte du projet), à droite les sessions ouvertes du projet
+  puis ses conversations groupées par date ; recherche et filtre d'origine
+  communs, bouton « Nouvelle session… ». Badge = `attention.waiting_count`
+  (avec attention si l'onglet n'est pas affiché) ; « Avec des options… » et
+  « Compte de ce projet… » dans le menu de chaque projet ; « Aperçu… » et coût
+  (`costs.Loader`) sur les sessions ouvertes et les conversations ;
+  `highlight(pid, id)` met une carte en évidence. Toute ouverture ou reprise
+  passe par `project_account_dialog.confirm_switch`.
+- **Onglet Historique** : courbes, puis journal des bascules
+  (`switch_log.load`, groupes par jour, 7 jours / 30 jours / tout, 100 entrées
+  de plus à la demande).
+- **Onglet Analyse** : cartes `WeeklyReportCard` puis `AdvisorCard` (calculées
+  l'une après l'autre dans un fil, à la première ouverture), puis l'analyse.
 - **Réglages** : groupe « Terminal intégré » (les deux interrupteurs, qui
   passent par les actions de la page Terminaux, seule à écrire
-  `terminals.json`).
+  `terminals.json`) ; groupe « Raccourcis clavier » (`ShortcutsGroup`) ;
+  interrupteurs et champs du conseil de modèle et du bilan de la semaine.
+- **Ligne de commande** : `claude-accounts gui --page <nom>` ouvre un onglet,
+  `--new-session` le dialogue « Nouvelle session » (raccourcis clavier).
 
 API de la fenêtre pour les autres pages :
 
 | Appel | Effet |
 |---|---|
-| `new_session(cwd=None)` | Ouvre `NewSessionDialog` (dossier proposé : `cwd`, sinon celui de l'onglet Sessions) |
+| `new_session(cwd=None)` | Ouvre `NewSessionDialog` (dossier proposé : `cwd`, sinon celui de l'onglet Sessions ; compte du projet présélectionné) |
 | `start_spec(spec)` | Bascule si besoin (`switch_if_needed`, dans un fil ; échec : message, rien n'est ouvert), puis `open_spec` (`open_session`) |
 | `show_session(ref)` | Onglet du terminal intégré de la session, sinon sa carte dans l'onglet Sessions (`attention.focus_target`) |
 | `preview(conv)` | Dialogue d'aperçu |
@@ -343,6 +367,184 @@ API de la fenêtre pour les autres pages :
 - Les boutons « Basculer sur … » (`use:<profil>`) passent par le même
   `handle_action`, revérifiés au moment du clic.
 
+## Journal des bascules
+
+```
+ service, hook, application ──► history.db : événements switch / error / alert / warmup
+ application, avant « ccs use » ──► switch_log.note_origin(profil, via, projet)
+                                      ~/.claude-accounts/switch-origin.json (600)
+ daemon.detect_manual_switch ──► switch_log.take_origin(profil)   (lue puis retirée)
+                                      switch {mode: manual, from, via, project}
+ onglet Historique, ccs journal ──► switch_log.load(store, jours)
+                                      build(événements, marqueurs limits/, compte d'avant) ──► group_by_day
+```
+
+Champs ajoutés aux événements (rétrocompatibles : un champ absent est déduit,
+jamais exigé) :
+
+| Événement | Champs |
+|---|---|
+| `switch`, `mode` `auto` | `from`, `reason`, `percent`, `threshold`, `projected` (seulement quand c'est la projection qui décide) |
+| `switch`, `mode` `anticipee` | `from`, `reason`, `lost`, `minutes`, `expiring` |
+| `switch`, `mode` `manual` | `from` ; `via` (`application`, `icone`, `notification`, `ccs`, `nouvelle-session`, `projet`) et `project` quand l'origine est connue |
+| `error`, `op` `auto_switch` | `message`, `mode`, `from`, `reason` |
+| `error`, `op` `notification` | `message`, `via`, `from` |
+| `error`, `op` `manual` | `message`, `via`, `from`, `project` (`record_failure`, bascule lancée par l'application) |
+
+- Note d'origine `{"profile", "via", "ts", "project"?}` : écrite par
+  `launch_options.switch_if_needed` juste avant `ccs use` (nouvelle session,
+  compte du projet) et effacée si la bascule échoue ; `take_origin` ne la rend
+  que pour le compte constaté et pendant 10 min (une note d'un autre compte est
+  gardée, une note périmée ou illisible retirée). Une bascule sans note reste
+  « manuelle » sans origine.
+- `build` (pur) : une entrée `Entry(ts, kind, source, target, title, reason,
+  ok, detail, projects)` par bascule (`auto`, `anticipee`, `blocage`,
+  `manuelle`, `initial`), échec (`echec`), limite sans bascule (`limite` :
+  alertes `pause` et `blocage:<ts>` du hook, sans bascule ni échec à 5 s près)
+  et démarrage de fenêtre (`fenetre`, un par compte et créneau, « sans
+  réponse » au bout de 15 min). Une bascule `manual` sans origine constatée par
+  le service moins de 15 s avant la bascule automatique, anticipée ou après
+  blocage du même compte est un doublon, sautée. Les projets d'un blocage
+  viennent des marqueurs `limits/<session_id>.json` (lus sans être consommés,
+  issue `switched` / `already` / `failed` / `paused` / `exhausted`, de 5 s
+  avant à 3 min après), le nom du projet du dossier noté dans le journal de la
+  conversation.
+- Anciens événements : pourcentage et quota relus dans `reason`, compte quitté
+  déduit de la bascule précédente (`store.last_event("switch", before=…)` pour
+  la première de la période).
+
+## Compte par projet
+
+```
+ ccs projet, « Compte de ce projet… » ──► project_accounts.set(dossier, compte) / set_ask(dossier, …)
+                                           ~/.claude-accounts/projects.json (600, verrou .projects.lock)
+ ouverture ou reprise depuis l'application ──► confirm_switch(window, cwd, ouvrir)
+     proposal(cwd, actif, profils, en pause ?) : None ──► ouvrir()
+                                                 association ──► Adw.AlertDialog
+        « Basculer et ouvrir »  : switch_then → switch_if_needed(LaunchSpec(…, origin="projet")) → ouvrir()
+        « Ouvrir sans basculer » : ouvrir() ; « Ne plus demander pour ce projet » : set_ask(dossier, False)
+```
+
+```json
+{"version": 1,
+ "projects": {"/home/u/Work": {"profile": "boulot", "ask": true},
+              "/home/u/Work/Perso": {"profile": "perso", "ask": false}}}
+```
+
+- `resolve(cwd, associations)` : l'association du dossier, sinon du parent le
+  plus proche (plus long préfixe de chemin). Il n'existe pas d'association
+  « aucun compte » : retirer celle d'un sous-dossier le laisse hériter du
+  parent.
+- `proposal` : rien en pause, pour « ne plus demander », pour le compte actif
+  ou un compte disparu. `preferred_profile` (présélection de « Nouvelle
+  session ») suit les mêmes règles, et `origin_for` donne « projet » quand le
+  compte choisi est celui du projet (origine du journal).
+- `set` remet `ask` à vrai quand le compte change ; fichier illisible ou d'une
+  autre version : aucun projet (remplacé au prochain enregistrement), entrée
+  inattendue sautée. Rien ici ne bascule : seule l'application, après
+  confirmation.
+
+## Conseils
+
+### Conseiller de formule (`advisor`)
+
+- **Formules** (`PLANS`, claude.com/pricing, `PLAN_PRICES_DATE` 2026-11-06) :
+  `pro` « Pro » 20 $ (1 Pro par 5 h, 1 par semaine), `max5` « Max » 100 $
+  (5 et 5), `max20` « Ultra » 200 $ (pas de limite de 5 h, 10 par semaine).
+  `prices_stale` après 120 jours ; `advisor.plan_prices` remplace un prix
+  (nombre ≥ 0, sinon ignoré).
+- **Formule d'un compte** (`detect_plans`) : `advisor.profile_plans`, sinon
+  `plan_key(subscriptionType, rateLimitTier)` (`rateLimitTier` est le seul
+  champ lu de `<profil>/oauth.json`). Un `max` sans palier est supposé
+  `max5` et signalé ; une formule inconnue est ignorée.
+- **Besoin** (`week_needs`) : relevés `session` et `weekly_all` du store.
+  `windows` regroupe les relevés d'une limite par fenêtre (même
+  réinitialisation à 30 min près ; usage = plus haut pourcentage ; une fenêtre
+  ne commence jamais avant la fin de la précédente ; semaine en cours depuis
+  plus d'un jour projetée à son rythme, plafonnée à 100 %). Pour chaque semaine
+  glissante (`advisor.weeks`) : besoin hebdomadaire = somme, sur les comptes,
+  de l'usage moyen de leurs fenêtres × capacité de la formule ; besoin de 5 h =
+  plus forte somme de fenêtres de 5 h ouvertes en même temps
+  (`_concurrent_peak`). Semaine couverte à moins de 50 % : ignorée ; moins de
+  3 jours de relevés : pas de conseil ; semaine bridée (alerte `exhausted:`,
+  ou blocage du hook sans bascule dans les 3 min) : + 15 %.
+- **Combinaison** (`recommend`) : toutes les combinaisons d'au plus
+  `advisor.max_accounts` formules ; la moins chère (puis la moins nombreuse)
+  dont les capacités couvrent le plus haut besoin × (1 + `advisor.margin_pct`),
+  sinon la plus grande. Une alternative à un seul compte accompagne une
+  combinaison de plusieurs.
+- **Équivalent API** : `costs.period_cost(~/.claude/projects, début, maintenant)`
+  (journaux de ce PC, sous-agents compris), ramené à 30,44 jours.
+- `compute()` lit tout (store, profils, journaux) ; `analyze()` est pur ;
+  `format_text` pour `ccs formule`, `AdvisorCard` dans l'onglet Analyse.
+
+### Conseil de modèle (`model_advice`)
+
+- `pending(compte actif, cfg, now, envoyées)`, appelé par
+  `alerts.pending_alerts` : seuil d'abord (`effective_percent` de la session ou
+  de la semaine ≥ `alerts.model_advice_pct`), clé
+  `model_advice:<compte>:<fenêtre de 5 h>` pas encore envoyée ; alors
+  seulement, `recent_usage` lit la fin (512 Ko) des journaux modifiés depuis
+  30 min, avec un cache de 64 fichiers par taille et date de modification.
+- Famille dominante en dollars (Fable pour Mythos) ; `stretch` = son coût /
+  coût des mêmes tokens au tarif du modèle de référence de la famille moins
+  chère (`CHEAPER`, `REFERENCE`, `costs.reprice`) ; notification à partir de
+  × 1,25, affichée « plus de ×5 » au-delà de 5.
+- `statusline_hint(state, model, settings, now)` : modèle du contexte JSON de
+  Claude Code, seuil lu dans `state.json`, aucune lecture de journal.
+
+### Bilan de la semaine (`weekly_report`)
+
+- `week_anchor` : jour et heure fixes (`alerts.weekly_report_day`,
+  `alerts.weekly_report_hour`), sinon le début de semaine de la majorité des
+  comptes (réinitialisations hebdomadaires ramenées sur 7 jours, groupées à
+  3 jours près), sinon lundi à l'heure réglée.
+- `pending_alert`, appelé à chaque relevé : rien tant que le bilan n'est pas
+  dû (dans les 2 jours qui suivent le début de semaine), ni si un bilan est
+  parti à moins de 5 jours (clé `weekly_report:<date>`). Dû : `has_data`
+  (relevés couvrant au moins 3 jours) puis `build_report` dans un fil
+  `ccs-bilan`, qui libère ensuite le cache des coûts ; la notification part au
+  relevé suivant ; un échec est retenté une heure plus tard.
+- `aggregate` (pur) : comptes (pic et points de la semaine, fenêtres, limites
+  de session, bascules reçues), conversations, sessions (reprise après 30 min
+  d'inactivité), coût, modèles et projets en tokens pondérés, bascules par
+  mode, alertes par genre, blocages ; `build_report` y ajoute la semaine
+  précédente.
+- `WeeklyReportCard` : `week_choices` (semaine en cours et 6 précédentes), la
+  dernière terminée par défaut ; le conseiller est calculé ensuite, sur des
+  journaux déjà en cache.
+
+## Raccourcis clavier
+
+```
+ Réglages › Raccourcis clavier (ShortcutsGroup), ccs raccourcis ──► shortcuts.install / remove / set_binding
+     moteur GioBackend (Gio.Settings, dconf) — MemoryBackend pour les tests
+ org.gnome.settings-daemon.plugins.media-keys  custom-keybindings = [… chemins, dans l'ordre …]
+ …/custom-keybindings/ccs-<action>/            name « CCS : … », command, binding
+ gnome-settings-daemon ──► lance la commande, application ouverte ou non
+```
+
+- Actions (`ACTIONS`) : `ouvrir`, `sessions`, `nouvelle-session`, `suivant`,
+  `meilleur`, `pause`, `reprendre` ; aucune n'est installée par défaut. La
+  commande est écrite avec un chemin absolu (`/usr/bin`, sinon `bin/` du
+  dépôt, sinon le `PATH`), échappée par `shlex.join` (le bureau la découpe
+  sans shell) ; `update_commands` la réécrit quand elle a changé.
+- Écritures : CCS n'écrit que sous `…/custom-keybindings/ccs-<id>/`. Les
+  valeurs d'un raccourci sont posées avant son ajout à la liste ; la liste est
+  relue juste avant d'être réécrite, en une seule écriture qui garde l'ordre ;
+  un retrait enlève le chemin de la liste puis efface ses valeurs.
+  `remove_all` ne retire que les chemins `ccs-*`, jamais les autres.
+- `parse_binding` : « <Super><Alt>c », « Super+Alt+C », « Ctrl+Maj+F5 »…
+  (Super, Ctrl ou Alt obligatoire, sauf touches XF86). `conflicts` cherche la
+  combinaison dans les raccourcis du bureau (fenêtres, Shell, Mutter,
+  media-keys, Dock, assistant de tuilage), les raccourcis personnalisés et les
+  autres actions de CCS : signalés, jamais bloquants.
+- `supported()` : `XDG_CURRENT_DESKTOP` contient GNOME et les schémas sont
+  installés ; sinon un message et les commandes à associer à la main.
+- `CaptureDialog` suspend les raccourcis du bureau pendant la capture
+  (`inhibit_system_shortcuts`) ; le groupe suit les changements de
+  `custom-keybindings` faits ailleurs tant qu'il est affiché.
+
 ## Règles de sécurité des jetons
 
 - Tout renouvellement passe par un verrou (`fcntl` sur `.lock`) et relit le
@@ -366,7 +568,8 @@ prochain rappel (au plus tôt dans 5 s).
 Ordre des décisions à chaque tick : levée d'une pause échue ; en pause, aucune
 bascule ni démarrage ; sinon bascule à seuil (98 %), puis bascule anticipée
 vers le quota qui expire, puis démarrages de fenêtres ; puis alertes (dont la
-fin de semaine prévue) ; suivi des sessions (fin, attente, rappel) ; modules
+fin de semaine prévue, le conseil de modèle et le bilan de la semaine) ; suivi
+des sessions (fin, attente, rappel) ; modules
 optionnels (`hooks` : nouvelle version) ; écriture de `state.json`.
 `SIGUSR1` déclenche un relevé immédiat (bouton Actualiser, `claude-accounts
 collect`).
