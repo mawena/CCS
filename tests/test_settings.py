@@ -12,6 +12,21 @@ class SettingsTest(HomeTestCase):
         self.assertEqual(s["alerts"]["session_thresholds"], [80, 95])
         self.assertEqual(s["poll"], {"normal_s": 300, "fast_s": 60})
 
+    def test_new_alert_defaults(self):
+        a = settings.load_settings()["alerts"]
+        self.assertTrue(a["weekly_forecast"])
+        self.assertEqual(a["weekly_forecast_days"], 2)
+        self.assertTrue(a["waiting_reminder"])
+        self.assertEqual(a["waiting_reminder_min"], 10)
+        self.assertEqual(settings.load_settings()["updates"], {"enabled": True})
+
+    def test_old_settings_file_gets_new_defaults(self):
+        # Fichier d'une version précédente : les nouvelles clés prennent leur valeur par défaut.
+        write(self.store / "settings.json", {"alerts": {"enabled": True, "resets": False}})
+        a = settings.load_settings()["alerts"]
+        self.assertFalse(a["resets"])
+        self.assertTrue(a["weekly_forecast"])
+
     def test_settings_deep_merge(self):
         write(self.store / "settings.json", {"auto_switch": {"threshold": 95}})
         s = settings.load_settings()

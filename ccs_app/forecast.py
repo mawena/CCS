@@ -129,6 +129,81 @@ def weekly_pace(limit, now):
                       max(0.0, 100 - limit.percent) / days_left, days_left)
 
 
+# En tout début de semaine, le rythme moyen n'a pas de sens (une heure de
+# travail suffirait à « prévoir » l'épuisement) : pas de prévision avant 12 h.
+WEEKLY_MIN_ELAPSED_DAYS = 0.5
+
+
+@dataclass
+class WeeklyForecast:
+    rate_per_day: float | None       # rythme moyen depuis le début de la semaine (%/jour)
+    eta: datetime | None             # 100 % atteint à ce rythme
+    verdict: str                     # "limit" (avant la réinitialisation) | "ok" | "unknown"
+    days_before_reset: float | None  # avance de l'épuisement sur la réinitialisation
+
+    def as_dict(self):
+        return {"verdict": self.verdict, "eta": self.eta.isoformat() if self.eta else None,
+                "rate_per_day": self.rate_per_day, "days_before_reset": self.days_before_reset}
+
+
+def weekly_forecast(limit, now):
+    """Date où la limite hebdomadaire sera atteinte au rythme moyen de la semaine."""
+    pace = weekly_pace(limit, now)
+    if pace is None:
+        return None
+    elapsed_days = max(0.0, (WEEK - (limit.resets_at - now)).total_seconds() / 86400)
+    used = limit.percent
+    rate = used / elapsed_days if elapsed_days > 0 else None
+    if used >= 100:
+        return WeeklyForecast(rate, now, "limit", pace.days_left)
+    if elapsed_days < WEEKLY_MIN_ELAPSED_DAYS:
+        return WeeklyForecast(None, None, "unknown", None)
+    if rate <= 0:
+        return WeeklyForecast(0.0, None, "ok", None)
+    eta = now + timedelta(days=(100 - used) / rate)
+    if eta >= limit.resets_at:
+        return WeeklyForecast(rate, eta, "ok", None)
+    return WeeklyForecast(rate, eta, "limit", (limit.resets_at - eta).total_seconds() / 86400)
+
+
+def fmt_when(dt, now):
+    """« aujourd'hui à 14:00 », « demain à 09:30 », « jeu. 12 nov. à 18:00 »."""
+    local = dt.astimezone()
+    days = (local.date() - now.astimezone().date()).days
+    if days == 0:
+        day = "aujourd'hui"
+    elif days == 1:
+        day = "demain"
+    else:
+        day = f"{core.DAYS[local.weekday()]} {local.day} {core.MONTHS[local.month - 1]}"
+    return f"{day} à {local:%H:%M}"
+
+
+def fmt_days(days):
+    if days >= 1:
+        return f"{core.fr(days)} j"
+    hours = round(days * 24)
+    return f"{hours} h" if hours >= 1 else "moins d'une heure"
+
+
+def weekly_forecast_text(wf, now):
+    """Texte de la prévision de fin de semaine (forme de state.json), ou None."""
+    if not wf or wf.get("verdict") not in ("limit", "ok"):
+        return None
+    rate = wf.get("rate_per_day")
+    pace = f" ({rate:.0f} %/jour)" if rate else ""
+    if wf["verdict"] == "ok":
+        return f"✓ Semaine : tient jusqu'à la réinitialisation au rythme actuel{pace}"
+    eta = core.parse_dt(wf.get("eta"))
+    if eta is None:
+        return None
+    if eta <= now:
+        return "⚠ Semaine : limite atteinte"
+    before = wf.get("days_before_reset")
+    tail = f", {fmt_days(before)} avant la réinitialisation" if before else ""
+    return f"⚠ Semaine : limite prévue {fmt_when(eta, now)} au rythme actuel{pace}{tail}"
+
+
 # --------------------------------------------------------------------------
 # Capacité et meilleur compte
 # --------------------------------------------------------------------------
