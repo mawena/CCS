@@ -32,6 +32,63 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   n'est jamais réécrit).
 - `CCS_APP_ID` et `CCS_NO_VTE` documentés pour essayer une copie de
   développement.
+- **Suite du terminal intégré** :
+  - **reprise automatique après une limite** : quand une session d'un onglet
+    est bloquée, CCS bascule puis envoie « continue » dans l'onglet, une fois
+    par limite, dès que Claude attend une nouvelle demande ; garde anti-boucle
+    (au plus 3 reprises par heure et par onglet) ; interrupteur dans le menu de
+    la page Terminaux ;
+  - onglets rouverts au redémarrage de l'application (proposés par un bandeau,
+    ou automatiquement si activé) ;
+  - deux sessions côte à côte ;
+  - messages en attente envoyés quand Claude a fini son tour.
+- **Mode pause** : bascule automatique et orchestrateur suspendus 1 h, 4 h,
+  jusqu'à la prochaine plage horaire ou jusqu'à reprise manuelle ; levée
+  automatique à l'échéance avec la notification « Pause terminée ». Pendant une
+  pause, CCS ne change plus de compte tout seul, bascule après blocage (hook
+  `StopFailure`) et reprise automatique du terminal comprises ; les bascules
+  manuelles, alertes et warm-up continuent.
+  - `ccs pause [1h|4h|demain|manuel|off|status]` / `claude-accounts pause` ;
+    `ccs status` affiche la pause.
+  - Menu de l'indicateur (« Mettre en pause », « Reprendre maintenant », ⏸
+    devant le pourcentage), carte « Meilleur compte » de l'onglet Comptes,
+    rappel dans l'onglet Planning et dans l'en-tête de la fenêtre, ⏸ dans la
+    ligne d'état de Claude Code.
+  - État dans `~/.claude-accounts/pause.json`.
+- **Prévision de fin de semaine** par compte, au rythme moyen de la semaine :
+  sur la carte du compte et dans le menu de l'indicateur. Alerte une fois par
+  semaine quand la limite hebdomadaire sera atteinte dans 2 jours ou moins
+  (réglages `alerts.weekly_forecast`, `alerts.weekly_forecast_days`).
+- **Rappel des sessions en attente** : une notification unique quand une
+  session attend ta réponse depuis plus de 10 min (`alerts.waiting_reminder`,
+  `alerts.waiting_reminder_min`), même si les notifications de sessions sont
+  coupées.
+- **Nouvelle version** : vérification sur GitHub au plus une fois par jour,
+  une seule notification par version, ligne dans l'indicateur, bandeau dans la
+  fenêtre et lien dans Réglages (`updates.enabled`, cache
+  `~/.claude-accounts/updates.json`).
+- **Bilan de santé** : `ccs doctor` / `claude-accounts doctor` et « Bilan de
+  santé… » dans le menu de l'application : service, relevés, versions,
+  extension et indicateur, intégration, connexion de chaque compte, `claude`,
+  `jq`, terminal intégré. Une commande à copier par problème (rien n'est
+  exécuté) ; code de sortie 0 si tout va bien, 1 sinon ; bandeau au démarrage
+  de l'application si un problème est détecté. Des jetons, seuls la présence
+  et les dates d'expiration sont lues.
+- **Aperçu d'une conversation** sans la reprendre (« Aperçu… » dans les
+  onglets Conversations et Sessions, `ccs preview <id>` alias `ccs apercu`) :
+  demandes, réponses, outils en une ligne ; copie et **export en Markdown**
+  (`ccs export <id> [fichier.md]`). Journal lu en flux, même très gros.
+- **Coût d'une conversation** : tokens consommés (sous-agents compris) et
+  équivalent au tarif de l'API Anthropic en dollars (tarifs du 2026-10-06),
+  affiché pour chaque conversation et en tête de l'aperçu. Un abonnement ne
+  facture pas au token : le montant sert à comparer les conversations.
+- **Nouvelle session…** : dialogue avec le dossier, le compte, le modèle
+  (`--model`) et le mode de permissions (`--permission-mode`) ; ouverture dans
+  le terminal intégré, bascule de compte si besoin (avec un avertissement : la
+  bascule s'applique à toutes les sessions ouvertes) ; avertissement en rouge
+  pour `bypassPermissions`.
+- Notifications de session cliquables (ouverture de l'onglet de la session) et
+  badge du nombre de sessions en attente sur l'onglet Sessions.
 
 ### Modifié
 
@@ -39,6 +96,14 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   donné, sinon titre automatique, sinon première demande) et ne propose plus
   de reprendre une conversation déjà ouverte ailleurs.
 - Paquet : dépend de `gir1.2-vte-3.91`.
+- L'alerte de fin de semaine prévue remplace l'alerte « semaine en avance sur
+  le rythme », moins précise, quand elle part.
+- L'indicateur se relance tout seul après une mise à jour du paquet, comme le
+  service. Depuis la 0.4.0 ou avant, relance-le une fois à la main.
+- Les dialogues de l'application demandent libadwaita 1.5 ou plus récent
+  (Ubuntu 24.04 l'a).
+- `~/.claude-accounts/state.json` : nouvelles clés `pause`, `update`,
+  `auto_switch.paused`, `orchestrator.paused` et `accounts[].weekly_forecast`.
 
 ## [0.4.0] — 2026-11-04
 

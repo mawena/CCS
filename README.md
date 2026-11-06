@@ -73,6 +73,21 @@ n'est démarré et aucune bascule anticipée n'a lieu ; la bascule anticipée
 respecte aussi l'interrupteur « bascule automatique ». Tout se règle dans l'onglet **Réglages**, et l'onglet
 **Planning** montre la frise du jour et les recharges à venir.
 
+## Mettre en pause
+
+Besoin de rester sur un compte précis le temps d'une démo ou d'un gros
+travail ? `ccs pause 1h` (ou `4h`, `demain` = jusqu'au début de la prochaine
+plage horaire, `manuel` = jusqu'à ce que tu reprennes) suspend la bascule
+automatique et l'orchestrateur. Pendant une pause, **CCS ne change plus de
+compte tout seul**, même quand une session est bloquée par la limite ; les
+bascules que tu fais toi-même, les alertes et les warm-up continuent. La pause
+se lève seule à l'échéance (notification « Pause terminée ») ; `ccs pause off`
+reprend tout de suite.
+
+Aussi dans le menu de l'icône (« Mettre en pause ») et sur la carte **Meilleur
+compte** de l'onglet Comptes ; l'en-tête de la fenêtre, l'onglet Planning,
+`ccs status`, l'icône et la ligne d'état de Claude Code affichent ⏸.
+
 ## Dans Claude Code
 
 `ccs integrate on` ajoute deux choses à Claude Code (dans `~/.claude/settings.json`,
@@ -84,7 +99,8 @@ avec une sauvegarde ; une ligne d'état que tu aurais déjà n'est jamais rempla
   faut changer ;
 - **la bascule après blocage** : si une session atteint malgré tout la limite,
   CCS bascule aussitôt sur le meilleur autre compte et te prévient — tape
-  « continue » et la session repart.
+  « continue » et la session repart (dans le terminal intégré, CCS peut
+  l'envoyer pour toi). En pause, la notification le dit et rien ne bascule.
 
 `ccs integrate off` retire tout ce que CCS a ajouté, et seulement cela.
 
@@ -96,14 +112,24 @@ sessions Claude Code ouvertes — terminal ou VS Code : projet, état (*travaill
 conversation. Tu peux ouvrir un terminal ou le dossier du projet, terminer une
 session oubliée, reprendre une conversation récente ou en démarrer une nouvelle
 dans un projet. Une notification te prévient quand une session **a terminé** ou
-**attend ta réponse** — pratique quand plusieurs tournent en parallèle.
+**attend ta réponse** — pratique quand plusieurs tournent en parallèle ; un clic
+dessus ouvre l'onglet de la session, et un rappel unique part si ta réponse se
+fait attendre plus de 10 min. Le badge de l'onglet Sessions compte les sessions
+qui t'attendent.
+
+**Nouvelle session…** ouvre un dialogue : dossier, compte, modèle (`--model`)
+et mode de permissions (`--permission-mode`). Si tu choisis un autre compte que
+le compte actif, CCS bascule avant de lancer la session — et toutes les
+sessions ouvertes suivent, le dialogue te le rappelle. Le mode « Aucune
+vérification » (`bypassPermissions`) reste proposé, avec un avertissement en
+rouge.
 
 ## Terminal intégré
 
 Reprendre une conversation ou démarrer une session l'ouvre **dans la fenêtre de
 l'application**, dans un onglet de terminal, plutôt que dans une fenêtre à part.
-Plusieurs sessions tiennent côte à côte en onglets (page **Terminaux**, visible
-dès qu'un onglet est ouvert) ; chaque onglet porte le titre de la conversation
+Plusieurs sessions tiennent en onglets (page **Terminaux**, visible dès qu'un
+onglet est ouvert) ; chaque onglet porte le titre de la conversation
 et montre si Claude **travaille**, **attend ta réponse** ou s'est arrêté.
 
 - **Ctrl+Maj+C / Ctrl+Maj+V** pour copier et coller (ou clic droit),
@@ -118,6 +144,14 @@ et montre si Claude **travaille**, **attend ta réponse** ou s'est arrêté.
   depuis les onglets Sessions et Conversations. Le terminal externe reste
   disponible dans les menus « ⋮ », et « Terminal ici » ouvre un shell dans un
   onglet.
+- **Reprise automatique après une limite** : quand une session d'un onglet est
+  bloquée, CCS bascule sur un autre compte puis tape « continue » à ta place,
+  une seule fois, dès que Claude attend une nouvelle demande (interrupteur dans
+  le menu de la page Terminaux ; rien n'est relancé pendant une pause).
+- Deux sessions **côte à côte** ; un message mis en attente pendant que Claude
+  travaille part quand il a fini son tour ; au redémarrage de l'application,
+  les onglets ouverts sont proposés (bandeau) ou rouverts d'eux-mêmes si tu
+  l'as choisi.
 
 Le terminal intégré utilise VTE (`gir1.2-vte-3.91`, dépendance du paquet). S'il
 manque, tout s'ouvre dans un terminal externe comme avant et l'onglet Sessions
@@ -148,6 +182,13 @@ une seconde fois. Si le projet a été **déplacé**, CCS propose le dossier du 
 nom qu'il retrouve et, après confirmation, y copie le journal de la conversation
 pour qu'elle reprenne depuis là (l'original reste en place).
 
+**Aperçu…** (menu d'une conversation, onglets Conversations et Sessions) relit
+une conversation sans la reprendre : tes demandes, les réponses de Claude, les
+outils utilisés en une ligne. Tu peux la copier ou l'**exporter en Markdown**.
+Chaque conversation affiche aussi son **coût** : tokens consommés (sous-agents
+compris) et ce qu'elle aurait coûté au tarif de l'API. Ton abonnement ne
+facture pas au token : ce montant sert seulement à comparer les conversations.
+
 ```bash
 ccs conv                 # les 30 dernières conversations, groupées par date
 ccs conv export csv      # recherche
@@ -155,7 +196,19 @@ ccs conv -p Portail      # un projet
 ccs resume 4f3a          # reprend ici (4 premiers caractères de l'identifiant)
 ccs resume 4f3a --vscode # ou dans VS Code
 ccs title 4f3a Export CSV des prêts   # renomme la conversation
+ccs preview 4f3a | less  # relit la conversation (Markdown, coût en en-tête)
+ccs export 4f3a prets.md # l'enregistre en Markdown
 ```
+
+## Bilan de santé
+
+Quelque chose ne marche pas ? `ccs doctor` (ou « Bilan de santé… » dans le menu
+de l'application) vérifie le service et ses relevés, la version installée et
+celle qui tourne, l'extension et l'icône de la barre du haut, l'intégration
+dans Claude Code, la connexion de chaque compte, `claude`, `jq` et le terminal
+intégré. Pour chaque problème, il donne **la commande à copier** ; il ne
+l'exécute jamais à ta place. Code de sortie : 0 si tout va bien, 1 sinon.
+L'application affiche un bandeau quand un problème est détecté au démarrage.
 
 ## Fonctionnalités
 
@@ -163,23 +216,25 @@ ccs title 4f3a Export CSV des prêts   # renomme la conversation
 |---|---|
 | **Profils** | Un profil par compte claude.ai. Bascule instantanée ; réglages, historique, plugins et serveurs MCP restent communs. |
 | **Usage de tous les comptes** | Session de 5 h et limites hebdomadaires de chaque compte, sans basculer. |
-| **Prévisions** | Fin de session estimée au rythme actuel, marge sur le rythme de la semaine, budget par jour, capacité restante tous comptes confondus. |
+| **Prévisions** | Fin de session estimée au rythme actuel, fin de semaine prévue au rythme moyen de la semaine, marge sur le rythme de la semaine, budget par jour, capacité restante tous comptes confondus. |
 | **Meilleur compte** | Recommandation expliquée : d'abord le quota qui expire le plus tôt, les comptes en réserve en dernier. |
 | **Bascule automatique** | À 98 % (réglable) ou si le prochain relevé dépasserait 100 %, vers un compte sous 80 % aux données fraîches. Pas de va-et-vient, bascule manuelle récente respectée. |
 | **Orchestrateur** | Enchaînement et décalage des fenêtres, quota qui expire d'abord, réserve hebdomadaire (voir plus haut). |
-| **Alertes** | 80 % et 95 % (avec un bouton « Basculer sur … »), fin de session imminente, bascule effectuée, tous comptes épuisés, compte réinitialisé, semaine en avance, connexion expirée, session terminée ou en attente. Une fois par seuil et par fenêtre. |
+| **Pause** | Bascule automatique et orchestrateur suspendus 1 h, 4 h, jusqu'à la prochaine plage horaire ou jusqu'à reprise ; levée automatique. |
+| **Alertes** | 80 % et 95 % (avec un bouton « Basculer sur … »), fin de session imminente, semaine épuisée dans 2 jours ou moins, bascule effectuée, tous comptes épuisés, compte réinitialisé, connexion expirée, session terminée ou en attente (avec un rappel après 10 min), pause terminée, nouvelle version. Une fois par seuil et par fenêtre. |
 | **Intégration Claude Code** | Ligne d'état dans chaque session, bascule automatique quand une session est bloquée. |
-| **Sessions** | Sessions ouvertes, consommation, reprise de conversations, terminal / dossier du projet. |
-| **Terminal intégré** | Sessions Claude Code dans des onglets de l'application : activité, reprise après arrêt, copier/coller, liens, confirmation avant fermeture. |
-| **Conversations** | Historique de toutes les conversations du PC, recherche, reprise dans l'application, VS Code ou un terminal externe, renommage, projets déplacés. |
+| **Sessions** | Sessions ouvertes, consommation, reprise de conversations, nouvelle session (dossier, compte, modèle, permissions), terminal / dossier du projet. |
+| **Terminal intégré** | Sessions Claude Code dans des onglets de l'application : activité, reprise après arrêt ou après une limite, deux sessions côte à côte, onglets rouverts, copier/coller, liens, confirmation avant fermeture. |
+| **Conversations** | Historique de toutes les conversations du PC, recherche, aperçu, export Markdown, coût, reprise dans l'application, VS Code ou un terminal externe, renommage, projets déplacés. |
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets. |
+| **Bilan de santé** | `ccs doctor` : service, versions, barre du haut, intégration, comptes, Claude Code, terminal ; une commande à copier par problème. |
 | **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Sessions, Conversations, Terminaux, Historique, Analyse, Réglages. |
-| **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge) ; au clic : comptes, recharges, prévision, sessions, interrupteurs. |
-| **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre. |
+| **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge, ⏸ en pause) ; au clic : comptes, recharges, prévisions, sessions, interrupteurs, pause, nouvelle version. |
+| **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre ; nouvelle version cherchée une fois par jour. |
 
 ## Installation
 
-Ubuntu 24.04 (ou Debian/Ubuntu récent avec GTK 4, libadwaita ≥ 1.4 et, pour le
+Ubuntu 24.04 (ou Debian/Ubuntu récent avec GTK 4, libadwaita ≥ 1.5 et, pour le
 terminal intégré, VTE pour GTK 4 : `gir1.2-vte-3.91`).
 Claude Code doit être installé
 (`claude` dans le `PATH`).
@@ -200,10 +255,14 @@ dans Claude Code.
 `gnome-extensions enable ubuntu-appindicators@ubuntu.com` (ou bouton dans
 Réglages).
 
-**Mise à jour** : installe le nouveau `.deb`. À partir de 0.2.1, le service
-se relance seul avec la nouvelle version (dans les 5 min) ; depuis une version
-plus ancienne, lance une fois `systemctl --user restart ccs-daemon`. Tes
-profils sont conservés.
+**Mise à jour** : CCS te prévient quand une nouvelle version est publiée
+(notification, icône, Réglages ; vérification sur GitHub au plus une fois par
+jour). Installe le nouveau `.deb` : le service se relance seul avec la nouvelle
+version (dans les 5 min), l'icône aussi (dans les 10 s). En venant de la 0.4.0
+ou d'avant, l'icône ne sait pas encore le faire : relance-la une fois
+(`pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`) ; en venant
+d'une version antérieure à 0.2.1, lance aussi une fois
+`systemctl --user restart ccs-daemon`. Tes profils sont conservés.
 
 ### Depuis les sources
 
@@ -230,22 +289,37 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs` | Liste les profils (● = actif) |
 | `ccs <nom>` | Bascule sur un profil |
 | `ccs next` / `ccs best` | Profil suivant / meilleur compte du moment |
-| `ccs status` | Compte actif, prévision, meilleur compte, capacité, orchestrateur, service |
+| `ccs status` | Compte actif, prévision, meilleur compte, capacité, orchestrateur, pause, service |
 | `ccs plan` | Planning des fenêtres et recharges à venir |
 | `ccs sessions` | Sessions Claude Code ouvertes : projet, état, consommation |
 | `ccs conv [mots]` | Historique des conversations du PC, recherche, `-p <projet>`, `--vscode`/`--terminal` |
 | `ccs resume <id>` | Reprend une conversation ici, `--vscode`, `--new-terminal`, `--dir <dossier>` |
 | `ccs title <id> <titre>` | Renomme une conversation (comme `/rename`) |
+| `ccs preview <id>` | Affiche la conversation en Markdown, coût en en-tête (alias `ccs apercu`) |
+| `ccs export <id> [fichier.md]` | Enregistre la conversation en Markdown |
 | `ccs integrate on\|off\|status` | Ligne d'état et bascule après blocage dans Claude Code |
 | `ccs usage` | Usage détaillé de tous les comptes, prévisions, rythme hebdo |
 | `ccs orch on\|off` | Orchestrateur |
 | `ccs auto on\|off` | Bascule automatique à 98 % |
+| `ccs pause [1h\|4h\|demain\|manuel\|off\|status]` | Met en pause la bascule automatique et l'orchestrateur (`status` par défaut) |
+| `ccs doctor` | Bilan de santé, avec la commande qui corrige chaque problème |
 | `ccs analyze [--days N]` | Consommation par projet, modèle, heure, compte + conseils |
 | `ccs save <nom>` / `ccs add <nom>` | Enregistre le compte connecté / connecte un nouveau compte |
 | `ccs rename <a> <b>` / `ccs rm <nom>` | Renomme / supprime un profil |
 | `ccs gui` | Application graphique |
 
 Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisation.md).
+
+## Configuration
+
+Tout se règle dans l'onglet **Réglages** de l'application (ou les commandes
+`ccs auto`, `ccs orch`, `ccs pause`, `ccs integrate`). Les réglages vivent dans
+`~/.claude-accounts/settings.json`, fusionnés avec les valeurs par défaut :
+bascule automatique (`auto_switch`), alertes (`alerts` : seuils, fin de semaine
+prévue `weekly_forecast` / `weekly_forecast_days`, rappel d'attente
+`waiting_reminder` / `waiting_reminder_min`…), orchestrateur et plage horaire
+(`orchestrator`), warm-up (`warmup`), nouvelles versions (`updates.enabled`).
+`CCS_HOME` change le dossier des profils (défaut `~/.claude-accounts`).
 
 ## Comment ça marche
 
@@ -272,19 +346,28 @@ Architecture : [docs/architecture.md](docs/architecture.md).
 ## Données et confidentialité
 
 Tout reste sur la machine, dans `~/.claude-accounts/` (dossier 700, fichiers
-600). CCS ne contacte que les serveurs d'Anthropic. Il lit les conversations de
+600). CCS contacte les serveurs d'Anthropic et, au plus une fois par jour, l'API
+publique de GitHub pour savoir si une nouvelle version de CCS est sortie (sans
+authentification ; à couper dans **Réglages → Nouvelles versions**).
+Il lit les conversations de
 `~/.claude/projects` sans les modifier, à deux exceptions près : la reprise d'un
 projet déplacé y ajoute une copie du journal, et renommer une conversation ajoute
-une ligne de titre à la fin de son journal (comme `/rename`). Aucun jeton n'apparaît dans
-les journaux, l'état partagé ou les notifications.
+une ligne de titre à la fin de son journal (comme `/rename`). L'aperçu, l'export
+et le coût ne font que lire. Aucun jeton n'apparaît dans
+les journaux, l'état partagé, les notifications ou le bilan de santé (qui n'en
+retient que la présence et les dates d'expiration).
 
 ## Dépannage
+
+Premier réflexe : `ccs doctor`, qui donne la commande à lancer pour chaque
+problème trouvé.
 
 | Symptôme | Solution |
 |---|---|
 | « le compte connecté n'est enregistré dans aucun profil » | `ccs save <nom>` avant de basculer. |
 | « connexion expirée ou révoquée » | `ccs rm <nom>` puis `ccs add <nom>`. |
-| Pas de bascule / pas de démarrage | `ccs status` : service en marche ? orchestrateur activé ? dans la plage horaire ? |
+| Pas de bascule / pas de démarrage | `ccs status` : service en marche ? orchestrateur activé ? dans la plage horaire ? en pause (`ccs pause off`) ? |
+| L'icône garde l'ancienne version après une mise à jour | Mise à jour en venant de la 0.4.0 ou d'avant : `pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`. |
 | L'ancienne version s'ouvre | Supprime `~/.local/bin/ccs`, `~/.local/bin/claude-accounts` et `~/.local/share/applications/io.ccs.ClaudeAccounts.desktop`. |
 | « Comptes Claude » introuvable dans le menu | Alt+F2 puis `r` (X11), ou reconnecte-toi. |
 | Icône absente de la barre du haut | Extension « Ubuntu AppIndicators » (voir Installation), puis `claude-accounts tray &`. |
@@ -306,6 +389,17 @@ rm -rf ~/.claude-accounts      # optionnel : profils et historique
 Projet en **git flow** (`main` / `develop`, tags `vX.Y.Z`), commits
 conventionnels en français. Python 3 (bibliothèque standard + PyGObject) et
 bash ; pas d'autre dépendance.
+
+```
+bin/ccs              commande ccs (bash) : profils et bascule
+bin/claude-accounts  lanceur Python de ccs_app
+ccs_app/             service, prévisions, alertes, pause, conversations, bilan…
+ccs_app/gui/         application GTK 4 / libadwaita et ses dialogues
+data/  debian/       unité systemd, entrées de menu, icône, paquet
+scripts/             construction du .deb
+docs/                guide, architecture, pages man
+tests/               tests unitaires et scénario de bout en bout
+```
 
 ```sh
 make test     # tests unitaires + scénario de bout en bout de ccs
