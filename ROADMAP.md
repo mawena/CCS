@@ -108,6 +108,28 @@ Documentation et release :
 - [x] Release mineure 0.5.0 (genre choisi par Charles), `main`, `develop` et le tag poussés
 - [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.5.0_all.deb`)
 
+## Phase 8 — Conseils, journal et raccourcis (0.6.0)
+
+Conseils :
+- [ ] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars
+- [ ] Conseil de modèle près des limites (Opus → Sonnet)
+- [ ] Bilan de la semaine
+
+Journal et projets :
+- [ ] Journal lisible des bascules dans l'application
+- [ ] Compte par projet
+
+Bureau :
+- [ ] Raccourcis clavier globaux
+
+Raccordement, documentation et release :
+- [ ] Commandes `ccs` (`formule`, `semaine`, `journal`, `projet`, `raccourcis`) et Réglages de l'application
+- [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub
+
+Releases GitHub manquantes :
+- [ ] Releases GitHub 0.3.1, 0.3.2 et 0.4.0, avec leurs `.deb` reconstruits depuis les tags
+
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
 Recommandées :
@@ -115,15 +137,15 @@ Recommandées :
 - [x] Prévision de fin de semaine par compte, alerte 2 jours avant → Phase 7
 - [x] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain) → Phase 7
 - [x] Avertissement de nouvelle version et relance automatique de l'icône → Phase 7
-- [ ] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars
+- [x] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars → Phase 8
 
 Autres :
-- [ ] Conseil de modèle près des limites (Opus → Sonnet)
-- [ ] Bilan de la semaine
-- [ ] Raccourci clavier global
+- [x] Conseil de modèle près des limites (Opus → Sonnet) → Phase 8
+- [x] Bilan de la semaine → Phase 8
+- [x] Raccourci clavier global → Phase 8
 - [x] Rappel quand une session attend depuis plus de 10 min → Phase 7
-- [ ] Journal lisible des bascules dans l'application
-- [ ] Compte par projet
+- [x] Journal lisible des bascules dans l'application → Phase 8
+- [x] Compte par projet → Phase 8
 
 ## Points mineurs reportés
 
