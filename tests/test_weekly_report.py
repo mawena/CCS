@@ -127,6 +127,13 @@ class PendingAlertTest(unittest.TestCase):
         self.assertIsNone(self.pending(has_data=lambda *_: False))
         self.assertEqual(self.built, [])
 
+    def test_service_frees_the_journal_cache_after_the_report(self):
+        with mock.patch.object(weekly_report, "build_report", side_effect=self.build), \
+                mock.patch.object(costs, "clear_cache") as clear:
+            a = self.pending(build=None)
+        self.assertIsNotNone(a)
+        clear.assert_called_once_with()
+
     def test_failure_is_retried_an_hour_later(self):
         def boom(start, end):
             raise OSError("illisible")

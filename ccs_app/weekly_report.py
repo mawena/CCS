@@ -441,6 +441,14 @@ def clear_jobs():
         _JOBS.clear()
 
 
+def _build_and_free(start, end):
+    """Bilan calculé par le service, qui ne garde pas en mémoire les journaux lus pour lui."""
+    try:
+        return build_report(start, end)
+    finally:
+        costs.clear_cache()
+
+
 def _thread(work):
     threading.Thread(target=work, name="ccs-bilan", daemon=True).start()
 
@@ -470,7 +478,7 @@ def pending_alert(accounts, settings, now, sent_keys, build=None, has_data=None,
             launch = False
     if launch:
         check = has_data or (lambda s, e: globals()["has_data"](s, e))
-        make = build or (lambda s, e: build_report(s, e))
+        make = build or _build_and_free
         stamp = now.timestamp()
 
         def work():
