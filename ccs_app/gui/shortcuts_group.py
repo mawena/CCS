@@ -82,10 +82,12 @@ class CaptureDialog(Adw.Dialog):
         super().__init__(title=act.label, content_width=440)
         self.action, self.on_done = act, on_done
         self._surface = None
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=18,
-                      margin_bottom=24, margin_start=24, margin_end=24)
-        box.append(Gtk.Image(icon_name="preferences-desktop-keyboard-shortcuts-symbolic",
-                             pixel_size=64, css_classes=["dim-label"]))
+        # Contenu focalisable : le focus clavier entre dans le dialogue, dont le contrôleur
+        # (phase de capture) voit alors toutes les touches, même Espace ou Entrée.
+        self.box = box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=18,
+                                 margin_bottom=24, margin_start=24, margin_end=24, focusable=True)
+        box.append(Gtk.Image(icon_name="input-keyboard-symbolic", pixel_size=64,
+                             css_classes=["dim-label"]))
         box.append(Gtk.Label(label="Appuie sur la nouvelle combinaison", css_classes=["title-3"],
                              wrap=True, justify=Gtk.Justification.CENTER))
         box.append(Gtk.Label(label="Par exemple Super+Alt+C. Échap pour annuler, Retour arrière "
@@ -140,6 +142,7 @@ class CaptureDialog(Adw.Dialog):
         self.on_done(accel)
 
     def _inhibit(self, *_):
+        self.box.grab_focus()
         native = self.get_native()
         surface = native.get_surface() if native else None
         if isinstance(surface, Gdk.Toplevel):
