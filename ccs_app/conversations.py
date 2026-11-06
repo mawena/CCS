@@ -228,7 +228,8 @@ def scan():
 
 # ---- recherche, regroupement ----------------------------------------------------------
 
-def _fold(text):
+def fold(text):
+    """Texte sans accents ni casse, pour comparer une recherche."""
     text = unicodedata.normalize("NFKD", text or "").casefold()
     return "".join(ch for ch in text if not unicodedata.combining(ch))
 
@@ -237,14 +238,17 @@ def search(convs, query="", project=None, origin=None):
     """Chaque mot de la recherche doit apparaître (sans tenir compte des accents ni de
     la casse) dans le titre, la première ou la dernière demande, le projet, le dossier
     ou la branche."""
-    words = _fold(query).split()
+    words = fold(query).split()
     out = []
     for c in convs:
         if project and c.cwd != project:
             continue
         if origin and c.origin != origin:
             continue
-        hay = _fold(" ".join((c.title, c.first_prompt, c.last_prompt, c.project, c.cwd, c.git_branch)))
+        if not words:   # rien à chercher : inutile de préparer le texte (relu souvent par l'application)
+            out.append(c)
+            continue
+        hay = fold(" ".join((c.title, c.first_prompt, c.last_prompt, c.project, c.cwd, c.git_branch)))
         if all(w in hay for w in words):
             out.append(c)
     return out
