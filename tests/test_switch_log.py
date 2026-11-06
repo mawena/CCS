@@ -139,7 +139,8 @@ class ManualSwitchTest(unittest.TestCase):
             "notification": "Bascule manuelle depuis une notification",
             "application": "Bascule manuelle depuis l'application",
             "icone": "Bascule manuelle depuis l'icône",
-            "ccs": "Bascule manuelle par « ccs use »",
+            "ccs": "Bascule manuelle par la commande ccs",
+            "raccourci": "Bascule manuelle par un raccourci clavier",
             "nouvelle-session": "Bascule pour une nouvelle session (compte choisi)",
             "inconnu": "Bascule manuelle (application, icône ou « ccs use »)",
         }

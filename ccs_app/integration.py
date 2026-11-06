@@ -162,7 +162,10 @@ def statusline_text(state, now, payload=None, settings=None):
     model = payload.get("model") if isinstance(payload, dict) else None
     if model:
         from . import model_advice
-        hint = model_advice.statusline_hint(state, model, settings or load_settings(), now)
+        try:
+            hint = model_advice.statusline_hint(state, model, settings or load_settings(), now)
+        except Exception:  # noqa: BLE001 — réglages illisibles : la ligne reste, sans l'indice
+            hint = ""
     text = _statusline(state, now, hint)
     return f"⏸ {text}" if (state or {}).get("pause") else text
 
@@ -307,8 +310,26 @@ def stop_failure(payload, notifier=notify.send):
         return decision.reason
 
 
-def read_stdin_json():
+STDIN_TIMEOUT_S = 2.0
+
+
+def read_stdin_json(timeout=STDIN_TIMEOUT_S):
+    """Contexte JSON envoyé par Claude Code sur l'entrée standard ({} s'il est absent,
+    vide ou illisible). Jamais d'attente sur un terminal ; au plus `timeout` secondes
+    si rien n'arrive sur un tube resté ouvert."""
+    stdin = sys.stdin
     try:
-        return json.loads(sys.stdin.read() or "{}")
-    except ValueError:
+        if stdin is None or stdin.isatty():
+            return {}
+        try:
+            fd = stdin.fileno()
+        except (AttributeError, OSError, ValueError):
+            fd = None  # flux sans descripteur (tests) : lecture directe
+        if fd is not None:
+            import select
+            if not select.select([fd], [], [], timeout)[0]:
+                return {}
+        data = json.loads(stdin.read() or "{}")
+    except (ValueError, OSError):  # JSON ou encodage illisible, entrée fermée
         return {}
+    return data if isinstance(data, dict) else {}

@@ -48,10 +48,23 @@ class ShortcutsGroupTest(unittest.TestCase):
         self.assertEqual(list(g.rows), list(sc.ACTION_IDS))
         self.assertTrue(g.rows["ouvrir"].switch.get_active())
         self.assertFalse(g.rows["sessions"].switch.get_active())
-        self.assertEqual(g.rows["ouvrir"].accel.get_accelerator(), "<Super><Alt>c")
-        self.assertEqual(g.rows["sessions"].accel.get_accelerator(), "<Super><Alt>v")
-        self.assertEqual(g.rows["suivant"].get_subtitle(), "ccs next")
+        self.assertEqual(g.rows["ouvrir"].accel.get_label(), "Super+Alt+C")
+        self.assertEqual(g.rows["sessions"].accel.get_label(), "Super+Alt+V")
+        self.assertEqual(g.rows["suivant"].get_subtitle(), "ccs next --notifier")
         self.assertFalse(g.rows["ouvrir"].warning.get_visible())
+
+    def test_rows_fit_the_narrow_window(self):
+        """Fenêtre étroite : 360 px moins les marges de la page (2 × 12 px), conflit affiché."""
+        sc.install("ouvrir", backend=self.b)
+        sc.set_binding("suivant", "<Super>m", backend=self.b)   # pris par le bureau : ⚠
+        g = self.group()
+        self.assertTrue(g.rows["suivant"].warning.get_visible())
+        win = Gtk.Window()
+        page = Adw.PreferencesPage()
+        page.add(g)
+        win.set_child(page)
+        self.addCleanup(win.destroy)
+        self.assertLessEqual(g.measure(Gtk.Orientation.HORIZONTAL, -1)[0], 360 - 24)
 
     def test_switch_on_installs_and_off_removes(self):
         g = self.group()
@@ -142,7 +155,7 @@ class ShortcutsGroupTest(unittest.TestCase):
         self.assertEqual(g.rows, {})
         self.assertIn("introuvables", g.get_description())
         self.assertEqual(len(g.extra), len(sc.ACTIONS))
-        self.assertEqual(g.extra[3].get_subtitle(), "/usr/bin/ccs next")
+        self.assertEqual(g.extra[3].get_subtitle(), "/usr/bin/ccs next --notifier")
 
     def test_outdated_commands(self):
         sc.install("suivant", backend=self.b)
@@ -151,7 +164,7 @@ class ShortcutsGroupTest(unittest.TestCase):
         self.assertTrue(g.update_btn.get_visible())
         self.assertIn("mettre à jour", g.rows["suivant"].get_subtitle())
         g.update_btn.emit("clicked")
-        self.assertEqual(custom(self.b, DIR + "ccs-suivant/")["command"], "/usr/bin/ccs next")
+        self.assertEqual(custom(self.b, DIR + "ccs-suivant/")["command"], "/usr/bin/ccs next --notifier")
         self.assertFalse(g.update_btn.get_visible())
 
     def test_external_change_refreshes(self):

@@ -175,6 +175,28 @@ def _pause_line():
             "(ccs pause off pour reprendre)")
 
 
+def _notify(title, body=""):
+    """Résultat d'une commande lancée par un raccourci clavier (--notifier) : notification
+    passagère ; rien si le bureau est injoignable."""
+    from . import notify
+    return notify.message(title, body) is not None
+
+
+def cmd_notify(args):
+    return 0 if _notify(args.title, args.body or "") else 1
+
+
+def _pause_notice(choice, st, was, now):
+    """(titre, texte) de la notification de `ccs pause … --notifier`."""
+    from . import pause
+    if st is not None:
+        return (f"Pause {pause.label(st, now)}",
+                "Bascule automatique et orchestrateur suspendus.")
+    if choice in pause.RESUME and was is not None:
+        return "Pause levée", "La bascule automatique et l'orchestrateur reprennent."
+    return "Pas de pause en cours", "La bascule automatique et l'orchestrateur suivent les réglages."
+
+
 def cmd_pause(args):
     from datetime import datetime, timezone
     from . import daemon, pause
@@ -183,10 +205,15 @@ def cmd_pause(args):
     code, message = pause.command(args.choice, now)
     if code != 0:
         print(message, file=sys.stderr)
+        if args.notifier:
+            _notify("Pause impossible", message)
         return code
     print(message)
-    if pause.pause_state(now) != before:
+    after = pause.pause_state(now)
+    if after != before:
         daemon.request_refresh()  # le service relit la pause et met à jour l'état partagé
+    if args.notifier:
+        _notify(*_pause_notice(args.choice, after, before, now))
     return 0
 
 
@@ -196,10 +223,16 @@ def cmd_doctor(_args):
 
 
 def cmd_best(args):
+    notifier = getattr(args, "notifier", False)
+
+    def notice(title, body=""):
+        if notifier:
+            _notify(title, body)
     if not core.list_profiles():
         print("Aucun profil. Enregistre le compte actuel avec : ccs save <nom>")
+        notice("Bascule impossible", "Aucun profil : enregistre le compte actuel avec « ccs save <nom> ».")
         return 1
-    from . import daemon
+    from . import daemon, switch_log
     st = _state()
     if not daemon.state_fresh(st):
         # Jamais de bascule sur la foi d'un état ancien : relevé d'abord.
@@ -214,17 +247,27 @@ def cmd_best(args):
     best = st.get("best")
     if not best:
         print("Aucun compte disponible pour l'instant.")
+        notice("Aucun compte disponible", "Tous les comptes sont épuisés ou indisponibles pour l'instant.")
         return 1
-    print(f"Meilleur compte : {best['name']} — {best['reason']}")
+    name = best["name"]
+    print(f"Meilleur compte : {name} — {best['reason']}")
     if not args.switch:
+        notice(f"Meilleur compte : {name}", best["reason"])
         return 0
-    if best["name"] == core.active_profile_name():
+    if name == core.active_profile_name():
         print("C'est déjà le compte actif.")
+        notice(f"Déjà sur {name}", f"C'est le meilleur compte : {best['reason']}")
         return 0
-    r = core.run_ccs(["use", best["name"]])
+    # Origine pour le journal des bascules : à la main, ou par un raccourci clavier.
+    switch_log.note_origin(name, "raccourci" if notifier else "ccs")
+    r = core.run_ccs(["use", name])
     print((r.stdout + r.stderr).strip())
     if r.returncode == 0:
         daemon.request_refresh()
+        notice(f"Bascule sur {name}", f"Meilleur compte : {best['reason']}")
+    else:
+        switch_log.clear_origin()  # aucune bascule : la note ne doit rien attribuer plus tard
+        notice("Bascule impossible", (r.stderr or r.stdout).strip())
     return r.returncode
 
 
@@ -479,12 +522,112 @@ def cmd_export(args):
     return 0
 
 
+def _waiting(text):
+    """Message d'attente sur la sortie d'erreur quand c'est un terminal ; renvoie la
+    fonction qui l'efface."""
+    tty = sys.stderr.isatty()
+    if tty:
+        sys.stderr.write(text)
+        sys.stderr.flush()
+
+    def done():
+        if tty:
+            sys.stderr.write("\r\033[K")
+            sys.stderr.flush()
+    return done
+
+
+def cmd_formule(_args):
+    from . import advisor
+    done = _waiting("Calcul du conseil : relevés du service et journaux de Claude Code…")
+    try:
+        advice = advisor.compute()
+    except Exception as e:  # noqa: BLE001 — historique ou journaux illisibles : message, pas de trace
+        done()
+        print(f"Conseil impossible : {e}", file=sys.stderr)
+        return 1
+    done()
+    print(advisor.format_text(advice))
+    return 0
+
+
+MAX_WEEKS_BACK = 520
+
+
+def _weeks_back(text):
+    """Option --precedente : nombre de semaines avant la semaine écoulée (0 à 520)."""
+    try:
+        n = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"nombre de semaines invalide : « {text} »") from None
+    if not 0 <= n <= MAX_WEEKS_BACK:
+        raise argparse.ArgumentTypeError(f"nombre de semaines entre 0 et {MAX_WEEKS_BACK} : « {text} »")
+    return n
+
+
+def cmd_semaine(args):
+    from datetime import datetime, timezone
+    from . import daemon, weekly_report
+    from .settings import load_settings
+    now = datetime.now(timezone.utc)
+    try:
+        accounts = daemon.states_from_state(_state())
+    except (KeyError, TypeError, ValueError):
+        accounts = []  # état illisible : semaine du lundi 9:00 (ou du jour réglé)
+    try:
+        weeks = weekly_report.week_choices(accounts, now, load_settings(), count=args.precedente + 1)
+        start, end = weeks[args.precedente + 1]
+        done = _waiting("Calcul du bilan : relevés du service et journaux de Claude Code…")
+        try:
+            report = weekly_report.build_report(start, end)
+        finally:
+            done()
+    except Exception as e:  # noqa: BLE001 — historique ou journaux illisibles : message, pas de trace
+        print(f"Bilan impossible : {e}", file=sys.stderr)
+        return 1
+    print(weekly_report.format_text(report))
+    return 0
+
+
+def cmd_journal(args):
+    from . import switch_log
+    try:
+        code, text = switch_log.command(None if args.tout else args.jours)
+    except Exception as e:  # noqa: BLE001 — historique illisible
+        print(f"Journal illisible : {e}", file=sys.stderr)
+        return 1
+    print(text, file=sys.stdout if code == 0 else sys.stderr)
+    return code
+
+
+def cmd_projet(args):
+    import os
+    from . import project_accounts
+    try:
+        cwd = os.getcwd()
+    except OSError as e:
+        print(f"Dossier courant introuvable : {e}", file=sys.stderr)
+        return 1
+    code, text = project_accounts.command(args.args, cwd=cwd)
+    print(text, file=sys.stdout if code == 0 else sys.stderr)
+    return code
+
+
+def cmd_raccourcis(args):
+    from . import shortcuts
+    code, text = shortcuts.command(args.args)
+    # L'état sur un autre bureau (code 1) donne les commandes à associer : sortie normale.
+    status = not args.args or args.args[0] in ("status", "etat", "état")
+    (sys.stdout if code == 0 or status else sys.stderr).write(text)
+    return code
+
+
 def cmd_statusline(_args):
     from datetime import datetime, timezone
     from . import integration
-    integration.read_stdin_json()  # Claude Code envoie le contexte de la session ; inutile ici
+    payload = integration.read_stdin_json()  # contexte de la session : modèle utilisé…
     try:
-        text = integration.statusline_text(_state(), datetime.now(timezone.utc))
+        text = integration.statusline_text(_state(), datetime.now(timezone.utc), payload)
     except Exception:  # affichée dans chaque session : jamais de trace Python
         text = "CCS : état illisible"
     print(text)
@@ -523,6 +666,10 @@ def cmd_integrate(args):
     return 0
 
 
+NOTIFIER_HELP = ("notification bureau du résultat (raccourcis clavier) ; une bascule est notée "
+                 "« raccourci » dans le journal")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
@@ -548,10 +695,37 @@ def build_parser():
     pa = sub.add_parser("pause", help="suspend la bascule automatique et l'orchestrateur")
     pa.add_argument("choice", nargs="?", default="status", metavar="1h|4h|demain|manuel|off|status",
                     help="durée de la pause, « off » pour reprendre, « status » (défaut) pour l'état")
+    pa.add_argument("--notifier", action="store_true", help=NOTIFIER_HELP)
     pa.set_defaults(func=cmd_pause)
     best = sub.add_parser("best", help="meilleur compte maintenant")
     best.add_argument("--switch", action="store_true", help="bascule dessus")
+    best.add_argument("--notifier", action="store_true", help=NOTIFIER_HELP)
     best.set_defaults(func=cmd_best)
+    fo = sub.add_parser("formule", aliases=["conseil"],
+                        help="conseiller de formule : combien de comptes Pro, Max ou Ultra pour ton usage")
+    fo.set_defaults(func=cmd_formule)
+    se = sub.add_parser("semaine", help="bilan de la semaine écoulée")
+    se.add_argument("--precedente", type=_weeks_back, default=0, metavar="N",
+                    help="bilan de N semaines plus tôt (0 : la semaine écoulée)")
+    se.set_defaults(func=cmd_semaine)
+    jo = sub.add_parser("journal", help="journal des bascules, avec leur raison")
+    period = jo.add_mutually_exclusive_group()
+    period.add_argument("--jours", type=int, default=7, metavar="N", help="N derniers jours (7 par défaut)")
+    period.add_argument("--tout", action="store_true", help="tout l'historique gardé")
+    jo.set_defaults(func=cmd_journal)
+    pr = sub.add_parser("projet", help="compte par projet : liste, compte d'un dossier, association")
+    pr.add_argument("args", nargs="*", metavar="<dossier>|<compte>|aucun",
+                    help="sans argument : liste ; un dossier : son compte ; un compte ou « aucun » : "
+                         "pour le dossier courant ; dossier puis compte")
+    pr.set_defaults(func=cmd_projet)
+    ra = sub.add_parser("raccourcis", aliases=["shortcuts"], help="raccourcis clavier globaux (GNOME)")
+    ra.add_argument("args", nargs="*", metavar="status|on|off|set",
+                    help="status (défaut) ; on|off [action…] ; set <action> <raccourci>")
+    ra.set_defaults(func=cmd_raccourcis)
+    nt = sub.add_parser("notify", help="notification bureau (pour ccs … --notifier)")
+    nt.add_argument("title", metavar="titre")
+    nt.add_argument("body", nargs="?", metavar="texte")
+    nt.set_defaults(func=cmd_notify)
     auto = sub.add_parser("auto", help="bascule automatique on/off")
     auto.add_argument("state", choices=["on", "off"])
     auto.set_defaults(func=cmd_auto)

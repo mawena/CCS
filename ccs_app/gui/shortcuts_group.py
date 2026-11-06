@@ -25,7 +25,10 @@ def _names(conflicts):
 
 
 class ShortcutRow(Adw.ActionRow):
-    """Ligne d'une action : ⚠, raccourci, « Modifier », interrupteur."""
+    """Ligne d'une action : ⚠, raccourci, « Modifier », interrupteur.
+
+    Le raccourci est un simple libellé (« Super+Alt+B ») : les touches dessinées par
+    Gtk.ShortcutLabel demandaient 172 px et rognaient la fenêtre étroite (360 px)."""
 
     def __init__(self, group, act):
         super().__init__(use_markup=False)  # noms de raccourcis personnalisés : pas de balisage
@@ -34,14 +37,13 @@ class ShortcutRow(Adw.ActionRow):
         self.set_title(act.label)
         self.warning = Gtk.Image(icon_name="dialog-warning-symbolic", valign=CENTER, visible=False,
                                  css_classes=["warning"])
-        self.accel = Gtk.ShortcutLabel(disabled_text="Aucun", valign=CENTER)
-        self.accel_text = Gtk.Label(valign=CENTER, visible=False, css_classes=["dim-label"])
+        self.accel = Gtk.Label(valign=CENTER, css_classes=["numeric"])
         self.edit = Gtk.Button(label="Modifier", valign=CENTER, css_classes=["flat"],
                                tooltip_text="Choisir une autre combinaison")
         self.edit.connect("clicked", lambda *_: group.capture(self))
         self.switch = Gtk.Switch(valign=CENTER)
         self.switch.connect("notify::active", self.on_switch)
-        for w in (self.warning, self.accel, self.accel_text, self.edit, self.switch):
+        for w in (self.warning, self.accel, self.edit, self.switch):
             self.add_suffix(w)
         self.set_activatable_widget(self.switch)
 
@@ -50,12 +52,7 @@ class ShortcutRow(Adw.ActionRow):
         self._updating = True
         self.switch.set_active(item.installed)
         self._updating = False
-        binding = item.binding or ""
-        gtk_ok = bool(binding) and Gtk.accelerator_parse(binding)[0]
-        self.accel.set_accelerator(binding if gtk_ok else "")
-        self.accel.set_visible(gtk_ok or not binding)
-        self.accel_text.set_label(item.binding_label)
-        self.accel_text.set_visible(bool(binding) and not gtk_ok)  # Above_Tab… : libellé à nous
+        self.accel.set_label(item.binding_label if item.binding else "Aucun")
         self.accel.set_opacity(1.0 if item.installed else 0.55)
         if item.conflicts:
             prefix = "Déjà utilisé" if item.installed else "Raccourci par défaut déjà utilisé"
