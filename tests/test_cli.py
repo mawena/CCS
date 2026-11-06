@@ -215,6 +215,27 @@ class RobustCliTest(HomeTestCase):
             self.assertEqual(run("hook", "stop-failure")[0], 0)
 
 
+class GuiCliTest(HomeTestCase):
+    def run_gui(self, *argv):
+        import sys
+        import types
+        fake = types.ModuleType("ccs_app.gui.app")
+        fake.run = mock.Mock(return_value=0)
+        with mock.patch.dict(sys.modules, {"ccs_app.gui.app": fake}):
+            code = cli.main(list(argv))
+        return code, fake.run
+
+    def test_plain_launch(self):
+        for argv in ((), ("gui",)):
+            code, launched = self.run_gui(*argv)
+            self.assertEqual(code, 0)
+            launched.assert_called_once_with(session=None)
+
+    def test_session_from_a_notification(self):
+        code, launched = self.run_gui("gui", "--session", "4242:3f2a9c1e")
+        launched.assert_called_once_with(session="4242:3f2a9c1e")
+
+
 class DoctorCliTest(HomeTestCase):
     def check(self, statut):
         from ccs_app import doctor
