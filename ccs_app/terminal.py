@@ -73,6 +73,7 @@ class TabState:
     typed_at: float | None = None     # dernière saisie au clavier (ou collage) dans l'onglet
     sent_at: float | None = None      # dernier texte envoyé par l'application (reprise, file)
     resumes: list = field(default_factory=list)  # dates des reprises automatiques
+    queue: list = field(default_factory=list)    # messages à envoyer quand claude sera libre
 
 
 # ---- lancement ------------------------------------------------------------------------
@@ -315,3 +316,104 @@ def resume_decision(tab, event, now, enabled=True, max_per_hour=RESUME_MAX_PER_H
                    f"{min_gap // 60} min) : {manual}"))
     return ResumeDecision("resume", f"{_limit_head(event)} : bascule sur "
                                     f"{event.target or 'un autre compte'}, conversation relancée.")
+
+
+# ---- onglets rouverts au redémarrage ---------------------------------------------------
+
+def tab_record(tab):
+    """Ce qu'on garde d'un onglet pour le rouvrir au prochain lancement (terminal_store)."""
+    claude = tab.kind == "claude"
+    return {"kind": tab.kind, "cwd": tab.cwd, "title": tab.title,
+            "session_id": tab.session_id if claude else None,
+            "extra_args": list(tab.extra_args) if claude else [],
+            "queue": list(tab.queue) if claude else []}
+
+
+@dataclass(frozen=True)
+class Reopen:
+    """Onglet à rouvrir : `session_id` est repris avec --resume (None : nouvelle session)."""
+    kind: str
+    cwd: str
+    title: str
+    session_id: str | None
+    extra_args: tuple
+    queue: tuple
+
+    def launch(self, environ=None):
+        if self.kind == "shell":
+            return shell_launch(self.cwd, environ)
+        return claude_launch(self.cwd, self.session_id, self.title or None, environ, self.extra_args)
+
+
+@dataclass
+class RestorePlan:
+    tabs: list            # [Reopen] dans l'ordre
+    selected: int | None  # onglet à afficher (indice dans `tabs`)
+    skipped: list         # [(titre, raison)]
+
+
+def _conversation_exists(cwd, session_id):
+    return sessions.transcript_path(cwd, session_id).exists()
+
+
+def restore_plan(records, selected=None, opened=(), present=(), folder_exists=os.path.isdir,
+                 conversation_exists=_conversation_exists):
+    """Onglets à rouvrir parmi `records` (terminal_store.load_tabs) : pas un dossier disparu,
+    ni une conversation ouverte ailleurs (`opened` : identifiants des sessions Claude Code
+    en cours) ou déjà dans un onglet (`present`) ; une conversation jamais écrite repart
+    en nouvelle session dans son dossier."""
+    tabs, skipped, seen, chosen = [], [], set(), None
+    for i, r in enumerate(records):
+        sid = r.get("session_id") if r["kind"] == "claude" else None
+        title = r.get("title") or sessions.project_name(r["cwd"])
+        if not folder_exists(r["cwd"]):
+            skipped.append((title, f"dossier introuvable : {r['cwd']}"))
+            continue
+        if sid and sid in seen:
+            skipped.append((title, "en double"))
+            continue
+        if sid and sid in opened:
+            skipped.append((title, "déjà ouverte dans une session Claude Code"))
+            continue
+        if sid and sid in present:
+            skipped.append((title, "déjà ouverte dans un onglet"))
+            continue
+        if sid:
+            seen.add(sid)
+            if not conversation_exists(r["cwd"], sid):
+                sid = None
+        if i == selected:
+            chosen = len(tabs)
+        tabs.append(Reopen(r["kind"], r["cwd"], r.get("title") or "", sid,
+                           tuple(r.get("extra_args") or ()), tuple(r.get("queue") or ())))
+    return RestorePlan(tabs, chosen, skipped)
+
+
+def restore_question(n):
+    return ("Rouvrir la session de la dernière fois ?" if n == 1 else
+            f"Rouvrir les {n} sessions de la dernière fois ?")
+
+
+def restore_summary(n, skipped):
+    """Texte affiché après la réouverture."""
+    head = "Aucun onglet rouvert" if n == 0 else "1 onglet rouvert" if n == 1 else f"{n} onglets rouverts"
+    if not skipped:
+        return head
+    if len(skipped) == 1:
+        title, reason = skipped[0]
+        return f"{head} ; « {title} » non rouvert : {reason}"
+    return f"{head} ; {len(skipped)} non rouverts (dossier disparu ou conversation déjà ouverte)"
+
+
+def merge_records(pending, pending_selected, current, current_selected):
+    """Onglets à enregistrer tant que la proposition de réouverture attend une réponse :
+    ceux de la dernière fois (sauf ceux rouverts entre-temps) puis ceux ouverts depuis.
+    Renvoie (records, indice de l'onglet affiché)."""
+    open_ids = {r["session_id"] for r in current if r["kind"] == "claude" and r.get("session_id")}
+    kept = [(i, r) for i, r in enumerate(pending)
+            if not (r["kind"] == "claude" and r.get("session_id") in open_ids)]
+    merged = [r for _, r in kept] + list(current)
+    if current_selected is not None:
+        return merged, len(kept) + current_selected
+    index = next((k for k, (i, _r) in enumerate(kept) if i == pending_selected), None)
+    return merged, index

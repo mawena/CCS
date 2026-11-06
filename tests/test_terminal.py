@@ -364,3 +364,82 @@ class ResumeDecisionTest(HomeTestCase):
     def test_unknown_account_names(self):
         d = self.decide(event=self.event(source=None, target=None))
         self.assertEqual(d.text, "Limite atteinte : bascule sur un autre compte, conversation relancée.")
+
+
+def record(**kw):
+    return {"kind": "claude", "cwd": "/w/App", "title": "App", "session_id": "s-1", "extra_args": [],
+            "queue": [], **kw}
+
+
+class RestoreTest(HomeTestCase):
+    def test_tab_record(self):
+        tab = TabState("claude", "/w/App", "Export", session_id="s-1", running=True, pid=4,
+                       extra_args=("--model", "opus"), queue=["lance les tests"])
+        self.assertEqual(terminal.tab_record(tab), record(title="Export", extra_args=["--model", "opus"],
+                                                          queue=["lance les tests"]))
+        shell = TabState("shell", "/w", "Terminal · w", session_id="ignoré")
+        self.assertEqual(terminal.tab_record(shell), {"kind": "shell", "cwd": "/w", "title": "Terminal · w",
+                                                      "session_id": None, "extra_args": [], "queue": []})
+
+    def plan(self, records, selected=None, **kw):
+        kw.setdefault("folder_exists", lambda cwd: not cwd.startswith("/disparu"))
+        kw.setdefault("conversation_exists", lambda cwd, sid: sid != "jamais-ecrite")
+        return terminal.restore_plan(records, selected, **kw)
+
+    def test_everything_reopens_in_order(self):
+        shell = record(kind="shell", cwd="/w", title="Terminal · w", session_id=None)
+        p = self.plan([record(extra_args=["--model", "opus"], queue=["a"]), shell], selected=1)
+        self.assertEqual(p.tabs, [terminal.Reopen("claude", "/w/App", "App", "s-1", ("--model", "opus"), ("a",)),
+                                  terminal.Reopen("shell", "/w", "Terminal · w", None, (), ())])
+        self.assertEqual((p.selected, p.skipped), (1, []))
+
+    def test_skips_missing_folder_open_elsewhere_or_in_a_tab_and_duplicates(self):
+        records = [record(cwd="/disparu/App", session_id="a", title="A"),
+                   record(session_id="b", title="B"), record(session_id="c", title="C"),
+                   record(session_id="d", title="D"), record(session_id="d", title="D bis")]
+        p = self.plan(records, selected=3, opened={"b"}, present={"c"})
+        self.assertEqual([t.session_id for t in p.tabs], ["d"])
+        self.assertEqual(p.selected, 0)
+        self.assertEqual(p.skipped, [("A", "dossier introuvable : /disparu/App"),
+                                     ("B", "déjà ouverte dans une session Claude Code"),
+                                     ("C", "déjà ouverte dans un onglet"),
+                                     ("D bis", "en double")])
+
+    def test_selected_tab_skipped(self):
+        p = self.plan([record(session_id="a"), record(session_id="b")], selected=1, opened={"b"})
+        self.assertIsNone(p.selected)
+
+    def test_conversation_never_written_starts_a_new_session(self):
+        p = self.plan([record(session_id="jamais-ecrite"), record(session_id=None)])
+        self.assertEqual([(t.kind, t.session_id) for t in p.tabs], [("claude", None), ("claude", None)])
+
+    def test_launch_of_a_reopened_tab(self):
+        with mock.patch.object(sessions, "_claude_bin", return_value="/u/claude"), \
+                mock.patch.object(terminal.shutil, "which", side_effect=which):
+            launch = terminal.Reopen("claude", "/w/App", "Export", "s-1", ("--model", "opus"), ()).launch({})
+            self.assertEqual(launch.argv[-1], "exec /u/claude --resume s-1 --model opus")
+            self.assertEqual((launch.title, launch.session_id), ("Export", "s-1"))
+            shell = terminal.Reopen("shell", "/w", "Terminal · w", None, (), ()).launch({"SHELL": "/bin/zsh"})
+            self.assertEqual(shell.argv, ("/bin/zsh",))
+            untitled = terminal.Reopen("claude", "/w/App", "", None, (), ()).launch({})
+            self.assertEqual(untitled.title, "App")
+
+    def test_question_and_summary(self):
+        self.assertEqual(terminal.restore_question(1), "Rouvrir la session de la dernière fois ?")
+        self.assertEqual(terminal.restore_question(3), "Rouvrir les 3 sessions de la dernière fois ?")
+        self.assertEqual(terminal.restore_summary(2, []), "2 onglets rouverts")
+        self.assertEqual(terminal.restore_summary(1, [("B", "déjà ouverte dans une session Claude Code")]),
+                         "1 onglet rouvert ; « B » non rouvert : déjà ouverte dans une session Claude Code")
+        self.assertEqual(terminal.restore_summary(0, [("A", "x"), ("B", "y")]),
+                         "Aucun onglet rouvert ; 2 non rouverts (dossier disparu ou conversation déjà ouverte)")
+
+    def test_merge_keeps_unanswered_tabs_before_the_current_ones(self):
+        pending = [record(session_id="a"), record(session_id="b"), record(kind="shell", session_id=None)]
+        current = [record(session_id="b", title="B ouvert"), record(session_id="z")]
+        merged, selected = terminal.merge_records(pending, 0, current, 1)
+        self.assertEqual([r["session_id"] for r in merged], ["a", None, "b", "z"])
+        self.assertEqual(selected, 3)
+        merged, selected = terminal.merge_records(pending, 1, [], None)
+        self.assertEqual((len(merged), selected), (3, 1))
+        merged, selected = terminal.merge_records(pending, 1, current, None)
+        self.assertIsNone(selected)  # « b » est maintenant un onglet ouvert
