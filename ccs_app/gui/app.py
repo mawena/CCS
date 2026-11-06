@@ -9,7 +9,8 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from .. import attention, conversations, daemon, desktop, doctor, launch_options, pause, sessions, terminal  # noqa: E402,E501
+from .. import (attention, conversations, daemon, desktop, doctor, launch_options, pause, sessions,  # noqa: E402
+               switch_log, terminal)
 from ..settings import load_settings, save_settings  # noqa: E402
 from ..store import Store  # noqa: E402
 from .accounts import AccountsPage, add_account, set_pause  # noqa: E402
@@ -442,6 +443,7 @@ class Window(Adw.ApplicationWindow):
         self.toasts.add_toast(Adw.Toast(title=GLib.markup_escape_text(text), timeout=4))
 
     def switch(self, name):
+        switch_log.note_origin(name, "application")   # pour le journal des bascules
         run_ccs_async(self, ["use", name],
                       f"Basculé sur « {name} » — les sessions ouvertes suivront à leur prochaine requête")
 

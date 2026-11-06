@@ -56,6 +56,16 @@ class ShowSessionActionTest(unittest.TestCase):
         self.assertIsNone(sent[2][1])
         self.assertEqual(self.appmod.remote_actions(), [])
 
+    def test_switch_notes_its_origin_for_the_journal(self):
+        calls = []
+        with mock.patch.object(self.appmod.switch_log, "note_origin",
+                               side_effect=lambda *a: calls.append(("note",) + a)), \
+                mock.patch.object(self.appmod, "run_ccs_async",
+                                  side_effect=lambda _w, args, _t=None: calls.append(("ccs", args))):
+            self.appmod.Window.switch(object(), "pro")
+        # La note précède la bascule : le service la lit quand il la constate.
+        self.assertEqual(calls, [("note", "pro", "application"), ("ccs", ["use", "pro"])])
+
     def test_stack_pages_are_the_known_pages(self):
         # Le ViewStack et `gui --page` (desktop.PAGES) doivent rester d'accord.
         import inspect
