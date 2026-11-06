@@ -64,11 +64,24 @@ def pid_path():
     return core.paths().store / "daemon.pid"
 
 
+def _show_session(ref, token=None):
+    from . import desktop
+    return desktop.show_session(ref, token)
+
+
+def _session_alert(key, title, body, session):
+    """Notification d'une session : un clic (ou « Afficher ») ouvre l'application dessus."""
+    from .attention import SHOW_PREFIX, session_ref
+    show = SHOW_PREFIX + session_ref(session)
+    return alerts.Alert(key, title, body, 1, ((show, "Afficher"),), default=show)
+
+
 class Daemon:
-    def __init__(self, store, notifier=notify.send, starter=None):
+    def __init__(self, store, notifier=notify.send, starter=None, shower=None):
         self.store = store
         self.notifier = notifier
         self.starter = starter or self._start_window
+        self.shower = shower or _show_session  # (référence de session, jeton d'activation)
         self.states = {}            # dernier AccountState connu par profil
         self.previous_sessions = {}  # limite session au tick précédent
         self.last_full = None
@@ -127,9 +140,17 @@ class Daemon:
 
     # ---- actions de notification et sessions ---------------------------------
 
-    def handle_action(self, key, now, settings=None):
-        """Bouton cliqué dans une notification : « use:<profil> », revérifié au moment du clic."""
+    def handle_action(self, key, now, settings=None, token=None):
+        """Clic dans une notification. « use:<profil> » : bascule, revérifiée au moment du clic
+        (True si elle a eu lieu : relevé immédiat). « show:<session> » : ouvre l'application
+        sur cette session (`token` : jeton d'activation du bureau)."""
         kind, _, name = key.partition(":")
+        if kind == "show":
+            try:
+                self.shower(name, token)
+            except Exception:
+                log.exception("affichage de la session impossible")
+            return False
         if kind != "use":
             return False
         names = {p.name for p in core.list_profiles()}
@@ -181,7 +202,7 @@ class Daemon:
                 body = f"Session {s.name}" + (f" — {s.waiting_for}" if s.waiting_for else "")
             else:
                 title, body = f"{s.project} a terminé", f"Session {s.name} — prête pour la suite."
-            self.notifier(alerts.Alert(f"session:{s.pid}:{ts:.0f}", title, body, 1))
+            self.notifier(_session_alert(f"session:{s.pid}:{ts:.0f}", title, body, s))
 
     def _remind_waiting(self, cur, first, cfg, ts):
         """Rappel unique par attente : session « waiting » depuis plus de N minutes."""
@@ -210,8 +231,8 @@ class Daemon:
             body = f"Session {s.name} — en attente depuis {minutes} min"
             if s.waiting_for:
                 body += f" ({s.waiting_for})"
-            self.notifier(alerts.Alert(f"rappel:{s.pid}:{ts:.0f}",
-                                       f"{s.project} attend toujours ta réponse", body, 1))
+            self.notifier(_session_alert(f"rappel:{s.pid}:{ts:.0f}",
+                                         f"{s.project} attend toujours ta réponse", body, s))
 
     def detect_manual_switch(self, now):
         active = core.active_profile_name()
@@ -522,8 +543,8 @@ def run():
     def now_utc():
         return datetime.now(timezone.utc)
 
-    def on_action(key):
-        if d.handle_action(key, now_utc()):
+    def on_action(key, token=None):
+        if d.handle_action(key, now_utc(), token=token):
             wake.set()
     bridge = desktop.Bridge(on_action, lambda: d.on_sessions(load_settings(), now_utc()),
                             sessions.sessions_dir())

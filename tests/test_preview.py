@@ -231,6 +231,16 @@ class MarkdownTest(PreviewTestCase):
         preview.export_markdown(self.conv(), dest)
         self.assertEqual(dest.read_text(), md)
 
+    def test_cost_line_in_header(self):
+        self.journal([user("salut"), assistant("m1", [text("Bonjour !")])])
+        md = preview.markdown_for(self.conv(), cost="1,2 M tokens · ≈ 3,40 $")
+        head = md.split("---", 1)[0]
+        self.assertIn("- Coût : 1,2 M tokens · ≈ 3,40 $ (équivalent API)\n", head)
+        self.assertNotIn("Coût", preview.markdown_for(self.conv()))
+        dest = self.dir / "conv.md"
+        preview.export_markdown(self.conv(), dest, cost="12 tokens · < 0,01 $")
+        self.assertIn("- Coût : 12 tokens · < 0,01 $ (équivalent API)", dest.read_text())
+
     def test_suggested_file_name(self):
         self.assertEqual(preview.suggested_filename(self.conv()), "calcul-des-interets.md")
         self.assertEqual(preview.suggested_filename({"title": "///"}), "conversation.md")

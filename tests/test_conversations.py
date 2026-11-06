@@ -104,6 +104,30 @@ class ScanTest(ConversationsTestCase):
         self.assertEqual(conv.scan(), [])
 
 
+class FromJournalTest(ConversationsTestCase):
+    """Une seule conversation (aperçu depuis l'onglet Sessions), sans tout relire."""
+
+    def test_fields_from_the_journal(self):
+        cwd = str(self.app)
+        p = self.journal(cwd, "s-one", [prompt("explique le module", cwd, branch="dev"),
+                                        {"type": "ai-title", "aiTitle": "Module de paie"}])
+        c = conv.from_journal(p)
+        self.assertEqual((c.session_id, c.path, c.cwd, c.title, c.git_branch, c.prompts),
+                         ("s-one", str(p), cwd, "Module de paie", "dev", 1))
+        self.assertTrue(c.folder_exists)
+
+    def test_uses_the_scan_cache(self):
+        cwd = str(self.app)
+        p = self.journal(cwd, "s-one", [prompt("explique", cwd)])
+        conv.scan()
+        with mock.patch.object(conv, "read_entry", side_effect=AssertionError("relu")):
+            self.assertEqual(conv.from_journal(p).title, "explique")
+
+    def test_folder_given_when_the_journal_has_none(self):
+        p = self.journal(self.app, "s-two", [{"type": "user", "message": {"role": "user", "content": "salut"}}])
+        self.assertEqual(conv.from_journal(p, cwd=str(self.app)).cwd, str(self.app))
+
+
 class IncrementalTest(ConversationsTestCase):
     def test_reads_only_appended_lines_and_waits_for_partial_line(self):
         cwd = str(self.app)
