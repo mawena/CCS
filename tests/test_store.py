@@ -47,6 +47,28 @@ class StoreTest(HomeTestCase):
         self.assertIsNone(self.db.last_event("warmup"))
         self.assertEqual([e.ts for e in self.db.events(0, type="alert")], [1, 2])
 
+    def test_events_of_several_types(self):
+        self.db.add_event(1, "alert", "perso", {"key": "a"})
+        self.db.add_event(2, "switch", "pro", {"mode": "auto"})
+        self.db.add_event(3, "warmup", "pro", {})
+        self.assertEqual([e.type for e in self.db.events(0, types=("switch", "warmup"))],
+                         ["switch", "warmup"])
+        self.assertEqual([e.ts for e in self.db.events(0, types=["alert"], profile="perso")], [1])
+
+    def test_last_event_before(self):
+        self.db.add_event(10, "switch", "perso", {"mode": "initial"})
+        self.db.add_event(20, "switch", "pro", {"mode": "manual"})
+        self.assertEqual(self.db.last_event("switch", before=20).profile, "perso")
+        self.assertEqual(self.db.last_event("switch", before=21).profile, "pro")
+        self.assertIsNone(self.db.last_event("switch", before=10))
+
+    def test_unreadable_detail_becomes_empty(self):
+        with self.db.db:
+            self.db.db.execute("INSERT INTO events VALUES (5, 'switch', 'pro', 'pas du json')")
+            self.db.db.execute("INSERT INTO events VALUES (6, 'switch', 'pro', '[1, 2]')")
+        self.assertEqual([e.detail for e in self.db.events(0)], [{}, {}])
+        self.assertEqual(self.db.last_event("switch").detail, {})
+
     def test_prune_removes_old_rows(self):
         self.db.add_samples(10, "perso", limits(1, 1))
         self.db.add_samples(1000, "perso", limits(2, 2))

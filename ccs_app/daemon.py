@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import alerts, autoswitch, core, notify, orchestrator, pause, updates
+from . import alerts, autoswitch, core, notify, orchestrator, pause, switch_log, updates
 from .forecast import (AccountState, best_account, capacity, effective_percent,
                        session_forecast, weekly_forecast, weekly_pace)
 from .settings import load_settings
@@ -154,7 +154,8 @@ class Daemon:
         if kind != "use":
             return False
         names = {p.name for p in core.list_profiles()}
-        if name not in names or core.active_profile_name() == name:
+        before = core.active_profile_name()
+        if name not in names or before == name:
             return False
         settings = settings or load_settings()
         target = self.states.get(name)
@@ -174,9 +175,11 @@ class Daemon:
         r = core.run_ccs(["use", name])
         if r.returncode != 0:
             self.store.add_event(now.timestamp(), "error", name,
-                                 {"op": "notification", "message": (r.stderr or r.stdout).strip()})
+                                 {"op": "notification", "message": (r.stderr or r.stdout).strip(),
+                                  "via": "notification", "from": before})
             return False
-        self.store.add_event(now.timestamp(), "switch", name, {"mode": "manual", "via": "notification"})
+        self.store.add_event(now.timestamp(), "switch", name,
+                             {"mode": "manual", "via": "notification", "from": before})
         return True
 
     def on_sessions(self, settings, now):
@@ -243,7 +246,11 @@ class Daemon:
             # Premier relevé : point de départ, pas une bascule de l'utilisateur.
             self.store.add_event(now.timestamp(), "switch", active, {"mode": "initial"})
         elif last.profile != active:
-            self.store.add_event(now.timestamp(), "switch", active, {"mode": "manual"})
+            # Compte quitté, et origine notée par l'application (ou l'icône…) juste avant
+            # son « ccs use » : pour le journal des bascules.
+            detail = {"mode": "manual", "from": last.profile}
+            detail.update(switch_log.take_origin(active, now.timestamp()) or {})
+            self.store.add_event(now.timestamp(), "switch", active, detail)
 
     # ---- tick ---------------------------------------------------------------
 

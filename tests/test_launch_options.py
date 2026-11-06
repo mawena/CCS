@@ -3,7 +3,10 @@ import unittest
 from unittest import mock
 
 from ccs_app import launch_options as lo
+from ccs_app import switch_log
 from ccs_app.launch_options import LaunchSpec, claude_args
+from ccs_app.store import Store
+from tests.helpers import HomeTestCase
 
 
 class ClaudeArgsTest(unittest.TestCase):
@@ -116,7 +119,7 @@ class LaunchSpecTest(unittest.TestCase):
         self.assertTrue(popen.call_args.kwargs["start_new_session"])
 
 
-class SwitchTest(unittest.TestCase):
+class SwitchTest(HomeTestCase):
     """Bascule avant l'ouverture (faite hors de l'interface par l'application)."""
 
     def test_nothing_to_do_on_the_active_account(self):
@@ -131,6 +134,15 @@ class SwitchTest(unittest.TestCase):
         self.assertEqual(lo.switch_if_needed(LaunchSpec(cwd="/w", profile="pro"), active="perso", run=run),
                          (True, None))
         run.assert_called_once_with(["use", "pro"])
+        # Origine notée pour le journal des bascules (lue par le service).
+        self.assertEqual(switch_log.take_origin("pro"), {"via": "nouvelle-session"})
+
+    def test_origin_given_by_the_caller(self):
+        import subprocess
+        run = mock.Mock(return_value=subprocess.CompletedProcess([], 0, "", ""))
+        lo.switch_if_needed(LaunchSpec(cwd="/w/App", profile="pro"), active="perso", run=run,
+                            via="projet", project="/w/App")
+        self.assertEqual(switch_log.take_origin("pro"), {"via": "projet", "project": "/w/App"})
 
     def test_switch_failure_gives_the_reason(self):
         import subprocess
@@ -139,6 +151,10 @@ class SwitchTest(unittest.TestCase):
         switched, error = lo.switch_if_needed(LaunchSpec(cwd="/w", profile="pro"), active="perso", run=run)
         self.assertFalse(switched)
         self.assertEqual(error, "'pro' : connexion perdue, reconnecte ce compte")
+        self.assertIsNone(switch_log.take_origin("pro"))
+        ev = Store().last_event("error", "pro")
+        self.assertEqual(ev.detail, {"op": "manual", "message": "'pro' : connexion perdue, reconnecte ce compte",
+                                     "via": "nouvelle-session", "from": "perso"})
 
 
 class OpenSessionTest(unittest.TestCase):
