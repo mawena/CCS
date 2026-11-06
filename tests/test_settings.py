@@ -20,6 +20,31 @@ class SettingsTest(HomeTestCase):
         self.assertEqual(a["waiting_reminder_min"], 10)
         self.assertEqual(settings.load_settings()["updates"], {"enabled": True})
 
+    def test_model_advice_defaults(self):
+        a = settings.load_settings()["alerts"]
+        self.assertTrue(a["model_advice"])
+        self.assertEqual(a["model_advice_pct"], 80)
+
+    def test_weekly_report_defaults(self):
+        a = settings.load_settings()["alerts"]
+        self.assertTrue(a["weekly_report"])
+        self.assertIsNone(a["weekly_report_day"])  # début de semaine de la plupart des comptes
+        self.assertEqual(a["weekly_report_hour"], 9)
+
+    def test_advisor_defaults(self):
+        adv = settings.load_settings()["advisor"]
+        self.assertEqual(adv["weeks"], 4)
+        self.assertEqual(adv["margin_pct"], 20)
+        self.assertEqual(adv["plan_prices"], {})
+        self.assertEqual(adv["profile_plans"], {})
+        self.assertEqual(adv["max_accounts"], 3)
+
+    def test_plan_prices_override_is_merged(self):
+        write(self.store / "settings.json", {"advisor": {"plan_prices": {"pro": 18}}})
+        adv = settings.load_settings()["advisor"]
+        self.assertEqual(adv["plan_prices"], {"pro": 18})
+        self.assertEqual(adv["weeks"], 4)
+
     def test_old_settings_file_gets_new_defaults(self):
         # Fichier d'une version précédente : les nouvelles clés prennent leur valeur par défaut.
         write(self.store / "settings.json", {"alerts": {"enabled": True, "resets": False}})

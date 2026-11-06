@@ -14,7 +14,9 @@ import re
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
 
 from . import core, transcripts
 
@@ -202,45 +204,108 @@ def _dollars(model, usage, tokens):
             return None
         mult *= FAST_MULTIPLIER[key]
     mult *= GEO_MULTIPLIER.get(usage.get("inference_geo"), 1.0)
-    total = (inp * price.input + out * price.output + w5m * price.cache_write_5m
-             + w1h * price.cache_write_1h + read * price.cache_read)
-    return total * mult / 1e6
+    return _priced(price, tokens) * mult
 
 
-def _read_file(path):
-    """Coût d'un seul journal (lecture en flux, lignes illisibles ignorées)."""
+def _priced(price, tokens):
+    inp, out, w5m, w1h, read = tokens
+    return (inp * price.input + out * price.output + w5m * price.cache_write_5m
+            + w1h * price.cache_write_1h + read * price.cache_read) / 1e6
+
+
+def reprice(tokens, model):
+    """Dollars des mêmes tokens (entrée, sortie, cache 5 min, cache 1 h, cache lu) au tarif
+    standard d'un autre modèle (grille longue comprise, sans mode rapide) ; None si inconnu."""
+    key = normalize_model(model)
+    price = PRICES.get(key)
+    if price is None:
+        return None
+    inp, _out, w5m, w1h, read = tokens
+    long_prompt = LONG_PROMPT.get(key)
+    if long_prompt and inp + w5m + w1h + read > long_prompt[0]:
+        price = long_prompt[1]
+    return _priced(price, tokens)
+
+
+class Answer(NamedTuple):
+    """Une réponse d'un journal, comptée une fois (agrégats par période)."""
+    ts: float               # secondes depuis l'époque (0 : horodatage absent ou illisible)
+    model: str
+    cwd: str
+    tokens: tuple           # (entrée, sortie, cache écrit 5 min, cache écrit 1 h, cache lu)
+    dollars: float | None   # None : tarif inconnu
+
+
+def _timestamp(value):
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def parse_lines(lines):
+    """Réponses de lignes de journal (octets ou texte) ; une réponse écrite sur plusieurs
+    lignes (même identifiant) compte une fois, les lignes illisibles sont ignorées."""
     answers = {}
+    for n, raw in enumerate(lines):
+        if isinstance(raw, str):
+            raw = raw.encode("utf-8", "replace")
+        if b'"assistant"' not in raw or b'"usage"' not in raw:
+            continue
+        try:
+            d = json.loads(raw)
+            if d.get("type") != "assistant":
+                continue
+            msg = d["message"]
+            usage = msg["usage"]
+            model = msg.get("model") or "inconnu"
+            if not isinstance(usage, dict) or model == "<synthetic>":
+                continue
+            tokens = _usage_tokens(usage)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            continue
+        if not any(tokens):
+            continue
+        answers[msg.get("id") or f"ligne-{n}"] = Answer(
+            _timestamp(d.get("timestamp")), str(model), str(d.get("cwd") or ""), tokens,
+            _dollars(model, usage, tokens))
+    return list(answers.values())
+
+
+def _parse(path):
+    """Réponses d'un seul journal (lecture en flux)."""
     try:
         fh = open(path, "rb")
     except OSError:
-        return Cost.empty()
+        return []
     with fh:
-        for n, raw in enumerate(fh):
-            if b'"assistant"' not in raw or b'"usage"' not in raw:
-                continue
-            try:
-                d = json.loads(raw)
-                if d.get("type") != "assistant":
-                    continue
-                msg = d["message"]
-                usage = msg["usage"]
-                model = msg.get("model") or "inconnu"
-                if not isinstance(usage, dict) or model == "<synthetic>":
-                    continue
-                tokens = _usage_tokens(usage)
-            except (ValueError, KeyError, TypeError, AttributeError):
-                continue
-            if not any(tokens):
-                continue
-            answers[msg.get("id") or f"ligne-{n}"] = (model, usage, tokens)
-    total = Cost.empty()
-    for model, usage, tokens in answers.values():
-        inp, out, w5m, w1h, read = tokens
+        return parse_lines(fh)
+
+
+def cost_of(answers):
+    """Coût total d'une suite de réponses (`Answer`)."""
+    tokens, models, dollars, unknown, n = _zero(), {}, 0.0, False, 0
+    for a in answers:
+        inp, out, w5m, w1h, read = a.tokens
         by_type = {"entree": inp, "sortie": out, "cache_ecriture": w5m + w1h, "cache_lecture": read}
-        dollars = _dollars(model, usage, tokens)
-        mc = ModelCost(dict(by_type), dollars, 1)
-        total = total + Cost(by_type, dollars or 0.0, {model: mc}, dollars is None, 1)
-    return total
+        mc = models.setdefault(a.model, ModelCost())
+        for k, v in by_type.items():
+            tokens[k] += v
+            mc.tokens_par_type[k] += v
+        mc.reponses += 1
+        n += 1
+        if a.dollars is None:
+            mc.dollars, unknown = None, True
+        else:
+            dollars += a.dollars
+            if mc.dollars is not None:
+                mc.dollars += a.dollars
+    return Cost(tokens, dollars, models, unknown, n)
+
+
+def _read_file(path):
+    """Coût d'un seul journal."""
+    return cost_of(_parse(path))
 
 
 _CACHE = OrderedDict()   # chemin -> ((taille, mtime_ns), Cost)
@@ -251,6 +316,7 @@ _LOCK = threading.Lock()
 def clear_cache():
     with _LOCK:
         _CACHE.clear()
+        _ANSWERS.clear()
 
 
 def file_cost(path):
@@ -273,6 +339,63 @@ def file_cost(path):
         while len(_CACHE) > _CACHE_MAX:
             _CACHE.popitem(last=False)
     return cost
+
+
+_ANSWERS = OrderedDict()   # chemin -> ((taille, mtime_ns), [Answer])
+_ANSWERS_MAX = 4096
+
+
+def file_answers(path):
+    """Réponses d'un journal, relues seulement s'il a changé (taille ou date de modification)."""
+    path = Path(path)
+    try:
+        st = path.stat()
+    except OSError:
+        return []
+    key, stamp = str(path), (st.st_size, st.st_mtime_ns)
+    with _LOCK:
+        hit = _ANSWERS.get(key)
+        if hit and hit[0] == stamp:
+            _ANSWERS.move_to_end(key)
+            return hit[1]
+    answers = _parse(path)
+    with _LOCK:
+        _ANSWERS[key] = (stamp, answers)
+        _ANSWERS.move_to_end(key)
+        while len(_ANSWERS) > _ANSWERS_MAX:
+            _ANSWERS.popitem(last=False)
+    return answers
+
+
+def journals(projects_dir, since):
+    """Journaux (sous-agents compris) modifiés depuis `since` (secondes)."""
+    projects_dir = Path(projects_dir)
+    if not projects_dir.is_dir():
+        return []
+    out = []
+    for f in projects_dir.rglob("*.jsonl"):
+        try:
+            if f.stat().st_mtime >= since:
+                out.append(f)
+        except OSError:
+            continue
+    return sorted(out)
+
+
+def period_answers(projects_dir, since, until=None):
+    """{chemin du journal: [Answer]} des réponses horodatées dans [since, until)."""
+    out = {}
+    for f in journals(projects_dir, since):
+        kept = [a for a in file_answers(f) if a.ts >= since and (until is None or a.ts < until)]
+        if kept:
+            out[f] = kept
+    return out
+
+
+def period_cost(projects_dir, since, until=None):
+    """Équivalent API de toutes les réponses horodatées dans [since, until)."""
+    return cost_of(a for answers in period_answers(projects_dir, since, until).values()
+                   for a in answers)
 
 
 def subagent_files(path):
