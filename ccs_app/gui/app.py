@@ -312,5 +312,5 @@ class App(Adw.Application):
         win.present()
 
 
-def run():
+def run(session=None):
     return App().run([sys.argv[0]])

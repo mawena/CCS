@@ -213,3 +213,168 @@ class RobustCliTest(HomeTestCase):
         with mock.patch("sys.stdin", io.StringIO('{"error": "rate_limit"}')), \
                 mock.patch.object(integration, "stop_failure", side_effect=RuntimeError("boum")):
             self.assertEqual(run("hook", "stop-failure")[0], 0)
+
+
+class DoctorCliTest(HomeTestCase):
+    def check(self, statut):
+        from ccs_app import doctor
+        return doctor.Check("Service ccs-daemon", statut, "détail",
+                            None if statut == doctor.OK else "systemctl --user start ccs-daemon")
+
+    def test_all_good_exit_0(self):
+        from ccs_app import doctor
+        with mock.patch.object(doctor, "run_checks", return_value=[self.check(doctor.OK)]):
+            code, out = run("doctor")
+        self.assertEqual(code, 0)
+        self.assertIn("Service ccs-daemon", out)
+        self.assertIn("Tout va bien", out)
+
+    def test_problem_exit_1(self):
+        from ccs_app import doctor
+        with mock.patch.object(doctor, "run_checks",
+                               return_value=[self.check(doctor.OK), self.check(doctor.ERREUR)]):
+            code, out = run("doctor")
+        self.assertEqual(code, 1)
+        self.assertIn("systemctl --user start ccs-daemon", out)
+
+
+class PauseCliTest(HomeTestCase):
+    def setUp(self):
+        super().setUp()
+        from ccs_app import daemon
+        refresh = mock.patch.object(daemon, "request_refresh", return_value=True)
+        self.refresh = refresh.start()
+        self.addCleanup(refresh.stop)
+
+    def test_default_is_status(self):
+        code, out = run("pause")
+        self.assertEqual(code, 0)
+        self.assertIn("Pas de pause", out)
+        self.refresh.assert_not_called()
+
+    def test_pause_then_status_then_off(self):
+        from ccs_app import pause
+        code, out = run("pause", "1h")
+        self.assertEqual(code, 0)
+        self.assertIn("en pause jusqu'à", out)
+        self.assertTrue(pause.pause_path().exists())
+        self.refresh.assert_called_once()
+        self.assertIn("En pause jusqu'à", run("pause", "status")[1])
+        code, out = run("pause", "off")
+        self.assertEqual(code, 0)
+        self.assertIn("Pause levée", out)
+        self.assertFalse(pause.pause_path().exists())
+        self.assertEqual(self.refresh.call_count, 2)
+
+    def test_manual_pause_and_resume_word(self):
+        code, out = run("pause", "manuel")
+        self.assertEqual(code, 0)
+        self.assertIn("reprise manuelle", out)
+        self.assertIn("Pause levée", run("pause", "reprendre")[1])
+
+    def test_off_without_pause_does_not_wake_the_service(self):
+        code, out = run("pause", "off")
+        self.assertEqual(code, 0)
+        self.assertIn("Pas de pause en cours", out)
+        self.refresh.assert_not_called()
+
+    def test_unknown_choice_exit_2_on_stderr(self):
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            code, out = run("pause", "2h")
+        self.assertEqual(code, 2)
+        self.assertIn("usage : ccs pause", err.getvalue())
+        self.assertEqual(out, "")
+        self.refresh.assert_not_called()
+
+    def test_status_shows_the_pause(self):
+        self.assertNotIn("En pause", run("status")[1])
+        run("pause", "manuel")
+        out = run("status")[1]
+        self.assertIn("En pause jusqu'à reprise manuelle", out)
+        self.assertIn("ccs pause off", out)
+
+
+class PreviewExportCliTest(HomeTestCase):
+    SID = "3f2a9c1e-0000-4000-8000-000000000001"
+
+    def setUp(self):
+        super().setUp()
+        from ccs_app import costs, sessions
+        costs.clear_cache()
+        self.cwd = self.home / "Work" / "App"
+        self.cwd.mkdir(parents=True)
+        rows = [
+            {"type": "user", "cwd": str(self.cwd), "timestamp": "2026-11-04T10:00:00.000Z",
+             "sessionId": self.SID, "entrypoint": "cli", "gitBranch": "main", "origin": {"kind": "human"},
+             "message": {"role": "user", "content": "Corrige le calcul des intérêts"}},
+            {"type": "assistant", "cwd": str(self.cwd), "timestamp": "2026-11-04T10:01:00.000Z",
+             "message": {"id": "m1", "role": "assistant", "model": "claude-opus-5-5",
+                         "content": [{"type": "text", "text": "C'est corrigé."}],
+                         "usage": {"input_tokens": 1000, "output_tokens": 500}}},
+            {"type": "custom-title", "customTitle": "Calcul des intérêts", "sessionId": self.SID},
+        ]
+        self.path = (self.home / ".claude" / "projects" / sessions.project_slug(str(self.cwd))
+                     / f"{self.SID}.jsonl")
+        write(self.path, "".join(json.dumps(r) + "\n" for r in rows))
+
+    def test_preview_prints_markdown_with_cost(self):
+        code, out = run("preview", self.SID[:8])
+        self.assertEqual(code, 0)
+        self.assertTrue(out.startswith("# Calcul des intérêts\n"), out[:80])
+        self.assertIn("Corrige le calcul des intérêts", out)
+        self.assertIn("C'est corrigé.", out)
+        self.assertRegex(out, r"\n- Coût : 1[,.]5 k tokens · ≈ .* \(équivalent API\)\n")
+
+    def test_preview_alias_and_full_id(self):
+        self.assertIn("C'est corrigé.", run("apercu", self.SID)[1])
+
+    def test_preview_unknown_or_ambiguous_id(self):
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            self.assertEqual(run("preview", "zzzz")[0], 1)
+            self.assertEqual(run("preview", "3f")[0], 1)
+        self.assertIn("aucune conversation", err.getvalue())
+        self.assertIn("4 caractères", err.getvalue())
+
+    def test_export_default_name_in_current_folder(self):
+        import os
+        out_dir = self.home / "exports"
+        out_dir.mkdir()
+        cwd = os.getcwd()
+        os.chdir(out_dir)
+        try:
+            code, out = run("export", self.SID[:6])
+        finally:
+            os.chdir(cwd)
+        dest = out_dir / "calcul-des-interets.md"
+        self.assertEqual(code, 0)
+        self.assertEqual(out.strip(), str(dest))
+        text = dest.read_text()
+        self.assertIn("# Calcul des intérêts", text)
+        self.assertIn("- Coût : ", text)
+
+    def test_export_to_file_or_folder(self):
+        dest = self.home / "notes" / "conv.md"
+        code, out = run("export", self.SID[:6], str(dest))
+        self.assertEqual((code, out.strip()), (0, str(dest)))
+        self.assertIn("C'est corrigé.", dest.read_text())
+        code, out = run("export", self.SID[:6], str(self.home / "notes"))
+        self.assertEqual(out.strip(), str(self.home / "notes" / "calcul-des-interets.md"))
+
+    def test_export_error_exit_1(self):
+        blocker = self.home / "fichier"
+        blocker.write_text("x")
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            code, _out = run("export", self.SID[:6], str(blocker / "sous" / "conv.md"))
+        self.assertEqual(code, 1)
+        self.assertIn("Erreur", err.getvalue())
+
+    def test_title_and_resume_print_still_work(self):
+        code, out = run("title", self.SID[:6], "Nouveau", "titre")
+        self.assertEqual(code, 0)
+        self.assertIn("« Nouveau titre »", out)
+        code, out = run("resume", self.SID[:6], "--print")
+        self.assertEqual(code, 0)
+        self.assertIn(f"--resume {self.SID}", out)
