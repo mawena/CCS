@@ -3,8 +3,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
-from ccs_app import costs, model_advice
-from ccs_app.alerts import decision_alert, pending_alerts
+from ccs_app import costs, model_advice, weekly_report
+from ccs_app.alerts import Alert, decision_alert, pending_alerts
 from ccs_app.autoswitch import Decision
 from ccs_app.core import Limit
 from ccs_app.forecast import AccountState, Recommendation, SessionForecast, weekly_pace
@@ -30,6 +30,10 @@ class AlertsTest(unittest.TestCase):
         recent = mock.patch.object(model_advice, "recent_usage", return_value=None)
         self.recent_usage = recent.start()
         self.addCleanup(recent.stop)
+        # Ni historique ni journaux pour le bilan de la semaine : fourni par chaque test.
+        report = mock.patch.object(weekly_report, "pending_alert", return_value=None)
+        self.weekly_report = report.start()
+        self.addCleanup(report.stop)
 
     def alerts(self, accounts, active="perso", fc=None, best=None, sent=(), previous=None, paces=None):
         return pending_alerts(accounts, active, fc, paces or {}, best, self.settings, NOW,
@@ -267,3 +271,25 @@ class ModelAdviceAlertTest(AlertsTest):
         self.recent_usage.side_effect = OSError("illisible")
         with self.assertLogs("ccs.alerts", "ERROR"):
             self.assertEqual(self.keys(self.alerts([state("perso", 85, True)])), ["session80"])
+
+
+class WeeklyReportAlertTest(AlertsTest):
+    def test_weekly_report_is_added(self):
+        report = Alert("weekly_report:2026-10-26", "Bilan de la semaine", "…", 0)
+        self.weekly_report.return_value = report
+        a = self.alerts([state("perso", 10, True)], sent={"x"})
+        self.assertEqual(a, [report])
+        accounts, settings, now, sent = self.weekly_report.call_args.args
+        self.assertEqual([acc.name for acc in accounts], ["perso"])
+        self.assertIs(settings, self.settings)
+        self.assertEqual((now, sent), (NOW, {"x"}))
+
+    def test_failure_never_breaks_the_other_alerts(self):
+        self.weekly_report.side_effect = OSError("illisible")
+        with self.assertLogs("ccs.alerts", "ERROR"):
+            self.assertEqual(self.keys(self.alerts([state("perso", 85, True)])), ["session80"])
+
+    def test_alerts_disabled(self):
+        self.settings["alerts"]["enabled"] = False
+        self.alerts([state("perso", 10, True)])
+        self.weekly_report.assert_not_called()

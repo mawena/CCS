@@ -2,7 +2,7 @@
 
 Pur, sauf le conseil de modèle qui lit la fin des journaux récents (avec cache), et
 seulement quand le compte actif dépasse son seuil sans que le conseil de cette fenêtre
-ait déjà été donné.
+ait déjà été donné ; et le bilan de la semaine, calculé dans un fil une fois dû.
 """
 
 import logging
@@ -149,7 +149,20 @@ def pending_alerts(accounts, active, fc, paces, best, settings, now, sent_keys, 
     advice = _model_advice(next((a for a in accounts if a.name == active), None), cfg, now, sent_keys)
     if advice:
         out.append(advice)
+    report = _weekly_report(accounts, settings, now, sent_keys)
+    if report:
+        out.append(report)
     return out
+
+
+def _weekly_report(accounts, settings, now, sent_keys):
+    """Bilan de la semaine (calculé dans un fil quand il est dû, envoyé une fois par semaine)."""
+    from . import weekly_report
+    try:
+        return weekly_report.pending_alert(accounts, settings, now, sent_keys)
+    except Exception:  # noqa: BLE001 — historique illisible : pas de bilan, jamais de tick en échec
+        log.exception("bilan de la semaine impossible")
+        return None
 
 
 def _model_advice(acc, cfg, now, sent_keys):

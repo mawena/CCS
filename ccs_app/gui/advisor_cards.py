@@ -1,9 +1,10 @@
-"""Cartes de conseils de l'onglet Analyse : conseiller de formule (calcul dans un fil)."""
+"""Cartes de conseils de l'onglet Analyse : bilan de la semaine et conseiller de formule
+(calculs dans un fil)."""
 
 from gi.repository import Gtk
 
-from .. import advisor, costs
-from .common import caption, clear, in_thread
+from .. import advisor, costs, daemon, weekly_report
+from .common import caption, clear, in_thread, load_state, now_utc
 
 
 def _card(title):
@@ -84,3 +85,107 @@ class AdvisorCard(Gtk.Box):
         if advice.prices_stale:
             self.body.append(caption("Tarifs des formules à vérifier : ils datent de plus de "
                                      f"{advisor.PLAN_PRICES_MAX_AGE_DAYS} jours.", error=True))
+
+
+def week_label(index, start, end):
+    if index == 0:
+        return f"Semaine en cours (depuis le {weekly_report._date(start)})"
+    return f"Du {weekly_report._date(start)} au {weekly_report._date(end)}"
+
+
+class WeeklyReportCard(Gtk.Box):
+    """« Bilan de la semaine » avec choix de la semaine (la dernière terminée par défaut)."""
+
+    def __init__(self, build=None, choices=None):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self.build = build or weekly_report.build_report
+        self.choices = choices or self._choices
+        self.weeks = []
+        self.generation = 0
+        self.then = None
+        card, head = _card("Bilan de la semaine")
+        self.dropdown = Gtk.DropDown(model=Gtk.StringList(), valign=Gtk.Align.CENTER,
+                                     tooltip_text="Semaine")
+        self.filling = False
+        self.dropdown.connect("notify::selected", lambda *_: self.on_selected())
+        head.append(self.dropdown)
+        refresh = Gtk.Button(icon_name="view-refresh-symbolic", css_classes=["flat"],
+                             tooltip_text="Recalculer", valign=Gtk.Align.CENTER)
+        refresh.connect("clicked", lambda _b: self.load())
+        head.append(refresh)
+        self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        card.append(self.body)
+        self.append(card)
+
+    @staticmethod
+    def _choices():
+        from ..settings import load_settings
+        accounts = daemon.states_from_state(load_state())
+        return weekly_report.week_choices(accounts, now_utc(), load_settings())
+
+    def load(self, then=None):
+        """`then()` est appelé une fois le bilan affiché (le conseiller profite ainsi des
+        journaux déjà lus au lieu de les lire en même temps)."""
+        self.then = then
+        try:
+            self.weeks = self.choices()
+        except Exception as e:  # noqa: BLE001 — état ou réglages illisibles : message dans la carte
+            clear(self.body)
+            self.body.append(caption(f"Semaines introuvables : {e}", error=True))
+            self._done()
+            return
+        model = Gtk.StringList()
+        for i, (start, end) in enumerate(self.weeks):
+            model.append(week_label(i, start, end))
+        # Changer de modèle sélectionne la première semaine : pas de calcul pour elle.
+        self.filling = True
+        try:
+            self.dropdown.set_model(model)
+            self.dropdown.set_selected(1 if len(self.weeks) > 1 else 0)
+        finally:
+            self.filling = False
+        self.show_week()
+
+    def on_selected(self):
+        if not self.filling:
+            self.show_week()
+
+    def show_week(self):
+        index = self.dropdown.get_selected()
+        if not 0 <= index < len(self.weeks):
+            return
+        start, end = self.weeks[index]
+        self.generation += 1
+        generation = self.generation
+        clear(self.body)
+        self.body.append(_spinner())
+
+        def work():
+            try:
+                return self.build(start, end), None
+            except Exception as e:  # noqa: BLE001
+                return None, str(e) or e.__class__.__name__
+        in_thread(work, lambda result: self.show(result, generation))
+
+    def show(self, result, generation=None):
+        if generation is not None and generation != self.generation:
+            return  # une autre semaine a été choisie entre-temps
+        report, error = result
+        clear(self.body)
+        if error:
+            self.body.append(caption(f"Bilan impossible : {error}", error=True))
+        else:
+            self.body.append(Gtk.Label(label=weekly_report.title(report), xalign=0, wrap=True,
+                                       css_classes=["title-4"]))
+            for head, rows in weekly_report.sections(report):
+                self.body.append(Gtk.Label(label=head, xalign=0, margin_top=6,
+                                           css_classes=["caption-heading", "dim-label"]))
+                for row in rows:
+                    self.body.append(Gtk.Label(label=f"• {row}", xalign=0, wrap=True,
+                                               selectable=True))
+        self._done()
+
+    def _done(self):
+        then, self.then = getattr(self, "then", None), None
+        if then is not None:
+            then()

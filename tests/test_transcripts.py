@@ -99,6 +99,20 @@ class AggregateTest(unittest.TestCase):
         self.assertEqual(advice(aggregate([], [], days=7)), [])
 
 
+class HelpersTest(unittest.TestCase):
+    def test_weighted_tokens_of_an_answer(self):
+        # (entrée, sortie, cache écrit 5 min, cache écrit 1 h, cache lu) : même poids que UsageRow.
+        self.assertAlmostEqual(transcripts.weighted_tokens((10, 100, 600, 400, 5000)),
+                               UsageRow(T0, "App", "opus", 10, 100, 1000, 5000).weighted)
+
+    def test_project_label(self):
+        projects = Path("/home/u/.claude/projects")
+        self.assertEqual(transcripts.project_label("/home/u/Work/App", projects / "-x/s.jsonl", projects),
+                         "App")
+        self.assertEqual(transcripts.project_label("", projects / "-home-u-Blog/s/subagents/a.jsonl",
+                                                   projects), "-home-u-Blog")
+
+
 class FormatTest(unittest.TestCase):
     def test_fmt_tokens_french_decimal(self):
         self.assertEqual(transcripts.fmt_tokens(1_500_000), "1,5 M")

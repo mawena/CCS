@@ -27,6 +27,11 @@ DEFAULTS = {
         # modèle cher → proposer la famille moins chère (une fois par fenêtre de 5 h).
         "model_advice": True,
         "model_advice_pct": 80,
+        # Bilan de la semaine : notification une fois par semaine, au début de la semaine
+        # de la plupart des comptes (jour None) ou le jour donné (0 = lundi) à l'heure donnée.
+        "weekly_report": True,
+        "weekly_report_day": None,
+        "weekly_report_hour": 9,
     },
     "poll": {"normal_s": 300, "fast_s": 60},
     # Conseiller de formule (`advisor`) : semaines analysées, marge de sécurité,

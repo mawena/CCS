@@ -25,6 +25,12 @@ class SettingsTest(HomeTestCase):
         self.assertTrue(a["model_advice"])
         self.assertEqual(a["model_advice_pct"], 80)
 
+    def test_weekly_report_defaults(self):
+        a = settings.load_settings()["alerts"]
+        self.assertTrue(a["weekly_report"])
+        self.assertIsNone(a["weekly_report_day"])  # début de semaine de la plupart des comptes
+        self.assertEqual(a["weekly_report_hour"], 9)
+
     def test_advisor_defaults(self):
         adv = settings.load_settings()["advisor"]
         self.assertEqual(adv["weeks"], 4)
