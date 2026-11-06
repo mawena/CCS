@@ -135,6 +135,16 @@ class WindowsTest(unittest.TestCase):
         self.assertEqual(w[0].hit_at, self.R - DAY)
         self.assertIsNone(w[1].hit_at)
 
+    def test_consecutive_windows_never_overlap(self):
+        # Heure de réinitialisation suivante en avance de quelques secondes : pas de
+        # chevauchement, sinon le même compte compterait deux fois à la jonction.
+        span = advisor.SESSION_S
+        rows = [(self.R - 600, 100, self.R), (self.R + 600, 40, self.R + span - 30)]
+        first, second = self.windows(rows, span)
+        self.assertEqual(second.start, first.end)
+        spans = [(w.start, w.end, w.usage / 100) for w in (first, second)]
+        self.assertAlmostEqual(advisor._concurrent_peak(spans, 0, 10 * self.R), 1.0)
+
     def test_samples_after_the_reset_or_without_window_are_ignored(self):
         rows = [(self.R - DAY, 40, self.R), (self.R + 10, 40, self.R), (self.R + 20, 0, None)]
         self.assertEqual([x.usage for x in self.windows(rows)], [40])

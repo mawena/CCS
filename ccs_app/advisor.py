@@ -177,7 +177,11 @@ def windows(rows, span, now_ts):
             g["hit"] = ts
     out = []
     for g in groups:
+        # Une fenêtre ne commence jamais avant la fin de la précédente (heures de
+        # réinitialisation décalées de quelques secondes d'un relevé à l'autre).
         start, usage = g["end"] - span_s, g["usage"]
+        if out:
+            start = max(start, out[-1].end)
         elapsed = now_ts - start
         if span_s > SESSION_S and g["end"] > now_ts and elapsed >= PROJECT_AFTER_S:
             usage = min(100.0, usage * span_s / elapsed)
