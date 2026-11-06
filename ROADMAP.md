@@ -117,9 +117,9 @@ Priorité — à faire immédiatement :
   - [ ] Tests et essais réels
 
 Conseils :
-- [ ] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars
-- [ ] Conseil de modèle près des limites (Opus → Sonnet)
-- [ ] Bilan de la semaine
+- [x] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars
+- [x] Conseil de modèle près des limites (Opus → Sonnet)
+- [x] Bilan de la semaine
 
 Journal et projets :
 - [x] Journal lisible des bascules dans l'application
