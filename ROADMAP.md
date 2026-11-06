@@ -85,10 +85,10 @@ onglets de terminal, au lieu d'une fenêtre de terminal séparée.
 ## Phase 7 — Fonctions de la 0.5.0
 
 Service et alertes :
-- [ ] Prévision de fin de semaine par compte, alerte 2 jours avant
-- [ ] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain)
-- [ ] Rappel quand une session attend depuis plus de 10 min
-- [ ] Avertissement de nouvelle version et relance automatique de l'icône
+- [x] Prévision de fin de semaine par compte, alerte 2 jours avant
+- [x] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain)
+- [x] Rappel quand une session attend depuis plus de 10 min
+- [x] Avertissement de nouvelle version et relance automatique de l'icône
 
 Lecture et outils :
 - [ ] `ccs doctor` : bilan de santé avec la commande qui corrige
