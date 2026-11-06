@@ -1,16 +1,62 @@
-"""Onglet Réglages : bascule automatique, alertes, warm-up, service."""
+"""Onglet Réglages : bascule automatique, orchestrateur, alertes, conseils, conseiller de
+formule, intégration, raccourcis clavier, warm-up, service.
+
+`render()` recrée tous les groupes à chaque affichage de l'onglet ; chaque changement est
+enregistré aussitôt (`settings.json`) et réveille le service."""
 
 import re
 import subprocess
+from datetime import date, datetime, timezone
 
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import Adw, GLib, GObject, Gtk
 
-from .. import __version__, core, daemon, updates
+from .. import __version__, advisor, core, daemon, updates
 from ..settings import load_settings, save_settings
+from .common import string_factory
+from .shortcuts_group import ShortcutsGroup
 
 DAY_LABELS = ["L", "M", "M", "J", "V", "S", "D"]
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 SERVICE = "ccs-daemon.service"
+WEEKDAYS = ("Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche")
+# Jour du bilan de la semaine (`alerts.weekly_report_day`) : None = début de semaine de la
+# plupart des comptes, sinon 0 = lundi … 6 = dimanche.
+REPORT_DAYS = (("Début de semaine des comptes", None),) + tuple((d, i) for i, d in enumerate(WEEKDAYS))
+# Formule d'un compte pour le conseiller (`advisor.profile_plans`) : None = détectée (clé retirée).
+PLAN_CHOICES = (("Automatique", None),) + tuple((advisor.PLANS[k].label, k) for k in ("pro", "max5", "max20"))
+
+
+def report_day(value):
+    """Jour du bilan tel que `weekly_report.week_anchor` le comprend (None sinon)."""
+    return value if isinstance(value, int) and 0 <= value <= 6 else None
+
+
+def plan_status(name, detected, uncertain, unknown, forced):
+    """Sous-titre de la ligne de formule d'un compte (`detect_plans` sans formule imposée)."""
+    if name in unknown:
+        plan = unknown[name]
+        what = f"formule « {plan} » non reconnue" if plan and plan != "?" else "formule inconnue"
+    else:
+        what = f"détectée : {advisor.PLANS[detected[name]].label}"
+        if name in uncertain:
+            what += ", palier non indiqué"
+    if forced:
+        return f"Formule imposée ({what})"
+    if name in unknown:
+        return f"{what[:1].upper()}{what[1:]} : compte ignoré par le conseiller"
+    return "Palier non indiqué par le compte : Max supposé (Ultra = l'ancien Max 20×)"
+
+
+def prices_summary(settings, now=None):
+    """Sous-titre des tarifs : ceux que retient le conseiller, personnalisés ou publiés (datés)."""
+    prices, custom = advisor.plan_prices(settings)
+    names = ", ".join(f"{advisor.PLANS[k].label} {advisor.money(v)}" for k, v in prices.items())
+    if custom:
+        return f"Tarifs personnalisés : {names} par mois"
+    d = date.fromisoformat(advisor.PLAN_PRICES_DATE)
+    stale = " — à vérifier" if advisor.prices_stale(now or datetime.now(timezone.utc)) else ""
+    return (f"{names} par mois, hors taxes ({advisor.PLAN_PRICES_SOURCE}, "
+            f"{d.day} {core.MONTHS[d.month - 1]} {d.year}){stale}")
 
 
 def systemctl(*args):
@@ -41,9 +87,13 @@ class PrefsPage(Adw.PreferencesPage):
         self.add_group(self.auto_group())
         self.add_group(self.orchestrator_group())
         self.add_group(self.alerts_group())
+        self.add_group(self.advice_group())
+        self.add_group(self.advisor_group())
         self.add_group(self.integration_group())
         if self.window.terminals.available:
             self.add_group(self.terminal_group())
+        # Recréé à chaque rendu : l'ancien groupe, retiré, cesse seul de suivre GSettings.
+        self.add_group(ShortcutsGroup(toast=self.window.toast))
         self.add_group(self.warmup_group())
         self.add_group(self.service_group())
 
@@ -73,6 +123,35 @@ class PrefsPage(Adw.PreferencesPage):
             self.save()
         row.connect("notify::value", changed)
         return row
+
+    @staticmethod
+    def combo_row(title, subtitle, choices, current, on_change, use_subtitle=False):
+        """Liste déroulante : `choices` = [(libellé, valeur)] ; `on_change(valeur, ligne)` au
+        choix de l'utilisateur (pas à la création). Valeur inconnue : premier choix affiché.
+        `use_subtitle` : le choix s'affiche en sous-titre (libellés longs, fenêtre étroite)."""
+        values = [v for _label, v in choices]
+        row = Adw.ComboRow(title=title, use_markup=False, use_subtitle=use_subtitle,
+                           model=Gtk.StringList.new([label for label, _v in choices]))
+        if subtitle and not use_subtitle:
+            row.set_subtitle(subtitle)
+            # Choix jamais abrégé (« Au… ») : c'est le sous-titre qui passe à la ligne.
+            row.set_factory(string_factory(False))
+        # Comparaison stricte : 0 (lundi) n'est ni None ni False.
+        row.set_selected(next((i for i, v in enumerate(values)
+                               if v is current or (type(v) is type(current) and v == current)), 0))
+
+        def changed(r, _p):
+            i = r.get_selected()
+            if i < len(values):
+                on_change(values[i], r)
+        row.connect("notify::selected", changed)
+        return row
+
+    @staticmethod
+    def depends_on(switch, *rows):
+        """Lignes grisées tant que l'interrupteur est coupé."""
+        for row in rows:
+            switch.bind_property("active", row, "sensitive", GObject.BindingFlags.SYNC_CREATE)
 
     # ---- groupes -----------------------------------------------------------------
 
@@ -123,7 +202,7 @@ class PrefsPage(Adw.PreferencesPage):
         hours.add_suffix(box)
         g.add(hours)
         days_row = Adw.ActionRow(title="Jours actifs")
-        days_box = Gtk.Box(css_classes=["linked"], valign=Gtk.Align.CENTER)
+        days_box = Gtk.Box(css_classes=["linked", "ccs-days"], valign=Gtk.Align.CENTER)
         toggles = []
         for i, lbl in enumerate(DAY_LABELS):
             t = Gtk.ToggleButton(label=lbl, active=i in o["active_hours"]["days"])
@@ -178,6 +257,111 @@ class PrefsPage(Adw.PreferencesPage):
         g.add(self.spin_row("Rappeler après (min)", "Durée d'attente de ta réponse avant le rappel",
                             "alerts", "waiting_reminder_min", 2, 120))
         return g
+
+    def advice_group(self):
+        a = self.s["alerts"]
+        g = Adw.PreferencesGroup(
+            title="Conseils",
+            description="Notifications d'aide, envoyées seulement quand les notifications sont "
+                        "activées (groupe Alertes).")
+        model = self.switch_row(
+            "Proposer un modèle moins cher près des limites",
+            "Au-delà du seuil, si tes réponses récentes viennent d'un modèle cher : passer d'Opus à "
+            "Sonnet (ou de Sonnet à Haiku). Une notification par fenêtre de 5 h, et l'indice "
+            "« → sonnet ? » dans la ligne d'état de Claude Code", "alerts", "model_advice")
+        pct = self.spin_row("Seuil du conseil (%)", "Session ou semaine du compte actif",
+                            "alerts", "model_advice_pct", 50, 99)
+        self.depends_on(model, pct)
+        report = self.switch_row(
+            "Bilan de la semaine",
+            "Une notification résume la semaine écoulée : usage des comptes, coût, modèles, projets, "
+            "bascules (détail dans l'onglet Analyse)", "alerts", "weekly_report")
+
+        def set_day(value, _row):
+            a["weekly_report_day"] = value
+            self.save()
+        day = self.combo_row("Jour du bilan", None, REPORT_DAYS, report_day(a.get("weekly_report_day")),
+                             set_day, use_subtitle=True)
+        hour = self.spin_row(
+            "Heure du bilan",
+            "Pour un jour fixe. Sinon le bilan part quand la plupart des comptes commencent leur "
+            "semaine (le lundi à cette heure si leur semaine n'est pas encore connue)",
+            "alerts", "weekly_report_hour", 0, 23)
+        self.depends_on(report, day, hour)
+        for row in (model, pct, report, day, hour):
+            g.add(row)
+        return g
+
+    def advisor_group(self):
+        g = Adw.PreferencesGroup(
+            title="Conseiller de formule",
+            description="Combien de comptes Pro, Max ou Ultra pour ton usage réel, d'après les relevés "
+                        "du service : onglet Analyse et « ccs formule ».")
+        g.add(self.spin_row("Semaines analysées", "Historique des relevés pris en compte",
+                            "advisor", "weeks", 1, 12))
+        g.add(self.spin_row("Marge de sécurité (%)", "Ajoutée au besoin le plus haut mesuré",
+                            "advisor", "margin_pct", 0, 100, 5))
+        g.add(self.spin_row("Comptes au plus", "Nombre maximal de comptes dans une combinaison conseillée",
+                            "advisor", "max_accounts", 1, 5))
+        for row in self.plan_rows():
+            g.add(row)
+        g.add(self.prices_row())
+        return g
+
+    def plan_rows(self):
+        """Formule d'un compte, seulement quand la détection ne suffit pas (formule inconnue, Max
+        sans palier) ou qu'une formule est déjà imposée. « Automatique » retire la clé."""
+        cfg = self.s["advisor"]
+        if not isinstance(cfg.get("profile_plans"), dict):
+            cfg["profile_plans"] = {}
+        forced = cfg["profile_plans"]
+        profiles = core.list_profiles()
+        detected, uncertain, unknown = advisor.detect_plans(profiles, {})
+        unknown = dict(unknown)
+        rows = []
+        for p in profiles:
+            name, current = p.name, forced.get(p.name)
+            current = current if current in advisor.PLANS else None
+            if current is None and name not in unknown and name not in uncertain:
+                continue
+
+            def changed(key, row, name=name):
+                if key is None:
+                    forced.pop(name, None)
+                else:
+                    forced[name] = key
+                row.set_subtitle(plan_status(name, detected, uncertain, unknown, key is not None))
+                self.save()
+            rows.append(self.combo_row(f"Formule de « {name} »",
+                                       plan_status(name, detected, uncertain, unknown, current is not None),
+                                       PLAN_CHOICES, current, changed))
+        return rows
+
+    def prices_row(self):
+        """Tarifs des formules ($/mois) : une valeur égale au tarif publié retire la clé."""
+        cfg = self.s["advisor"]
+        if not isinstance(cfg.get("plan_prices"), dict):
+            cfg["plan_prices"] = {}
+        custom = cfg["plan_prices"]
+        prices, _custom = advisor.plan_prices(self.s)
+        exp = Adw.ExpanderRow(title="Tarifs des formules", subtitle=prices_summary(self.s))
+        for key, plan in advisor.PLANS.items():
+            row = Adw.SpinRow.new_with_range(0, 2000, 1)
+            row.set_title(f"{plan.label} ($/mois)")
+            row.set_subtitle(f"Tarif publié : {advisor.money(plan.price)}")
+            row.set_value(prices[key])
+
+            def changed(r, _p, key=key, default=plan.price):
+                value = int(r.get_value())
+                if value == default:
+                    custom.pop(key, None)
+                else:
+                    custom[key] = value
+                exp.set_subtitle(prices_summary(self.s))
+                self.save()
+            row.connect("notify::value", changed)
+            exp.add_row(row)
+        return exp
 
     def integration_group(self):
         from .. import integration
@@ -241,7 +425,7 @@ class PrefsPage(Adw.PreferencesPage):
         exp = Adw.ExpanderRow(title=name,
                               subtitle=f"à {slot['time']}" if slot["time"] else "désactivé")
         entry = Adw.EntryRow(title="Heure (HH:MM)", text=slot["time"])
-        days_box = Gtk.Box(css_classes=["linked"], valign=Gtk.Align.CENTER)
+        days_box = Gtk.Box(css_classes=["linked", "ccs-days"], valign=Gtk.Align.CENTER)
         toggles = []
         for i, lbl in enumerate(DAY_LABELS):
             t = Gtk.ToggleButton(label=lbl, active=i in slot["days"])
