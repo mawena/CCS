@@ -18,7 +18,9 @@ projet de la conversation bloquée.
 
 Note d'origine : ~/.claude-accounts/switch-origin.json (600)
     {"profile": "pro", "via": "projet", "ts": 1793000000.0, "project": "/home/u/Work/App"}
-écrite juste avant un « ccs use » lancé depuis l'application, l'icône… (`note_origin`) ;
+écrite juste avant un « ccs use » lancé depuis l'application, l'icône… (`note_origin`), ou
+par `ccs` lui-même pour une bascule lancée à la main (« ccs ») ou par un raccourci clavier
+(« raccourci », option --notifier) ;
 le service la lit et la retire quand il constate la bascule (`take_origin`, dans
 `Daemon.detect_manual_switch`) pour enregistrer `via` dans l'événement.
 """
@@ -32,7 +34,7 @@ from datetime import datetime, timedelta
 from . import core
 
 ORIGIN_MAX_AGE_S = 600
-VIA = ("application", "icone", "notification", "ccs", "nouvelle-session", "projet")
+VIA = ("application", "icone", "notification", "ccs", "nouvelle-session", "projet", "raccourci")
 SWITCH_ERROR_OPS = ("auto_switch", "notification", "manual")
 PERIODS = (("7 jours", 7), ("30 jours", 30), ("Tout", None))
 KINDS = ("auto", "anticipee", "blocage", "manuelle", "initial", "echec", "limite", "fenetre")
@@ -53,7 +55,8 @@ MANUAL_REASONS = {
     "notification": "Bascule manuelle depuis une notification",
     "application": "Bascule manuelle depuis l'application",
     "icone": "Bascule manuelle depuis l'icône",
-    "ccs": "Bascule manuelle par « ccs use »",
+    "ccs": "Bascule manuelle par la commande ccs",
+    "raccourci": "Bascule manuelle par un raccourci clavier",
     "nouvelle-session": "Bascule pour une nouvelle session (compte choisi)",
 }
 MANUAL_UNKNOWN = "Bascule manuelle (application, icône ou « ccs use »)"
@@ -444,11 +447,11 @@ def format_text(entries, now=None):
     return "\n".join(lines)
 
 
-USAGE = "usage : ccs journal [--jours N]"
+USAGE = "usage : ccs journal [--jours N | --tout]"
 
 
 def command(days=7, now=None, store=None):
-    """(code de sortie, texte) de « ccs journal [--jours N] » (None : tout l'historique)."""
+    """(code de sortie, texte) de « ccs journal [--jours N | --tout] » (None : tout l'historique)."""
     if days is not None and (isinstance(days, bool) or not isinstance(days, int) or days <= 0):
         return 2, USAGE
     if store is None:

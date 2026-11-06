@@ -40,6 +40,8 @@ HIGHLIGHT_S = 12      # mise en évidence de la session désignée par une notif
 COLLAPSE_SP = 800     # en dessous, la liste des projets se replie
 COMPACT_SP = 560      # en dessous, boutons en icônes et boutons des cartes sous le texte
 ORIGIN_CHOICES = (("Toutes les origines", None), ("VS Code", "vscode"), ("Terminal", "terminal"))
+# Bouton du filtre en mode compact (la liste garde les libellés complets).
+ORIGIN_SHORT = {"Toutes les origines": "Toutes"}
 
 
 class SessionsPage(Adw.BreakpointBin):
@@ -138,6 +140,8 @@ class SessionsPage(Adw.BreakpointBin):
             bp.add_setter(self.split, "show-sidebar", False)
         compact.add_setter(self.new_btn, "visible", False)
         compact.add_setter(self.new_icon, "visible", True)
+        # Filtre d'origine : « Toutes » au lieu de « Toutes les orig… » ; même sélection.
+        compact.add_setter(self.origin_drop, "factory", string_factory(True, ORIGIN_SHORT))
         compact.connect("apply", lambda *_: self.set_compact(True))
         compact.connect("unapply", lambda *_: self.set_compact(False))
         self.add_breakpoint(collapse)

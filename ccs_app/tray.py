@@ -175,6 +175,32 @@ def session_lines(found):
     return [(f"{s.project} — {sessions.state_label(s)}", s) for s in found]
 
 
+# Fin du menu : l'application sur la bonne page (noms français de `gui --page`).
+APP_ENTRIES = (
+    ("Journal des bascules", ("gui", "--page", "historique")),
+    ("Bilan de la semaine", ("gui", "--page", "analyse")),
+    ("Ouvrir Comptes Claude", ("gui",)),
+)
+
+
+def gui_argv(args):
+    """Commande qui lance `claude-accounts <args>` avec le même interpréteur."""
+    return [sys.executable, sys.argv[0], *args]
+
+
+def switch_to(name, run=None):
+    """Bascule demandée depuis le menu : origine « icone » notée pour le journal des
+    bascules, puis `ccs use` ; True si la bascule a eu lieu."""
+    from . import switch_log
+    switch_log.note_origin(name, "icone")
+    r = (run or core.run_ccs)(["use", name])
+    if r.returncode != 0:
+        switch_log.clear_origin()  # aucune bascule : la note ne doit rien attribuer plus tard
+        return False
+    daemon.request_refresh()
+    return True
+
+
 ICON_CACHE_VERSION = "v2"
 
 
@@ -215,13 +241,11 @@ def run():
     ind.set_status(AppIndicator.IndicatorStatus.ACTIVE)
     ind.set_title("Comptes Claude")
 
-    def launch_gui(*_):
-        subprocess.Popen([sys.executable, sys.argv[0], "gui"], start_new_session=True)
+    def launch_gui(_item, args):
+        subprocess.Popen(gui_argv(args), start_new_session=True)
 
     def use(_item, name):
-        r = core.run_ccs(["use", name])
-        if r.returncode == 0:
-            daemon.request_refresh()
+        switch_to(name)
         GLib.timeout_add_seconds(2, lambda: (rebuild(), False)[1])
 
     def toggle(item, section):
@@ -333,9 +357,13 @@ def run():
                 sub.append(it)
             root.set_submenu(sub)
             menu.append(root)
-        for label, cb in (("Actualiser", refresh), ("Ouvrir Comptes Claude", launch_gui)):
+        it = Gtk.MenuItem(label="Actualiser")
+        it.connect("activate", refresh)
+        menu.append(it)
+        menu.append(Gtk.SeparatorMenuItem())
+        for label, args in APP_ENTRIES:
             it = Gtk.MenuItem(label=label)
-            it.connect("activate", cb)
+            it.connect("activate", launch_gui, args)
             menu.append(it)
         menu.show_all()
         ind.set_menu(menu)

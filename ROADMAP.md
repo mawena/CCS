@@ -126,10 +126,10 @@ Journal et projets :
 - [x] Compte par projet
 
 Bureau :
-- [ ] Raccourcis clavier globaux
+- [x] Raccourcis clavier globaux
 
 Raccordement, documentation et release :
-- [ ] Commandes `ccs` (`formule`, `semaine`, `journal`, `projet`, `raccourcis`) et Réglages de l'application
+- [x] Commandes `ccs` (`formule`, `semaine`, `journal`, `projet`, `raccourcis`) et Réglages de l'application
 - [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
 - [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub
 
