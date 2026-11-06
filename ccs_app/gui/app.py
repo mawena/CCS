@@ -10,20 +10,24 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from .. import daemon  # noqa: E402
+from .. import conversations, daemon, sessions, terminal  # noqa: E402
 from ..settings import load_settings, save_settings  # noqa: E402
 from ..store import Store  # noqa: E402
 from .accounts import AccountsPage, add_account  # noqa: E402
 from .analysis import AnalysisPage  # noqa: E402
-from .common import ask_name, install_css, load_state, refresh_data, run_ccs_async  # noqa: E402
-from .conversations_page import ConversationsPage  # noqa: E402
+from .common import ask_name, ask_title, in_thread, install_css, load_state, refresh_data, run_ccs_async  # noqa: E402
+from .conversations_page import ConversationsPage, cap, error_text  # noqa: E402
 from .history import HistoryPage  # noqa: E402
 from .planning import PlanningPage  # noqa: E402
 from .sessions_page import SessionsPage  # noqa: E402
 from .prefs import PrefsPage  # noqa: E402
+from .terminals import TerminalsPage  # noqa: E402
 
 APP_ID = "io.ccs.ClaudeAccounts"
 STALE_S = 600
+# Sous cette largeur, les onglets passent dans la barre du bas : 7 onglets de même largeur
+# tiennent en 1350 px, 8 (avec « Terminaux ») en 1540 px.
+NARROW_SP = {False: 1350, True: 1540}
 
 
 class Window(Adw.ApplicationWindow):
@@ -33,6 +37,8 @@ class Window(Adw.ApplicationWindow):
         install_css()
         self.store = Store()
         self._reload_pending = False
+        self.closing = False
+        self.back_to = None
 
         header = Adw.HeaderBar()
         add_btn = Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Ajouter un compte")
@@ -56,6 +62,7 @@ class Window(Adw.ApplicationWindow):
         self.planning = PlanningPage(self)
         self.sessions = SessionsPage(self)
         self.conversations = ConversationsPage(self)
+        self.terminals = TerminalsPage(self)
         self.history = HistoryPage(self)
         self.analysis = AnalysisPage(self)
         self.prefs = PrefsPage(self)
@@ -64,10 +71,13 @@ class Window(Adw.ApplicationWindow):
                 (self.planning, "planning", "Planning", "x-office-calendar-symbolic"),
                 (self.sessions, "sessions", "Sessions", "utilities-terminal-symbolic"),
                 (self.conversations, "conversations", "Conversations", "chat-message-new-symbolic"),
+                (self.terminals, "terminals", "Terminaux", "tab-new-symbolic"),
                 (self.history, "history", "Historique", "document-open-recent-symbolic"),
                 (self.analysis, "analysis", "Analyse", "edit-find-symbolic"),
                 (self.prefs, "prefs", "Réglages", "emblem-system-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
+        self.terminals_page = self.stack.get_page(self.terminals)
+        self.terminals_page.set_visible(False)  # visible tant qu'un onglet est ouvert
         self.stack.connect("notify::visible-child-name", self.on_page)
         top_switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
         header.set_title_widget(top_switcher)
@@ -78,13 +88,14 @@ class Window(Adw.ApplicationWindow):
         view.add_top_bar(header)
         view.add_bottom_bar(bottom_switcher)
         self.set_content(view)
-        # Fenêtre étroite : onglets en bas, comme les applications GNOME (7 onglets de
-        # même largeur : en dessous de 1350 px, « Conversations » serait tronqué en haut).
-        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 1350sp"))
-        narrow.add_setter(top_switcher, "visible", False)
-        narrow.add_setter(bottom_switcher, "reveal", True)
-        self.add_breakpoint(narrow)
+        # Fenêtre étroite : onglets en bas, comme les applications GNOME (en dessous de
+        # NARROW_SP, « Conversations » serait tronqué en haut).
+        self.narrow = Adw.Breakpoint.new(self.narrow_condition())
+        self.narrow.add_setter(top_switcher, "visible", False)
+        self.narrow.add_setter(bottom_switcher, "reveal", True)
+        self.add_breakpoint(self.narrow)
         self.set_size_request(360, 400)
+        self.connect("close-request", self.on_close_request)
 
         state_file = Gio.File.new_for_path(str(daemon.state_path()))
         self.monitor = state_file.monitor_file(Gio.FileMonitorFlags.NONE, None)
@@ -105,6 +116,8 @@ class Window(Adw.ApplicationWindow):
 
     def _do_reload(self):
         self._reload_pending = False
+        self.closing = False
+        self.back_to = None
         self.reload()
         return False
 
@@ -122,6 +135,11 @@ class Window(Adw.ApplicationWindow):
 
     def on_page(self, *_):
         name = self.stack.get_visible_child_name()
+        if name == "terminals":
+            self.terminals.focus_selected()
+        else:
+            self.back_to = name
+            self.terminals.update_badge()
         self.sessions.visible_page = name == "sessions"
         self.conversations.visible_page = name == "conversations"
         if name == "sessions":
@@ -134,6 +152,108 @@ class Window(Adw.ApplicationWindow):
             self.analysis.ensure_loaded()
         elif name == "prefs":
             self.prefs.render()
+
+    # ---- terminal intégré ----------------------------------------------------------
+
+    def narrow_condition(self):
+        width = NARROW_SP[self.terminals_page.get_visible()]
+        return Adw.BreakpointCondition.parse(f"max-width: {width}sp")
+
+    def show_terminals(self):
+        if not self.terminals_page.get_visible():
+            self.terminals_page.set_visible(True)
+            self.narrow.set_condition(self.narrow_condition())
+        if self.stack.get_visible_child_name() != "terminals":
+            self.stack.set_visible_child_name("terminals")
+
+    def hide_terminals(self):
+        shown = self.stack.get_visible_child_name() == "terminals"
+        back = self.back_to or "sessions"  # cacher la page visible fait afficher la première
+        self.terminals_page.set_visible(False)
+        self.narrow.set_condition(self.narrow_condition())
+        if shown:
+            self.stack.set_visible_child_name(back)
+
+    def open_claude(self, cwd, resume=None, title=None, external=False):
+        """Claude Code dans `cwd` (reprise de la conversation `resume`) : dans un onglet de
+        l'application si le terminal intégré est là, sinon dans un terminal externe.
+        Renvoie « integre » ou « externe »."""
+        if terminal.choose(self.terminals.available, external) == "externe":
+            sessions.open_terminal(cwd, resume)
+            return "externe"
+        tab = self.terminals.find(session_id=resume) if resume else None
+        if tab is not None:
+            self.terminals.present(tab)  # déjà dans un onglet : on y va
+        else:
+            self.terminals.open_claude(cwd, resume, title)
+        return "integre"
+
+    def open_shell(self, cwd, external=False):
+        if terminal.choose(self.terminals.available, external) == "externe":
+            sessions.open_terminal(cwd, start_claude=False)
+            return "externe"
+        self.terminals.open_shell(cwd)
+        return "integre"
+
+    def terminals_changed(self):
+        """Un onglet s'est ouvert, arrêté, fermé ou a appris sa conversation : les boutons
+        « Afficher » des onglets Sessions et Conversations suivent."""
+        if self.sessions.visible_page:
+            self.sessions.rerender()
+        if self.conversations.visible_page:
+            self.conversations.rerender()
+
+    def on_close_request(self, *_):
+        if self.closing:
+            return False
+        question = self.terminals.close_question()
+        if question is None:
+            self.terminals.hang_up_all()
+            return False
+        d = Adw.AlertDialog(heading=question[0], body=question[1])
+        d.add_response("cancel", "Annuler")
+        d.add_response("close", "Fermer")
+        d.set_response_appearance("close", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.set_default_response("cancel")
+        d.set_close_response("cancel")
+
+        def on_response(_d, r):
+            if r == "close":
+                self.closing = True
+                self.terminals.hang_up_all()
+                self.close()
+        d.connect("response", on_response)
+        d.present(self)
+        return True
+
+    # ---- renommage -----------------------------------------------------------------
+
+    def rename_conversation(self, session_id, cwd=None, path=None, current=""):
+        """Demande un nouveau titre puis l'enregistre dans le journal de la conversation."""
+        def chosen(title):
+            def work():
+                try:
+                    return conversations.rename(session_id, title, cwd=cwd, path=path)
+                except (ValueError, OSError) as e:
+                    return e
+            in_thread(work, lambda result: self.renamed(session_id, result))
+        ask_title(self, "Renommer la conversation", current, chosen, conversations.RENAME_MAX)
+
+    def renamed(self, session_id, result):
+        if isinstance(result, ValueError):
+            self.toast(cap(str(result)))
+            return
+        if isinstance(result, OSError):
+            self.toast(error_text(result))
+            return
+        tab = self.terminals.find(session_id=session_id)
+        if tab is not None:
+            tab.set_title(result)
+        self.toast(f"Conversation renommée « {result} »")
+        if self.conversations.convs is not None:
+            self.conversations.load()
+        if self.sessions.visible_page:
+            self.sessions.load()
 
     # ---- actions -----------------------------------------------------------------
 

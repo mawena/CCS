@@ -98,6 +98,38 @@ session oubliée, reprendre une conversation récente ou en démarrer une nouvel
 dans un projet. Une notification te prévient quand une session **a terminé** ou
 **attend ta réponse** — pratique quand plusieurs tournent en parallèle.
 
+## Terminal intégré
+
+Reprendre une conversation ou démarrer une session l'ouvre **dans la fenêtre de
+l'application**, dans un onglet de terminal, plutôt que dans une fenêtre à part.
+Plusieurs sessions tiennent côte à côte en onglets (page **Terminaux**, visible
+dès qu'un onglet est ouvert) ; chaque onglet porte le titre de la conversation
+et montre si Claude **travaille**, **attend ta réponse** ou s'est arrêté.
+
+- **Ctrl+Maj+C / Ctrl+Maj+V** pour copier et coller (ou clic droit),
+  **Ctrl+clic** sur un lien (adresse de connexion de Claude, par exemple),
+  Ctrl+plus / Ctrl+moins pour la taille du texte ; police à chasse fixe du
+  bureau, couleurs qui suivent le thème clair ou sombre.
+- Quand Claude s'arrête, un bandeau propose **Reprendre** (la même
+  conversation) ou **Fermer**. Fermer un onglet ou la fenêtre pendant qu'une
+  session tourne demande confirmation : la conversation est enregistrée, tu
+  pourras la reprendre.
+- Une session déjà ouverte dans l'application se retrouve par **Afficher**
+  depuis les onglets Sessions et Conversations. Le terminal externe reste
+  disponible dans les menus « ⋮ », et « Terminal ici » ouvre un shell dans un
+  onglet.
+
+Le terminal intégré utilise VTE (`gir1.2-vte-3.91`, dépendance du paquet). S'il
+manque, tout s'ouvre dans un terminal externe comme avant et l'onglet Sessions
+indique la commande à lancer : `sudo apt install gir1.2-vte-3.91`.
+
+## Renommer une conversation
+
+« Renommer… » (onglets Sessions et Conversations, menu d'un onglet du terminal)
+ou `ccs title <identifiant> <titre>` donne un titre à une conversation, comme
+`/rename` dans Claude Code : le titre est enregistré dans la conversation et
+s'affiche partout, VS Code compris.
+
 ## Historique des conversations
 
 L'onglet **Conversations** (et `ccs conv`) liste **toutes** les conversations
@@ -109,8 +141,9 @@ accents ni majuscules, filtres par projet et par origine, groupes *Aujourd'hui*,
 *Hier*, *7 derniers jours*…
 
 Un clic reprend la conversation **dans VS Code** (la fenêtre du projet s'ouvre et
-l'extension Claude Code y rouvre la conversation) ou **dans un terminal**
-(`claude --resume`). Une conversation déjà ouverte ailleurs n'est pas relancée
+l'extension Claude Code y rouvre la conversation) ou **dans l'application**
+(`claude --resume` dans un onglet du terminal intégré ; un terminal externe reste
+au menu « … »). Une conversation déjà ouverte ailleurs n'est pas relancée
 une seconde fois. Si le projet a été **déplacé**, CCS propose le dossier du même
 nom qu'il retrouve et, après confirmation, y copie le journal de la conversation
 pour qu'elle reprenne depuis là (l'original reste en place).
@@ -121,6 +154,7 @@ ccs conv export csv      # recherche
 ccs conv -p Portail      # un projet
 ccs resume 4f3a          # reprend ici (4 premiers caractères de l'identifiant)
 ccs resume 4f3a --vscode # ou dans VS Code
+ccs title 4f3a Export CSV des prêts   # renomme la conversation
 ```
 
 ## Fonctionnalités
@@ -136,15 +170,17 @@ ccs resume 4f3a --vscode # ou dans VS Code
 | **Alertes** | 80 % et 95 % (avec un bouton « Basculer sur … »), fin de session imminente, bascule effectuée, tous comptes épuisés, compte réinitialisé, semaine en avance, connexion expirée, session terminée ou en attente. Une fois par seuil et par fenêtre. |
 | **Intégration Claude Code** | Ligne d'état dans chaque session, bascule automatique quand une session est bloquée. |
 | **Sessions** | Sessions ouvertes, consommation, reprise de conversations, terminal / dossier du projet. |
-| **Conversations** | Historique de toutes les conversations du PC, recherche, reprise dans VS Code ou un terminal, projets déplacés. |
+| **Terminal intégré** | Sessions Claude Code dans des onglets de l'application : activité, reprise après arrêt, copier/coller, liens, confirmation avant fermeture. |
+| **Conversations** | Historique de toutes les conversations du PC, recherche, reprise dans l'application, VS Code ou un terminal externe, renommage, projets déplacés. |
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets. |
-| **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Sessions, Conversations, Historique, Analyse, Réglages. |
+| **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Sessions, Conversations, Terminaux, Historique, Analyse, Réglages. |
 | **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge) ; au clic : comptes, recharges, prévision, sessions, interrupteurs. |
 | **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre. |
 
 ## Installation
 
-Ubuntu 24.04 (ou Debian/Ubuntu récent avec GTK 4 et libadwaita ≥ 1.4).
+Ubuntu 24.04 (ou Debian/Ubuntu récent avec GTK 4, libadwaita ≥ 1.4 et, pour le
+terminal intégré, VTE pour GTK 4 : `gir1.2-vte-3.91`).
 Claude Code doit être installé
 (`claude` dans le `PATH`).
 
@@ -199,6 +235,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs sessions` | Sessions Claude Code ouvertes : projet, état, consommation |
 | `ccs conv [mots]` | Historique des conversations du PC, recherche, `-p <projet>`, `--vscode`/`--terminal` |
 | `ccs resume <id>` | Reprend une conversation ici, `--vscode`, `--new-terminal`, `--dir <dossier>` |
+| `ccs title <id> <titre>` | Renomme une conversation (comme `/rename`) |
 | `ccs integrate on\|off\|status` | Ligne d'état et bascule après blocage dans Claude Code |
 | `ccs usage` | Usage détaillé de tous les comptes, prévisions, rythme hebdo |
 | `ccs orch on\|off` | Orchestrateur |
@@ -236,8 +273,9 @@ Architecture : [docs/architecture.md](docs/architecture.md).
 
 Tout reste sur la machine, dans `~/.claude-accounts/` (dossier 700, fichiers
 600). CCS ne contacte que les serveurs d'Anthropic. Il lit les conversations de
-`~/.claude/projects` sans les modifier ; seule la reprise d'un projet déplacé y
-ajoute une copie du journal. Aucun jeton n'apparaît dans
+`~/.claude/projects` sans les modifier, à deux exceptions près : la reprise d'un
+projet déplacé y ajoute une copie du journal, et renommer une conversation ajoute
+une ligne de titre à la fin de son journal (comme `/rename`). Aucun jeton n'apparaît dans
 les journaux, l'état partagé ou les notifications.
 
 ## Dépannage
@@ -251,6 +289,7 @@ les journaux, l'état partagé ou les notifications.
 | « Comptes Claude » introuvable dans le menu | Alt+F2 puis `r` (X11), ou reconnecte-toi. |
 | Icône absente de la barre du haut | Extension « Ubuntu AppIndicators » (voir Installation), puis `claude-accounts tray &`. |
 | Pas de ligne d'état dans Claude Code | `ccs integrate status`, puis relance la session. |
+| Les sessions s'ouvrent dans un terminal externe | Terminal intégré indisponible : `sudo apt install gir1.2-vte-3.91`, puis rouvre l'application. |
 
 Journaux du service : `journalctl --user -u ccs-daemon -f`.
 
@@ -272,6 +311,10 @@ bash ; pas d'autre dépendance.
 make test     # tests unitaires + scénario de bout en bout de ccs
 make deb      # tests, paquet, SHA256SUMS et lintian dans dist/
 ```
+
+Essayer une copie de développement sans réveiller l'application installée :
+`CCS_APP_ID=io.ccs.ClaudeAccounts.Dev bin/claude-accounts gui` ;
+`CCS_NO_VTE=1` force le repli sur le terminal externe.
 
 ## Licence
 

@@ -353,8 +353,89 @@ class CliTest(ConversationsTestCase):
         chdir.assert_called_once_with(str(self.app))
         execvp.assert_called_once_with("/bin/claude", ["/bin/claude", "--resume", "aaaa1111-x"])
 
+    def test_title_renames_a_conversation(self):
+        code, out, _ = self.run_cli("title", "aaaa", "Prêts", "en", "CSV")
+        self.assertEqual(code, 0)
+        self.assertIn("« export CSV des prêts » s'appelle maintenant « Prêts en CSV ».", out)
+        _, out, _ = self.run_cli("conversations", "--json")
+        self.assertEqual({c["session_id"]: c["title"] for c in json.loads(out)}["aaaa1111-x"], "Prêts en CSV")
+        code, _, err = self.run_cli("title", "aaaa", "  ")
+        self.assertEqual(code, 1)
+        self.assertIn("vide", err)
+        code, _, err = self.run_cli("title", "zzzz", "Titre")
+        self.assertEqual(code, 1)
+        self.assertIn("aucune conversation", err)
+
     def test_old_print_option_still_works(self):
         from ccs_app import cli
         with mock.patch.object(cli, "cmd_print", return_value=0) as cmd:
             cli.main(["--print"])
         cmd.assert_called_once()
+
+
+class RenameTest(ConversationsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.cwd = str(self.app)
+        self.path = self.journal(self.cwd, "s-ren", [
+            prompt("export CSV", self.cwd), {"type": "ai-title", "aiTitle": "Export CSV", "sessionId": "s-ren"}])
+
+    def test_appends_one_custom_title_line_in_claude_code_format(self):
+        before = self.path.read_bytes()
+        self.assertEqual(conv.rename("s-ren", "  Prêts\n en  CSV ", cwd=self.cwd), "Prêts en CSV")
+        after = self.path.read_bytes()
+        self.assertEqual(after[:len(before)], before)  # le journal n'est jamais réécrit
+        self.assertEqual(after[len(before):].decode(),
+                         '{"type":"custom-title","sessionId":"s-ren","customTitle":"Prêts en CSV"}\n')
+
+    def test_index_sees_the_new_title(self):
+        self.assertEqual(conv.scan()[0].title, "Export CSV")  # cache rempli
+        conv.rename("s-ren", "Prêts", cwd=self.cwd)
+        self.assertEqual(conv.scan()[0].title, "Prêts")
+        conv.rename("s-ren", "Encore", cwd=self.cwd)
+        self.assertEqual(conv.scan()[0].title, "Encore")  # le dernier titre l'emporte
+
+    def test_empty_or_too_long_title_refused_without_writing(self):
+        before = self.path.read_bytes()
+        for bad in ("", "  \n\t ", "x" * (conv.RENAME_MAX + 1)):
+            with self.assertRaises(ValueError):
+                conv.rename("s-ren", bad, cwd=self.cwd)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(conv.rename("s-ren", "x" * conv.RENAME_MAX, cwd=self.cwd), "x" * conv.RENAME_MAX)
+
+    def test_missing_journal(self):
+        with self.assertRaises(FileNotFoundError):
+            conv.rename("inconnu", "Titre", cwd=self.cwd)
+        with self.assertRaises(FileNotFoundError):
+            conv.rename("inconnu", "Titre")
+        with self.assertRaises(FileNotFoundError):
+            conv.rename("s-ren", "Titre", path=str(self.path) + ".absent")
+
+    def test_journal_found_from_identifier_alone_or_another_folder(self):
+        conv.rename("s-ren", "Sans dossier")
+        self.assertEqual(conv.scan()[0].title, "Sans dossier")
+        conv.rename("s-ren", "Autre dossier", cwd="/ailleurs")
+        self.assertEqual(conv.scan()[0].title, "Autre dossier")
+        conv.rename("s-ren", "Par chemin", path=str(self.path))
+        self.assertEqual(conv.scan()[0].title, "Par chemin")
+
+    def test_torn_last_line_is_closed_before_the_title(self):
+        self.append(self.path, [], raw_tail='{"type":"user","mess')
+        conv.rename("s-ren", "Titre", cwd=self.cwd)
+        lines = self.path.read_text().splitlines()
+        self.assertEqual(lines[-2], '{"type":"user","mess')
+        self.assertEqual(json.loads(lines[-1])["customTitle"], "Titre")
+
+    def test_single_write_in_append_mode(self):
+        with mock.patch.object(conv.os, "open", wraps=os.open) as opened, \
+                mock.patch.object(conv.os, "write", wraps=os.write) as write:
+            conv.rename("s-ren", "Titre", cwd=self.cwd)
+        flags = opened.call_args.args[1]
+        self.assertTrue(flags & os.O_APPEND)
+        self.assertFalse(flags & os.O_CREAT)  # un journal disparu n'est jamais recréé
+        self.assertEqual(write.call_count, 1)
+
+    def test_partial_write_is_an_error(self):
+        with mock.patch.object(conv.os, "write", return_value=3):
+            with self.assertRaises(OSError):
+                conv.rename("s-ren", "Titre", cwd=self.cwd)

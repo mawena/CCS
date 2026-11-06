@@ -371,6 +371,18 @@ def cmd_resume(args):
     os.execvp(claude, [claude, "--resume", c.session_id])
 
 
+def cmd_title(args):
+    from . import conversations as conv
+    try:
+        c = conv.find(conv.scan(), args.ref)
+        title = conv.rename(c.session_id, " ".join(args.title), path=c.path)
+    except (LookupError, ValueError, OSError) as e:
+        print(f"Erreur : {e}", file=sys.stderr)
+        return 1
+    print(f"« {c.title} » s'appelle maintenant « {title} ».")
+    return 0
+
+
 def cmd_statusline(_args):
     from datetime import datetime, timezone
     from . import integration
@@ -455,6 +467,10 @@ def build_parser():
     where.add_argument("--print", action="store_true", help="affiche seulement la commande")
     res.add_argument("--dir", help="reprendre depuis ce dossier (projet déplacé)")
     res.set_defaults(func=cmd_resume)
+    ttl = sub.add_parser("title", help="renomme une conversation de l'historique (comme /rename)")
+    ttl.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
+    ttl.add_argument("title", nargs="+", help="nouveau titre")
+    ttl.set_defaults(func=cmd_title)
     sub.add_parser("statusline", help="ligne d'état pour Claude Code").set_defaults(func=cmd_statusline)
     hook = sub.add_parser("hook", help="hooks Claude Code")
     hook.add_argument("event", choices=["stop-failure"])
