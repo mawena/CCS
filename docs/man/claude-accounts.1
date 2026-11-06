@@ -14,6 +14,10 @@ analyse de l'usage local et réglages.
 Application GTK (défaut). Les sessions Claude Code reprises ou démarrées depuis
 l'application s'ouvrent dans des onglets de son terminal intégré (VTE,
 paquet \fIgir1.2-vte-3.91\fR) ; sans VTE, dans un terminal externe.
+Le terminal intégré met deux sessions côte à côte (Ctrl+Maj+E), garde des
+messages à envoyer quand Claude sera libre (Ctrl+Maj+M), relance une
+conversation bloquée par une limite après la bascule et rouvre les onglets au
+démarrage (\fI~/.claude-accounts/terminals.json\fR).
 « Nouvelle session… » choisit le dossier, le compte, le modèle et le mode de
 permissions ; « Aperçu… » relit une conversation et l'exporte en Markdown ;
 « Bilan de santé… » est dans le menu principal. Libadwaita 1.5 ou plus récent.
@@ -59,11 +63,14 @@ du hook \fBstop-failure\fR), lève la pause (\fBoff\fR) ou affiche son état
 (\fBstatus\fR, défaut). État dans \fI~/.claude-accounts/pause.json\fR.
 .TP
 .B statusline
-Ligne d'état pour Claude Code (lit le contexte sur l'entrée standard).
+Ligne d'état pour Claude Code (lit le contexte sur l'entrée standard) ;
+commence par un symbole de pause pendant une pause de CCS.
 .TP
 .B hook stop-failure
 Hook Claude Code : bascule quand une session est bloquée par la limite (sauf
-pendant une pause, qu'il signale).
+pendant une pause, qu'il signale) et laisse un marqueur dans
+\fI~/.claude-accounts/limits/\fR pour la reprise automatique du terminal
+intégré.
 .TP
 .B integrate on\fR|\fBoff\fR|\fBstatus
 Installe ou retire la ligne d'état et le hook dans ~/.claude/settings.json.
