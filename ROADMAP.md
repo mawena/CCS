@@ -64,7 +64,7 @@ de l'extension VS Code, et leur reprise en un clic.
 - [x] Release mineure 0.4.0 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
 - [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.4.0_all.deb`)
 
-## Phase 6 — Terminal intégré (0.5.0)
+## Phase 6 — Terminal intégré (0.5.0) ✅
 
 Les sessions Claude Code s'ouvrent dans la fenêtre de l'application, dans des
 onglets de terminal, au lieu d'une fenêtre de terminal séparée.
@@ -80,7 +80,7 @@ onglets de terminal, au lieu d'une fenêtre de terminal séparée.
 - [x] Paquet : dépendance `gir1.2-vte-3.91`
 - [x] Essais réels dans une copie de développement (terminal intégré, repli sans VTE)
 - [x] Documentation : README, `docs/utilisation.md`, `docs/architecture.md`, pages man, CHANGELOG
-- [ ] Suite de tests au vert, feature terminée et `develop` poussée
+- [x] Suite de tests au vert, feature terminée et `develop` poussée
 
 ## Phase 7 — Fonctions de la 0.5.0
 
