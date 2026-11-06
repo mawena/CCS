@@ -185,3 +185,51 @@ class GaugeCacheTest(unittest.TestCase):
         from ccs_app.tray import gauge_for_name
         self.assertIn('stroke-dasharray="90.0 100"', gauge_for_name("ccs-gauge-90"))
         self.assertNotIn("stroke-dasharray", gauge_for_name("ccs-gauge-none"))
+
+
+import sys  # noqa: E402
+from unittest import mock  # noqa: E402
+
+from tests.helpers import HomeTestCase  # noqa: E402
+
+
+class AppEntriesTest(unittest.TestCase):
+    def test_entries_open_the_right_page(self):
+        from ccs_app.desktop import page_name
+        from ccs_app.tray import APP_ENTRIES, gui_argv
+        labels = [label for label, _ in APP_ENTRIES]
+        self.assertEqual(labels, ["Journal des bascules", "Bilan de la semaine", "Ouvrir Comptes Claude"])
+        pages = {label: args for label, args in APP_ENTRIES}
+        self.assertEqual(page_name(pages["Journal des bascules"][-1]), "history")
+        self.assertEqual(page_name(pages["Bilan de la semaine"][-1]), "analysis")
+        self.assertEqual(pages["Ouvrir Comptes Claude"], ("gui",))
+        with mock.patch.object(sys, "argv", ["/usr/bin/claude-accounts", "tray"]):
+            self.assertEqual(gui_argv(("gui", "--page", "historique")),
+                             [sys.executable, "/usr/bin/claude-accounts", "gui", "--page", "historique"])
+
+
+class TraySwitchTest(HomeTestCase):
+    def test_switch_notes_the_icon_for_the_journal(self):
+        import subprocess
+        from ccs_app import core, daemon, switch_log
+        from ccs_app.tray import switch_to
+        seen = []
+
+        def run(args):
+            seen.append((args, core.load_json(switch_log.origin_path())))
+            return subprocess.CompletedProcess(args, 0, "ok", "")
+        with mock.patch.object(daemon, "request_refresh") as refresh:
+            self.assertTrue(switch_to("pro", run=run))
+        args, note = seen[0]
+        self.assertEqual(args, ["use", "pro"])
+        self.assertEqual((note["profile"], note["via"]), ("pro", "icone"))
+        refresh.assert_called_once()
+
+    def test_failed_switch_leaves_no_origin(self):
+        import subprocess
+        from ccs_app import daemon, switch_log
+        from ccs_app.tray import switch_to
+        with mock.patch.object(daemon, "request_refresh") as refresh:
+            self.assertFalse(switch_to("pro", run=lambda a: subprocess.CompletedProcess(a, 1, "", "non")))
+        self.assertFalse(switch_log.origin_path().exists())
+        refresh.assert_not_called()
