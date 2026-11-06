@@ -177,22 +177,12 @@ def switch_if_needed(spec, active=None, run=None):
     return False, text.removeprefix("ccs: ").strip()
 
 
-def open_session(spec, embedded, open_tab, claude_launch=None, external=None):
+def open_session(spec, embedded, open_claude, external=None):
     """Ouvre la session choisie (après l'éventuelle bascule) : onglet du terminal intégré si
-    `embedded` (`open_tab(Launch)`), sinon terminal externe. Renvoie « integre » ou « externe ».
-
-    Un terminal intégré qui ne sait pas encore ajouter d'arguments à claude
-    (`terminal.claude_launch` sans `extra_args`) passe la main au terminal externe : les
-    options choisies ne sont jamais perdues en silence."""
+    `embedded` (`open_claude(dossier, extra_args=…)`, arguments gardés pour la relance de
+    l'onglet), sinon terminal externe (`external(spec)`). Renvoie « integre » ou « externe »."""
     if embedded:
-        if claude_launch is None:
-            from .terminal import claude_launch
-        try:
-            tab_launch = claude_launch(spec.cwd, extra_args=tuple(spec.args()))
-        except TypeError:
-            pass
-        else:
-            open_tab(tab_launch)
-            return "integre"
+        open_claude(spec.cwd, extra_args=tuple(spec.args()))
+        return "integre"
     (external or launch)(spec)
     return "externe"

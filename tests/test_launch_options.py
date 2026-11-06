@@ -146,31 +146,24 @@ class OpenSessionTest(unittest.TestCase):
         self.tabs, self.external = [], []
         self.spec = LaunchSpec(cwd="/w", profile=None, model="opus", permission_mode="plan")
 
-    def open(self, embedded, claude_launch):
-        return lo.open_session(self.spec, embedded, self.tabs.append, claude_launch=claude_launch,
+    def open(self, embedded):
+        return lo.open_session(self.spec, embedded,
+                               lambda cwd, extra_args=(): self.tabs.append((cwd, extra_args)),
                                external=self.external.append)
 
     def test_embedded_terminal_with_the_options(self):
-        calls = []
-
-        def claude_launch(cwd, resume=None, title=None, environ=None, extra_args=()):
-            calls.append((cwd, tuple(extra_args)))
-            return "launch"
-        self.assertEqual(self.open(True, claude_launch), "integre")
-        self.assertEqual(calls, [("/w", ("--model", "opus", "--permission-mode", "plan"))])
-        self.assertEqual((self.tabs, self.external), (["launch"], []))
-
-    def test_older_embedded_terminal_without_extra_args_falls_back(self):
-        def claude_launch(cwd, resume=None, title=None, environ=None):
-            return "launch"
-        self.assertEqual(self.open(True, claude_launch), "externe")
-        self.assertEqual((self.tabs, self.external), ([], [self.spec]))
+        self.assertEqual(self.open(True), "integre")
+        self.assertEqual(self.tabs, [("/w", ("--model", "opus", "--permission-mode", "plan"))])
+        self.assertEqual(self.external, [])
 
     def test_without_embedded_terminal(self):
-        launch = mock.Mock()
-        self.assertEqual(self.open(False, launch), "externe")
-        launch.assert_not_called()
-        self.assertEqual(self.external, [self.spec])
+        self.assertEqual(self.open(False), "externe")
+        self.assertEqual((self.tabs, self.external), ([], [self.spec]))
+
+    def test_options_reach_the_embedded_tab_argv(self):
+        from ccs_app import terminal
+        launch = terminal.claude_launch("/w", extra_args=self.spec.args(), environ={})
+        self.assertIn("--model opus --permission-mode plan", launch.argv[-1])
 
 
 if __name__ == "__main__":

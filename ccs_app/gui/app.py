@@ -32,6 +32,7 @@ DOCTOR_DELAY_S = 4   # bilan de santé du démarrage : après le premier afficha
 # Sous cette largeur, les onglets passent dans la barre du bas : 7 onglets de même largeur
 # tiennent en 1350 px, 8 (avec « Terminaux ») en 1540 px.
 NARROW_SP = {False: 1350, True: 1540}
+PAUSE_SP = 100       # « Auto ⏸ jusqu'à 14:00 » à la place de « Auto » pendant une pause
 
 
 class Window(Adw.ApplicationWindow):
@@ -189,7 +190,9 @@ class Window(Adw.ApplicationWindow):
         st = pause.pause_state(now)
         shown = attention.pause_header(st.as_dict(now) if st else None, now)
         self.auto_label.set_visible(shown is None)
-        self.pause_btn.set_visible(shown is not None)
+        if self.pause_btn.get_visible() != (shown is not None):
+            self.pause_btn.set_visible(shown is not None)
+            self.narrow.set_condition(self.narrow_condition())  # l'en-tête s'élargit pendant une pause
         if shown is not None:
             label, tooltip = shown
             self.pause_label.set_label(label)
@@ -264,12 +267,18 @@ class Window(Adw.ApplicationWindow):
 
     def narrow_condition(self):
         width = NARROW_SP[self.terminals_page.get_visible()]
+        if self.pause_btn.get_visible():
+            width += PAUSE_SP
         return Adw.BreakpointCondition.parse(f"max-width: {width}sp")
 
-    def show_terminals(self):
+    def reveal_terminals(self):
+        """Onglet « Terminaux » visible dans la barre de la fenêtre, sans l'afficher."""
         if not self.terminals_page.get_visible():
             self.terminals_page.set_visible(True)
             self.narrow.set_condition(self.narrow_condition())
+
+    def show_terminals(self):
+        self.reveal_terminals()
         if self.stack.get_visible_child_name() != "terminals":
             self.stack.set_visible_child_name("terminals")
 
@@ -329,7 +338,7 @@ class Window(Adw.ApplicationWindow):
     def open_spec(self, spec):
         embedded = terminal.choose(self.terminals.available) == "integre"
         try:
-            where = launch_options.open_session(spec, embedded, self.terminals.open)
+            where = launch_options.open_session(spec, embedded, self.terminals.open_claude)
         except OSError as e:
             self.toast(error_text(e))
             return
