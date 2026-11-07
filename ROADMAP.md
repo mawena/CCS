@@ -132,7 +132,7 @@ Raccordement, documentation et release :
 - [x] Commandes `ccs` (`formule`, `semaine`, `journal`, `projet`, `raccourcis`) et Réglages de l'application
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
 - [x] Release mineure 0.6.0 (genre choisi par Charles), `main`, `develop` et le tag poussés
-- [ ] Paquet `.deb` construit (`dist/ccs_0.6.0_all.deb`) et release GitHub v0.6.0
+- [x] Paquet `.deb` construit (`dist/ccs_0.6.0_all.deb`) et release GitHub v0.6.0
 
 Releases GitHub manquantes :
 - [x] Releases GitHub 0.3.1, 0.3.2 et 0.4.0, avec leurs `.deb` reconstruits depuis les tags
