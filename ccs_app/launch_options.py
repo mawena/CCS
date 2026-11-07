@@ -120,12 +120,18 @@ class LaunchSpec:
     profile: str | None
     model: str | None = None
     permission_mode: str | None = None
+    # Origine d'une éventuelle bascule, pour le journal (switch_log.VIA) : « projet » quand
+    # le compte est celui du projet, présélectionné ; None : « nouvelle-session ».
+    origin: str | None = None
 
     def __post_init__(self):
         if not self.cwd:
             raise ValueError("dossier de la session manquant")
         _model(self.model)
         _permission_mode(self.permission_mode)
+        from .switch_log import VIA
+        if self.origin is not None and self.origin not in VIA:
+            raise ValueError(f"origine de bascule inconnue : {self.origin!r}")
 
     def args(self, resume=None, extra=()):
         return claude_args(self.model, self.permission_mode, resume, extra)
@@ -161,20 +167,48 @@ def launch(spec, claude_bin=None, resume=None):
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
-def switch_if_needed(spec, active=None, run=None):
+def switch_if_needed(spec, active=None, run=None, via=None, project=None):
     """Bascule sur le compte choisi s'il n'est pas le compte actif (« ccs use <profil> »).
-    Renvoie (a basculé, message d'erreur ou None). Lent (ccs, verrou) : hors de l'interface."""
-    from . import core
+    Renvoie (a basculé, message d'erreur ou None). Lent (ccs, verrou) : hors de l'interface.
+
+    Pour le journal des bascules : l'origine (`via`, sinon `spec.origin`, sinon
+    « nouvelle-session » ; `project` : dossier du projet, celui de la session pour
+    « projet ») est notée avant la bascule, que le service retrouve en la constatant ;
+    un échec est enregistré avec son message."""
+    from . import core, switch_log
     if active is None:
         active = core.active_profile_name()
     if not spec.needs_switch(active):
         return False, None
+    via = via or spec.origin or "nouvelle-session"
+    if via == "projet" and not project:
+        project = spec.cwd
+    switch_log.note_origin(spec.profile, via, project)
     r = (run or core.run_ccs)(["use", spec.profile])
     if r.returncode == 0:
         return True, None
     lines = ANSI_RE.sub("", (r.stderr or "") + (r.stdout or "")).strip().splitlines()
     text = lines[0] if lines else f"échec de la bascule sur « {spec.profile} »"
-    return False, text.removeprefix("ccs: ").strip()
+    text = text.removeprefix("ccs: ").strip()
+    switch_log.clear_origin()
+    _record_failure(spec.profile, via, text, active, project)
+    return False, text
+
+
+def _record_failure(profile, via, message, source, project):
+    """Échec gardé pour le journal ; une base illisible n'empêche jamais d'afficher l'erreur."""
+    import sqlite3
+
+    from . import switch_log
+    from .store import Store
+    try:
+        store = Store()
+        try:
+            switch_log.record_failure(store, profile, via, message, source, project)
+        finally:
+            store.close()
+    except (OSError, sqlite3.Error):
+        pass
 
 
 def open_session(spec, embedded, open_claude, external=None):

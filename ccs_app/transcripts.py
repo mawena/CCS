@@ -31,6 +31,18 @@ def model_family(model):
     return next((f for f in FAMILIES if f in m), m or "inconnu")
 
 
+def weighted_tokens(tokens):
+    """Poids d'une réponse (entrée, sortie, cache écrit 5 min, cache écrit 1 h, cache lu),
+    comme `UsageRow.weighted`."""
+    inp, out, w5m, w1h, read = tokens
+    return inp + w5m + w1h + out * 5 + read * 0.1
+
+
+def project_label(cwd, path, projects_dir):
+    """Nom du projet d'une réponse : dossier de travail, sinon dossier du journal."""
+    return _project(cwd, Path(path), Path(projects_dir))
+
+
 def _project(cwd, file, projects_dir):
     if cwd:
         if Path(cwd) == core.paths().home:

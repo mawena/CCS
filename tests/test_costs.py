@@ -184,6 +184,68 @@ class CacheTest(CostTestCase):
         self.assertEqual(conversation_cost(p).tokens_par_type["entree"], 150)
 
 
+def at(msg_id, iso, **kw):
+    """Réponse horodatée (`iso`, UTC) dans un projet."""
+    row = answer(msg_id, **kw)
+    row["timestamp"] = iso
+    row["cwd"] = "/home/u/Work/App"
+    return row
+
+
+class AnswersTest(CostTestCase):
+    def test_answers_keep_time_model_project_and_dollars(self):
+        p = self.journal([at("m1", "2026-11-02T10:00:00Z", out=1_000_000),
+                          at("m1", "2026-11-02T10:00:00Z", out=1_000_000),
+                          at("m2", "2026-11-03T08:30:00.500Z", model="claude-sonnet-5-5", inp=1_000_000)])
+        answers = costs.file_answers(p)
+        self.assertEqual(len(answers), 2)
+        first, second = sorted(answers, key=lambda a: a.ts)
+        self.assertEqual(first.ts, 1793613600.0)
+        self.assertEqual(first.model, "claude-opus-5-5")
+        self.assertEqual(first.cwd, "/home/u/Work/App")
+        self.assertEqual(first.tokens, (0, 1_000_000, 0, 0, 0))
+        self.assertAlmostEqual(first.dollars, 20.0)
+        self.assertAlmostEqual(second.dollars, 2.0)
+
+    def test_answers_are_cached_until_the_file_changes(self):
+        p = self.journal([at("m1", "2026-11-02T10:00:00Z", inp=10)])
+        costs.file_answers(p)
+        with mock.patch.object(costs, "_parse", wraps=costs._parse) as parser:
+            costs.file_answers(p)
+        parser.assert_not_called()
+
+    def test_cost_of_answers(self):
+        p = self.journal([at("m1", "2026-11-02T10:00:00Z", out=1_000_000),
+                          at("m2", "2026-11-02T11:00:00Z", model="claude-opus-4-1", out=10)])
+        c = costs.cost_of(costs.file_answers(p))
+        self.assertEqual(c.reponses, 2)
+        self.assertTrue(c.inconnu)
+        self.assertAlmostEqual(c.dollars, 20.0)
+        self.assertEqual(c.tokens_par_type["sortie"], 1_000_010)
+
+    def test_period_answers_and_cost_filter_by_time(self):
+        self.journal([at("m1", "2026-11-01T10:00:00Z", out=1_000_000),
+                      at("m2", "2026-11-03T10:00:00Z", out=1_000_000)], name="-home-u-App/s1.jsonl")
+        self.journal([at("a1", "2026-11-03T11:00:00Z", model="claude-haiku-4-5", out=1_000_000)],
+                     name="-home-u-App/s1/subagents/agent-1.jsonl")
+        old = self.journal([at("z", "2026-10-01T10:00:00Z", out=1_000_000)], name="-home-u-Old/s0.jsonl")
+        os.utime(old, (1790000000, 1790000000))  # pas modifié depuis : pas même ouvert
+        since = 1793700000.0   # 2026-11-03T10:00Z
+        by_file = costs.period_answers(self.dir, since)
+        self.assertEqual(sorted(p.name for p in by_file), ["agent-1.jsonl", "s1.jsonl"])
+        self.assertEqual(sum(len(v) for v in by_file.values()), 2)
+        c = costs.period_cost(self.dir, since)
+        self.assertAlmostEqual(c.dollars, 20.0 + 5.0)
+        self.assertAlmostEqual(costs.period_cost(self.dir, since, until=since + 1800).dollars, 20.0)
+        self.assertEqual(costs.period_cost(self.dir / "absent", since).reponses, 0)
+
+    def test_reprice_at_another_model(self):
+        tokens = (1_000_000, 1_000_000, 0, 0, 1_000_000)
+        self.assertAlmostEqual(costs.reprice(tokens, "claude-opus-5-5"), 4 + 20 + 0.2)
+        self.assertAlmostEqual(costs.reprice(tokens, "claude-sonnet-5-5"), 2 + 10 + 0.2)
+        self.assertIsNone(costs.reprice(tokens, "gpt-9"))
+
+
 class FormatTest(unittest.TestCase):
     def cost(self, tokens, dollars, unknown=False):
         return costs.Cost({"entree": tokens, "sortie": 0, "cache_ecriture": 0, "cache_lecture": 0}, dollars, {},

@@ -18,6 +18,9 @@ class Decision:
     reason: str
     source: str | None = None
     source_reset: float | None = None
+    # Précisions gardées dans l'événement de bascule pour le journal (switch_log) :
+    # pourcentage et seuil, projection, quota qui expire…
+    detail: dict | None = None
 
 
 def none(reason):
@@ -79,9 +82,12 @@ def decide(accounts, active, fc, settings, now, events, poll_s, reserve=frozense
                        max_session=cfg["target_max_session"], max_weekly=cfg["target_max_weekly"],
                        reserve=reserve)
     if rec:
+        detail = {"percent": round(current, 1), "threshold": cfg["threshold"]}
+        if current < cfg["threshold"]:
+            detail["projected"] = round(projected, 1)  # bascule sur la projection
         return Decision("switch", rec.name,
                         f"{active} à {current:.0f} % → {rec.name} ({rec.reason})",
-                        active, source_reset)
+                        active, source_reset, detail)
 
     upcoming = []
     for a in eligible:
@@ -124,9 +130,12 @@ def execute(decision, store, now, mode="auto"):
     ts = now.timestamp()
     if r.returncode != 0:
         msg = (r.stderr or r.stdout).strip().replace("ccs: ", "")
-        store.add_event(ts, "error", decision.target, {"op": "auto_switch", "message": msg})
+        store.add_event(ts, "error", decision.target, {
+            "op": "auto_switch", "message": msg, "mode": mode, "from": decision.source,
+            "reason": decision.reason})
         return False
-    store.add_event(ts, "switch", decision.target, {
-        "mode": mode, "from": decision.source, "from_reset": decision.source_reset,
-        "reason": decision.reason})
+    detail = dict(decision.detail or {})
+    detail.update({"mode": mode, "from": decision.source, "from_reset": decision.source_reset,
+                   "reason": decision.reason})
+    store.add_event(ts, "switch", decision.target, detail)
     return True

@@ -2,8 +2,9 @@
 
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 
-from gi.repository import Adw, Gdk, GLib, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
 from .. import core, daemon
 
@@ -18,10 +19,15 @@ progressbar.ok progress { background-color: @success_color; }
 progressbar.warn progress { background-color: @warning_color; }
 progressbar.crit progress { background-color: @error_color; }
 .pct { font-feature-settings: "tnum"; font-weight: bold; }
-.legend-session { color: #3584e4; font-weight: bold; }
-.legend-weekly { color: #e66100; font-weight: bold; }
 .ccs-terminal { padding: 6px 10px; }
 .ccs-highlight { box-shadow: inset 0 0 0 2px @accent_color; }
+.ccs-dot { min-width: 8px; min-height: 8px; border-radius: 99px; }
+.ccs-dot.ouverte { background: @success_color; }
+.ccs-dot.attention { background: @accent_color; }
+.ccs-projects { background: none; }
+.ccs-projects row { padding: 2px 0; }
+.ccs-count { font-feature-settings: "tnum"; }
+.ccs-days > button { padding-left: 8px; padding-right: 8px; }
 """
 
 
@@ -58,6 +64,60 @@ def bar_for(pct):
 def caption(text, error=False):
     return Gtk.Label(label=text, xalign=0, wrap=True,
                      css_classes=["caption", "error" if error else "dim-label"])
+
+
+def cap(text):
+    return text[:1].upper() + text[1:]
+
+
+def error_text(e):
+    if isinstance(e, FileNotFoundError) and e.filename:
+        return f"Introuvable : {e.filename}"
+    if e.strerror:
+        return f"Échec : {e.strerror}" + (f" ({e.filename})" if e.filename else "")
+    return cap(str(e))
+
+
+def short_path(path):
+    """Chemin avec ~ pour le dossier personnel."""
+    home = str(core.paths().home)
+    if path == home:
+        return "~"
+    return "~" + path[len(home):] if path.startswith(home + "/") else path
+
+
+def existing_parent(path):
+    """Plus proche dossier existant en remontant depuis `path`, ou None."""
+    p = Path(path) if path else None
+    while p is not None and not p.is_dir():
+        p = p.parent if p.parent != p else None
+    return str(p) if p else None
+
+
+def string_factory(ellipsize, short=None):
+    """Fabrique de libellés pour un Gtk.DropDown de chaînes. `short` : {libellé: libellé
+    court} affiché à la place (bouton d'une barre étroite, liste gardant les libellés complets)."""
+    f = Gtk.SignalListItemFactory()
+    mode = Pango.EllipsizeMode.END if ellipsize else Pango.EllipsizeMode.NONE
+    short = short or {}
+
+    def bind(_f, item):
+        text = item.get_item().get_string()
+        item.get_child().set_label(short.get(text, text))
+    f.connect("setup", lambda _f, item: item.set_child(Gtk.Label(xalign=0, ellipsize=mode)))
+    f.connect("bind", bind)
+    return f
+
+
+def menu_button(entries, tooltip="Autres actions"):
+    """Bouton « ⋮ » : `entries` = [(libellé, « groupe.action », GLib.Variant)]."""
+    menu = Gio.Menu()
+    for label, action, target in entries:
+        item = Gio.MenuItem.new(label, None)
+        item.set_action_and_target_value(action, target)
+        menu.append_item(item)
+    return Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, css_classes=["flat"],
+                          valign=Gtk.Align.CENTER, tooltip_text=tooltip)
 
 
 def in_thread(work, done):

@@ -1,3 +1,26 @@
+ccs (0.6.0) unstable; urgency=medium
+
+  * Un seul onglet Sessions : projets à gauche, sessions ouvertes et
+    conversations groupées par date à droite, recherche et filtre communs
+    (l'onglet Conversations disparaît).
+  * Conseiller de formule (Pro, Max, Ultra) avec équivalent API en
+    dollars ; ccs formule.
+  * Conseil de modèle près des limites et indice dans la ligne d'état.
+  * Bilan de la semaine : notification hebdomadaire, carte de l'onglet
+    Analyse, ccs semaine.
+  * Journal lisible des bascules dans l'Historique, avec leur raison et
+    leur origine ; ccs journal.
+  * Compte par projet : bascule proposée à l'ouverture, présélection dans
+    Nouvelle session ; ccs projet.
+  * Raccourcis clavier globaux GNOME (Réglages, ccs raccourcis) ; option
+    --notifier pour ccs next, use, best et pause.
+  * claude-accounts gui --page et --new-session ; entrées Journal des
+    bascules et Bilan de la semaine dans le menu de l'icône.
+  * Réglages : groupes Conseils, Conseiller de formule et Raccourcis
+    clavier ; Historique et Réglages utilisables en fenêtre étroite.
+
+ -- mawena <gamligocharles@gmail.com>  Sat, 07 Nov 2026 09:00:00 +0000
+
 ccs (0.5.0) unstable; urgency=medium
 
   * Terminal intégré : reprise d'une conversation, nouvelle session et

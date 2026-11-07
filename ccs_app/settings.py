@@ -23,8 +23,27 @@ DEFAULTS = {
         "sessions": True,
         "waiting_reminder": True,
         "waiting_reminder_min": 10,
+        # Conseil de modèle : compte actif au-delà de ce % (session ou semaine) avec un
+        # modèle cher → proposer la famille moins chère (une fois par fenêtre de 5 h).
+        "model_advice": True,
+        "model_advice_pct": 80,
+        # Bilan de la semaine : notification une fois par semaine, au début de la semaine
+        # de la plupart des comptes (jour None) ou le jour donné (0 = lundi) à l'heure donnée.
+        "weekly_report": True,
+        "weekly_report_day": None,
+        "weekly_report_hour": 9,
     },
     "poll": {"normal_s": 300, "fast_s": 60},
+    # Conseiller de formule (`advisor`) : semaines analysées, marge de sécurité,
+    # tarifs surchargés ({"pro": 20, "max5": 100, "max20": 200} en $ par mois) et
+    # formule imposée par profil ({"perso": "max5"}) si la détection se trompe.
+    "advisor": {
+        "weeks": 4,
+        "margin_pct": 20,
+        "plan_prices": {},
+        "profile_plans": {},
+        "max_accounts": 3,
+    },
     "updates": {"enabled": True},
     "warmup": {},
     "orchestrator": {

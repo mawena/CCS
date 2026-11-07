@@ -7,7 +7,10 @@ CCS="$ROOT/bin/ccs"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 export HOME="$T/home" NO_COLOR=1
-unset CLAUDE_CONFIG_DIR CCS_HOME
+unset CLAUDE_CONFIG_DIR CCS_HOME CCS_VIA
+# Jamais le vrai bureau : pas de bus D-Bus (notifications), réglages GNOME en mémoire.
+mkdir -p "$T/run"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$T/aucun-bus" XDG_RUNTIME_DIR="$T/run" GSETTINGS_BACKEND=memory
 mkdir -p "$HOME/.claude" "$T/bin"
 
 cat >"$HOME/.claude/.credentials.json" <<'E'
@@ -133,6 +136,45 @@ expect "$out" "ccs rm perso"; expect "$out" "ccs add perso"
 [[ "$(cat "$c" "$HOME/.claude.json" | sha256sum)" == "$before" ]] || fail "fichiers vivants modifiés par next"
 [[ "$("$CCS" current)" == lockb ]] || fail "compte actif changé par next"
 
+# Raccourcis clavier (--notifier) : résultat en notification (claude-accounts n'atteint
+# aucun bus ici : repli sur un faux notify-send qui note ses arguments) ; origine de
+# la bascule notée pour le journal (switch-origin.json).
+origin="$HOME/.claude-accounts/switch-origin.json"
+notes="$T/notifications"
+: >"$notes"
+cat >"$T/bin/notify-send" <<E
+#!/bin/bash
+printf '%s\n' "\$*" >>"$notes"
+E
+chmod +x "$T/bin/notify-send"
+rm -f "$origin"
+out="$("$CCS" next --notifier 2>&1)" && fail "next --notifier accepté sans autre profil utilisable"
+expect "$(cat "$notes")" "Bascule impossible"; expect "$(cat "$notes")" "connexion perdue"
+[[ ! -e "$origin" ]] || fail "origine notée pour une bascule impossible"
+mkprof zeta2 uZETA2 RZ2
+out="$("$CCS" next --notifier)"; expect "$out" "basculé sur 'zeta2'"
+expect "$(tail -1 "$notes")" "Bascule sur zeta2"; expect "$(tail -1 "$notes")" "uZETA2@x.com"
+[[ "$(jq -r '.profile + " " + .via + " " + (.ts | type)' "$origin")" == "zeta2 raccourci number" ]] \
+  || fail "origine d'un raccourci : $(cat "$origin")"
+[[ "$(stat -c %a "$origin")" == 600 ]] || fail "droits de switch-origin.json"
+out="$("$CCS" next --oups 2>&1)" && fail "option inconnue acceptée par next"
+expect "$out" "usage : ccs next"
+# À la main : « ccs » ; lancé par l'application ou le service (CCS_VIA vide) : rien ;
+# origine notée juste avant par l'application pour ce compte : gardée ; sans --notifier,
+# aucune notification.
+rm -f "$origin"
+"$CCS" lockb >/dev/null
+[[ "$(jq -r '.profile + " " + .via' "$origin")" == "lockb ccs" ]] || fail "origine à la main : $(cat "$origin")"
+rm -f "$origin"
+CCS_VIA= "$CCS" use zeta2 >/dev/null
+[[ ! -e "$origin" ]] || fail "origine notée alors que l'appelant s'en charge"
+printf '{"profile":"lockb","via":"application","ts":%s}\n' "$(date +%s)" >"$origin"
+"$CCS" lockb >/dev/null
+[[ "$(jq -r .via "$origin")" == application ]] || fail "origine notée par l'application écrasée"
+[[ "$(grep -c . "$notes")" == 2 ]] || fail "notification sans --notifier : $(cat "$notes")"
+out="$("$CCS" lockb --notifier)"; expect "$out" "Déjà sur 'lockb'"
+expect "$(tail -1 "$notes")" "Déjà sur lockb"
+
 # Pause : bascule automatique et orchestrateur suspendus, visible dans le statut.
 out="$("$CCS" pause)"; expect "$out" "Pas de pause"
 out="$("$CCS" pause 4h)"; expect "$out" "en pause jusqu"
@@ -163,5 +205,40 @@ grep -q "Le module calcule les salaires." "$T/module-de-paie.md" || fail "conten
 out="$("$CCS" export 5e1d "$T/notes/paie.md")"; [[ -s "$T/notes/paie.md" ]] || fail "export vers un fichier : $out"
 out="$("$CCS" title 5e1d Paie mensuelle)"; expect "$out" "« Paie mensuelle »"
 out="$("$CCS" preview 5e1d | head -1)"; [[ "$out" == "# Paie mensuelle" ]] || fail "titre après ccs title : $out"
+
+# Commandes de la 0.6 (sans service : historique vide, journaux du HOME de test).
+status_of() { local rc=0; "$@" >"$T/out" 2>"$T/err" || rc=$?; echo "$rc"; }
+out="$("$CCS" journal)"; expect "$out" "Aucune bascule sur cette période"
+out="$("$CCS" journal --tout)"; expect "$out" "Aucune bascule"
+[[ "$(status_of "$CCS" journal --jours 0)" == 2 ]] || fail "journal --jours 0 : code de sortie"
+expect "$(cat "$T/err")" "usage : ccs journal"
+[[ "$(status_of "$CCS" journal --jours 2 --tout)" == 2 ]] || fail "journal --jours et --tout ensemble"
+out="$(cd "$proj" && "$CCS" projet lockb)"; expect "$out" "~/Work/App → lockb"
+out="$("$CCS" projet)"; expect "$out" "~/Work/App  → lockb"
+out="$("$CCS" projet "$proj/sous" 2>&1)" && fail "dossier absent accepté"
+mkdir -p "$proj/sous"
+out="$("$CCS" projet "$proj/sous")"; expect "$out" "hérité de ~/Work/App"
+out="$("$CCS" projet "$proj" aucun)"; expect "$out" "n'est plus associé"
+[[ "$(status_of "$CCS" projet "$proj" inconnu)" == 1 ]] || fail "projet : compte inconnu"
+[[ "$(status_of "$CCS" projet a b c)" == 2 ]] || fail "projet : usage"
+out="$("$CCS" semaine)"; expect "$out" "Bilan de la semaine du"
+out="$("$CCS" semaine --precedente 3)"; expect "$out" "Bilan de la semaine du"
+[[ "$(status_of "$CCS" semaine --precedente -1)" == 2 ]] || fail "semaine : N négatif"
+[[ "$(status_of "$CCS" semaine --precedente deux)" == 2 ]] || fail "semaine : N illisible"
+out="$("$CCS" formule)"; expect "$out" "Conseiller de formule"
+out="$("$CCS" conseil)"; expect "$out" "Conseiller de formule"
+[[ "$(XDG_CURRENT_DESKTOP=KDE status_of "$CCS" raccourcis)" == 1 ]] || fail "raccourcis hors GNOME"
+expect "$(cat "$T/out")" "seulement sous GNOME"; expect "$(cat "$T/out")" "ccs next --notifier"
+[[ "$(status_of "$CCS" raccourcis set suivant K)" == 1 ]] || fail "raccourci sans modificateur accepté"
+expect "$(cat "$T/err")" "Ajoute Super, Ctrl ou Alt"
+[[ "$(status_of "$CCS" shortcuts on zzz)" == 2 ]] || fail "raccourcis : action inconnue"
+out="$("$CCS" help)"; expect "$out" "ccs formule"; expect "$out" "ccs semaine"
+expect "$out" "ccs journal"; expect "$out" "ccs projet"; expect "$out" "ccs raccourcis"
+expect "$out" "--notifier"
+# Ligne d'état : contexte de la session sur l'entrée standard, jamais d'attente.
+out="$(timeout 5 "$ROOT/bin/claude-accounts" statusline </dev/null)" || fail "ligne d'état sans entrée"
+[[ -n "$out" ]] || fail "ligne d'état vide"
+out="$(echo '{"model":{"id":"claude-opus-5-5"}}' | timeout 5 "$ROOT/bin/claude-accounts" statusline)" \
+  || fail "ligne d'état avec contexte"
 
 echo "OK ccs_e2e"

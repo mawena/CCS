@@ -4,16 +4,21 @@ Le dialogue ne bascule jamais de compte et ne lance rien : il renvoie un
 `launch_options.LaunchSpec` à `on_ok`. Si `spec.needs_switch(compte actif)`, l'appelant
 bascule (« ccs use <profil> ») puis ouvre la session (launch_options.launch ou
 terminal intégré).
+
+Compte présélectionné : celui du projet du dossier choisi (`project_accounts`), sauf
+pendant une pause de CCS ou si le projet ne propose plus la bascule ; sinon le compte
+actif. Un compte choisi à la main n'est plus changé par un changement de dossier.
 """
 
 import os
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from .. import core, launch_options, sessions
+from .. import core, launch_options, project_accounts, sessions
 from ..launch_options import LaunchSpec
 from .common import in_thread
 from .doctor_dialog import plain_row
+from .project_account_dialog import paused_now
 
 SWITCH_WARNING = "La bascule s'applique à toutes les sessions ouvertes"
 
@@ -26,15 +31,25 @@ def short_path(path):
 
 
 class NewSessionDialog(Adw.Dialog):
-    """`profiles` (liste de core.Profile) et `recent` ([(dossier, date)]) sont lus
-    sur le disque s'ils ne sont pas fournis."""
+    """`profiles` (liste de core.Profile), `recent` ([(dossier, date)]), `associations`
+    (comptes par projet) et `paused` (CCS en pause) sont lus sur le disque s'ils ne sont
+    pas fournis."""
 
-    def __init__(self, default_cwd, on_ok, profiles=None, recent=None):
+    def __init__(self, default_cwd, on_ok, profiles=None, recent=None, associations=None, paused=None):
         super().__init__(title="Nouvelle session", content_width=520, content_height=660)
         self.on_ok = on_ok
         self.folders = []
         self.profiles = list(core.list_profiles() if profiles is None else profiles)
         self.active = next((p.name for p in self.profiles if p.active), None)
+        if associations is None:
+            try:
+                associations = project_accounts.all()
+            except OSError:
+                associations = []
+        self.assocs = list(associations)
+        self.paused = paused_now() if paused is None else paused
+        self.profile_touched = False   # compte choisi à la main : plus de présélection
+        self.selecting = False
 
         header = Adw.HeaderBar(show_start_title_buttons=False, show_end_title_buttons=False)
         cancel = Gtk.Button(label="Annuler")
@@ -57,11 +72,11 @@ class NewSessionDialog(Adw.Dialog):
         page.add(where)
 
         who = Adw.PreferencesGroup(title="Compte")
-        self.profile_row = Adw.ComboRow(title="Compte Claude", model=Gtk.StringList.new(
+        self.profile_row = Adw.ComboRow(title="Compte Claude", use_markup=False, model=Gtk.StringList.new(
             [f"{p.name} — {p.email}" + (" (actif)" if p.active else "") for p in self.profiles]))
         if self.active:
             self.profile_row.set_selected(next(i for i, p in enumerate(self.profiles) if p.active))
-        self.profile_row.connect("notify::selected", lambda *_: self.update())
+        self.profile_row.connect("notify::selected", self.on_profile_chosen)
         who.add(self.profile_row)
         self.switch_row = plain_row(SWITCH_WARNING, "Les sessions déjà ouvertes passeront aussi sur ce "
                                                     "compte à leur prochaine requête.")
@@ -139,6 +154,28 @@ class NewSessionDialog(Adw.Dialog):
 
     # ---- choix -------------------------------------------------------------------------
 
+    def on_profile_chosen(self, *_):
+        if self.selecting:
+            return
+        self.profile_touched = True
+        self.update()
+
+    def select_profile(self, name):
+        names = [p.name for p in self.profiles]
+        if name in names and self.profile_row.get_selected() != names.index(name):
+            self.selecting = True
+            self.profile_row.set_selected(names.index(name))
+            self.selecting = False
+
+    def project_account(self, folder):
+        """Présélectionne le compte du projet (sauf choix fait à la main) et l'indique."""
+        names = [p.name for p in self.profiles]
+        hint = project_accounts.hint(folder, names, self.paused, self.assocs) if folder else None
+        self.profile_row.set_subtitle(hint or "")
+        if not self.profile_touched:
+            self.select_profile(project_accounts.preferred_profile(folder, names, self.paused, self.assocs)
+                                or self.active)
+
     def selected_profile(self):
         i = self.profile_row.get_selected()
         return self.profiles[i].name if 0 <= i < len(self.profiles) else None
@@ -152,8 +189,10 @@ class NewSessionDialog(Adw.Dialog):
         return launch_options.PERMISSION_MODES[i][1] if 0 <= i < len(launch_options.PERMISSION_MODES) else None
 
     def spec(self):
-        return LaunchSpec(cwd=self.selected_folder(), profile=self.selected_profile(),
-                          model=self.selected_model(), permission_mode=self.selected_mode())
+        folder, profile = self.selected_folder(), self.selected_profile()
+        origin = project_accounts.origin_for(folder, profile, self.assocs) if profile != self.active else None
+        return LaunchSpec(cwd=folder, profile=profile, model=self.selected_model(),
+                          permission_mode=self.selected_mode(), origin=origin)
 
     def update(self):
         folder = self.selected_folder()
@@ -161,6 +200,7 @@ class NewSessionDialog(Adw.Dialog):
         ok = bool(folder) and os.path.isdir(folder)
         self.ok_btn.set_sensitive(ok)
         self.ok_btn.set_tooltip_text(None if ok else "Ce dossier n'existe pas")
+        self.project_account(folder)
         profile = self.selected_profile()
         self.switch_row.set_visible(bool(profile) and profile != self.active)
         mode = self.selected_mode()
@@ -182,8 +222,8 @@ def _recent_or_empty():
         return []
 
 
-def ask_new_session(parent, default_cwd, on_ok, profiles=None, recent=None):
+def ask_new_session(parent, default_cwd, on_ok, profiles=None, recent=None, associations=None, paused=None):
     """Ouvre le dialogue ; `on_ok(LaunchSpec)` est appelé quand l'utilisateur valide."""
-    dialog = NewSessionDialog(default_cwd, on_ok, profiles, recent)
+    dialog = NewSessionDialog(default_cwd, on_ok, profiles, recent, associations, paused)
     dialog.present(parent)
     return dialog

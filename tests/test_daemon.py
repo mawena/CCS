@@ -82,6 +82,7 @@ class DaemonTest(DaemonBase):
         run.assert_called_once_with(["use", "pro"])
         ev = self.store_db.last_event("switch")
         self.assertEqual((ev.profile, ev.detail["mode"], ev.detail["from"]), ("pro", "auto", "perso"))
+        self.assertEqual((ev.detail["percent"], ev.detail["threshold"]), (99.0, 98))
         self.assertTrue(any("Bascule automatique" in a.title for a in self.sent))
 
     def test_tick_with_network_error_keeps_last_state(self):
@@ -108,6 +109,25 @@ class DaemonTest(DaemonBase):
             self.d.tick(self.settings, NOW)
         ev = self.store_db.last_event("switch")
         self.assertEqual((ev.profile, ev.detail["mode"]), ("pro", "manual"))
+
+    def test_manual_switch_records_the_previous_account_and_its_origin(self):
+        from ccs_app import switch_log
+        self.store_db.add_event(NOW.timestamp() - 3600, "switch", "perso", {"mode": "initial"})
+        switch_log.note_origin("pro", "projet", project="/w/GiGit", now=NOW.timestamp() - 5)
+        write(self.home / ".claude.json",
+              {"oauthAccount": json.loads((self.store / "pro" / "account.json").read_text())})
+        self.d.detect_manual_switch(NOW)
+        ev = self.store_db.last_event("switch")
+        self.assertEqual(ev.detail, {"mode": "manual", "from": "perso", "via": "projet",
+                                     "project": "/w/GiGit"})
+        self.assertFalse((self.store / "switch-origin.json").exists())
+
+    def test_manual_switch_without_origin(self):
+        self.store_db.add_event(NOW.timestamp() - 3600, "switch", "perso", {"mode": "initial"})
+        write(self.home / ".claude.json",
+              {"oauthAccount": json.loads((self.store / "pro" / "account.json").read_text())})
+        self.d.detect_manual_switch(NOW)
+        self.assertEqual(self.store_db.last_event("switch").detail, {"mode": "manual", "from": "perso"})
 
     def test_session_alert_sent_once(self):
         with fake_http(per_account(perso=usage(82), pro=usage(5))):
@@ -203,7 +223,9 @@ class OrchestratorDaemonTest(OrchestratorBase):
                 mock.patch.object(core, "run_ccs", return_value=ok) as run:
             self.d.tick(self.settings, NOW)
         run.assert_called_once_with(["use", "pro"])
-        self.assertEqual(self.store_db.last_event("switch").detail["mode"], "anticipee")
+        detail = self.store_db.last_event("switch").detail
+        self.assertEqual(detail["mode"], "anticipee")
+        self.assertEqual((detail["lost"], detail["expiring"]), (70.0, "pro"))
 
     def test_precise_wake_before_reset(self):
         with fake_http(per_account(perso=usage(30, reset_min=3), pro=usage(5, reset_min=250))):

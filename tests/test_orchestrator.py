@@ -128,6 +128,7 @@ class ExpiringTest(unittest.TestCase):
         d = self.decide([acc("act", 40, 200, active=True), acc("x", 30, 40)])
         self.assertEqual((d.action, d.target, d.source), ("switch", "x", "act"))
         self.assertIn("70 %", d.reason)
+        self.assertEqual(d.detail, {"lost": 70.0, "minutes": 40, "expiring": "x"})
 
     def test_not_when_little_left_or_far(self):
         self.assertIsNone(self.decide([acc("act", 40, 200, active=True), acc("x", 80, 40)]))

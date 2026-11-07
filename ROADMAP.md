@@ -105,7 +105,36 @@ Terminal intégré, suite :
 
 Documentation et release :
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
-- [ ] Release 0.5.0 (genre choisi par Charles), `main`, `develop` et le tag poussés
+- [x] Release mineure 0.5.0 (genre choisi par Charles), `main`, `develop` et le tag poussés
+- [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.5.0_all.deb`)
+
+## Phase 8 — Conseils, journal et raccourcis (0.6.0)
+
+Priorité — à faire immédiatement :
+- [x] Un seul onglet « Sessions » qui réunit les sessions ouvertes et l'historique des conversations (remplace les onglets Sessions et Conversations)
+  - [x] Organisation : projets à gauche (avec sessions ouvertes et nombre de conversations), à droite les sessions ouvertes du projet puis ses conversations groupées par date ; recherche et filtres communs
+  - [x] Fusion des deux pages sans perte : reprise, aperçu, coût, renommage, compte du projet, badge des sessions en attente, notifications cliquables, `--page sessions`
+  - [x] Tests et essais réels
+
+Conseils :
+- [x] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars
+- [x] Conseil de modèle près des limites (Opus → Sonnet)
+- [x] Bilan de la semaine
+
+Journal et projets :
+- [x] Journal lisible des bascules dans l'application
+- [x] Compte par projet
+
+Bureau :
+- [x] Raccourcis clavier globaux
+
+Raccordement, documentation et release :
+- [x] Commandes `ccs` (`formule`, `semaine`, `journal`, `projet`, `raccourcis`) et Réglages de l'application
+- [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub
+
+Releases GitHub manquantes :
+- [x] Releases GitHub 0.3.1, 0.3.2 et 0.4.0, avec leurs `.deb` reconstruits depuis les tags
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
@@ -114,15 +143,15 @@ Recommandées :
 - [x] Prévision de fin de semaine par compte, alerte 2 jours avant → Phase 7
 - [x] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain) → Phase 7
 - [x] Avertissement de nouvelle version et relance automatique de l'icône → Phase 7
-- [ ] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars
+- [x] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars → Phase 8
 
 Autres :
-- [ ] Conseil de modèle près des limites (Opus → Sonnet)
-- [ ] Bilan de la semaine
-- [ ] Raccourci clavier global
+- [x] Conseil de modèle près des limites (Opus → Sonnet) → Phase 8
+- [x] Bilan de la semaine → Phase 8
+- [x] Raccourci clavier global → Phase 8
 - [x] Rappel quand une session attend depuis plus de 10 min → Phase 7
-- [ ] Journal lisible des bascules dans l'application
-- [ ] Compte par projet
+- [x] Journal lisible des bascules dans l'application → Phase 8
+- [x] Compte par projet → Phase 8
 
 ## Points mineurs reportés
 

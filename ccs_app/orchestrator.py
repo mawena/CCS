@@ -170,7 +170,8 @@ def expiring_decision(accounts, active, now, cfg, events, reserve=frozenset()):
     minutes = max(1, round((reset - now).total_seconds() / 60))
     return Decision("switch", a.name,
                     f"{a.name} va perdre {left:.0f} % de quota dans {minutes} min",
-                    active, act_reset.timestamp() if act_reset else None)
+                    active, act_reset.timestamp() if act_reset else None,
+                    {"lost": round(left, 1), "minutes": minutes, "expiring": a.name})
 
 
 @dataclass
