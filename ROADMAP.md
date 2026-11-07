@@ -130,7 +130,7 @@ Bureau :
 
 Raccordement, documentation et release :
 - [x] Commandes `ccs` (`formule`, `semaine`, `journal`, `projet`, `raccourcis`) et Réglages de l'application
-- [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
 - [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub
 
 Releases GitHub manquantes :
