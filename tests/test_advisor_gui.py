@@ -94,6 +94,49 @@ class CardsTest(unittest.TestCase):
         spin(lambda: len(built) == 2 and any("Aucune bascule" in t for t in texts(card)))
         self.assertEqual(built[-1], weeks[2])
 
+    def test_monthly_card_lists_twelve_months_and_follows_the_choice(self):
+        from ccs_app import monthly_report, weekly_report
+        from ccs_app.gui.advisor_cards import MonthlyReportCard
+        months = monthly_report.month_choices(NOW)
+        built = []
+
+        def build(start, end):
+            built.append((start, end))
+            return monthly_report.MonthReport(start, end, end, weekly_report.WeekReport(start, end))
+        card = MonthlyReportCard(build=build, choices=lambda: months)
+        card.load()
+        spin(lambda: built)
+        self.assertEqual(built, [months[0]])
+        self.assertEqual(card.dropdown.get_model().get_n_items(), 12)
+        self.assertTrue(card.dropdown.get_model().get_string(0).endswith("(en cours)"))
+        spin(lambda: "Bascules et alertes" in texts(card))
+        self.assertIn("• Aucune bascule", texts(card))
+        card.dropdown.set_selected(3)
+        spin(lambda: len(built) == 2)
+        self.assertEqual(built[-1], months[3])
+
+    def test_monthly_card_error(self):
+        from ccs_app.gui.advisor_cards import MonthlyReportCard
+        from ccs_app import monthly_report
+
+        def boom(start, end):
+            raise OSError("illisible")
+        card = MonthlyReportCard(build=boom, choices=lambda: monthly_report.month_choices(NOW))
+        card.load()
+        spin(lambda: "Rapport impossible : illisible" in texts(card))
+        self.assertIn("Rapport impossible : illisible", texts(card))
+
+    def test_advisor_card_calls_then_even_on_error(self):
+        from ccs_app.gui.advisor_cards import AdvisorCard
+
+        def boom():
+            raise OSError("x")
+        done = []
+        card = AdvisorCard(compute=boom)
+        card.load(then=lambda: done.append(1))
+        spin(lambda: done)
+        self.assertEqual(done, [1])
+
 
 if __name__ == "__main__":
     unittest.main()

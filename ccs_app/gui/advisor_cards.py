@@ -1,9 +1,9 @@
-"""Cartes de conseils de l'onglet Analyse : bilan de la semaine et conseiller de formule
-(calculs dans un fil)."""
+"""Cartes de conseils de l'onglet Analyse : bilan de la semaine, conseiller de formule et
+rapport mensuel (calculs dans un fil)."""
 
 from gi.repository import Gtk
 
-from .. import advisor, costs, daemon, weekly_report
+from .. import advisor, costs, daemon, monthly_report, weekly_report
 from .common import caption, clear, in_thread, load_state, now_utc
 
 
@@ -33,6 +33,7 @@ class AdvisorCard(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.compute = compute or advisor.compute
         self.loading = False
+        self.then = None
         card, head = _card("Conseiller de formule")
         refresh = Gtk.Button(icon_name="view-refresh-symbolic", css_classes=["flat"],
                              tooltip_text="Recalculer", valign=Gtk.Align.CENTER)
@@ -42,7 +43,11 @@ class AdvisorCard(Gtk.Box):
         card.append(self.body)
         self.append(card)
 
-    def load(self):
+    def load(self, then=None):
+        """`then()` est appelé une fois le conseil affiché (le rapport mensuel profite ainsi des
+        journaux déjà lus)."""
+        if then is not None:
+            self.then = then
         if self.loading:
             return
         self.loading = True
@@ -59,6 +64,14 @@ class AdvisorCard(Gtk.Box):
 
     def show(self, result):
         self.loading = False
+        try:
+            self._show(result)
+        finally:
+            then, self.then = self.then, None
+            if then is not None:
+                then()
+
+    def _show(self, result):
         advice, error = result
         clear(self.body)
         if error:
@@ -187,3 +200,93 @@ class WeeklyReportCard(Gtk.Box):
         then, self.then = getattr(self, "then", None), None
         if then is not None:
             then()
+
+
+def month_choice_label(index, start):
+    if index == 0:
+        return f"{monthly_report.month_label(start).capitalize()} (en cours)"
+    return monthly_report.month_label(start).capitalize()
+
+
+class MonthlyReportCard(Gtk.Box):
+    """« Rapport mensuel » avec choix du mois (le mois en cours et les 11 précédents)."""
+
+    def __init__(self, build=None, choices=None):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self.build = build or monthly_report.build_report
+        self.choices = choices or self._choices
+        self.months = []
+        self.generation = 0
+        card, head = _card("Rapport mensuel")
+        self.dropdown = Gtk.DropDown(model=Gtk.StringList(), valign=Gtk.Align.CENTER,
+                                     tooltip_text="Mois")
+        self.filling = False
+        self.dropdown.connect("notify::selected", lambda *_: self.on_selected())
+        head.append(self.dropdown)
+        refresh = Gtk.Button(icon_name="view-refresh-symbolic", css_classes=["flat"],
+                             tooltip_text="Recalculer", valign=Gtk.Align.CENTER)
+        refresh.connect("clicked", lambda _b: self.load())
+        head.append(refresh)
+        self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        card.append(self.body)
+        self.append(card)
+
+    @staticmethod
+    def _choices():
+        return monthly_report.month_choices(now_utc())
+
+    def load(self):
+        try:
+            self.months = self.choices()
+        except Exception as e:  # noqa: BLE001 — message dans la carte
+            clear(self.body)
+            self.body.append(caption(f"Mois introuvables : {e}", error=True))
+            return
+        model = Gtk.StringList()
+        for i, (start, _end) in enumerate(self.months):
+            model.append(month_choice_label(i, start))
+        self.filling = True   # changer de modèle sélectionne le premier mois : un seul calcul
+        try:
+            self.dropdown.set_model(model)
+            self.dropdown.set_selected(0)
+        finally:
+            self.filling = False
+        self.show_month()
+
+    def on_selected(self):
+        if not self.filling:
+            self.show_month()
+
+    def show_month(self):
+        index = self.dropdown.get_selected()
+        if not 0 <= index < len(self.months):
+            return
+        start, end = self.months[index]
+        self.generation += 1
+        generation = self.generation
+        clear(self.body)
+        self.body.append(_spinner())
+        self.body.append(caption("Lecture des relevés et des journaux des derniers mois…"))
+
+        def work():
+            try:
+                return self.build(start, end), None
+            except Exception as e:  # noqa: BLE001
+                return None, str(e) or e.__class__.__name__
+        in_thread(work, lambda result: self.show(result, generation))
+
+    def show(self, result, generation=None):
+        if generation is not None and generation != self.generation:
+            return  # un autre mois a été choisi entre-temps
+        report, error = result
+        clear(self.body)
+        if error:
+            self.body.append(caption(f"Rapport impossible : {error}", error=True))
+            return
+        self.body.append(Gtk.Label(label=monthly_report.title(report), xalign=0, wrap=True,
+                                   css_classes=["title-4"]))
+        for head, rows in monthly_report.sections(report):
+            self.body.append(Gtk.Label(label=head, xalign=0, margin_top=6,
+                                       css_classes=["caption-heading", "dim-label"]))
+            for row in rows:
+                self.body.append(Gtk.Label(label=f"• {row}", xalign=0, wrap=True, selectable=True))

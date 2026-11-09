@@ -195,7 +195,7 @@ def aggregate(start, end, samples, events, answers_by_file, projects_dir):
             r.blocages += key.startswith("blocage:")
             continue
         kind = key.split(":", 1)[0]
-        if not kind or key.startswith(KEY_PREFIX):
+        if not kind or key.startswith((KEY_PREFIX, "monthly_report:")):
             continue
         r.alerts += 1
         r.alerts_by_kind[kind] = r.alerts_by_kind.get(kind, 0) + 1
@@ -276,6 +276,26 @@ def title(report):
     return f"Bilan de la semaine du {_date(report.start)} au {_date(report.end)}"
 
 
+def event_lines(report):
+    """Lignes « Bascules et alertes » (partagées avec le rapport mensuel)."""
+    events = []
+    if report.switches:
+        modes = [(report.switches_by_mode.get(k, 0), label) for k, label in SWITCH_MODES]
+        modes += [(n, k) for k, n in report.switches_by_mode.items() if k not in dict(SWITCH_MODES)]
+        detail = ", ".join(f"{n} {label if n == 1 or label == 'après blocage' else label + 's'}"
+                           for n, label in modes if n)
+        events.append(f"{_plural(report.switches, 'bascule')} ({detail})")
+    else:
+        events.append("Aucune bascule")
+    if report.alerts:
+        kinds = sorted(report.alerts_by_kind.items(), key=lambda kv: (-kv[1], kv[0]))
+        detail = ", ".join(f"{n} {_alert_label(k)}" for k, n in kinds)
+        events.append(f"{_plural(report.alerts, 'alerte')} ({detail})")
+    if report.blocages:
+        events.append(_plural(report.blocages, "blocage") + " sur une limite pendant une session")
+    return events
+
+
 def sections(report):
     """[(titre, [lignes])] du bilan, pour `format_text` et l'application."""
     out = []
@@ -309,21 +329,7 @@ def sections(report):
                                            for name, pct in _shares(report.by_model, 5))]))
         out.append(("Projets", [" · ".join(f"{name} {pct:.0f} %"
                                            for name, pct in _shares(report.by_project, 5))]))
-    events = []
-    if report.switches:
-        modes = [(report.switches_by_mode.get(k, 0), label) for k, label in SWITCH_MODES]
-        modes += [(n, k) for k, n in report.switches_by_mode.items() if k not in dict(SWITCH_MODES)]
-        detail = ", ".join(f"{n} {label if n == 1 or label == 'après blocage' else label + 's'}"
-                           for n, label in modes if n)
-        events.append(f"{_plural(report.switches, 'bascule')} ({detail})")
-    else:
-        events.append("Aucune bascule")
-    if report.alerts:
-        kinds = sorted(report.alerts_by_kind.items(), key=lambda kv: (-kv[1], kv[0]))
-        detail = ", ".join(f"{n} {_alert_label(k)}" for k, n in kinds)
-        events.append(f"{_plural(report.alerts, 'alerte')} ({detail})")
-    if report.blocages:
-        events.append(_plural(report.blocages, "blocage") + " sur une limite pendant une session")
+    events = event_lines(report)
     out.append(("Bascules et alertes", events))
     prev = report.previous
     if prev is not None:
@@ -383,8 +389,9 @@ def _history_exists():
     return (core.paths().store / "history.db").exists()
 
 
-def has_data(start, end, store=None, profiles=None):
-    """Relevés couvrant au moins 3 jours de [start, end) (sans créer d'historique)."""
+def has_data(start, end, store=None, profiles=None, span=MIN_DATA):
+    """Relevés couvrant au moins `span` (3 jours par défaut) de [start, end) (sans créer
+    d'historique)."""
     from .store import Store
     if store is None and not _history_exists():
         return False
@@ -392,7 +399,7 @@ def has_data(start, end, store=None, profiles=None):
     store = store or Store()
     try:
         names = [p.name for p in (core.list_profiles() if profiles is None else profiles)]
-        limit = (end - MIN_DATA).timestamp()
+        limit = (end - span).timestamp()
         for name in names:
             rows = store.samples(name, "weekly_all", start.timestamp())
             if rows and rows[0][0] <= limit and rows[0][0] < end.timestamp():
