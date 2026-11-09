@@ -1,8 +1,14 @@
 """Réglages utilisateur (~/.claude-accounts/settings.json), fusionnés avec les défauts."""
 
 import copy
+import json
+import logging
+import math
+import re
 
 from . import core
+
+log = logging.getLogger("ccs.settings")
 
 DEFAULTS = {
     "auto_switch": {
@@ -74,8 +80,187 @@ def _merge(base, override):
     return out
 
 
+# --------------------------------------------------------------------------
+# Validation (fichier édité à la main) : une clé invalide retombe sur sa valeur
+# par défaut, les clés inconnues sont conservées, le fichier n'est jamais réécrit.
+# --------------------------------------------------------------------------
+
+# Bornes (min, max) des nombres, là où le code en suppose ; ailleurs : 0 à 100 000.
+BOUNDS = {
+    "auto_switch.threshold": (1, 100),
+    "auto_switch.target_max_session": (0, 100),
+    "auto_switch.target_max_weekly": (0, 100),
+    "alerts.eta_minutes": (1, 1440),
+    "alerts.weekly_ahead_points": (0, 100),
+    "alerts.weekly_forecast_days": (0, 7),
+    "alerts.waiting_reminder_min": (1, 1440),
+    "alerts.model_advice_pct": (0, 100),
+    "alerts.weekly_report_hour": (0, 23),
+    "poll.normal_s": (10, 86400),
+    "poll.fast_s": (5, 86400),
+    "advisor.weeks": (1, 52),
+    "advisor.margin_pct": (0, 100),
+    "advisor.max_accounts": (1, 50),
+    "orchestrator.expiring_within_min": (1, 1440),
+    "orchestrator.expiring_min_left": (0, 1440),
+    "orchestrator.expiring_cooldown_min": (0, 1440),
+    "orchestrator.reserve_points": (0, 100),
+    "orchestrator.max_weekly_start": (0, 100),
+}
+INTEGERS = {"alerts.weekly_report_hour", "advisor.weeks", "advisor.max_accounts"}
+_HHMM = re.compile(r"^(\d{1,2}):(\d{2})$")
+
+
+def _is_number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _in_bounds(path, v):
+    lo, hi = BOUNDS.get(path, (0, 100000))
+    return _is_number(v) and lo <= v <= hi
+
+
+def _hhmm_ok(v):
+    m = _HHMM.match(v) if isinstance(v, str) else None
+    return bool(m) and int(m.group(1)) < 24 and int(m.group(2)) < 60
+
+
+def _days_ok(v):
+    return isinstance(v, list) and all(isinstance(d, int) and not isinstance(d, bool)
+                                       and 0 <= d <= 6 for d in v)
+
+
+def _valid(path, v, default):
+    """Une valeur est-elle acceptable pour cette clé ? (type de la valeur par défaut)"""
+    if path == "alerts.weekly_report_day":
+        return v is None or (isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 6)
+    if path == "alerts.session_thresholds":
+        return isinstance(v, list) and all(_in_bounds("pct", x) and x <= 100 for x in v)
+    if isinstance(default, bool):
+        return isinstance(v, bool)
+    if _is_number(default):
+        return _in_bounds(path, v) and (path not in INTEGERS or isinstance(v, int))
+    if isinstance(default, list):
+        return isinstance(v, list)
+    if isinstance(default, str):
+        return isinstance(v, str)
+    return True
+
+
+def _clean_active_hours(value, default, path, bad):
+    if not isinstance(value, dict):
+        bad.append(path)
+        return copy.deepcopy(default)
+    out = copy.deepcopy(value)
+    for key in ("start", "end"):
+        if key in value and not _hhmm_ok(value[key]):
+            bad.append(f"{path}.{key}")
+            out[key] = default[key]
+    if "days" in value and not _days_ok(value["days"]):
+        bad.append(f"{path}.days")
+        out["days"] = list(default["days"])
+    return _merge(default, out)
+
+
+def _clean_dict_of(value, ok, path, bad):
+    """Dictionnaire libre : les entrées invalides sont retirées une à une."""
+    if not isinstance(value, dict):
+        bad.append(path)
+        return {}
+    out = {}
+    for k, v in value.items():
+        if ok(v):
+            out[k] = copy.deepcopy(v)
+        else:
+            bad.append(f"{path}.{k}")
+    return out
+
+
+def _slot_ok(slot):
+    return (isinstance(slot, dict) and _hhmm_ok(slot.get("time"))
+            and ("days" not in slot or _days_ok(slot["days"])))
+
+
+def _clean_warmup(value, path, bad):
+    if not isinstance(value, dict):
+        bad.append(path)
+        return {}
+    out = {}
+    for name, slots in value.items():
+        if not isinstance(slots, list):
+            bad.append(f"{path}.{name}")
+            continue
+        good = [copy.deepcopy(s) for s in slots if _slot_ok(s)]
+        if len(good) != len(slots):
+            bad.append(f"{path}.{name}")
+        out[name] = good
+    return out
+
+
+def _clean(value, default, path, bad):
+    """Valeur validée de `path` (dict : récursif) ; `bad` reçoit les chemins ignorés."""
+    if path == "orchestrator.active_hours":
+        return _clean_active_hours(value, default, path, bad)
+    if path == "advisor.plan_prices":
+        return _clean_dict_of(value, lambda v: _is_number(v) and v > 0, path, bad)
+    if path == "advisor.profile_plans":
+        return _clean_dict_of(value, lambda v: isinstance(v, str), path, bad)
+    if path == "warmup":
+        return _clean_warmup(value, path, bad)
+    if isinstance(default, dict):
+        if not isinstance(value, dict):
+            bad.append(path)
+            return copy.deepcopy(default)
+        out = {}
+        for key, dv in default.items():
+            sub = f"{path}.{key}" if path else key
+            out[key] = _clean(value[key], dv, sub, bad) if key in value else copy.deepcopy(dv)
+        for key, v in value.items():  # clés inconnues : conservées, sans effet
+            if key not in default:
+                out[key] = copy.deepcopy(v)
+        return out
+    if _valid(path, value, default):
+        return copy.deepcopy(value)
+    bad.append(path)
+    return copy.deepcopy(default)
+
+
+UNREADABLE = "settings.json illisible"
+_reported = set()
+
+
+def _read():
+    """(contenu, lisible) : le fichier tel qu'il est, sans jamais l'écrire."""
+    try:
+        text = settings_path().read_text()
+    except OSError:
+        return {}, True  # absent : les valeurs par défaut sont normales
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return {}, False
+    return (data, True) if isinstance(data, dict) else ({}, False)
+
+
+def _load():
+    raw, readable = _read()
+    bad = []
+    out = _clean(raw, DEFAULTS, "", bad)
+    return out, ([] if readable else [UNREADABLE]) + sorted(set(bad))
+
+
+def problems():
+    """Clés du fichier ignorées (valeur invalide) ; [] si tout va bien."""
+    return _load()[1]
+
+
 def load_settings():
-    return _merge(DEFAULTS, core.load_json(settings_path()))
+    out, bad = _load()
+    key = tuple(bad)
+    if bad and key not in _reported:  # une seule fois par ensemble de clés
+        _reported.add(key)
+        log.warning("réglages ignorés (valeurs par défaut utilisées) : %s", ", ".join(bad))
+    return out
 
 
 def save_settings(s):
