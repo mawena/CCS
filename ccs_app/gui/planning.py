@@ -5,7 +5,7 @@ from datetime import datetime
 
 from gi.repository import Adw, Gtk
 
-from .. import daemon
+from .. import best_time, daemon
 from ..settings import load_settings, save_settings
 from .charts import PALETTE, _fg
 from .accounts import pause_box
@@ -94,6 +94,63 @@ class Timeline(Gtk.DrawingArea):
         cr.stroke()
 
 
+FRIEZE_H = 52
+MOMENT_CHOICES = (1, 2, 3, 4, 6, 8)
+
+
+class Frieze(Gtk.DrawingArea):
+    """Frise des départs possibles : plus la zone est foncée, plus le quota cumulé est grand."""
+
+    def __init__(self):
+        super().__init__(hexpand=True)
+        self.curve, self.best, self.t0, self.t1 = [], None, 0, 1
+        self.set_content_height(FRIEZE_H)
+        self.set_draw_func(self._draw)
+
+    def set_data(self, curve, best, step_s):
+        self.curve, self.best, self.step = curve, best, step_s
+        if curve:
+            self.t0 = curve[0].start.timestamp()
+            self.t1 = curve[-1].start.timestamp() + step_s
+        self.queue_draw()
+
+    def _draw(self, _area, cr, width, height):
+        if not self.curve:
+            return
+        fg = _fg(self)
+        top = max(s.score for s in self.curve) or 1
+        low = min(min(s.score for s in self.curve), top / 2)
+        bar_top, bar_h = 16, height - 22
+        for i, s in enumerate(self.curve):
+            a = s.start.timestamp()
+            b = self.curve[i + 1].start.timestamp() if i + 1 < len(self.curve) else self.t1
+            xa, xb = (span_to_x(v, self.t0, self.t1, width) for v in (a, b))
+            cr.set_source_rgba(0.15, 0.64, 0.41, 0.08 + 0.85 * (s.score - low) / ((top - low) or 1))
+            cr.rectangle(xa, bar_top, max(1.0, xb - xa), bar_h)
+            cr.fill()
+        cr.set_font_size(10)
+        first = int(self.t0 // 3600 + 1) * 3600
+        for ts in range(first, int(self.t1), 3600):
+            hour = datetime.fromtimestamp(ts).hour
+            if hour % 3:
+                continue
+            x = span_to_x(ts, self.t0, self.t1, width)
+            cr.set_source_rgba(*fg, 0.25)
+            cr.move_to(x, bar_top)
+            cr.line_to(x, bar_top + bar_h)
+            cr.stroke()
+            cr.set_source_rgba(*fg, 0.65)
+            cr.move_to(min(x + 2, width - 24), 11)
+            cr.show_text(f"{hour} h")
+        if self.best is not None:
+            x = span_to_x(self.best.start.timestamp(), self.t0, self.t1, width)
+            cr.set_source_rgba(0.88, 0.11, 0.14, 0.95)
+            cr.set_line_width(3)
+            cr.move_to(x, bar_top - 3)
+            cr.line_to(x, bar_top + bar_h + 3)
+            cr.stroke()
+
+
 class PlanningPage(Gtk.ScrolledWindow):
     def __init__(self, window):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
@@ -101,6 +158,8 @@ class PlanningPage(Gtk.ScrolledWindow):
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14,
                            margin_top=18, margin_bottom=18, margin_start=12, margin_end=12)
         self.set_child(Adw.Clamp(maximum_size=900, child=self.box))
+        self.moment_hours = 3
+        self.state = {}
 
     def toggle(self, sw, _p):
         s = load_settings()
@@ -110,7 +169,48 @@ class PlanningPage(Gtk.ScrolledWindow):
             daemon.request_refresh()
             self.window.toast("Orchestrateur " + ("activé" if sw.get_active() else "désactivé"))
 
+    def choose_hours(self, button, hours):
+        if button.get_active() and hours != self.moment_hours:
+            self.moment_hours = hours
+            self.render(self.state)
+
+    def moment_card(self, state):
+        """Carte « Meilleur moment pour une grosse tâche » : durée, conseil, frise des 24 h."""
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["card", "profile-card"])
+        card.append(Gtk.Label(label="Meilleur moment pour une grosse tâche", xalign=0,
+                              css_classes=["heading"]))
+        choices = Gtk.Box(spacing=0, css_classes=["linked"], halign=Gtk.Align.START)
+        first = None
+        for h in MOMENT_CHOICES:
+            b = Gtk.ToggleButton(label=f"{h} h", group=first)
+            first = first or b
+            b.set_active(h == self.moment_hours)
+            b.connect("toggled", self.choose_hours, h)
+            choices.append(b)
+        card.append(choices)
+        res = best_time.compute(state, duration_h=self.moment_hours, now=now_utc())
+        if res.best is None:
+            card.append(caption("Aucun compte utilisable." if res.accounts == 0 else
+                                "Aucun quota disponible sur les prochaines 24 h."))
+        else:
+            lead = ("Lance-la maintenant" if res.now_is_best
+                    else f"Meilleur départ : {best_time.label(res.best, res.now)}")
+            card.append(Gtk.Label(label=lead, xalign=0, wrap=True, css_classes=["title-4"]))
+            card.append(caption(res.best.text))
+            frieze = Frieze()
+            frieze.set_data(res.curve, res.best, best_time.STEP.total_seconds())
+            card.append(frieze)
+            for s in res.alternatives:
+                card.append(caption(f"Sinon {best_time.label(s, res.now)} : {s.text}"))
+        if res.paused:
+            card.append(caption("Orchestrateur en pause : le calcul suppose que tu lances la tâche toi-même."))
+        card.append(caption("Frise : plus la zone est verte, plus le quota cumulé est grand si tu "
+                            "démarres à cette heure ; trait rouge : meilleur départ. Unité : fenêtres "
+                            "de 5 h de quota disponible, pas une durée de travail garantie."))
+        return card
+
     def render(self, state):
+        self.state = state
         clear(self.box)
         s = load_settings()["orchestrator"]
         o = state.get("orchestrator") or {}
@@ -175,6 +275,7 @@ class PlanningPage(Gtk.ScrolledWindow):
             line.append(Gtk.Label(label=f"{name} retrouve 100 % de sa session", xalign=0))
             recharge.append(line)
         self.box.append(recharge)
+        self.box.append(self.moment_card(state))
         if not s["enabled"]:
             self.box.append(caption("Orchestrateur désactivé : seules les fenêtres en cours sont "
                                     "affichées. Active-le pour enchaîner et décaler les fenêtres."))
