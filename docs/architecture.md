@@ -29,8 +29,8 @@ raccourcis clavier.
 |---|---|
 | `core` | Chemins, profils, verrou, jetons (renouvellement), API d'usage, limites, formats, appel de `ccs` (`run_ccs`, avec `CCS_VIA` vide : l'appelant note lui-même l'origine d'une bascule) |
 | `store` | SQLite : relevés `samples` et événements `events` (bascules, alertes, warm-up, erreurs) ; `events(since, types=…)` pour plusieurs types, `last_event(type, before=…)`, détail illisible lu comme `{}` |
-| `settings` | Réglages JSON fusionnés avec les valeurs par défaut |
-| `forecast` | Fonctions pures : fin de session (régression linéaire), rythme hebdo, fin de semaine prévue (`weekly_forecast` : rythme moyen depuis le début de la semaine, rien avant 12 h), capacité, meilleur compte |
+| `settings` | Réglages JSON fusionnés avec les valeurs par défaut, validés clé par clé (type de la valeur par défaut, bornes `BOUNDS`) : une clé invalide reprend sa valeur par défaut, un JSON illisible donne les défauts, le fichier n'est jamais réécrit en lecture ; `problems()` liste les clés ignorées (journal `ccs.settings`, une fois) |
+| `forecast` | Fonctions pures : fin de session (régression linéaire), rythme hebdo, fin de semaine prévue (`weekly_forecast` : rythme moyen depuis le début de la semaine, rien avant 12 h), capacité, meilleur compte (`best_account` écarte les comptes en erreur bloquante) ; `account_issue` / `accounts_from_state` : comptes inutilisables pour `ccs best` (connexion perdue ou refusée, relevé absent ou plus vieux que `STALE_S` = 600 s) |
 | `autoswitch` | Décision de bascule (pure) et exécution via `ccs use` ; `Decision.detail` (pourcentage, seuil, projection, quota qui expire) gardé dans l'événement pour le journal |
 | `alerts` / `notify` | Quoi notifier (pur, anti-doublon par fenêtre ; fin de semaine prévue une fois par semaine, prioritaire sur l'avance hebdomadaire ; conseil de modèle et bilan de la semaine, qui ne font jamais échouer un relevé ; `Alert.default` : action d'un clic sur la notification) / envoi D-Bus (`actions_for`, `send(…, transient=)` ; `message(titre, texte)` : notification passagère de `claude-accounts notify`) |
 | `switch_log` | Journal des bascules : entrées lisibles d'après les événements (`build`, pur), groupes par jour, texte de `ccs journal` ; note d'origine d'une bascule manuelle (`note_origin`, `take_origin`), échec d'une bascule lancée par l'application (`record_failure`) |
@@ -42,7 +42,7 @@ raccourcis clavier.
 | `daemon` | Boucle : relevés, prévisions, pause, décision, alertes, rappel des sessions en attente, warm-up, modules optionnels (`hooks`), écriture de `state.json` |
 | `pause` | Mode pause : `pause.json` (sous verrou), `set_pause`, `pause_state`, `expire`, `until_for` (1 h, 4 h, début de la plage suivante, reprise manuelle), libellés, `command()` de `ccs pause` |
 | `updates` | Nouvelle version : dernière release GitHub, comparaison SemVer, cache `updates.json`, une notification par version (module du daemon, dans un fil) |
-| `orchestrator` | Fonctions pures : plage horaire, créneaux décalés, démarrages dus, bascule vers le quota qui expire, réserve, planning, prochain réveil |
+| `orchestrator` | Fonctions pures : plage horaire, créneaux décalés, démarrages dus, bascule vers le quota qui expire, réserve, planning, prochain réveil, prochaine borne de plage (`next_edge`) ; bornes calculées en heure locale réelle avec `zoneinfo` (`local_tz()`, injectable) et renvoyées en UTC : une heure inexistante (passage à l'heure d'été) passe à la première heure valide, une heure doublée prend sa première occurrence |
 | `warmup` | Créneaux fixes et requête minimale dans un `CLAUDE_CONFIG_DIR` temporaire (utilisée aussi par l'orchestrateur) |
 | `transcripts` | Lecture des journaux locaux, agrégats, conseils ; `weighted_tokens`, `project_label` (réutilisés par le bilan) |
 | `costs` | Coût d'une conversation : tokens par type et équivalent API en dollars (table de tarifs datée), sous-agents compris, cache par chemin / taille / mtime ; `Loader` pour les listes de l'application ; réponses d'une période (`period_answers`, `period_cost`), mêmes tokens au tarif d'un autre modèle (`reprice`) |
@@ -55,9 +55,9 @@ raccourcis clavier.
 | `terminal_store` | `terminals.json` : interrupteurs de la page Terminaux, onglets à rouvrir (écriture atomique, fichier illisible ignoré) |
 | `limit_events` | Marqueurs « limite atteinte » par conversation (`limits/<session_id>.json`) : écrits par le hook, lus puis consommés par le terminal intégré |
 | `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état (⏸ en pause, « → sonnet ? » près des limites avec un modèle cher), hook `StopFailure` (bascule, sauf en pause ; marqueur de limite) ; `read_stdin_json(timeout)` : contexte JSON de Claude Code, jamais lu sur un terminal, 2 s d'attente au plus |
-| `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` ; `show_session` : ouvrir l'application sur une session ; onglets acceptés par `gui --page` (`PAGES`, `page_name`) |
+| `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` (revérifié toutes les 5 s, `WATCH_S` : installé quand le dossier apparaît, réinstallé s'il est supprimé ou remplacé) ; `show_session` : ouvrir l'application sur une session ; onglets acceptés par `gui --page` (`PAGES`, `page_name`) |
 | `attention` | Ce qui demande l'attention dans la fenêtre (pur) : libellé de pause de l'en-tête, bandeaux nouvelle version et bilan, badge des sessions en attente, référence de session (`<pid>:<id>`) et cible d'un clic sur une notification |
-| `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie |
+| `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie ; ligne « Réglages » en avertissement quand des clés de `settings.json` sont ignorées |
 | `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version ; `APP_ENTRIES` (« Journal des bascules » → `gui --page historique`, « Bilan de la semaine » → `gui --page analyse`, « Ouvrir Comptes Claude ») ; `switch_to` (bascule notée « icone ») ; se relance seul quand le code installé change |
 | `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `journal`, `projet`, `raccourcis` / `shortcuts`, `notify`, `best --notifier`, `pause --notifier`, `gui --session`, `--page`, `--new-session`) |
@@ -636,7 +636,9 @@ jamais exigé) :
 Relevé de tous les comptes toutes les 5 min ; du seul compte actif toutes les
 minutes s'il dépasse 85 % ou si la fin de session est estimée à moins de 15 min.
 Orchestrateur actif : réveil 30 s après la prochaine fin de fenêtre ou le
-prochain créneau de démarrage (au plus tôt dans 30 s). En pause : réveil à
+prochain créneau de démarrage (au plus tôt dans 30 s) ; le sommeil ne dépasse
+jamais la prochaine borne de la plage horaire, début ou fin (+ 2 s,
+`EDGE_MARGIN_S`). En pause : réveil à
 l'échéance de la pause. Session en attente de réponse : réveil à l'heure du
 prochain rappel (au plus tôt dans 5 s).
 

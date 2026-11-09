@@ -177,6 +177,26 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(orch.next_wake(accounts, NOW, cfg()), NOW + timedelta(minutes=20, seconds=30))
 
 
+class NextEdgeTest(unittest.TestCase):
+    """Prochaine borne de plage : début de la prochaine ou fin de la courante."""
+    hours = {"start": "08:00", "end": "02:00", "days": list(range(7))}
+
+    def test_before_start_is_the_start(self):
+        self.assertEqual(orch.next_edge(local(0, 6, 30), self.hours), local(0, 8))
+
+    def test_inside_is_the_end(self):
+        self.assertEqual(orch.next_edge(local(0, 10), self.hours), local(1, 2))
+
+    def test_after_midnight_is_the_end_started_the_day_before(self):
+        self.assertEqual(orch.next_edge(local(1, 1), self.hours), local(1, 2))
+
+    def test_between_end_and_start(self):
+        self.assertEqual(orch.next_edge(local(1, 4), self.hours), local(1, 8))
+
+    def test_no_active_day(self):
+        self.assertIsNone(orch.next_edge(NOW, dict(self.hours, days=[])))
+
+
 class ReviewFixesTest(unittest.TestCase):
     """Revue 0.2.0."""
 

@@ -131,7 +131,8 @@ Bureau :
 Raccordement, documentation et release :
 - [x] Commandes `ccs` (`formule`, `semaine`, `journal`, `projet`, `raccourcis`) et Réglages de l'application
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
-- [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub
+- [x] Release mineure 0.6.0 (genre choisi par Charles), `main`, `develop` et le tag poussés
+- [x] Paquet `.deb` construit (`dist/ccs_0.6.0_all.deb`) et release GitHub v0.6.0
 
 Releases GitHub manquantes :
 - [x] Releases GitHub 0.3.1, 0.3.2 et 0.4.0, avec leurs `.deb` reconstruits depuis les tags
@@ -153,10 +154,12 @@ Autres :
 - [x] Journal lisible des bascules dans l'application → Phase 8
 - [x] Compte par projet → Phase 8
 
-## Points mineurs reportés
+## Phase 9 — Points mineurs reportés (correctif)
 
-- [ ] Réveil précis au début de la plage horaire
-- [ ] Réglages invalides édités à la main : valeurs par défaut au lieu d'un échec
-- [ ] Heure locale exacte (changement d'heure) pour les plages couvrant 2 h – 3 h
-- [ ] `ccs best` : ignorer les comptes en erreur
-- [ ] Moniteur de sessions créé même si `~/.claude/sessions` apparaît après le démarrage
+- [x] Réveil précis au début de la plage horaire
+- [x] Réglages invalides édités à la main : valeurs par défaut au lieu d'un échec
+- [x] Heure locale exacte (changement d'heure) pour les plages couvrant 2 h – 3 h
+- [x] `ccs best` : ignorer les comptes en erreur
+- [x] Moniteur de sessions créé même si `~/.claude/sessions` apparaît après le démarrage
+- [x] Suite de tests au vert, CHANGELOG et documentation
+- [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub

@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from . import __version__, core, daemon
+from . import __version__, core, daemon, settings
 
 OK, AVERTISSEMENT, ERREUR = "ok", "avertissement", "erreur"
 STATUTS = (OK, AVERTISSEMENT, ERREUR)
@@ -246,6 +246,7 @@ class Probes:
     vte: Callable = vte_available
     which: Callable = shutil.which
     local_deb: Callable = local_deb
+    settings_problems: Callable = settings.problems
     _cache: dict = field(default_factory=dict, repr=False)
 
     def once(self, name, *args):
@@ -450,6 +451,20 @@ def check_tools(p):
     return Check(nom, OK, "jq présent")
 
 
+def check_settings(p):
+    """Réglages édités à la main : clés invalides, remplacées par leurs valeurs par défaut.
+    Rien à signaler (None) quand le fichier est correct ou absent."""
+    nom = "Réglages"
+    bad = p.once("settings_problems")
+    if not bad:
+        return None
+    if bad == [settings.UNREADABLE]:
+        return Check(nom, AVERTISSEMENT, "settings.json illisible : les valeurs par défaut sont utilisées "
+                                         "(corrige le fichier ou supprime-le)")
+    return Check(nom, AVERTISSEMENT, "valeurs invalides ignorées (valeurs par défaut utilisées) : "
+                                     + ", ".join(bad))
+
+
 def check_vte(p):
     nom = "Terminal intégré"
     if p.vte():
@@ -459,10 +474,11 @@ def check_vte(p):
 
 
 CHECKS = (check_service, check_state, check_package, check_daemon_code, check_extension, check_tray,
-          check_integration, check_profiles, check_claude, check_tools, check_vte)
+          check_integration, check_profiles, check_settings, check_claude, check_tools, check_vte)
 CHECK_NAMES = {check_service: f"Service {SERVICE}", check_state: "Relevés", check_package: "Version installée",
                check_daemon_code: "Code du service", check_extension: "Extension AppIndicator",
                check_tray: "Indicateur", check_integration: "Intégration Claude Code", check_profiles: "Comptes",
+               check_settings: "Réglages",
                check_claude: "Commande claude", check_tools: "Outils de ccs", check_vte: "Terminal intégré"}
 
 

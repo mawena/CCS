@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from ccs_app.core import Limit
-from ccs_app.forecast import (AccountState, best_account, capacity, effective_percent,
-                              session_forecast, weekly_pace)
+from ccs_app.forecast import (AccountState, accounts_from_state, account_issue, best_account,
+                              capacity, effective_percent, session_forecast, weekly_pace)
 
 NOW = datetime(2026, 10, 26, 9, 0, tzinfo=timezone.utc)
 
@@ -223,3 +223,41 @@ class WeeklyForecastTextTest(unittest.TestCase):
         self.assertIn("tient jusqu'à la réinitialisation", ok)
         self.assertIsNone(weekly_forecast_text(None, NOW))
         self.assertIsNone(weekly_forecast_text({"verdict": "unknown"}, NOW))
+
+
+class UsableAccountsTest(unittest.TestCase):
+    def test_best_ignores_blocking_errors(self):
+        lost = acc("perdu", session(5, 60), weekly(5), error="connexion perdue : reconnecte ce compte")
+        refused = acc("refuse", session(5, 60), weekly(5), error="HTTP 401")
+        ok = acc("ok", session(60, 60), weekly(50))
+        self.assertEqual(best_account([lost, refused, ok], NOW).name, "ok")
+        self.assertIsNone(best_account([lost, refused], NOW))
+
+    def test_best_keeps_transient_errors(self):
+        busy = acc("limite", session(5, 60), weekly(5), error="HTTP 429")
+        self.assertEqual(best_account([busy], NOW).name, "limite")
+
+    def test_account_issue(self):
+        now = NOW.timestamp()
+        self.assertIsNone(account_issue(None, now - 30, now))
+        self.assertIsNone(account_issue("HTTP 429", now - 30, now))
+        self.assertIsNone(account_issue("réseau : délai dépassé", now - 30, now))
+        self.assertEqual(account_issue("connexion perdue : reconnecte ce compte", now - 30, now),
+                         "connexion perdue")
+        self.assertEqual(account_issue("connexion expirée le 2026-10-01", now, now), "connexion expirée")
+        self.assertEqual(account_issue("HTTP 401", now, now), "connexion refusée (HTTP 401)")
+        self.assertEqual(account_issue("HTTP 403", now, now), "connexion refusée (HTTP 403)")
+        self.assertEqual(account_issue("jeton vide", now, now), "erreur : jeton vide")
+        self.assertEqual(account_issue(None, None, now), "aucun relevé")
+        self.assertEqual(account_issue("HTTP 429", now - 3600, now), "relevé trop ancien")
+
+    def test_accounts_from_state(self):
+        st = {"accounts": [{"name": "a", "active": True, "error": None, "fetched_at": 5.0,
+                            "limits": [{"kind": "session", "label": "S", "percent": 10,
+                                        "resets_at": "2026-10-26T12:00:00+00:00"}]},
+                           {"name": "b"}]}
+        a, b = accounts_from_state(st)
+        self.assertEqual((a.name, a.active, a.fetched_at), ("a", True, 5.0))
+        self.assertEqual(a.session.percent, 10)
+        self.assertEqual(a.session.resets_at, datetime(2026, 10, 26, 12, tzinfo=timezone.utc))
+        self.assertEqual((b.name, b.limits, b.fetched_at), ("b", [], None))

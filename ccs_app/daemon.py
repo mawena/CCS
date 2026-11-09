@@ -24,6 +24,7 @@ EVENTS_LOOKBACK = timedelta(hours=8)
 ALERTS_LOOKBACK = timedelta(days=8)
 RATE_LIMIT_PAUSE = timedelta(minutes=5)
 SESSION_NOTIFY_GAP_S = 120
+EDGE_MARGIN_S = 2.0  # marge après une borne de plage horaire (début ou fin) avant de se réveiller
 
 
 def _iso(dt):
@@ -318,6 +319,11 @@ class Daemon:
             wake = orchestrator.next_wake(states, now, ocfg)
             if wake is not None:
                 delay = max(30.0, min(delay, (wake - now).total_seconds()))
+            # Réveil précis aux bornes de la plage horaire (début : premières décisions,
+            # fin : bascules anticipées arrêtées), sans attendre le relevé suivant.
+            edge = orchestrator.next_edge(now, ocfg["active_hours"])
+            if edge is not None:
+                delay = min(delay, max(1.0, (edge - now).total_seconds() + EDGE_MARGIN_S))
         if paused is not None and paused.until is not None:
             # Réveil à l'échéance de la pause, pour reprendre sans attendre le relevé suivant.
             delay = max(1.0, min(delay, (paused.until - now).total_seconds() + 1))

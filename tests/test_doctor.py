@@ -38,6 +38,7 @@ def healthy(**over):
         vte=lambda: True,
         which=lambda name: f"/usr/bin/{name}",
         local_deb=lambda version: None,
+        settings_problems=lambda: [],
     )
     values.update(over)
     return Probes(**values)
@@ -175,6 +176,22 @@ class DesktopTest(unittest.TestCase):
     def test_vte(self):
         c = doctor.check_vte(healthy(vte=lambda: False))
         self.assertEqual((c.statut, c.commande), (AVERTISSEMENT, "sudo apt install gir1.2-vte-3.91"))
+
+
+class SettingsCheckTest(unittest.TestCase):
+    def test_silent_when_fine(self):
+        self.assertIsNone(doctor.check_settings(healthy()))
+
+    def test_lists_ignored_keys(self):
+        c = doctor.check_settings(healthy(settings_problems=lambda: ["poll.normal_s", "alerts.resets"]))
+        self.assertEqual(c.statut, AVERTISSEMENT)
+        self.assertIn("poll.normal_s, alerts.resets", c.detail)
+
+    def test_unreadable_file(self):
+        from ccs_app import settings
+        c = doctor.check_settings(healthy(settings_problems=lambda: [settings.UNREADABLE]))
+        self.assertEqual(c.statut, AVERTISSEMENT)
+        self.assertIn("illisible", c.detail)
 
 
 class IntegrationTest(unittest.TestCase):
