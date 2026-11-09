@@ -163,4 +163,4 @@ Autres :
 - [x] Moniteur de sessions créé même si `~/.claude/sessions` apparaît après le démarrage
 - [x] Suite de tests au vert, CHANGELOG et documentation
 - [x] Release correctif 0.6.1 (genre choisi par Charles), `main`, `develop` et le tag poussés
-- [ ] Paquet `.deb` construit (`dist/ccs_0.6.1_all.deb`) et release GitHub v0.6.1
+- [x] Paquet `.deb` construit (`dist/ccs_0.6.1_all.deb`) et release GitHub v0.6.1
