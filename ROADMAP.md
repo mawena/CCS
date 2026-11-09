@@ -141,7 +141,7 @@ Releases GitHub manquantes :
 
 - [x] Mise à jour en un clic : téléchargement du `.deb` de la release GitHub, vérification SHA-256 et du paquet, installation après mot de passe
 - [x] Ne pas déranger : plages horaires sans notifications, silence temporaire, exception « attend ta réponse », résumé à la fin
-- [ ] Meilleur moment pour une grosse tâche : créneau où les comptes offriront le plus de quota d'affilée (onglet Planning)
+- [x] Meilleur moment pour une grosse tâche : créneau où les comptes offriront le plus de quota d'affilée (onglet Planning)
 - [x] Sessions dans le menu de l'icône : afficher une session ouverte dans son onglet de l'application
 - [x] Rapport mensuel : coût équivalent API, projets, modèles, évolution d'un mois à l'autre (onglet Analyse, notification)
 - [ ] Commandes `ccs` (`mise-a-jour`, `silence`, `moment`, `mois`), Réglages, menu de l'icône
