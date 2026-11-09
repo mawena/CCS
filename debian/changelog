@@ -1,3 +1,16 @@
+ccs (0.6.1) unstable; urgency=medium
+
+  * Réglages édités à la main : une clé invalide reprend sa valeur par
+    défaut au lieu de faire planter CCS ; ccs doctor la signale.
+  * ccs best ignore les comptes dont le relevé est en erreur et en donne
+    la raison.
+  * Réveil précis au début et à la fin de la plage horaire.
+  * Plages horaires en heure locale réelle lors des changements d'heure.
+  * Notifications de sessions même si ~/.claude/sessions apparaît après le
+    démarrage du service.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 09 Nov 2026 17:30:00 +0000
+
 ccs (0.6.0) unstable; urgency=medium
 
   * Un seul onglet Sessions : projets à gauche, sessions ouvertes et
