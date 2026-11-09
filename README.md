@@ -121,14 +121,53 @@ En haut de l'onglet **Analyse**, et dans le terminal :
   et alertes, comparés à la semaine précédente. Une notification le résume au
   début de chaque semaine ; la carte de l'onglet Analyse laisse choisir la
   semaine (aussi « Bilan de la semaine » dans le menu de l'icône).
+- **Rapport mensuel** (`ccs mois`) : le même exercice sur le mois civil, mois en
+  cours comparé au même nombre de jours du mois précédent, avec les 10 premiers
+  projets et, à partir de 3 mois d'activité, la tendance sur 3 à 6 mois. Une
+  notification le résume le 1er du mois ; la carte **Rapport mensuel** de
+  l'onglet Analyse laisse choisir le mois.
 
 Tout se règle dans **Réglages → Conseils** (conseil de modèle et son seuil,
-bilan, jour et heure du bilan) et **Réglages → Conseiller de formule**
+bilan, jour et heure du bilan, rapport mensuel et son heure) et **Réglages → Conseiller de formule**
 (semaines analysées, marge, nombre de comptes, formule d'un compte mal
 reconnue, tarifs). Les prix des formules sont ceux du 6 novembre 2026, signalés
 « à vérifier » après 120 jours. Le bilan et l'équivalent API ne voient que les
 journaux Claude Code **de ce PC** : claude.ai et tes autres appareils n'y
 figurent pas.
+
+## Meilleur moment pour une grosse tâche
+
+Une refonte, une migration, une longue session d'agents : **quand la lancer ?**
+La carte « Meilleur moment pour une grosse tâche » de l'onglet **Planning**
+(et `ccs moment --duree 3h`) compte, pour chaque heure de départ possible sur
+24 h, les **fenêtres de 5 h** disponibles tous comptes confondus (le reste de la
+fenêtre en cours, une fenêtre neuve à chaque réinitialisation, une fenêtre
+fraîche démarrée au départ), plafond hebdomadaire compris. Elle dit « Lance-la
+maintenant » quand maintenant est à 10 % du meilleur départ, sinon le meilleur
+moment et jusqu'à 3 alternatives espacées de 90 min, avec une frise des 24 h. Le
+plafond hebdomadaire est une **estimation** (une semaine pleine vaut environ
+10 fenêtres) ; les comptes en erreur sont ignorés et la pause est signalée.
+
+## Ne pas déranger
+
+**Réglages → Ne pas déranger** : une plage de silence (22:00 à 08:00 par défaut,
+jours au choix, passage de minuit) pendant laquelle les notifications sont
+retenues, puis un seul résumé « Fin du silence » dit combien il y en a eu. Le
+menu de l'icône (« Ne pas déranger » : 1 heure, 4 heures, Jusqu'à demain,
+Reprendre), `ccs silence 1h` et un raccourci clavier optionnel posent un silence
+temporaire. Restent **toujours** affichées : une session qui attend ta réponse
+(sauf si tu le décides dans les Réglages), une session bloquée par une limite, le
+résumé et les retours des raccourcis. Une alerte retenue n'est pas renvoyée
+après : seulement résumée.
+
+## Mise à jour en un clic
+
+Quand une nouvelle version est annoncée, le bandeau de la fenêtre (et l'entrée
+« Installer CCS x.y.z… » de l'icône) ouvre un dialogue : notes de la release,
+téléchargement, **vérification de la somme SHA-256**, installation (fenêtre de
+mot de passe de `pkexec`), puis « Redémarrer l'application ». Détails et
+sécurité : [docs/utilisation.md](docs/utilisation.md#mises-à-jour) ; en
+ligne de commande : `ccs mise-a-jour`.
 
 ## Dans Claude Code
 
@@ -167,6 +206,12 @@ projet. Une notification te prévient quand une session **a terminé** ou
 dessus (ou « Afficher ») ouvre l'application sur l'onglet de la session, et un
 rappel unique part si ta réponse se fait attendre plus de 10 min. Le badge de
 l'onglet Sessions compte les sessions qui t'attendent.
+
+Le menu de l'icône a aussi un sous-menu **Sessions** (« Sessions (1 attend ta
+réponse) » ou « Sessions (n) ») : une entrée par session (titre, état, depuis
+quand), celles qui attendent d'abord ; un clic l'ouvre dans l'application. Il
+propose aussi « Toutes les sessions… » et « Terminal ou dossier d'une
+session », et l'indicateur affiche « · 💬 n » quand n sessions attendent.
 
 **Nouvelle session…** (bouton de l'onglet Sessions, menu ☰ de la fenêtre,
 « Avec des options… » dans le menu « Nouvelle session » d'un projet, ou
@@ -346,6 +391,10 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Pause** | Bascule automatique et orchestrateur suspendus 1 h, 4 h, jusqu'à la prochaine plage horaire ou jusqu'à reprise ; levée automatique. |
 | **Alertes** | 80 % et 95 % (avec un bouton « Basculer sur … »), fin de session imminente, semaine épuisée dans 2 jours ou moins, bascule effectuée, tous comptes épuisés, compte réinitialisé, connexion expirée, session terminée ou en attente (avec un rappel après 10 min), pause terminée, nouvelle version, conseil de modèle près des limites, bilan de la semaine. Une fois par seuil et par fenêtre. |
 | **Conseils** | Conseiller de formule (combinaison Pro / Max / Ultra la moins chère pour ton usage, équivalent API), conseil de modèle près des limites, bilan de la semaine. |
+| **Rapport mensuel** | Le mois civil : comptes, activité, tokens, équivalent API, modèles, projets, évolution et tendance ; carte Analyse, notification le 1er du mois, `ccs mois`. |
+| **Meilleur moment** | Quand lancer une grosse tâche : fenêtres de 5 h disponibles par heure de départ, alternatives, frise des 24 h (onglet Planning, `ccs moment`). |
+| **Ne pas déranger** | Plage de silence et silence temporaire : notifications retenues puis résumées en une seule ; les sessions qui attendent et les blocages passent toujours. |
+| **Mise à jour en un clic** | Bouton « Installer » du bandeau : téléchargement, SHA-256, `pkexec`, redémarrage de l'application. |
 | **Intégration Claude Code** | Ligne d'état dans chaque session, bascule automatique quand une session est bloquée. |
 | **Sessions** | Un seul onglet : projets à gauche, sessions ouvertes et conversations du projet à droite ; consommation, reprise, nouvelle session (dossier, compte, modèle, permissions), terminal / dossier du projet. |
 | **Compte par projet** | Un compte préféré par dossier (sous-dossiers compris), bascule proposée à l'ouverture d'une session, compte présélectionné dans « Nouvelle session ». |
@@ -384,7 +433,9 @@ Réglages).
 
 **Mise à jour** : CCS te prévient quand une nouvelle version est publiée
 (notification, icône, bandeau de la fenêtre, Réglages ; vérification sur GitHub
-au plus une fois par jour). Installe le nouveau `.deb` : le service se relance seul avec la nouvelle
+au plus une fois par jour). Le bouton **Installer** du bandeau (ou
+`ccs mise-a-jour`) télécharge, vérifie et installe le paquet en un clic ;
+sinon, installe le nouveau `.deb` à la main : le service se relance seul avec la nouvelle
 version (dans les 5 min), l'icône aussi (dans les 10 s). En venant de la 0.4.0
 ou d'avant, l'icône ne sait pas encore le faire : relance-la une fois
 (`pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`) ; en venant
@@ -433,6 +484,10 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs analyze [--days N]` | Consommation par projet, modèle, heure, compte + conseils |
 | `ccs formule` | Conseiller de formule : combinaison conseillée, raisonnement, équivalent API (alias `ccs conseil`) |
 | `ccs semaine [--precedente N]` | Bilan de la semaine (`--precedente N` : N semaines plus tôt) |
+| `ccs mois [--precedent N]` | Rapport mensuel (dernier mois terminé par défaut ; `--precedent N` : N mois plus tôt, 0 à 120) |
+| `ccs moment [--duree 3h] [--sur 24h]` | Meilleur moment pour une grosse tâche (durée 1 à 10 h, horizon 1 à 72 h) |
+| `ccs silence [1h\|4h\|demain\|off\|reprendre\|status]` | Ne pas déranger : silence temporaire des notifications (`status` par défaut ; alias `ccs quiet`) |
+| `ccs mise-a-jour [--verifier]` | Installe la dernière version de CCS (ou seulement la vérifie) ; alias `ccs maj` |
 | `ccs journal [--jours N\|--tout]` | Journal des bascules (7 derniers jours par défaut) |
 | `ccs projet [<dossier>] [<compte>\|aucun]` | Compte par projet : liste, compte d'un dossier, association (`aucun` la retire) |
 | `ccs raccourcis [status\|on\|off\|set]` | Raccourcis clavier globaux (GNOME) : état, activer, retirer, changer (alias `ccs shortcuts`) |
@@ -446,7 +501,7 @@ Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisat
 ## Configuration
 
 Tout se règle dans l'onglet **Réglages** de l'application — Bascule
-automatique, Orchestrateur, Alertes, Conseils, Conseiller de formule,
+automatique, Orchestrateur, Alertes, Ne pas déranger, Conseils, Conseiller de formule,
 Intégration, Terminal intégré, Raccourcis clavier, Warm-up, Service — ou par
 les commandes `ccs auto`, `ccs orch`, `ccs pause`, `ccs integrate`,
 `ccs projet`, `ccs raccourcis`. Les réglages vivent dans
@@ -455,7 +510,9 @@ bascule automatique (`auto_switch`), alertes (`alerts` : seuils, fin de semaine
 prévue `weekly_forecast` / `weekly_forecast_days`, rappel d'attente
 `waiting_reminder` / `waiting_reminder_min`, conseil de modèle `model_advice` /
 `model_advice_pct`, bilan de la semaine `weekly_report` / `weekly_report_day` /
-`weekly_report_hour`…), conseiller de formule (`advisor` : semaines analysées,
+`weekly_report_hour`, rapport mensuel `monthly_report` /
+`monthly_report_hour`, ne pas déranger `quiet` : `enabled`, `start`, `end`,
+`days`, `allow_waiting`…), conseiller de formule (`advisor` : semaines analysées,
 marge, tarifs, formule d'un profil), orchestrateur et plage horaire
 (`orchestrator`), warm-up (`warmup`), nouvelles versions (`updates.enabled`). Une valeur invalide (mauvais type,
 hors bornes, heure impossible) ou un fichier illisible n'empêche rien : la clé

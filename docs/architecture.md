@@ -5,6 +5,7 @@
             │ <profil>/oauth.json  account.json  usage.json        │
             │ history.db  settings.json  state.json  .lock         │
             │ pause.json  updates.json  terminals.json  limits/    │
+            │ quiet.json  quiet_held.json                          │
             │ conversations-cache.json  conversations-moves.json   │
             │ projects.json  switch-origin.json                    │
             └───────▲───────────────▲──────────────▲───────────────┘
@@ -38,6 +39,10 @@ raccourcis clavier.
 | `advisor` | Conseiller de formule : formules et tarifs datés, formule de chaque compte, besoin mesuré en unités Pro (fenêtres hebdomadaires et de 5 h), combinaison la moins chère, raisonnement, équivalent API (`compute`, `analyze` pur, `format_text`) |
 | `model_advice` | Conseil de modèle près des limites : usage des 30 dernières minutes (fin des journaux, cache), famille moins chère, gain « ×N », notification une fois par fenêtre, indice de la ligne d'état |
 | `weekly_report` | Bilan de la semaine : début de semaine (majorité des comptes ou jour fixe), agrégats (`aggregate`, pur), textes, notification hebdomadaire calculée dans un fil |
+| `monthly_report` | Rapport mensuel : mois civil en heure locale (`month_start`, `month_choices`), agrégats par période (`build_report`, mois en cours comparé au même nombre de jours du précédent), tendance (`TREND_MONTHS`, affichée à partir de `TREND_MIN`), textes, notification mensuelle (`pending_alert`, clé `monthly_report:<mois>`), `command()` de `ccs mois` |
+| `best_time` | Meilleur moment pour une grosse tâche (pur) : départs candidats (`candidates`), fenêtres de 5 h par compte et plafond hebdomadaire (`WEEK_WINDOWS`), créneaux et alternatives (`compute`), `command()` de `ccs moment` |
+| `quiet` | Ne pas déranger : plage `alerts.quiet` et silence temporaire (`quiet.json`), décision de retenir (`should_hold`), notifications retenues et comptées (`quiet_held.json`), résumé de fin (`flush`), `command()` de `ccs silence` |
+| `installer` | Mise à jour en un clic : plan d'après la release GitHub, liste blanche d'URL, téléchargement borné, SHA-256, contrôle du paquet, installation par `pkexec apt-get`, `command()` de `ccs mise-a-jour` |
 | `shortcuts` | Raccourcis clavier globaux GNOME : actions, lecture et validation des raccourcis, moteurs `GioBackend` / `MemoryBackend`, installation sous les seuls chemins de CCS, conflits, `command()` de `ccs raccourcis` ; `NOTIFIER` (`--notifier` des commandes de bascule et de pause) |
 | `daemon` | Boucle : relevés, prévisions, pause, décision, alertes, rappel des sessions en attente, warm-up, modules optionnels (`hooks`), écriture de `state.json` |
 | `pause` | Mode pause : `pause.json` (sous verrou), `set_pause`, `pause_state`, `expire`, `until_for` (1 h, 4 h, début de la plage suivante, reprise manuelle), libellés, `command()` de `ccs pause` |
@@ -58,9 +63,9 @@ raccourcis clavier.
 | `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` (revérifié toutes les 5 s, `WATCH_S` : installé quand le dossier apparaît, réinstallé s'il est supprimé ou remplacé) ; `show_session` : ouvrir l'application sur une session ; onglets acceptés par `gui --page` (`PAGES`, `page_name`) |
 | `attention` | Ce qui demande l'attention dans la fenêtre (pur) : libellé de pause de l'en-tête, bandeaux nouvelle version et bilan, badge des sessions en attente, référence de session (`<pid>:<id>`) et cible d'un clic sur une notification |
 | `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie ; ligne « Réglages » en avertissement quand des clés de `settings.json` sont ignorées |
-| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages |
-| `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version ; `APP_ENTRIES` (« Journal des bascules » → `gui --page historique`, « Bilan de la semaine » → `gui --page analyse`, « Ouvrir Comptes Claude ») ; `switch_to` (bascule notée « icone ») ; se relance seul quand le code installé change |
-| `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `journal`, `projet`, `raccourcis` / `shortcuts`, `notify`, `best --notifier`, `pause --notifier`, `gui --session`, `--page`, `--new-session`) |
+| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages ; `gui/update_dialog` : dialogue de mise à jour en un clic ; carte « Meilleur moment » (`gui/planning`) et carte « Rapport mensuel » (`gui/advisor_cards`) |
+| `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version (« Installer CCS x.y.z… ») ; sous-menu Sessions (une entrée par session, en attente d'abord ; un clic ouvre la session par la même route que les notifications ; « · 💬 n » dans le libellé) ; entrée « Ne pas déranger » ; `APP_ENTRIES` (« Journal des bascules » → `gui --page historique`, « Bilan de la semaine » → `gui --page analyse`, « Ouvrir Comptes Claude ») ; `switch_to` (bascule notée « icone ») ; se relance seul quand le code installé change |
+| `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `mois`, `moment`, `silence` / `quiet`, `mise-a-jour` / `maj`, `journal`, `projet`, `raccourcis` / `shortcuts`, `notify`, `best --notifier`, `pause --notifier`, `gui --session`, `--page`, `--new-session`) |
 
 `ccs` (bash) reste **l'unique implémentation de la bascule** ; le service,
 l'application et l'indicateur l'appellent.
@@ -583,6 +588,81 @@ jamais exigé) :
   dernière terminée par défaut ; le conseiller est calculé ensuite, sur des
   journaux déjà en cache.
 
+### Rapport mensuel (`monthly_report`)
+
+- Mois civil en heure locale ; le mois en cours est comparé au même nombre de
+  jours du mois précédent (la comparaison « ×N » avec les formules payées est
+  omise sur un mois incomplet). `ccs mois --precedent N` remonte de N mois
+  (0 à 120).
+- `pending_alert`, appelé à chaque relevé : dû le 1er du mois à
+  `alerts.monthly_report_hour` (9), encore le 2 si le PC dormait ; rien sans
+  `has_data` (relevés couvrant au moins 7 jours du mois écoulé) ; clé
+  `monthly_report:<mois>`. Le calcul tourne dans un fil, la notification part au
+  relevé suivant, un échec est retenté une heure plus tard, le cache des coûts
+  est libéré ensuite.
+- Contenu : par compte (semaines utilisées, pic hebdomadaire, fenêtres de 5 h,
+  limites, bascules), activité, tokens, équivalent API, modèles, 10 premiers
+  projets avec coût, évolution et tendance (3 à 6 mois, à partir de 3 mois
+  d'activité). Seuls les journaux de ce PC sont lus.
+
+## Ne pas déranger
+
+- `notify.send` interroge `quiet.should_hold` pour chaque alerte : retenue, elle
+  est comptée par genre dans `quiet_held.json` (verrou partagé par le service
+  et les hooks) et n'est pas envoyée. Jamais retenus : « attend ta réponse »
+  et son rappel si `allow_waiting`, `blocage:*` (hook StopFailure), le résumé
+  et les notifications passagères des raccourcis. La clé d'une attente est
+  `attente:<pid>:<horodatage>`, celle d'une fin `session:…`, ce qui permet à
+  `quiet.kind` de les distinguer.
+- Deux sources se cumulent : la plage `alerts.quiet` (heure locale réelle, mêmes
+  règles que l'orchestrateur ; jour = jour du début de la plage) et le silence
+  temporaire de `quiet.json` (`since`, `until`, `until` nul jusqu'à reprise ;
+  levé à l'échéance, fichier illisible = pas de silence).
+- À la fin du silence, `quiet.flush` envoie **un seul** résumé « Fin du
+  silence » (par genre) ; une alerte retenue n'est jamais renvoyée. Le réveil du
+  service tient compte de `quiet.next_wake`.
+- `state.json` → `quiet` : `active`, `until`, `source`, `held`.
+
+## Meilleur moment (`best_time`)
+
+- Fonction pure sur `state.json` : pour chaque départ de `candidates(now,
+  span_h)` (maintenant, puis chaque quart d'heure, 24 h par défaut, 72 h au
+  plus), `_account_slot` compte pour chaque compte utilisable le reste de la
+  fenêtre en cours (entier seulement s'il reste `FULL_AFTER_H` = 1 h), la
+  fenêtre neuve à la réinitialisation puis toutes les 5 h, et une fenêtre
+  fraîche démarrant au départ ; le plafond hebdomadaire limite le total avec
+  l'hypothèse `WEEK_WINDOWS` = 10 fenêtres pour une semaine pleine (estimation).
+- Comptes en erreur ignorés, pause signalée. « Lance-la maintenant » si
+  « maintenant » est à `NOW_TOLERANCE` (10 %) du meilleur ; au plus
+  `MAX_ALTERNATIVES` = 3 alternatives espacées de `ALT_SPACING` = 90 min.
+- Durée de 1 à 10 h, horizon de 1 à 72 h (`DURATION_RANGE`, `SPAN_RANGE`).
+  La carte du Planning propose 1, 2, 3, 4, 6 et 8 h et dessine la frise.
+
+## Mise à jour en un clic (`installer`)
+
+```
+ bandeau / icône ──► gui/update_dialog ──► installer.install(plan)
+   plan_from_release (API GitHub)  →  download (deb + SHA256SUMS)  →  verify_sum
+   →  check_package (dpkg-deb -f)  →  pkexec apt-get install -y  →  redémarrage de l'application
+```
+
+- Liste blanche (`allowed_url`) : `github.com/mawena/CCS/releases/download/v<v>/…`
+  ou l'API des pièces jointes du dépôt ; le gestionnaire de redirections
+  n'accepte que `objects.githubusercontent.com` et
+  `release-assets.githubusercontent.com` en https (`allowed_redirect`).
+- Pièces exigées : `ccs_<v>_all.deb` et `SHA256SUMS`. Limites : JSON 1 Mo,
+  `SHA256SUMS` 64 Ko, paquet 64 Mo ; délai de 20 s par requête ; dossier
+  temporaire de droits 0700.
+- `verify_sum` compare la somme SHA-256 ; `check_package` exige, par
+  `dpkg-deb -f`, le paquet `ccs` à la version annoncée et plus récente que
+  `ccs_app.__version__`. Phases de progression : `download`, `verify`,
+  `install`.
+- `install_command` : `pkexec apt-get install -y <chemin>` ; sans `pkexec` ou
+  s'il est refusé, `manual_command` donne `sudo apt install '<chemin>'` à
+  copier. `is_package_install` distingue un paquet dpkg d'une copie de
+  développement (« mise à jour par git », code 1 pour `ccs mise-a-jour`).
+- `command(args)` : `ccs mise-a-jour [--verifier]` (alias `maj`) ; codes 0, 1, 2.
+
 ## Raccourcis clavier
 
 ```
@@ -666,6 +746,7 @@ collect`).
                    "reserve": ["boulot"], "next_wake": "…",
                    "plan": [{"name": "perso", "start": "…", "end": "…", "kind": "current|planned"}]},
   "pause": {"since": "…", "until": "… | null", "label": "jusqu'à 14:00"},
+  "quiet": {"active": true, "until": "… | null", "source": "plage|temporaire | null", "held": 3},
   "update": {"version": "0.5.0", "url": "https://github.com/mawena/CCS/releases/…", "name": "…"},
   "accounts": [{
     "name": "perso", "email": "…", "org": "…", "plan": "pro", "active": true,
@@ -680,7 +761,9 @@ collect`).
 }
 ```
 
-`pause` et `update` valent `null` hors pause / sans nouvelle version (ou
+`quiet` est toujours présent : hors silence, `active` vaut `false` et `until` et
+`source` valent `null` (`held` compte les notifications retenues). `pause` et
+`update` valent `null` hors pause / sans nouvelle version (ou
 vérification désactivée) ; `until` vaut `null` pour une pause jusqu'à reprise
 manuelle. `auto_switch.paused` et `orchestrator.paused` reprennent l'état de
 pause ; en pause, `decision.reason` vaut « en pause jusqu'à … » et `plan` ne
