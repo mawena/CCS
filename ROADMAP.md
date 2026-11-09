@@ -137,6 +137,17 @@ Raccordement, documentation et release :
 Releases GitHub manquantes :
 - [x] Releases GitHub 0.3.1, 0.3.2 et 0.4.0, avec leurs `.deb` reconstruits depuis les tags
 
+## Phase 10 — Confort et vue d'ensemble (0.7.0)
+
+- [ ] Mise à jour en un clic : téléchargement du `.deb` de la release GitHub, vérification SHA-256 et du paquet, installation après mot de passe
+- [ ] Ne pas déranger : plages horaires sans notifications, silence temporaire, exception « attend ta réponse », résumé à la fin
+- [ ] Meilleur moment pour une grosse tâche : créneau où les comptes offriront le plus de quota d'affilée (onglet Planning)
+- [ ] Sessions dans le menu de l'icône : afficher une session ouverte dans son onglet de l'application
+- [ ] Rapport mensuel : coût équivalent API, projets, modèles, évolution d'un mois à l'autre (onglet Analyse, notification)
+- [ ] Commandes `ccs` (`mise-a-jour`, `silence`, `moment`, `mois`), Réglages, menu de l'icône
+- [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [ ] Release recommandée, paquet `.deb`, release GitHub
+
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
 Recommandées :
