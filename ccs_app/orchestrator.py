@@ -7,8 +7,11 @@ Fonctions pures (`now` toujours passé, heure locale pour la plage active) :
 - publier un planning.
 """
 
+import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .autoswitch import MANUAL_RESPECT_S, STALE_S, Decision
 from .forecast import SESSION_WINDOW, effective_percent, window_open
@@ -25,39 +28,89 @@ def _hhmm(text):
     return h, m
 
 
-def period_bounds(now, hours):
-    """(début, fin) de la période active qui contient `now`, sinon None.
+@lru_cache(maxsize=2)
+def _system_tz(path, mtime):
+    with open(path, "rb") as f:
+        return ZoneInfo.from_file(f)
+
+
+def local_tz():
+    """Fuseau horaire du poste, avec ses règles de changement d'heure (variable TZ,
+    sinon /etc/localtime) ; à défaut, le décalage courant seulement."""
+    name = os.environ.get("TZ", "").lstrip(":")
+    if name:
+        try:
+            return ZoneInfo(name)
+        except (ZoneInfoNotFoundError, ValueError, OSError):
+            pass
+    try:
+        return _system_tz("/etc/localtime", os.stat("/etc/localtime").st_mtime_ns)
+    except (OSError, ValueError):
+        return datetime.now().astimezone().tzinfo
+
+
+def _at(day, hhmm, tz):
+    """Instant (UTC) de l'heure locale réelle `hhmm` le jour `day` : une heure qui
+    n'existe pas (passage à l'heure d'été) devient la première heure valide, une
+    heure doublée (retour à l'heure d'hiver) prend sa première occurrence."""
+    h, m = hhmm
+    naive = datetime(day.year, day.month, day.day, h, m)
+    for _ in range(24 * 60):
+        local = naive.replace(tzinfo=tz)  # fold=0 : première occurrence
+        utc = local.astimezone(timezone.utc)
+        if utc.astimezone(tz).replace(tzinfo=None) == naive:
+            return utc
+        naive += timedelta(minutes=1)  # heure inexistante : on avance jusqu'à la première valide
+    return local.astimezone(timezone.utc)
+
+
+def _period(day, hours, tz):
+    """(début, fin) en UTC de la période commencée le jour local `day`."""
+    start = _at(day, _hhmm(hours["start"]), tz)
+    end_day = day
+    if _hhmm(hours["end"]) <= _hhmm(hours["start"]):
+        end_day = day + timedelta(days=1)
+    return start, _at(end_day, _hhmm(hours["end"]), tz)
+
+
+def period_bounds(now, hours, tz=None):
+    """(début, fin) de la période active qui contient `now`, sinon None (en UTC).
 
     Une plage dont la fin précède le début passe minuit : 01:30 appartient à
-    la période commencée la veille.
+    la période commencée la veille. Bornes en heure locale réelle de `tz`
+    (par défaut celle du poste), changements d'heure compris.
     """
-    local = now.astimezone()
-    sh, sm = _hhmm(hours["start"])
-    eh, em = _hhmm(hours["end"])
+    tz = tz or local_tz()
+    today = now.astimezone(tz).date()
     days = hours.get("days", range(7))
     for back in (0, 1):
-        day = local - timedelta(days=back)
-        start = day.replace(hour=sh, minute=sm, second=0, microsecond=0)
-        end = start.replace(hour=eh, minute=em)
-        if end <= start:
-            end += timedelta(days=1)
-        if start <= local < end and start.weekday() in days:
+        day = today - timedelta(days=back)
+        start, end = _period(day, hours, tz)
+        if start <= now < end and day.weekday() in days:
             return start, end
     return None
 
 
-def next_period_start(now, hours):
+def next_period_start(now, hours, tz=None):
     """Début de la prochaine période active strictement après `now` (None si aucun jour actif)."""
-    local = now.astimezone()
-    sh, sm = _hhmm(hours["start"])
+    tz = tz or local_tz()
+    today = now.astimezone(tz).date()
     days = hours.get("days", range(7))
-    for ahead in range(8):
-        day = local.date() + timedelta(days=ahead)
-        # Date locale naïve puis fuseau du poste : heure exacte même au changement d'heure.
-        start = datetime(day.year, day.month, day.day, sh, sm).astimezone()
-        if start > local and start.weekday() in days:
+    for ahead in range(9):
+        day = today + timedelta(days=ahead)
+        start = _at(day, _hhmm(hours["start"]), tz)
+        if start > now and day.weekday() in days:
             return start
     return None
+
+
+def next_edge(now, hours, tz=None):
+    """Prochaine borne de plage après `now` : fin de la période en cours, sinon
+    début de la prochaine (None si aucun jour actif)."""
+    bounds = period_bounds(now, hours, tz)
+    if bounds is not None:
+        return bounds[1]
+    return next_period_start(now, hours, tz)
 
 
 def _fresh(a, now):
