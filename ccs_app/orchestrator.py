@@ -60,6 +60,15 @@ def next_period_start(now, hours):
     return None
 
 
+def next_edge(now, hours):
+    """Prochaine borne de plage après `now` : fin de la période en cours, sinon
+    début de la prochaine (None si aucun jour actif)."""
+    bounds = period_bounds(now, hours)
+    if bounds is not None:
+        return bounds[1]
+    return next_period_start(now, hours)
+
+
 def _fresh(a, now):
     return (not a.blocking_error and a.limits and a.fetched_at is not None
             and now.timestamp() - a.fetched_at <= STALE_S)
