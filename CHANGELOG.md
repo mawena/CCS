@@ -3,6 +3,62 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Ajouté
+
+- **Mise à jour en un clic** : le bandeau « CCS x.y.z est disponible » a un
+  bouton **Installer** (paquet installé par `dpkg`). Un dialogue montre les
+  notes de la release, la progression (téléchargement, vérification,
+  installation), **Voir sur GitHub**, puis **Redémarrer l'application**. Le
+  paquet `ccs_<version>_all.deb` et `SHA256SUMS` ne sont téléchargés que
+  depuis `github.com/mawena/CCS/releases/download/v<version>/…` (ou l'API des
+  pièces jointes du dépôt ; redirections acceptées seulement vers
+  `objects.githubusercontent.com` et `release-assets.githubusercontent.com`,
+  en https), avec des limites de taille, dans un dossier temporaire 0700. La
+  somme SHA-256 est vérifiée, puis `dpkg-deb -f` contrôle le paquet (`ccs`,
+  version annoncée et plus récente) avant `pkexec apt-get install -y` (fenêtre
+  de mot de passe). Sans `pkexec`, ou s'il est refusé, la commande
+  `sudo apt install '<chemin>'` est proposée à copier. Une copie de
+  développement est « mise à jour par git ». En ligne de commande :
+  `ccs mise-a-jour [--verifier]` (alias `ccs maj`).
+- **Ne pas déranger** : plage de silence (`alerts.quiet`, 22:00 à 08:00 par
+  défaut, jours au choix, passage de minuit) et silence temporaire (1 h, 4 h,
+  jusqu'à demain, reprendre). Les notifications retenues sont comptées et un
+  seul résumé « Fin du silence » les récapitule. Ne sont jamais retenues :
+  « attend ta réponse » (et son rappel, si `allow_waiting`), les sessions
+  bloquées par une limite, le résumé et les retours des raccourcis. Groupe
+  **Réglages → Ne pas déranger**, entrée « Ne pas déranger » du menu de
+  l'icône, raccourci clavier « Ne pas déranger 1 h » (désactivé par défaut),
+  `ccs silence [1h|4h|demain|off|reprendre|status]` (alias `ccs quiet`) ;
+  `ccs status` affiche le silence.
+- **Meilleur moment pour une grosse tâche** : carte de l'onglet Planning (durée
+  1, 2, 3, 4, 6 ou 8 h, frise des 24 h) et `ccs moment [--duree 3h] [--sur 24h]`.
+  Compte les fenêtres de 5 h disponibles pour chaque heure de départ (maintenant,
+  puis tous les quarts d'heure), plafond hebdomadaire compris (estimation :
+  une semaine pleine vaut environ 10 fenêtres), et propose jusqu'à 3
+  alternatives espacées de 90 min.
+- **Sessions dans le menu de l'icône** : sous-menu « Sessions (n) » (ou
+  « Sessions (1 attend ta réponse) »), une entrée par session, celles qui
+  attendent d'abord ; un clic ouvre la session dans l'application. « Toutes les
+  sessions… » et « Terminal ou dossier d'une session ». L'indicateur affiche
+  « · 💬 n » quand n sessions attendent.
+- **Rapport mensuel** : carte de l'onglet Analyse (mois en cours et 11
+  précédents), notification le 1er du mois (le 2 si le PC dormait) et
+  `ccs mois [--precedent N]` : comptes, activité, tokens, équivalent API
+  comparé aux formules payées, modèles, 10 premiers projets, évolution par
+  rapport au mois précédent et tendance sur 3 à 6 mois. Réglages
+  **Rapport mensuel** (`alerts.monthly_report`) et **Heure du rapport mensuel**
+  (`alerts.monthly_report_hour`, 9).
+
+### Modifié
+
+- La clé d'une notification « attend ta réponse » devient
+  `attente:<pid>:<horodatage>` (une clé par attente).
+- `state.json` gagne la clé `quiet` (`active`, `until`, `source`, `held`).
+- Le menu de l'icône propose « Installer CCS x.y.z… » quand une version est
+  annoncée.
+
 ## [0.6.1] — 2026-11-09
 
 ### Corrigé
