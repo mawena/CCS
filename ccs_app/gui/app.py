@@ -9,8 +9,8 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from .. import (attention, conversations, daemon, desktop, doctor, launch_options, pause, sessions,  # noqa: E402
-               switch_log, terminal)
+from .. import (attention, conversations, daemon, desktop, doctor, installer, launch_options, pause,  # noqa: E402
+               sessions, switch_log, terminal)
 from ..settings import load_settings, save_settings  # noqa: E402
 from ..store import Store  # noqa: E402
 from .accounts import AccountsPage, add_account, set_pause  # noqa: E402
@@ -23,6 +23,7 @@ from .new_session_dialog import ask_new_session  # noqa: E402
 from .planning import PlanningPage  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
 from .sessions_page import SessionsPage  # noqa: E402
+from .update_dialog import show_update  # noqa: E402
 from .prefs import PrefsPage  # noqa: E402
 from .terminals import TerminalsPage  # noqa: E402
 
@@ -113,6 +114,8 @@ class Window(Adw.ApplicationWindow):
         # Bandeaux discrets : nouvelle version publiée, problème trouvé par le bilan de santé.
         self.update_url = None
         self.update_seen = None    # version dont le bandeau a été ouvert (pas réaffiché)
+        self.update_version = self.update_title = None
+        self.update_packaged = None   # None : pas encore su ; False : copie de développement
         self.update_banner = Adw.Banner(button_label="Voir")
         self.update_banner.connect("button-clicked", self.on_update_banner)
         view.add_top_bar(self.update_banner)
@@ -211,14 +214,30 @@ class Window(Adw.ApplicationWindow):
         if found is None or found[0] == self.update_seen:
             self.update_banner.set_revealed(False)
             return
-        self.update_banner.set_title(found[0])
         self.update_url = found[1]
+        self.update_title = found[0]
+        self.update_version = found[0].split()[1]
+        self.update_banner.set_title(found[0])
+        if self.update_packaged is None:
+            # Paquet dpkg ou copie de développement : sondé une fois, hors de l'interface.
+            def known(packaged):
+                self.update_packaged = packaged
+                self.show_update(state)
+            in_thread(installer.is_package_install, known)
+            self.update_banner.set_button_label("Voir")
+        elif self.update_packaged:
+            self.update_banner.set_button_label("Installer")
+        else:
+            self.update_banner.set_title(f"{found[0]} — copie de développement : mise à jour par git")
+            self.update_banner.set_button_label("Voir")
         self.update_banner.set_revealed(True)
 
     def on_update_banner(self, banner):
-        self.update_seen = banner.get_title()  # vu : plus affiché jusqu'à la prochaine version
+        self.update_seen = self.update_title  # vu : plus affiché jusqu'à la prochaine version
         banner.set_revealed(False)
-        if self.update_url:
+        if self.update_packaged and self.update_version:
+            show_update(self, self.update_version, self.update_url)
+        elif self.update_url:
             def done(launcher, result):
                 try:
                     launcher.launch_finish(result)
