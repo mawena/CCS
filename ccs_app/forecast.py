@@ -11,6 +11,7 @@ TREND_WINDOW = timedelta(minutes=45)
 MIN_TREND_SPAN_S = 10 * 60
 STABLE_RATE = 0.01  # %/min
 TRANSIENT_ERRORS = ("HTTP 429", "HTTP 5", "réseau")
+STALE_S = 600  # au-delà, le relevé d'un compte n'est plus une base de décision
 
 
 @dataclass
@@ -230,6 +231,36 @@ class Recommendation:
     reason: str
 
 
+def account_issue(error, fetched_at, now_ts):
+    """Raison courte pour laquelle un compte est inutilisable (connexion perdue, jeton
+    refusé, relevé absent ou trop ancien), ou None. Une erreur passagère (429, 5xx,
+    réseau) ne compte pas tant que le dernier relevé reste récent."""
+    if error and not error.startswith(TRANSIENT_ERRORS):
+        if "connexion perdue" in error:
+            return "connexion perdue"
+        if "connexion expirée" in error:
+            return "connexion expirée"
+        if error.startswith(("HTTP 401", "HTTP 403")):
+            return f"connexion refusée ({error[:8]})"
+        return f"erreur : {error}"
+    if fetched_at is None:
+        return "aucun relevé"
+    if now_ts - fetched_at > STALE_S:
+        return "relevé trop ancien"
+    return None
+
+
+def accounts_from_state(state):
+    """Comptes (`AccountState`) reconstruits d'après le `state.json` du service."""
+    out = []
+    for a in (state or {}).get("accounts") or []:
+        limits = [core.Limit(x.get("kind"), x.get("label", ""), x.get("percent", 0.0),
+                             core.parse_dt(x.get("resets_at"))) for x in a.get("limits") or []]
+        out.append(AccountState(a.get("name"), bool(a.get("active")), limits,
+                                a.get("fetched_at"), a.get("error")))
+    return out
+
+
 def window_open(a, now):
     """Fenêtre de 5 h en cours : une heure de fin à venir, même à 0 % (l'API
     renvoie 0 % juste après un démarrage par requête minimale)."""
@@ -249,7 +280,7 @@ def best_account(accounts, now, exclude=frozenset(), max_session=90, max_weekly=
                             max_session, max_weekly)
     open_, idle = [], []
     for a in accounts:
-        if a.name in exclude or not _has_data(a):
+        if a.name in exclude or not _has_data(a) or a.blocking_error:
             continue
         s = effective_percent(a.session, now)
         w = a.other_max_effective(now)
