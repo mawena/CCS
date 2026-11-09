@@ -122,6 +122,51 @@ tokens et équivalent API, modèles, projets, bascules et alertes, comparés à 
 semaine précédente ; \fB\-\-precedente\fR \fIN\fR (0 à 520) remonte de
 \fIN\fR semaines. L'activité ne vient que des journaux de ce PC.
 .TP
+.B ccs mois \fR[\fB\-\-precedent \fIN\fR]
+Rapport mensuel : le dernier mois civil terminé (heure locale), ou celui d'il y a
+\fIN\fR mois (0 à 120 ; 0 est le mois en cours, comparé au même nombre de
+jours du mois précédent). Par compte : semaines utilisées, pic hebdomadaire,
+fenêtres de 5 h, limites atteintes, bascules ; activité, tokens et équivalent au
+tarif de l'API comparé aux formules payées (« ×N » omis sur un mois
+incomplet) ; modèles ; 10 premiers projets avec leur coût ; évolution par
+rapport au mois précédent et tendance sur 3 à 6 mois à partir de 3 mois
+d'activité. Une notification le résume le 1er du mois (le 2 si le PC dormait,
+avec au moins 7 jours de relevés) ; réglages \fIalerts.monthly_report\fR et
+\fIalerts.monthly_report_hour\fR (9). L'activité ne vient que des journaux de ce
+PC.
+.TP
+.B ccs moment \fR[\fB\-\-duree \fIdurée\fR] [\fB\-\-sur \fIhorizon\fR]
+Meilleur moment pour lancer une grosse tâche : compte les fenêtres de 5 h
+disponibles, tous comptes confondus, pour chaque départ possible (maintenant,
+puis tous les quarts d'heure) ; propose « Lance\-la maintenant » si maintenant
+est à 10 % du meilleur, sinon le meilleur moment et jusqu'à 3 alternatives
+espacées de 90 min. Le plafond hebdomadaire suppose qu'une semaine pleine
+vaut environ 10 fenêtres (estimation). \fB\-\-duree\fR : de 1 à 10 h
+(\fB3h\fR, \fB2h30\fR, \fB90m\fR, \fB1,5h\fR ; défaut 3 h) ; \fB\-\-sur\fR :
+horizon de 1 à 72 h (défaut 24 h).
+.TP
+.B ccs silence \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBoff\fR|\fBreprendre\fR|\fBstatus\fR]
+Ne pas déranger : retient les notifications pendant 1 h, 4 h ou jusqu'à demain
+(fin de la plage de silence, sinon 08:00) ; \fBoff\fR (ou \fBreprendre\fR) lève
+le silence, \fBstatus\fR (défaut) affiche l'état. Les notifications retenues
+sont comptées et un seul résumé « Fin du silence » part à la fin ; une alerte
+retenue n'est pas renvoyée. Jamais retenus : « attend ta réponse » et son rappel
+(réglage \fIalerts.quiet.allow_waiting\fR, vrai par défaut), les sessions
+bloquées par une limite, le résumé et les retours des raccourcis. La plage de
+silence permanente se règle dans \fIalerts.quiet\fR (\fIenabled\fR, \fIstart\fR,
+\fIend\fR, \fIdays\fR). \fBccs status\fR affiche le silence. Alias :
+\fBccs quiet\fR.
+.TP
+.B ccs mise\-a\-jour \fR[\fB\-\-verifier\fR]
+Installe la dernière version de CCS publiée sur GitHub : télécharge
+\fIccs_<version>_all.deb\fR et \fISHA256SUMS\fR (adresses et redirections
+limitées à GitHub), vérifie la somme SHA\-256 et le contenu du paquet, puis
+l'installe par \fBpkexec apt\-get install \-y\fR (fenêtre de mot de passe). Si
+\fBpkexec\fR manque ou est refusé, affiche la commande \fBsudo apt install\fR à
+copier. \fB\-\-verifier\fR cherche seulement la dernière version. Une copie de
+développement n'est pas installée : elle se met à jour par git. Alias :
+\fBccs maj\fR.
+.TP
 .B ccs journal \fR[\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]
 Journal des bascules, groupé par jour, avec la raison de chacune en clair
 (automatique avec le pourcentage, anticipée par l'orchestrateur, après un
@@ -179,7 +224,8 @@ Supprime un profil (le compte n'est pas déconnecté chez Anthropic).
 .I ~/.claude-accounts/
 Profils (jetons OAuth, droits 600), historique \fIhistory.db\fR, réglages
 \fIsettings.json\fR, état courant \fIstate.json\fR, pause en cours
-\fIpause.json\fR, dernière version publiée \fIupdates.json\fR, cache de
+\fIpause.json\fR, silence temporaire \fIquiet.json\fR, notifications retenues
+\fIquiet_held.json\fR, dernière version publiée \fIupdates.json\fR, cache de
 l'historique des conversations \fIconversations-cache.json\fR, journaux copiés
 pour des projets déplacés \fIconversations-moves.json\fR, onglets et options du
 terminal intégré \fIterminals.json\fR, marqueurs de limite atteinte par
@@ -217,6 +263,18 @@ renvoie 1 si le calcul échoue.
 .B ccs semaine
 renvoie 2 pour un nombre de semaines invalide (négatif, illisible, plus de
 520), 1 si le calcul échoue.
+.B ccs mois
+renvoie 2 pour un nombre de mois invalide (illisible, hors de 0 à 120), 1 si le
+calcul échoue.
+.B ccs moment
+renvoie 2 pour une durée ou un horizon hors limites ou illisible, 1 si aucun
+état du service n'est disponible.
+.B ccs silence
+renvoie 2 pour un choix inconnu.
+.B ccs mise\-a\-jour
+renvoie 0 si CCS est à jour, installé, ou, avec \fB\-\-verifier\fR, si une
+version est signalée ; 1 en cas d'échec ou sur une copie de développement ; 2
+pour un usage incorrect.
 .B ccs journal
 renvoie 2 pour un nombre de jours nul, négatif ou illisible, ou
 \fB\-\-jours\fR avec \fB\-\-tout\fR, 1 si l'historique est illisible.
