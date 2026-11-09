@@ -86,6 +86,70 @@ class CliTest(HomeTestCase):
         self.assertIn("Aucun compte", out)
 
 
+class BestUnusableAccountsTest(HomeTestCase):
+    """`ccs best` ignore les comptes dont le dernier relevé est en erreur."""
+
+    def state(self, perso=None, pro=None, best="pro", **over):
+        now = time.time()
+        st = json.loads(json.dumps(STATE))
+        st.update(updated_at=now, best={"name": best, "reason": "au repos, semaine à 22 %"} if best else None)
+        for acc, extra in zip(st["accounts"], (perso or {}, pro or {})):
+            acc.update(error=None, fetched_at=now - 30)
+            acc.update(extra)
+        st.update(over)
+        write(self.store / "state.json", st)
+
+    LOST = {"error": "connexion perdue : reconnecte ce compte"}
+
+    def test_best_in_error_is_replaced_and_explained(self):
+        self.state(pro=self.LOST)
+        with mock.patch.object(core, "run_ccs") as rc:
+            code, out = run("best", "--switch")
+        rc.assert_not_called()
+        self.assertEqual(code, 0)
+        self.assertIn("pro ignoré : connexion perdue", out)
+        self.assertIn("Meilleur compte : perso", out)
+        self.assertIn("déjà", out)
+
+    def test_best_switches_to_usable_account_only(self):
+        self.state(perso=self.LOST, best="perso")
+        ok = subprocess.CompletedProcess([], 0, "basculé", "")
+        with mock.patch.object(core, "run_ccs", return_value=ok) as rc:
+            code, out = run("best", "--switch")
+        self.assertIn("perso ignoré : connexion perdue", out)
+        rc.assert_called_once_with(["use", "pro"])
+
+    def test_no_usable_account_message_and_no_switch(self):
+        self.state(perso=self.LOST, pro={"error": "HTTP 401"})
+        with mock.patch.object(core, "run_ccs") as rc, mock.patch.object(cli, "_notify") as n:
+            code, out = run("best", "--switch", "--notifier")
+        rc.assert_not_called()
+        self.assertEqual(code, 1)
+        self.assertIn("Aucun compte utilisable", out)
+        self.assertIn("perso ignoré : connexion perdue", out)
+        self.assertIn("pro ignoré : connexion refusée (HTTP 401)", out)
+        n.assert_called_once()
+        self.assertIn("connexion perdue", n.call_args[0][1])
+
+    def test_stale_or_missing_sample_is_ignored(self):
+        self.state(pro={"fetched_at": time.time() - 3600})
+        code, out = run("best")
+        self.assertIn("pro ignoré : relevé trop ancien", out)
+        self.assertIn("Meilleur compte : perso", out)
+        self.state(pro={"fetched_at": None})
+        self.assertIn("pro ignoré : aucun relevé", run("best")[1])
+
+    def test_transient_error_with_fresh_sample_is_kept(self):
+        self.state(pro={"error": "HTTP 429"})
+        code, out = run("best")
+        self.assertIn("Meilleur compte : pro", out)
+        self.assertNotIn("ignoré", out)
+
+    def test_nothing_ignored_prints_no_extra_line(self):
+        self.state()
+        self.assertNotIn("ignoré", run("best")[1])
+
+
 class PrintTest(HomeTestCase):
     def test_print_shows_forecast_and_pace_from_state(self):
         from tests.helpers import fake_http

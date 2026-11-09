@@ -222,6 +222,31 @@ def cmd_doctor(_args):
     return doctor.main()
 
 
+def _usable_best(st):
+    """(meilleur compte, comptes ignorés) d'après l'état : un compte dont le dernier relevé
+    est en erreur (connexion perdue, jeton refusé, relevé absent ou trop ancien) n'est
+    jamais recommandé. Le choix du service est gardé s'il est utilisable (réserve
+    comprise) ; sinon il est recalculé sans les comptes ignorés."""
+    import time
+    from datetime import datetime, timezone
+    from .forecast import account_issue, accounts_from_state, best_account
+    now = time.time()
+    ignored = []
+    for a in st.get("accounts") or []:
+        # État d'une ancienne version sans date de relevé : on ne juge que l'erreur.
+        fetched = a["fetched_at"] if "fetched_at" in a else now
+        why = account_issue(a.get("error"), fetched, now)
+        if why:
+            ignored.append((a.get("name"), why))
+    best = st.get("best")
+    bad = {name for name, _ in ignored}
+    if not ignored or (best and best.get("name") not in bad):
+        return best, ignored
+    usable = [a for a in accounts_from_state(st) if a.name not in bad]
+    rec = best_account(usable, datetime.now(timezone.utc))
+    return (rec and {"name": rec.name, "reason": rec.reason}), ignored
+
+
 def cmd_best(args):
     notifier = getattr(args, "notifier", False)
 
@@ -244,10 +269,18 @@ def cmd_best(args):
         else:
             daemon.collect_once()
         st = _state()
-    best = st.get("best")
+    best, ignored = _usable_best(st)
+    for who, why in ignored:
+        print(f"{who} ignoré : {why}")
     if not best:
-        print("Aucun compte disponible pour l'instant.")
-        notice("Aucun compte disponible", "Tous les comptes sont épuisés ou indisponibles pour l'instant.")
+        if ignored:
+            print("Aucun compte utilisable pour l'instant.")
+            notice("Aucun compte utilisable",
+                   "\n".join(f"{who} ignoré : {why}" for who, why in ignored))
+        else:
+            print("Aucun compte disponible pour l'instant.")
+            notice("Aucun compte disponible",
+                   "Tous les comptes sont épuisés ou indisponibles pour l'instant.")
         return 1
     name = best["name"]
     print(f"Meilleur compte : {name} — {best['reason']}")

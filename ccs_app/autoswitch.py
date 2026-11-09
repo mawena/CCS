@@ -3,9 +3,8 @@
 from dataclasses import dataclass
 
 from . import core
-from .forecast import best_account, effective_percent
+from .forecast import STALE_S, best_account, effective_percent
 
-STALE_S = 600
 COOLDOWN_S = 300
 MANUAL_RESPECT_S = 300
 MANUAL_OVERRIDE = 99.5
