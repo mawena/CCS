@@ -161,5 +161,5 @@ Autres :
 - [x] Heure locale exacte (changement d'heure) pour les plages couvrant 2 h – 3 h
 - [x] `ccs best` : ignorer les comptes en erreur
 - [x] Moniteur de sessions créé même si `~/.claude/sessions` apparaît après le démarrage
-- [ ] Suite de tests au vert, CHANGELOG et documentation
+- [x] Suite de tests au vert, CHANGELOG et documentation
 - [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub
