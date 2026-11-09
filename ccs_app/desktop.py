@@ -30,6 +30,7 @@ from . import notify
 
 log = logging.getLogger("ccs.desktop")
 DEBOUNCE_MS = 1000
+WATCH_S = 5  # vérification de l'existence du dossier des sessions (un simple stat)
 APP_ID = "io.ccs.ClaudeAccounts"
 MAX_TRACKED = 200          # notifications suivies (clics, jetons d'activation)
 SHOW_ACTION = "show-session"
@@ -76,7 +77,11 @@ class Bridge:
         self.tokens = OrderedDict()  # identifiant -> jeton d'activation (premier plan à l'ouverture)
         self.lock = threading.Lock()
         self.ctx = None
+        self.loop = None
+        self.watch_s = WATCH_S
         self._pending = None
+        self._monitor = None
+        self._monitored = None  # (device, inode) du dossier surveillé
 
     def start(self):
         threading.Thread(target=self._run, name="ccs-desktop", daemon=True).start()
@@ -93,21 +98,48 @@ class Bridge:
             from gi.repository import Gio, GLib
             self.ctx = GLib.MainContext.new()
             self.ctx.push_thread_default()
-            loop = GLib.MainLoop(self.ctx)
+            self.loop = loop = GLib.MainLoop(self.ctx)
             bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
             for signal, handler in (("ActionInvoked", self._on_signal), ("ActivationToken", self._on_token)):
                 bus.signal_subscribe(None, "org.freedesktop.Notifications", signal,
                                      "/org/freedesktop/Notifications", None,
                                      Gio.DBusSignalFlags.NONE, handler)
-            monitor = None
-            if self.sessions_path.is_dir():
-                monitor = Gio.File.new_for_path(str(self.sessions_path)).monitor_directory(
-                    Gio.FileMonitorFlags.NONE, None)
-                monitor.connect("changed", self._on_changed)
-            self._monitor = monitor  # garder une référence
+            # Le dossier peut apparaître après le démarrage (première utilisation de
+            # Claude Code) ou être supprimé puis recréé : on le revérifie à intervalle
+            # régulier et on (ré)installe le moniteur quand il change.
+            self._sync_monitor(Gio, catch_up=False)
+            src = GLib.timeout_source_new(int(self.watch_s * 1000))
+            src.set_callback(lambda *_: self._sync_monitor(Gio) or True)
+            src.attach(self.ctx)
             loop.run()
         except Exception:
             log.exception("pont bureau indisponible (notifications sans boutons)")
+
+    def stop(self):
+        if self.loop is not None:
+            self.loop.quit()
+
+    def _sync_monitor(self, gio, catch_up=True):
+        """Aligne le moniteur sur l'état du dossier des sessions ; renvoie True si elle a changé."""
+        try:
+            st = self.sessions_path.stat()
+            ident = (st.st_dev, st.st_ino) if self.sessions_path.is_dir() else None
+        except OSError:
+            ident = None
+        if ident == self._monitored:
+            return False
+        if self._monitor is not None:
+            self._monitor.cancel()  # dossier supprimé ou remplacé : l'ancien moniteur est mort
+            self._monitor = None
+        self._monitored = ident
+        if ident is not None:
+            monitor = gio.File.new_for_path(str(self.sessions_path)).monitor_directory(
+                gio.FileMonitorFlags.NONE, None)
+            monitor.connect("changed", self._on_changed)
+            self._monitor = monitor  # garder une référence
+        if catch_up:
+            self._on_changed()  # l'état des sessions a pu changer entre-temps
+        return True
 
     def _on_token(self, _conn, _sender, _path, _iface, _signal, params):
         """Émis juste avant ActionInvoked : permet à la fenêtre de passer au premier plan."""

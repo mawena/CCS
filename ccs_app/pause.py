@@ -115,7 +115,7 @@ def _hours(hours):
     return hours
 
 
-def until_for(choice, now, hours=None):
+def until_for(choice, now, hours=None, tz=None):
     """Échéance d'un choix : « 1h », « 4h », « demain » (début de la plage horaire
     suivante) ou « manuel » (None : jusqu'à reprise manuelle)."""
     from .orchestrator import next_period_start
@@ -125,9 +125,9 @@ def until_for(choice, now, hours=None):
         return None
     if choice == "demain":
         hours = _hours(hours)
-        start = next_period_start(now, hours)
+        start = next_period_start(now, hours, tz)
         if start is None:  # aucun jour actif : lendemain à l'heure de début de plage
-            start = next_period_start(now, dict(hours, days=range(7)))
+            start = next_period_start(now, dict(hours, days=range(7)), tz)
         return start
     raise ValueError(f"choix de pause inconnu : {choice}")
 

@@ -232,6 +232,45 @@ class OrchestratorDaemonTest(OrchestratorBase):
             delay = self.d.tick(self.settings, NOW)
         self.assertAlmostEqual(delay, 210, delta=1)
 
+    def hours_from_now(self, start_min, end_min):
+        """Plage dont le début/la fin sont à `start_min`/`end_min` minutes de NOW (heure locale)."""
+        def at(m):
+            return (NOW + timedelta(minutes=m)).astimezone().strftime("%H:%M")
+        return {"start": at(start_min), "end": at(end_min), "days": list(range(7))}
+
+    def test_wakes_up_at_the_start_of_the_range(self):
+        # Hors plage, début dans 2 min : le sommeil de 5 min ne doit pas le dépasser.
+        self.settings["orchestrator"]["active_hours"] = self.hours_from_now(2, 600)
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            delay = self.d.tick(self.settings, NOW)
+        self.assertAlmostEqual(delay, 120 + daemon.EDGE_MARGIN_S, delta=1)
+
+    def test_wakes_up_at_the_end_of_the_range(self):
+        self.settings["orchestrator"]["active_hours"] = self.hours_from_now(-60, 2)
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            delay = self.d.tick(self.settings, NOW)
+        self.assertAlmostEqual(delay, 120 + daemon.EDGE_MARGIN_S, delta=1)
+
+    def test_edge_wake_keeps_a_one_second_floor(self):
+        self.settings["orchestrator"]["active_hours"] = self.hours_from_now(1, 600)
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            delay = self.d.tick(self.settings, NOW + timedelta(seconds=59.9))
+        self.assertGreaterEqual(delay, 1.0)
+        self.assertLess(delay, 5)
+
+    def test_far_edge_does_not_shorten_the_poll(self):
+        self.settings["orchestrator"]["active_hours"] = self.hours_from_now(120, 600)
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            delay = self.d.tick(self.settings, NOW)
+        self.assertEqual(delay, 300)
+
+    def test_orchestrator_disabled_ignores_the_range(self):
+        self.settings["orchestrator"]["enabled"] = False
+        self.settings["orchestrator"]["active_hours"] = self.hours_from_now(2, 600)
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            delay = self.d.tick(self.settings, NOW)
+        self.assertEqual(delay, 300)
+
     def test_state_contains_plan(self):
         with fake_http(per_account(perso=usage(30), pro=idle_usage())):
             self.d.tick(self.settings, NOW)
@@ -311,6 +350,16 @@ class PauseDaemonTest(OrchestratorBase):
 
     def test_wakes_up_at_pause_end(self):
         self.settings["orchestrator"]["enabled"] = False
+        pause.set_pause(NOW + timedelta(minutes=2), now=NOW)
+        with fake_http(per_account(perso=usage(30), pro=usage(5))):
+            delay = self.d.tick(self.settings, NOW)
+        self.assertAlmostEqual(delay, 121, delta=1)
+
+    def test_pause_until_start_of_range_wakes_once(self):
+        # Pause « demain » = début de plage : un seul réveil, à l'échéance (+1 s).
+        self.settings["orchestrator"]["active_hours"] = {
+            "start": (NOW + timedelta(minutes=2)).astimezone().strftime("%H:%M"),
+            "end": "23:59", "days": list(range(7))}
         pause.set_pause(NOW + timedelta(minutes=2), now=NOW)
         with fake_http(per_account(perso=usage(30), pro=usage(5))):
             delay = self.d.tick(self.settings, NOW)
