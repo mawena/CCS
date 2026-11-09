@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 
 from . import core, daemon, pause
 from .forecast import fmt_when
@@ -35,9 +36,12 @@ def _active_account(state):
     return next((a for a in state.get("accounts") or [] if a.get("name") == active), None)
 
 
-def label_for(state, paused=False):
+def label_for(state, paused=False, waiting=0):
+    """Libellé de l'indicateur ; « · 💬 n » quand n sessions attendent une réponse."""
     text = _label(state)
-    return f"⏸ {text}" if paused else text
+    if paused:
+        text = f"⏸ {text}"
+    return f"{text} · 💬 {waiting}" if waiting else text
 
 
 def _label(state):
@@ -175,6 +179,70 @@ def session_lines(found):
     return [(f"{s.project} — {sessions.state_label(s)}", s) for s in found]
 
 
+ALL_SESSIONS_ARGS = ("gui", "--page", "sessions")  # entrée « Toutes les sessions… »
+SESSION_ORDER = {"waiting": 0, "busy": 1, "idle": 2}  # celles qui attendent ta réponse d'abord
+
+
+@dataclass
+class SessionEntry:
+    label: str
+    ref: str    # « <pid>:<identifiant> », pour `gui --session`
+    cwd: str
+
+
+def sort_sessions(found):
+    """En attente d'abord, puis au travail, puis au repos ; dans un état, la plus ancienne d'abord."""
+    return sorted(found, key=lambda s: (SESSION_ORDER.get(s.state, 3), s.state_since))
+
+
+def elapsed_label(seconds):
+    if seconds < 60:
+        return "à l'instant"
+    if seconds < 3600:
+        return f"depuis {int(seconds // 60)} min"
+    if seconds < 86400:
+        return f"depuis {int(seconds // 3600)} h {int(seconds % 3600 // 60):02d}"
+    return f"depuis {int(seconds // 86400)} j"
+
+
+def session_entries(found, title_of, now):
+    """Entrées du sous-menu, triées : « titre — état, depuis … ». `title_of(session)` donne le
+    titre de la conversation ; sans titre (ou en cas d'erreur), le nom du projet."""
+    from . import sessions
+    from .attention import session_ref
+    out = []
+    for s in sort_sessions(found):
+        try:
+            title = title_of(s)
+        except Exception:
+            title = None
+        out.append(SessionEntry(
+            f"{title or s.project} — {sessions.state_label(s)}, {elapsed_label(now - s.state_since)}",
+            session_ref(s), s.cwd))
+    return out
+
+
+def sessions_root_label(found):
+    n = sum(1 for s in found if s.state == "waiting")
+    if n:
+        return f"Sessions ({n} {'attend' if n == 1 else 'attendent'} ta réponse)"
+    return f"Sessions ({len(found)})" if found else "Sessions"
+
+
+def sessions_signature(found):
+    """Ce qui change la liste affichée (hors horloge) : ne relire les titres que si besoin."""
+    return tuple((s.pid, s.session_id, s.state, s.waiting_for, s.cwd) for s in sort_sessions(found))
+
+
+def open_session(ref):
+    """Ouvre l'application sur la session (détaché, comme la notification cliquable)."""
+    try:
+        from . import desktop
+        return desktop.show_session(ref) is not None
+    except Exception:
+        return False
+
+
 # Fin du menu : l'application sur la bonne page (noms français de `gui --page`).
 APP_ENTRIES = (
     ("Journal des bascules", ("gui", "--page", "historique")),
@@ -287,6 +355,15 @@ def run():
             Gtk.main_quit()
         return False
 
+    titles = {"sig": None, "map": {}}
+
+    def cached_title(s):
+        from . import sessions
+        key = (s.pid, s.session_id)
+        if key not in titles["map"]:
+            titles["map"][key] = sessions.conversation_title(s.cwd, s.session_id)
+        return titles["map"][key]
+
     def rebuild():
         state = core.load_json(daemon.state_path())
         now = datetime.now(timezone.utc)
@@ -296,7 +373,17 @@ def run():
         name = icon_name_for(state)
         ensure_icon(name)
         ind.set_icon_full(name, "Usage du compte Claude actif")
-        ind.set_label(label_for(state, paused is not None), "⏸ ⚠ 100 %")
+        from . import sessions
+        try:
+            found = sessions.list_sessions()
+        except Exception:
+            found = []  # une fiche inattendue ne doit pas arrêter l'indicateur
+        waiting = sum(1 for s in found if s.state == "waiting")
+        ind.set_label(label_for(state, paused is not None, waiting), "⏸ ⚠ 100 % · 💬 9")
+        sig = sessions_signature(found)
+        if sig != titles["sig"]:  # titres relus seulement si la liste des sessions a changé
+            titles["sig"] = sig
+            titles["map"] = {}
         menu = Gtk.Menu()
         pause_line, pause_items = pause_menu(paused, now, s["orchestrator"]["active_hours"])
         if pause_line:
@@ -315,28 +402,42 @@ def run():
             else:
                 it.set_sensitive(False)
             menu.append(it)
-        from . import sessions
-        try:
-            lines = session_lines(sessions.list_sessions())
-        except Exception:
-            lines = []  # une fiche inattendue ne doit pas arrêter l'indicateur
-        if lines:
-            menu.append(Gtk.SeparatorMenuItem())
-            root = Gtk.MenuItem(label=f"Sessions Claude Code ({len(lines)})")
-            sub = Gtk.Menu()
-            for text, sess in lines:
-                it = Gtk.MenuItem(label=text)
+        menu.append(Gtk.SeparatorMenuItem())
+        root = Gtk.MenuItem(label=sessions_root_label(found), use_underline=False)
+        sub = Gtk.Menu()
+        entries = session_entries(found, cached_title, now.timestamp())
+        for e in entries:
+            it = Gtk.MenuItem(label=e.label, use_underline=False)
+            it.connect("activate", lambda _i, r=e.ref: open_session(r))
+            sub.append(it)
+        if entries:
+            more = Gtk.MenuItem(label="Terminal ou dossier d'une session")
+            more_sub = Gtk.Menu()
+            for e in entries:
+                it = Gtk.MenuItem(label=e.label, use_underline=False)
                 actions = Gtk.Menu()
                 for label, cb in (("Ouvrir un terminal ici",
-                                   lambda *_, c=sess.cwd: sessions.open_terminal(c, start_claude=False)),
-                                  ("Ouvrir le dossier", lambda *_, c=sess.cwd: sessions.open_folder(c))):
+                                   lambda *_, c=e.cwd: sessions.open_terminal(c, start_claude=False)),
+                                  ("Ouvrir le dossier", lambda *_, c=e.cwd: sessions.open_folder(c))):
                     a = Gtk.MenuItem(label=label)
                     a.connect("activate", cb)
                     actions.append(a)
                 it.set_submenu(actions)
-                sub.append(it)
-            root.set_submenu(sub)
-            menu.append(root)
+                more_sub.append(it)
+            more.set_submenu(more_sub)
+            sub.append(Gtk.SeparatorMenuItem())
+            sub.append(more)
+        else:
+            it = Gtk.MenuItem(label="Aucune session ouverte")
+            it.set_sensitive(False)
+            sub.append(it)
+        sub.append(Gtk.SeparatorMenuItem())
+        it = Gtk.MenuItem(label="Toutes les sessions…")
+        it.connect("activate", launch_gui, ALL_SESSIONS_ARGS)
+        sub.append(it)
+        # Ici viendra l'entrée « Ne pas déranger » (même sous-menu, après « Toutes les sessions… »).
+        root.set_submenu(sub)
+        menu.append(root)
         menu.append(Gtk.SeparatorMenuItem())
         for label, section in (("Bascule automatique", "auto_switch"), ("Orchestrateur", "orchestrator")):
             check = Gtk.CheckMenuItem(label=label + (" (en pause)" if paused else ""))
