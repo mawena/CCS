@@ -3,6 +3,31 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Corrigé
+
+- **Réglages édités à la main** : une valeur invalide (mauvais type, hors
+  bornes, heure « 25:00 », jour inconnu…) ou un `settings.json` illisible ne
+  fait plus planter le service, l'application, la ligne de commande ni le hook.
+  La clé fautive prend sa valeur par défaut, le fichier n'est jamais modifié, et
+  `ccs doctor` (ligne « Réglages ») ainsi que le journal du service la signalent.
+- **`ccs best`** (avec `--switch` ou `--notifier`) ne recommande plus et ne
+  bascule plus vers un compte dont le dernier relevé est en erreur (connexion
+  perdue, jeton refusé, relevé absent ou trop ancien) : la raison est affichée
+  (« X ignoré : connexion perdue »), et un message clair s'affiche s'il ne reste
+  aucun compte utilisable (code de sortie 1, aucune bascule).
+- **Réveil précis** au début et à la fin de la plage horaire (marge de 2 s) :
+  le premier démarrage de fenêtre du matin n'attend plus le relevé suivant.
+- **Changement d'heure** : les plages horaires suivent l'heure locale réelle.
+  Une borne entre 2 h et 3 h la nuit du passage à l'heure d'été est décalée à
+  3 h ; à l'heure d'hiver, la première occurrence de l'heure doublée est
+  retenue. Les durées de période et « Pause jusqu'à demain » sont justes ces
+  nuits-là.
+- **Sessions** : les notifications « a terminé » / « attend ta réponse »
+  fonctionnent même si `~/.claude/sessions` est créé après le démarrage du
+  service, ou supprimé puis recréé.
+
 ## [0.6.0] — 2026-11-07
 
 ### Ajouté

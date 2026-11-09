@@ -457,7 +457,10 @@ prévue `weekly_forecast` / `weekly_forecast_days`, rappel d'attente
 `model_advice_pct`, bilan de la semaine `weekly_report` / `weekly_report_day` /
 `weekly_report_hour`…), conseiller de formule (`advisor` : semaines analysées,
 marge, tarifs, formule d'un profil), orchestrateur et plage horaire
-(`orchestrator`), warm-up (`warmup`), nouvelles versions (`updates.enabled`).
+(`orchestrator`), warm-up (`warmup`), nouvelles versions (`updates.enabled`). Une valeur invalide (mauvais type,
+hors bornes, heure impossible) ou un fichier illisible n'empêche rien : la clé
+fautive reprend sa valeur par défaut, le fichier n'est pas modifié, et
+`ccs doctor` la signale.
 Les deux interrupteurs du terminal intégré (**Réglages → Terminal intégré**, ou
 menu « ⋮ » de la page Terminaux) sont gardés dans
 `~/.claude-accounts/terminals.json`, les comptes par projet dans
