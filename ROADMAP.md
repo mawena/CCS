@@ -156,10 +156,10 @@ Autres :
 
 ## Phase 9 — Points mineurs reportés (correctif)
 
-- [ ] Réveil précis au début de la plage horaire
+- [x] Réveil précis au début de la plage horaire
 - [ ] Réglages invalides édités à la main : valeurs par défaut au lieu d'un échec
-- [ ] Heure locale exacte (changement d'heure) pour les plages couvrant 2 h – 3 h
+- [x] Heure locale exacte (changement d'heure) pour les plages couvrant 2 h – 3 h
 - [ ] `ccs best` : ignorer les comptes en erreur
-- [ ] Moniteur de sessions créé même si `~/.claude/sessions` apparaît après le démarrage
+- [x] Moniteur de sessions créé même si `~/.claude/sessions` apparaît après le démarrage
 - [ ] Suite de tests au vert, CHANGELOG et documentation
 - [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub
