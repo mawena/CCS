@@ -233,3 +233,46 @@ class TraySwitchTest(HomeTestCase):
             self.assertFalse(switch_to("pro", run=lambda a: subprocess.CompletedProcess(a, 1, "", "non")))
         self.assertFalse(switch_log.origin_path().exists())
         refresh.assert_not_called()
+
+
+class QuietMenuTest(unittest.TestCase):
+    def test_label_shows_a_discreet_symbol_during_quiet(self):
+        st = state(("session", 32))
+        self.assertEqual(label_for(st, quiet=True), "🔕 ◔ 32 %")
+        self.assertEqual(label_for(st, paused=True, waiting=2, quiet=True), "⏸ 🔕 ◔ 32 % · 💬 2")
+        self.assertEqual(label_for(st), "◔ 32 %")
+
+    def test_menu_without_silence(self):
+        from ccs_app.tray import quiet_menu
+        label, items, can_resume = quiet_menu(None, NOW)
+        self.assertEqual(label, "Ne pas déranger")
+        self.assertEqual([c for _, c in items], ["1h", "4h", "demain"])
+        self.assertEqual(items[0][0], "1 heure")
+        self.assertFalse(can_resume)
+
+    def test_menu_shows_the_state(self):
+        from ccs_app.quiet import QuietState
+        from ccs_app.tray import quiet_menu
+        end = NOW + timedelta(hours=1)
+        label, items, can_resume = quiet_menu(QuietState("temporaire", end), NOW)
+        self.assertRegex(label, r"^Ne pas déranger — silence jusqu'à \d\d:\d\d$")
+        self.assertTrue(can_resume)
+        label, _, can_resume = quiet_menu(QuietState("plage", end), NOW)
+        self.assertIn("plage", label)
+        self.assertFalse(can_resume)
+        label, _, can_resume = quiet_menu(QuietState("temporaire", None), NOW)
+        self.assertIn("reprise manuelle", label)
+        self.assertTrue(can_resume)
+
+
+class InstallEntryTest(unittest.TestCase):
+    def test_entry_for_a_newer_version(self):
+        from ccs_app.tray import install_entry
+        self.assertEqual(install_entry({"update": {"version": "99.0.0"}}), "Installer CCS 99.0.0…")
+        self.assertEqual(install_entry({"update": {"version": "v99.0.1"}}), "Installer CCS 99.0.1…")
+
+    def test_no_entry_otherwise(self):
+        from ccs_app.tray import install_entry
+        for st in ({}, None, {"update": None}, {"update": {"version": "0.0.1"}}, {"update": {"version": 5}}):
+            with self.subTest(state=st):
+                self.assertIsNone(install_entry(st))
