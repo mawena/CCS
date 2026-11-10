@@ -1,0 +1,22 @@
+Dépôt APT de CCS : https://mawena.github.io/CCS/apt (branche gh-pages).
+
+ccs.gpg      clé publique de signature (format binaire, sans armure)
+ccs.sources  source deb822 installée dans /etc/apt/sources.list.d/
+
+Clé de signature : « CCS APT (mawena) <57989130+mawena@users.noreply.github.com> »
+Empreinte : D21A 5E7D B4D3 56E5 5961  F7C6 6568 A5B4 420A ACD2
+ed25519, sans phrase de passe, créée le 10/11/2026, valable 3 ans (jusqu'au 09/11/2029).
+
+Clé privée : dans le trousseau GnuPG du poste (~/.gnupg), jamais dans le dépôt.
+  Voir : gpg --list-secret-keys D21A5E7DB4D356E55961F7C66568A5B4420AACD2
+  Sauvegarde : gpg --export-secret-keys --armor D21A5E7DB4D356E55961F7C66568A5B4420AACD2 > ccs-apt-privee.asc
+  (à ranger hors du dépôt, dans un endroit sûr ; certificat de révocation :
+  ~/.gnupg/openpgp-revocs.d/D21A5E7DB4D356E55961F7C66568A5B4420AACD2.rev).
+  Restauration : gpg --import ccs-apt-privee.asc
+
+Publication : scripts/publier-apt.sh dist/ccs_<version>_all.deb (ou make apt).
+  Variables : CCS_APT_CLE (empreinte de la clé), CCS_APT_PUSH=0 (ne pas pousser),
+  CCS_APT_SORTIE=<dossier> (essai à blanc : le dépôt est écrit dans ce dossier, sans toucher à la branche gh-pages).
+
+Renouvellement avant l'expiration : gpg --quick-set-expire <empreinte> 3y, puis exporter de nouveau
+  la clé publique (gpg --export <empreinte> > data/apt/ccs.gpg) et publier une nouvelle version du paquet.
