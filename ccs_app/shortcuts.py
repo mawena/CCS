@@ -104,6 +104,7 @@ ACTIONS = (
     Action("pause", "Pause 1 h", "ccs", ("pause", "1h", NOTIFIER), "<Super><Alt>p"),
     Action("reprendre", "Reprendre (lever la pause)", "ccs", ("pause", "off", NOTIFIER),
            "<Super><Alt>r"),
+    Action("silence", "Ne pas déranger 1 h", "ccs", ("silence", "1h", NOTIFIER), "<Super><Alt>d"),
 )
 ACTION_IDS = tuple(a.id for a in ACTIONS)
 _BY_ID = {a.id: a for a in ACTIONS}

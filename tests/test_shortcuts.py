@@ -171,7 +171,13 @@ class ActionsTest(unittest.TestCase):
             "meilleur": "ccs best --notifier",
             "pause": "ccs pause 1h --notifier",
             "reprendre": "ccs pause off --notifier",
+            "silence": "ccs silence 1h --notifier",
         })
+
+    def test_silence_shortcut_is_not_the_screen_reader_one(self):
+        act = sc.action("silence")
+        self.assertEqual(sc.parse_binding(act.default).accel, "<Super><Alt>d")
+        self.assertNotEqual(sc.parse_binding(act.default).accel, sc.parse_binding("<Super><Alt>s").accel)
 
     def test_defaults_valid_distinct_and_free_of_known_gnome_shortcuts(self):
         accels = [sc.parse_binding(a.default).accel for a in sc.ACTIONS]

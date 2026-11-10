@@ -838,3 +838,138 @@ class OriginFromBashTest(HomeTestCase):
     def test_nothing_noted_when_the_caller_handles_it(self):
         entry = self.journal_after("use", "pro", CCS_VIA="")
         self.assertEqual(entry.reason, "Bascule manuelle (application, icône ou « ccs use »)")
+
+
+class SilenceCliTest(HomeTestCase):
+    def setUp(self):
+        super().setUp()
+        self.sent = []
+        patch = mock.patch("ccs_app.notify.message", side_effect=lambda t, b="": self.sent.append((t, b)) or 1)
+        patch.start()
+        self.addCleanup(patch.stop)
+        refresh = mock.patch("ccs_app.daemon.request_refresh", return_value=True)
+        self.refresh = refresh.start()
+        self.addCleanup(refresh.stop)
+
+    def test_status_without_silence(self):
+        code, out = run("silence")
+        self.assertEqual(code, 0)
+        self.assertIn("Pas de silence", out)
+        self.refresh.assert_not_called()
+
+    def test_silence_then_status_then_off(self):
+        from ccs_app import quiet
+        code, out = run("silence", "1h")
+        self.assertEqual(code, 0)
+        self.assertIn("Silence jusqu'à", out)
+        self.assertTrue(quiet.quiet_path().exists())
+        self.assertEqual(self.refresh.call_count, 1)
+        self.assertIn("Ne pas déranger jusqu'à", run("status")[1])
+        code, out = run("quiet", "reprendre")
+        self.assertEqual(code, 0)
+        self.assertFalse(quiet.quiet_path().exists())
+        self.assertEqual(self.refresh.call_count, 2)
+        self.assertNotIn("Ne pas déranger", run("status")[1])
+
+    def test_off_without_silence_does_not_wake_the_service(self):
+        self.assertEqual(run("silence", "off")[0], 0)
+        self.refresh.assert_not_called()
+
+    def test_usage_exit_2(self):
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            code, out = run("silence", "2h")
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn("usage : ccs silence", err.getvalue())
+
+    def test_notifier(self):
+        run("silence", "1h", "--notifier")
+        self.assertRegex(self.sent[0][0], r"^Ne pas déranger jusqu'à \d\d:\d\d$")
+        self.sent.clear()
+        run("silence", "off", "--notifier")
+        self.assertEqual(self.sent[0][0], "Silence levé")
+        self.sent.clear()
+        with mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(run("silence", "2h", "--notifier")[0], 2)
+        self.assertEqual(self.sent[0][0], "Silence impossible")
+
+    def test_without_notifier_is_silent(self):
+        run("silence", "1h")
+        self.assertEqual(self.sent, [])
+
+
+class MomentCliTest(HomeTestCase):
+    def test_without_state_exit_1(self):
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            code, out = run("moment")
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("Aucun état", err.getvalue())
+
+    def test_with_options(self):
+        write(self.store / "state.json", dict(STATE, updated_at=time.time()))
+        code, out = run("moment", "--duree", "2h", "--sur", "12h")
+        self.assertEqual(code, 0)
+        self.assertTrue(out.strip())
+
+    def test_usage_exit_2(self):
+        with mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(run("moment", "--duree", "zéro")[0], 2)
+            with self.assertRaises(SystemExit) as e:
+                run("moment", "--bof")
+            self.assertEqual(e.exception.code, 2)
+
+
+class MoisCliTest(HomeTestCase):
+    def test_report_and_previous(self):
+        from ccs_app import monthly_report as mr
+        built = []
+        with mock.patch.object(mr, "build_report", side_effect=lambda s, e: built.append((s, e)) or "r"), \
+                mock.patch.object(mr, "format_text", return_value="Rapport de test\n"):
+            self.assertEqual(run("mois"), (0, "Rapport de test\n\n"))
+            self.assertEqual(run("mois", "--precedent", "2")[0], 0)
+        self.assertEqual(len(built), 2)
+        self.assertEqual(mr.shift(built[0][0], -2), built[1][0])
+
+    def test_invalid_count_exit_2(self):
+        for bad in ("-1", "deux", "100000"):
+            with self.subTest(n=bad), mock.patch("sys.stderr", io.StringIO()), \
+                    self.assertRaises(SystemExit) as e:
+                run("mois", "--precedent", bad)
+            self.assertEqual(e.exception.code, 2)
+
+    def test_failure_exit_1(self):
+        from ccs_app import monthly_report as mr
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err), mock.patch.object(mr, "build_report", side_effect=OSError("x")):
+            self.assertEqual(run("mois")[0], 1)
+        self.assertIn("Rapport impossible", err.getvalue())
+
+
+class MiseAJourCliTest(HomeTestCase):
+    """Jamais de réseau ni d'installation : `installer.command` est simulé."""
+
+    def test_check_only(self):
+        from ccs_app import installer
+        with mock.patch.object(installer, "command", return_value=(0, "CCS 9.9.9 est disponible.")) as c:
+            self.assertEqual(run("mise-a-jour", "--verifier"), (0, "CCS 9.9.9 est disponible.\n"))
+            self.assertEqual(c.call_args.args[0], ["--verifier"])
+            self.assertEqual(run("maj")[0], 0)
+            self.assertEqual(c.call_args.args[0], [])
+
+    def test_progress_is_printed_and_failure_goes_to_stderr(self):
+        from ccs_app import installer
+
+        def fake(args, out=print, **_):
+            out("Téléchargement…")
+            return 1, "Échec simulé"
+        err = io.StringIO()
+        with mock.patch.object(installer, "command", side_effect=fake), mock.patch("sys.stderr", err):
+            code, out = run("mise-a-jour")
+        self.assertEqual((code, out), (1, "Téléchargement…\n"))
+        self.assertIn("Échec simulé", err.getvalue())
+
+    def test_unknown_option_exit_2(self):
+        with mock.patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit) as e:
+            run("mise-a-jour", "--force")
+        self.assertEqual(e.exception.code, 2)
