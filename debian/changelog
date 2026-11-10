@@ -1,3 +1,11 @@
+ccs (0.7.1) unstable; urgency=medium
+
+  * Documentation : installation par le dépôt APT mise en avant, lien du
+    site https://mawena.github.io/CCS/, étapes après la première
+    installation, mises à jour et désinstallation par apt purge.
+
+ -- mawena <gamligocharles@gmail.com>  Tue, 10 Nov 2026 19:30:00 +0000
+
 ccs (0.7.0) unstable; urgency=medium
 
   * Dépôt APT signé (https://mawena.github.io/CCS/apt) : le paquet ajoute
