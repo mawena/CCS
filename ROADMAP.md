@@ -147,7 +147,8 @@ Releases GitHub manquantes :
 - [x] Commandes `ccs` (`mise-a-jour`, `silence`, `moment`, `mois`), Réglages, menu de l'icône
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
 - [ ] Dépôt APT signé sur GitHub Pages (`https://mawena.github.io/CCS/apt`) sur le modèle de Gagarine : clé dédiée, `make apt`, page d'accueil, source deb822 et clé installées par le paquet
-- [ ] Release recommandée, paquet `.deb`, release GitHub
+- [x] Release mineure 0.7.0 (recommandée : nouvelles fonctions compatibles), `main`, `develop` et le tag poussés
+- [ ] Paquet `.deb` construit et release GitHub v0.7.0
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
