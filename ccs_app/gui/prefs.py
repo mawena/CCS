@@ -384,7 +384,15 @@ class PrefsPage(Adw.PreferencesPage):
             "semaine (le lundi à cette heure si leur semaine n'est pas encore connue)",
             "alerts", "weekly_report_hour", 0, 23)
         self.depends_on(report, day, hour)
-        for row in (model, pct, report, day, hour):
+        monthly = self.switch_row(
+            "Rapport mensuel",
+            "Le 1er du mois, une notification résume le mois écoulé : usage, coût équivalent API, "
+            "modèles, projets et évolution (détail dans l'onglet Analyse ou avec « ccs mois »)",
+            "alerts", "monthly_report")
+        monthly_hour = self.spin_row("Heure du rapport mensuel", "Heure d'envoi, le 1er du mois",
+                                     "alerts", "monthly_report_hour", 0, 23)
+        self.depends_on(monthly, monthly_hour)
+        for row in (model, pct, report, day, hour, monthly, monthly_hour):
             g.add(row)
         return g
 

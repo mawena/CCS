@@ -5,7 +5,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from . import core, daemon, pause
+from . import core, daemon, pause, quiet
 from .forecast import fmt_when
 from .settings import load_settings, save_settings
 from .updates import PROJECT_URL
@@ -36,9 +36,12 @@ def _active_account(state):
     return next((a for a in state.get("accounts") or [] if a.get("name") == active), None)
 
 
-def label_for(state, paused=False, waiting=0):
-    """Libellé de l'indicateur ; « · 💬 n » quand n sessions attendent une réponse."""
+def label_for(state, paused=False, waiting=0, quiet=False):
+    """Libellé de l'indicateur ; « · 💬 n » quand n sessions attendent une réponse,
+    « 🔕 » pendant un silence (ne pas déranger)."""
     text = _label(state)
+    if quiet:
+        text = f"🔕 {text}"
     if paused:
         text = f"⏸ {text}"
     return f"{text} · 💬 {waiting}" if waiting else text
@@ -172,6 +175,30 @@ def pause_menu(st, now, hours=None):
         return (f"⏸ En pause {pause.label(st, now)} — bascule et orchestrateur suspendus",
                 [("Reprendre maintenant", "reprendre")])
     return None, [(text, choice) for choice, text in pause.choices(now, hours)]
+
+
+def quiet_menu(st, now, settings=None):
+    """(libellé du sous-menu, [(libellé, choix)], « Reprendre » possible) pour « Ne pas
+    déranger ». Le libellé porte l'état ; une plage de silence des réglages ne se lève pas
+    d'un clic (seul un silence temporaire se reprend)."""
+    if st is None:
+        label = "Ne pas déranger"
+    elif st.source == "plage":
+        label = f"Ne pas déranger — plage de silence {quiet.label(st, now)}"
+    else:
+        label = f"Ne pas déranger — silence {quiet.label(st, now)}"
+    items = [(text, choice) for choice, text in quiet.choices(now, settings)]
+    return label, items, st is not None and st.source == "temporaire"
+
+
+def install_entry(state):
+    """« Installer CCS x.y.z… » quand une version plus récente est annoncée, sinon None."""
+    from . import attention
+    found = attention.update_banner((state or {}).get("update"))
+    if found is None:
+        return None
+    version = found[0].split()[1]
+    return f"Installer CCS {version}…" if version.replace(".", "").isdigit() else None
 
 
 def session_lines(found):
@@ -331,6 +358,11 @@ def run():
         daemon.request_refresh()
         GLib.idle_add(lambda: (rebuild(), False)[1])
 
+    def set_quiet(_item, choice):
+        quiet.apply(choice)
+        daemon.request_refresh()
+        GLib.idle_add(lambda: (rebuild(), False)[1])
+
     def open_uri(_item, url):
         subprocess.Popen(["gio", "open", url], start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -370,6 +402,7 @@ def run():
         s = load_settings()
         # Lu directement (et non dans state.json) : le menu suit aussitôt un clic.
         paused = pause.pause_state(now)
+        silence = quiet.quiet_state(now, s)
         name = icon_name_for(state)
         ensure_icon(name)
         ind.set_icon_full(name, "Usage du compte Claude actif")
@@ -379,7 +412,8 @@ def run():
         except Exception:
             found = []  # une fiche inattendue ne doit pas arrêter l'indicateur
         waiting = sum(1 for s in found if s.state == "waiting")
-        ind.set_label(label_for(state, paused is not None, waiting), "⏸ ⚠ 100 % · 💬 9")
+        ind.set_label(label_for(state, paused is not None, waiting, silence is not None),
+                     "⏸ 🔕 ⚠ 100 % · 💬 9")
         sig = sessions_signature(found)
         if sig != titles["sig"]:  # titres relus seulement si la liste des sessions a changé
             titles["sig"] = sig
@@ -435,7 +469,6 @@ def run():
         it = Gtk.MenuItem(label="Toutes les sessions…")
         it.connect("activate", launch_gui, ALL_SESSIONS_ARGS)
         sub.append(it)
-        # Ici viendra l'entrée « Ne pas déranger » (même sous-menu, après « Toutes les sessions… »).
         root.set_submenu(sub)
         menu.append(root)
         menu.append(Gtk.SeparatorMenuItem())
@@ -458,6 +491,28 @@ def run():
                 sub.append(it)
             root.set_submenu(sub)
             menu.append(root)
+        # « Ne pas déranger » : dans le menu principal, à côté de la pause (même famille de
+        # réglages), et non dans le sous-menu Sessions.
+        label, choices, can_resume = quiet_menu(silence, now, s)
+        root = Gtk.MenuItem(label=label, use_underline=False)
+        sub = Gtk.Menu()
+        for text, choice in choices:
+            it = Gtk.MenuItem(label=text)
+            it.connect("activate", set_quiet, choice)
+            sub.append(it)
+        sub.append(Gtk.SeparatorMenuItem())
+        it = Gtk.MenuItem(label="Reprendre les notifications")
+        it.set_sensitive(can_resume)
+        it.connect("activate", set_quiet, "reprendre")
+        sub.append(it)
+        root.set_submenu(sub)
+        menu.append(root)
+        install = install_entry(state)
+        if install:
+            it = Gtk.MenuItem(label=install, use_underline=False)
+            # L'application s'ouvre ; son bandeau propose « Installer ».
+            it.connect("activate", launch_gui, ("gui",))
+            menu.append(it)
         it = Gtk.MenuItem(label="Actualiser")
         it.connect("activate", refresh)
         menu.append(it)
