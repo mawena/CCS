@@ -9,7 +9,7 @@
   enregistré nulle part, CCS refuse de basculer pour ne pas le perdre : fais
   d'abord `ccs save`. Un argument en trop est refusé (usage, code 1).
 - `--notifier` (avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`,
-  `ccs pause`) affiche aussi le résultat en notification passagère : « Bascule
+  `ccs pause`, `ccs silence`) affiche aussi le résultat en notification passagère : « Bascule
   sur boulot » (avec l'adresse du compte et les sessions qui suivront), « Déjà
   sur perso », « Bascule impossible », « Aucun compte disponible », « Pause
   jusqu'à 14:00 », « Pause levée », « Pause impossible ». C'est l'option des
@@ -263,12 +263,22 @@ Les bornes suivent l'heure locale réelle (changement d'heure compris).
 
 **Silence temporaire** : `ccs silence 1h`, `4h` ou `demain` (jusqu'à la fin de
 la plage de silence en cours ou prochaine, sans plage jusqu'à 08:00) ; `ccs silence off` (ou `reprendre`) lève le
-silence, `ccs silence status` (défaut) affiche l'état ; `ccs status` le rappelle
-aussi. Alias : `ccs quiet`. Aussi dans le menu de l'icône (« Ne pas déranger » :
-1 heure, 4 heures, Jusqu'à demain, Reprendre, avec l'état affiché), dans les
-Réglages et par le raccourci clavier « Ne pas déranger 1 h » (désactivé par
-défaut ; voir [Raccourcis clavier globaux](#raccourcis-clavier-globaux)). Le
-silence temporaire est gardé dans `~/.claude-accounts/quiet.json`.
+silence, `ccs silence status` (défaut) affiche l'état. Alias : `ccs quiet`.
+`--notifier` affiche aussi le résultat en notification passagère (« Ne pas
+déranger jusqu'à 08:00 », « Silence levé »). Une durée inconnue donne le code 2.
+`ccs status` rappelle le silence : « Ne pas déranger jusqu'à … (ccs silence off
+pour reprendre) », ou « Ne pas déranger (plage de silence) … » pendant une plage
+des réglages. Le silence temporaire est gardé dans
+`~/.claude-accounts/quiet.json`.
+
+Aussi dans le **menu principal de l'icône** (après le bloc de pause) :
+« Ne pas déranger — silence jusqu'à 08:00 » (ou « plage de silence … »), avec
+« 1 heure », « 4 heures », « Jusqu'à demain 08:00 » et « Reprendre les
+notifications » (actif seulement pour un silence temporaire : une plage des
+réglages ne se lève pas d'un clic). L'indicateur affiche 🔕 pendant un silence,
+avant le symbole de pause. Le raccourci clavier « Ne pas déranger 1 h »
+(`silence`, Super+Alt+D, désactivé par défaut : `ccs raccourcis on silence`) est
+décrit dans [Raccourcis clavier globaux](#raccourcis-clavier-globaux).
 
 **Pendant le silence**, les notifications sont retenues et comptées
 (`~/.claude-accounts/quiet_held.json`). À la fin, **un seul résumé** « Fin du
@@ -931,6 +941,7 @@ défaut**.
 | Basculer sur le meilleur compte (`meilleur`) | Super+Alt+M | `ccs best --notifier` |
 | Pause 1 h (`pause`) | Super+Alt+P | `ccs pause 1h --notifier` |
 | Reprendre (lever la pause) (`reprendre`) | Super+Alt+R | `ccs pause off --notifier` |
+| Ne pas déranger 1 h (`silence`) | Super+Alt+D | `ccs silence 1h --notifier` |
 
 Super+Alt+lettre : aucune de ces combinaisons n'est prise par GNOME, le Dock ou
 l'assistant de tuilage d'Ubuntu, et des lettres plutôt que des chiffres
@@ -1054,6 +1065,17 @@ Ce que CCS contrôle avant d'installer :
 - **somme SHA-256** du paquet comparée à `SHA256SUMS` ;
 - **contenu du paquet** (`dpkg-deb -f`) : paquet `ccs`, version égale à celle
   annoncée et plus récente que celle installée.
+
+Avec le dépôt APT de CCS (ajouté par le paquet), `sudo apt update && sudo apt
+upgrade` fait aussi la mise à jour ; le bouton **Installer** reste utile pour
+ne pas ouvrir de terminal.
+
+En ligne de commande, `ccs mise-a-jour` affiche chaque étape au fil de l'eau ;
+le texte final va sur la sortie normale si le code est 0, sur la sortie d'erreur
+sinon. Une option inconnue donne le code 2. « Installer CCS x.y.z… » du menu de
+l'icône (affiché quand une version plus récente est annoncée, en plus de la ligne
+« ⬆ CCS x disponible — voir la version ») ouvre l'application, dont le bandeau
+propose **Installer**.
 
 L'installation se fait par `pkexec apt-get install -y` : une fenêtre demande ton
 mot de passe. Si `pkexec` manque ou si tu le refuses, le dialogue affiche la

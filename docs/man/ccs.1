@@ -145,7 +145,7 @@ vaut environ 10 fenêtres (estimation). \fB\-\-duree\fR : de 1 à 10 h
 (\fB3h\fR, \fB2h30\fR, \fB90m\fR, \fB1,5h\fR ; défaut 3 h) ; \fB\-\-sur\fR :
 horizon de 1 à 72 h (défaut 24 h).
 .TP
-.B ccs silence \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBoff\fR|\fBreprendre\fR|\fBstatus\fR]
+.B ccs silence \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBoff\fR|\fBreprendre\fR|\fBstatus\fR] [\fB\-\-notifier\fR]
 Ne pas déranger : retient les notifications pendant 1 h, 4 h ou jusqu'à demain
 (fin de la plage de silence, sinon 08:00) ; \fBoff\fR (ou \fBreprendre\fR) lève
 le silence, \fBstatus\fR (défaut) affiche l'état. Les notifications retenues
@@ -154,7 +154,8 @@ retenue n'est pas renvoyée. Jamais retenus : « attend ta réponse » et son ra
 (réglage \fIalerts.quiet.allow_waiting\fR, vrai par défaut), les sessions
 bloquées par une limite, le résumé et les retours des raccourcis. La plage de
 silence permanente se règle dans \fIalerts.quiet\fR (\fIenabled\fR, \fIstart\fR,
-\fIend\fR, \fIdays\fR). \fBccs status\fR affiche le silence. Alias :
+\fIend\fR, \fIdays\fR). \fB\-\-notifier\fR affiche aussi le résultat en notification passagère.
+\fBccs status\fR affiche le silence. Alias :
 \fBccs quiet\fR.
 .TP
 .B ccs mise\-a\-jour \fR[\fB\-\-verifier\fR]
@@ -192,7 +193,8 @@ tous désactivés par défaut. \fBstatus\fR (défaut) affiche leur état,
 défaut : \fBouvrir\fR (Super+Alt+C), \fBsessions\fR (Super+Alt+V),
 \fBnouvelle\-session\fR (Super+Alt+N), \fBsuivant\fR (Super+Alt+B),
 \fBmeilleur\fR (Super+Alt+M), \fBpause\fR (Super+Alt+P, pause 1 h),
-\fBreprendre\fR (Super+Alt+R) ; les commandes de bascule et de pause
+\fBreprendre\fR (Super+Alt+R), \fBsilence\fR (Super+Alt+D, ne pas déranger
+1 h) ; les commandes de bascule et de pause
 portent \fB\-\-notifier\fR (par exemple \fBccs next \-\-notifier\fR). Un
 raccourci dont la commande a changé (dont ceux activés avant cette option) est
 signalé « à mettre à jour » ; \fBccs raccourcis on\fR \fIaction\fR le
@@ -234,6 +236,10 @@ de la dernière bascule demandée par l'application \fIswitch-origin.json\fR.
 .TP
 .I ~/.claude/.credentials.json\fR, \fI~/.claude.json
 Fichiers de Claude Code réécrits lors d'une bascule.
+.TP
+.I /etc/apt/sources.list.d/ccs.sources\fR, \fI/usr/share/keyrings/ccs.gpg
+Source du dépôt APT signé de CCS et sa clé, installées par le paquet : \fBapt
+upgrade\fR installe les nouvelles versions.
 .TP
 .I ~/.claude/projects/*/*.jsonl
 Journaux des conversations : lus, et complétés d'une ligne de titre lors d'un

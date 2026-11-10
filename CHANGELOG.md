@@ -7,6 +7,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ### Ajouté
 
+- **Dépôt APT signé** (<https://mawena.github.io/CCS/apt>) : le paquet ajoute sa
+  source et sa clé, `apt upgrade` installe les nouvelles versions ; page
+  d'accueil et installateur sur <https://mawena.github.io/CCS/>.
 - **Mise à jour en un clic** : le bandeau « CCS x.y.z est disponible » a un
   bouton **Installer** (paquet installé par `dpkg`). Un dialogue montre les
   notes de la release, la progression (téléchargement, vérification,
@@ -29,7 +32,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   « attend ta réponse » (et son rappel, si `allow_waiting`), les sessions
   bloquées par une limite, le résumé et les retours des raccourcis. Groupe
   **Réglages → Ne pas déranger**, entrée « Ne pas déranger » du menu de
-  l'icône, raccourci clavier « Ne pas déranger 1 h » (désactivé par défaut),
+  l'icône (🔕 pendant un silence), raccourci clavier « Ne pas déranger 1 h »
+  (Super+Alt+D, désactivé par défaut),
   `ccs silence [1h|4h|demain|off|reprendre|status]` (alias `ccs quiet`) ;
   `ccs status` affiche le silence.
 - **Meilleur moment pour une grosse tâche** : carte de l'onglet Planning (durée

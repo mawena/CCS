@@ -153,9 +153,10 @@ plafond hebdomadaire est une **estimation** (une semaine pleine vaut environ
 **Réglages → Ne pas déranger** : une plage de silence (22:00 à 08:00 par défaut,
 jours au choix, passage de minuit) pendant laquelle les notifications sont
 retenues, puis un seul résumé « Fin du silence » dit combien il y en a eu. Le
-menu de l'icône (« Ne pas déranger » : 1 heure, 4 heures, Jusqu'à demain,
-Reprendre), `ccs silence 1h` et un raccourci clavier optionnel posent un silence
-temporaire. Restent **toujours** affichées : une session qui attend ta réponse
+menu de l'icône (« Ne pas déranger » : 1 heure, 4 heures, Jusqu'à demain 08:00,
+Reprendre les notifications), `ccs silence 1h` et le raccourci clavier
+Super+Alt+D (désactivé au départ) posent un silence temporaire ; l'indicateur
+affiche 🔕 pendant un silence. Restent **toujours** affichées : une session qui attend ta réponse
 (sauf si tu le décides dans les Réglages), une session bloquée par une limite, le
 résumé et les retours des raccourcis. Une alerte retenue n'est pas renvoyée
 après : seulement résumée.
@@ -354,6 +355,7 @@ désactivés au départ : **Réglages → Raccourcis clavier**, ou
 | Basculer sur le meilleur compte | Super+Alt+M | `ccs best --notifier` |
 | Pause 1 h | Super+Alt+P | `ccs pause 1h --notifier` |
 | Reprendre (lever la pause) | Super+Alt+R | `ccs pause off --notifier` |
+| Ne pas déranger 1 h | Super+Alt+D | `ccs silence 1h --notifier` |
 
 Sans terminal pour le lire, le résultat s'affiche en notification passagère
 (« Bascule sur boulot », « Déjà sur perso », « Pause jusqu'à 14:00 »,
@@ -415,6 +417,30 @@ terminal intégré, VTE pour GTK 4 : `gir1.2-vte-3.91`).
 Claude Code doit être installé
 (`claude` dans le `PATH`).
 
+### Installation par apt
+
+Le paquet ajoute lui-même le dépôt APT signé de CCS : après la première
+installation, `sudo apt update && sudo apt upgrade` installe les nouvelles
+versions. Première installation, au choix :
+
+```sh
+# 1. l'installateur (clé, dépôt, installation)
+curl -fsSL https://mawena.github.io/CCS/installer.sh | sudo sh
+
+# 2. à la main
+sudo curl -fsSL https://mawena.github.io/CCS/apt/ccs.gpg -o /usr/share/keyrings/ccs.gpg
+sudo curl -fsSL https://mawena.github.io/CCS/apt/ccs.sources -o /etc/apt/sources.list.d/ccs.sources
+sudo apt update && sudo apt install ccs
+
+# 3. le .deb d'une release GitHub
+sudo apt install ./ccs_<version>_all.deb
+```
+
+Page d'accueil : <https://mawena.github.io/CCS/>. Clé « CCS APT (mawena) »
+(ed25519), empreinte `D21A 5E7D B4D3 56E5 5961 F7C6 6568 A5B4 420A ACD2`.
+
+### Avec le .deb seul
+
 ```sh
 gh release download -R mawena/CCS -p '*.deb'      # ou depuis la page Releases
 sudo apt install ./ccs_*_all.deb
@@ -433,7 +459,8 @@ Réglages).
 
 **Mise à jour** : CCS te prévient quand une nouvelle version est publiée
 (notification, icône, bandeau de la fenêtre, Réglages ; vérification sur GitHub
-au plus une fois par jour). Le bouton **Installer** du bandeau (ou
+au plus une fois par jour). `sudo apt update && sudo apt upgrade` l'installe
+avec le dépôt APT ; le bouton **Installer** du bandeau (ou
 `ccs mise-a-jour`) télécharge, vérifie et installe le paquet en un clic ;
 sinon, installe le nouveau `.deb` à la main : le service se relance seul avec la nouvelle
 version (dans les 5 min), l'icône aussi (dans les 10 s). En venant de la 0.4.0
@@ -491,7 +518,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs journal [--jours N\|--tout]` | Journal des bascules (7 derniers jours par défaut) |
 | `ccs projet [<dossier>] [<compte>\|aucun]` | Compte par projet : liste, compte d'un dossier, association (`aucun` la retire) |
 | `ccs raccourcis [status\|on\|off\|set]` | Raccourcis clavier globaux (GNOME) : état, activer, retirer, changer (alias `ccs shortcuts`) |
-| `… --notifier` | Avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`, `ccs pause` : résultat aussi en notification (option des raccourcis clavier) |
+| `… --notifier` | Avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`, `ccs pause`, `ccs silence` : résultat aussi en notification (option des raccourcis clavier) |
 | `ccs save <nom>` / `ccs add <nom>` | Enregistre le compte connecté / connecte un nouveau compte |
 | `ccs rename <a> <b>` / `ccs rm <nom>` | Renomme / supprime un profil |
 | `ccs gui` | Application graphique |

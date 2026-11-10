@@ -64,7 +64,7 @@ raccourcis clavier.
 | `attention` | Ce qui demande l'attention dans la fenêtre (pur) : libellé de pause de l'en-tête, bandeaux nouvelle version et bilan, badge des sessions en attente, référence de session (`<pid>:<id>`) et cible d'un clic sur une notification |
 | `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie ; ligne « Réglages » en avertissement quand des clés de `settings.json` sont ignorées |
 | `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages ; `gui/update_dialog` : dialogue de mise à jour en un clic ; carte « Meilleur moment » (`gui/planning`) et carte « Rapport mensuel » (`gui/advisor_cards`) |
-| `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version (« Installer CCS x.y.z… ») ; sous-menu Sessions (une entrée par session, en attente d'abord ; un clic ouvre la session par la même route que les notifications ; « · 💬 n » dans le libellé) ; entrée « Ne pas déranger » ; `APP_ENTRIES` (« Journal des bascules » → `gui --page historique`, « Bilan de la semaine » → `gui --page analyse`, « Ouvrir Comptes Claude ») ; `switch_to` (bascule notée « icone ») ; se relance seul quand le code installé change |
+| `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version (« Installer CCS x.y.z… ») ; sous-menu Sessions (une entrée par session, en attente d'abord ; un clic ouvre la session par la même route que les notifications ; « · 💬 n » dans le libellé) ; entrée « Ne pas déranger » du menu principal (sous-menu 1 heure, 4 heures, Jusqu'à demain 08:00, Reprendre les notifications ; 🔕 dans le libellé pendant un silence) ; `APP_ENTRIES` (« Journal des bascules » → `gui --page historique`, « Bilan de la semaine » → `gui --page analyse`, « Ouvrir Comptes Claude ») ; `switch_to` (bascule notée « icone ») ; se relance seul quand le code installé change |
 | `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `mois`, `moment`, `silence` / `quiet`, `mise-a-jour` / `maj`, `journal`, `projet`, `raccourcis` / `shortcuts`, `notify`, `best --notifier`, `pause --notifier`, `gui --session`, `--page`, `--new-session`) |
 
 `ccs` (bash) reste **l'unique implémentation de la bascule** ; le service,
@@ -674,7 +674,7 @@ jamais exigé) :
 ```
 
 - Actions (`ACTIONS`) : `ouvrir`, `sessions`, `nouvelle-session`, `suivant`,
-  `meilleur`, `pause`, `reprendre` ; aucune n'est installée par défaut. La
+  `meilleur`, `pause`, `reprendre`, `silence` (`ccs silence 1h --notifier`, Super+Alt+D) ; aucune n'est installée par défaut. La
   commande est écrite avec un chemin absolu (`/usr/bin`, sinon `bin/` du
   dépôt, sinon le `PATH`), échappée par `shlex.join` (le bureau la découpe
   sans shell). Les commandes de bascule et de pause portent `--notifier`
@@ -730,6 +730,26 @@ des sessions (fin, attente, rappel) ; modules
 optionnels (`hooks` : nouvelle version) ; écriture de `state.json`.
 `SIGUSR1` déclenche un relevé immédiat (bouton Actualiser, `claude-accounts
 collect`).
+
+## Publication
+
+`make deb` construit `dist/ccs_<version>_all.deb`, puis `make apt`
+(`scripts/publier-apt.sh dist/*.deb`) publie la version dans le dépôt APT sur
+GitHub Pages (`https://mawena.github.io/CCS/apt`) :
+
+- la branche `gh-pages` est mise à jour dans un worktree temporaire ; `pool/`
+  garde toutes les versions ; les index `binary-all` et `binary-amd64`
+  (vide : le paquet est `all`) sont régénérés, puis `Release`, `InRelease` et
+  `Release.gpg` signés en ed25519 avec la clé « CCS APT (mawena) » : la publique
+  est dans `data/apt/ccs.gpg`, la privée dans le trousseau GnuPG du poste ;
+- le paquet installe lui-même `/etc/apt/sources.list.d/ccs.sources` et
+  `/usr/share/keyrings/ccs.gpg` (`debian/install`) ; la page d'accueil et
+  `installer.sh` (`site/`) sont publiés avec le dépôt ;
+- variables : `CCS_APT_CLE` (empreinte de la clé), `CCS_APT_PUSH` (0 : commit
+  local sans push), `CCS_APT_SORTIE` (essai à blanc dans un dossier, sans toucher
+  à `gh-pages`) ;
+- vérification finale par un `apt-get update` sans root, jusqu'à 10 essais à
+  30 s d'intervalle le temps que Pages se mette à jour.
 
 ## Format de `state.json`
 
