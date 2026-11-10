@@ -160,6 +160,9 @@ def cmd_status(_args):
     paused = _pause_line()
     if paused:
         print(paused)
+    silence = _silence_line()
+    if silence:
+        print(silence)
     print("Service : " + ("en marche" if daemon.running_pid() else "arrêté"))
     return 0
 
@@ -173,6 +176,19 @@ def _pause_line():
         return None
     return (f"En pause {pause.label(st, now)} : bascule automatique et orchestrateur suspendus "
             "(ccs pause off pour reprendre)")
+
+
+def _silence_line():
+    from datetime import datetime, timezone
+    from . import quiet
+    now = datetime.now(timezone.utc)
+    st = quiet.quiet_state(now)
+    if st is None:
+        return None
+    if st.source == "plage":
+        return f"Ne pas déranger (plage de silence) {quiet.label(st, now)} : notifications retenues"
+    return (f"Ne pas déranger {quiet.label(st, now)} : notifications retenues "
+            "(ccs silence off pour reprendre)")
 
 
 def _notify(title, body=""):
@@ -622,6 +638,67 @@ def cmd_semaine(args):
     return 0
 
 
+def cmd_silence(args):
+    from datetime import datetime, timezone
+    from . import daemon, quiet
+    now = datetime.now(timezone.utc)
+    before = quiet.quiet_state(now)
+    code, message = quiet.command(args.args, now)
+    if code != 0:
+        print(message, file=sys.stderr)
+        if args.notifier:
+            _notify("Silence impossible", message)
+        return code
+    print(message)
+    after = quiet.quiet_state(now)
+    if after != before:
+        daemon.request_refresh()  # le service relit le silence et met à jour l'état partagé
+    if args.notifier:
+        _notify(*_silence_notice(after, before, now))
+    return 0
+
+
+def _silence_notice(st, was, now):
+    """(titre, texte) de la notification de `ccs silence … --notifier`."""
+    from . import quiet
+    if st is not None and st != was:
+        return (f"Ne pas déranger {quiet.label(st, now)}",
+                "Les notifications sont retenues puis résumées.")
+    if st is None and was is not None:
+        return "Silence levé", "Les notifications reprennent."
+    if st is not None:
+        return f"Ne pas déranger {quiet.label(st, now)}", "Aucun changement."
+    return "Pas de silence en cours", "Les notifications arrivent normalement."
+
+
+def cmd_moment(args):
+    from . import best_time
+    argv = [x for name in ("duree", "sur") if getattr(args, name) is not None
+            for x in (f"--{name}", getattr(args, name))]
+    code, text = best_time.command(argv)
+    print(text, file=sys.stdout if code == 0 else sys.stderr)
+    return code
+
+
+def cmd_mois(args):
+    from . import monthly_report
+    done = _waiting("Calcul du rapport : relevés du service et journaux de Claude Code…")
+    try:
+        code, text = monthly_report.command(args)
+    finally:
+        done()
+    print(text, file=sys.stdout if code == 0 else sys.stderr)
+    return code
+
+
+def cmd_mise_a_jour(args):
+    from . import installer
+    code, text = installer.command(["--verifier"] if args.verifier else [],
+                                   out=lambda line: print(line, flush=True))
+    print(text, file=sys.stdout if code == 0 else sys.stderr)
+    return code
+
+
 def cmd_journal(args):
     from . import switch_log
     try:
@@ -741,6 +818,23 @@ def build_parser():
     se.add_argument("--precedente", type=_weeks_back, default=0, metavar="N",
                     help="bilan de N semaines plus tôt (0 : la semaine écoulée)")
     se.set_defaults(func=cmd_semaine)
+    from . import monthly_report
+    mo = sub.add_parser("mois", help="rapport du mois écoulé")
+    monthly_report.add_arguments(mo)
+    mo.set_defaults(func=cmd_mois)
+    bt = sub.add_parser("moment", help="meilleur moment pour lancer une grosse tâche")
+    bt.add_argument("--duree", metavar="3h", help="durée de la tâche (3 h par défaut)")
+    bt.add_argument("--sur", metavar="24h", help="horizon cherché (24 h par défaut)")
+    bt.set_defaults(func=cmd_moment)
+    si = sub.add_parser("silence", aliases=["quiet"], help="ne pas déranger : retient les notifications")
+    si.add_argument("args", nargs="*", metavar="1h|4h|demain|off|reprendre|status",
+                    help="durée du silence, « off » ou « reprendre » pour le lever, « status » (défaut)")
+    si.add_argument("--notifier", action="store_true", help=NOTIFIER_HELP)
+    si.set_defaults(func=cmd_silence)
+    mj = sub.add_parser("mise-a-jour", aliases=["maj"],
+                        help="installe la dernière version de CCS (paquet .deb de GitHub)")
+    mj.add_argument("--verifier", action="store_true", help="indique seulement s'il y a une nouvelle version")
+    mj.set_defaults(func=cmd_mise_a_jour)
     jo = sub.add_parser("journal", help="journal des bascules, avec leur raison")
     period = jo.add_mutually_exclusive_group()
     period.add_argument("--jours", type=int, default=7, metavar="N", help="N derniers jours (7 par défaut)")

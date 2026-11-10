@@ -38,6 +38,19 @@ DEFAULTS = {
         "weekly_report": True,
         "weekly_report_day": None,
         "weekly_report_hour": 9,
+        # Rapport mensuel : notification le 1er du mois (ou le 2), à l'heure donnée.
+        "monthly_report": True,
+        "monthly_report_hour": 9,
+        # Ne pas déranger : pendant la plage (qui peut passer minuit, heure locale réelle,
+        # jours = jour de début) les notifications sont retenues puis résumées en une seule ;
+        # « attend ta réponse » (et son rappel) passe quand allow_waiting.
+        "quiet": {
+            "enabled": False,
+            "start": "22:00",
+            "end": "08:00",
+            "days": [0, 1, 2, 3, 4, 5, 6],
+            "allow_waiting": True,
+        },
     },
     "poll": {"normal_s": 300, "fast_s": 60},
     # Conseiller de formule (`advisor`) : semaines analysées, marge de sécurité,
@@ -96,6 +109,7 @@ BOUNDS = {
     "alerts.waiting_reminder_min": (1, 1440),
     "alerts.model_advice_pct": (0, 100),
     "alerts.weekly_report_hour": (0, 23),
+    "alerts.monthly_report_hour": (0, 23),
     "poll.normal_s": (10, 86400),
     "poll.fast_s": (5, 86400),
     "advisor.weeks": (1, 52),
@@ -107,7 +121,7 @@ BOUNDS = {
     "orchestrator.reserve_points": (0, 100),
     "orchestrator.max_weekly_start": (0, 100),
 }
-INTEGERS = {"alerts.weekly_report_hour", "advisor.weeks", "advisor.max_accounts"}
+INTEGERS = {"alerts.weekly_report_hour", "alerts.monthly_report_hour","advisor.weeks", "advisor.max_accounts"}
 _HHMM = re.compile(r"^(\d{1,2}):(\d{2})$")
 
 
@@ -162,6 +176,17 @@ def _clean_active_hours(value, default, path, bad):
     return _merge(default, out)
 
 
+def _clean_quiet(value, default, path, bad):
+    """Plage de silence : horaires et jours comme la plage de l'orchestrateur, plus deux booléens."""
+    out = _clean_active_hours(value, default, path, bad)
+    if isinstance(value, dict):
+        for key in ("enabled", "allow_waiting"):
+            if key in value and not isinstance(value[key], bool):
+                bad.append(f"{path}.{key}")
+                out[key] = default[key]
+    return out
+
+
 def _clean_dict_of(value, ok, path, bad):
     """Dictionnaire libre : les entrées invalides sont retirées une à une."""
     if not isinstance(value, dict):
@@ -201,6 +226,8 @@ def _clean(value, default, path, bad):
     """Valeur validée de `path` (dict : récursif) ; `bad` reçoit les chemins ignorés."""
     if path == "orchestrator.active_hours":
         return _clean_active_hours(value, default, path, bad)
+    if path == "alerts.quiet":
+        return _clean_quiet(value, default, path, bad)
     if path == "advisor.plan_prices":
         return _clean_dict_of(value, lambda v: _is_number(v) and v > 0, path, bad)
     if path == "advisor.profile_plans":

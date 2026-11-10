@@ -21,6 +21,17 @@ class ValidationTest(HomeTestCase):
         self.assertEqual(s["alerts"]["weekly_report_day"], 0)
         self.assertEqual(s["poll"], {"normal_s": 120, "fast_s": 60})
 
+    def test_monthly_report_settings(self):
+        d = settings.DEFAULTS["alerts"]
+        self.assertEqual((d["monthly_report"], d["monthly_report_hour"]), (True, 9))
+        s = self.load({"alerts": {"monthly_report": False, "monthly_report_hour": 18}})
+        self.assertEqual((s["alerts"]["monthly_report"], s["alerts"]["monthly_report_hour"]), (False, 18))
+        for bad in (24, -1, "9", 9.5, True, None):
+            with self.subTest(hour=bad):
+                s = self.load({"alerts": {"monthly_report_hour": bad, "monthly_report": "oui"}})
+                self.assertEqual(s["alerts"]["monthly_report_hour"], 9)
+                self.assertIs(s["alerts"]["monthly_report"], True)
+
     def test_wrong_types_fall_back_to_default(self):
         s = self.load({"auto_switch": {"threshold": "haut", "enabled": "true",
                                        "target_max_session": [1], "target_max_weekly": True},

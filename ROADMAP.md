@@ -137,6 +137,18 @@ Raccordement, documentation et release :
 Releases GitHub manquantes :
 - [x] Releases GitHub 0.3.1, 0.3.2 et 0.4.0, avec leurs `.deb` reconstruits depuis les tags
 
+## Phase 10 — Confort et vue d'ensemble (0.7.0)
+
+- [x] Mise à jour en un clic : téléchargement du `.deb` de la release GitHub, vérification SHA-256 et du paquet, installation après mot de passe
+- [x] Ne pas déranger : plages horaires sans notifications, silence temporaire, exception « attend ta réponse », résumé à la fin
+- [x] Meilleur moment pour une grosse tâche : créneau où les comptes offriront le plus de quota d'affilée (onglet Planning)
+- [x] Sessions dans le menu de l'icône : afficher une session ouverte dans son onglet de l'application
+- [x] Rapport mensuel : coût équivalent API, projets, modèles, évolution d'un mois à l'autre (onglet Analyse, notification)
+- [x] Commandes `ccs` (`mise-a-jour`, `silence`, `moment`, `mois`), Réglages, menu de l'icône
+- [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [ ] Dépôt APT signé sur GitHub Pages (`https://mawena.github.io/CCS/apt`) sur le modèle de Gagarine : clé dédiée, `make apt`, page d'accueil, source deb822 et clé installées par le paquet
+- [ ] Release recommandée, paquet `.deb`, release GitHub
+
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
 Recommandées :
@@ -162,4 +174,5 @@ Autres :
 - [x] `ccs best` : ignorer les comptes en erreur
 - [x] Moniteur de sessions créé même si `~/.claude/sessions` apparaît après le démarrage
 - [x] Suite de tests au vert, CHANGELOG et documentation
-- [ ] Release (genre choisi par Charles), paquet `.deb`, release GitHub
+- [x] Release correctif 0.6.1 (genre choisi par Charles), `main`, `develop` et le tag poussés
+- [x] Paquet `.deb` construit (`dist/ccs_0.6.1_all.deb`) et release GitHub v0.6.1

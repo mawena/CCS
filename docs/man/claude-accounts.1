@@ -1,9 +1,9 @@
-.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.6.1" "Commandes utilisateur"
+.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.7.0" "Commandes utilisateur"
 .SH NOM
 claude-accounts \- application, service et outils d'usage des comptes Claude Code
 .SH SYNOPSIS
 .B claude-accounts
-[\fBgui\fR [\fB\-\-page \fIonglet\fR|\fB\-\-new\-session\fR|\fB\-\-session \fIréf\fR]|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBtitle \fIid titre\fR|\fBpreview \fIid\fR|\fBexport \fIid\fR [\fIfichier\fR]|\fBdoctor\fR|\fBpause\fR [\fIchoix\fR] [\fB\-\-notifier\fR]|\fBformule\fR|\fBsemaine\fR [\fB\-\-precedente \fIN\fR]|\fBjournal\fR [\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]|\fBprojet\fR [\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]|\fBraccourcis\fR [\fIsous-commande\fR]|\fBnotify\fR \fItitre\fR [\fItexte\fR]|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR] [\fB\-\-notifier\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
+[\fBgui\fR [\fB\-\-page \fIonglet\fR|\fB\-\-new\-session\fR|\fB\-\-session \fIréf\fR]|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBtitle \fIid titre\fR|\fBpreview \fIid\fR|\fBexport \fIid\fR [\fIfichier\fR]|\fBdoctor\fR|\fBpause\fR [\fIchoix\fR] [\fB\-\-notifier\fR]|\fBformule\fR|\fBsemaine\fR [\fB\-\-precedente \fIN\fR]|\fBmois\fR [\fB\-\-precedent \fIN\fR]|\fBmoment\fR [\fB\-\-duree \fIdurée\fR] [\fB\-\-sur \fIhorizon\fR]|\fBsilence\fR [\fIchoix\fR] [\fB\-\-notifier\fR]|\fBmise\-a\-jour\fR [\fB\-\-verifier\fR]|\fBjournal\fR [\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]|\fBprojet\fR [\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]|\fBraccourcis\fR [\fIsous-commande\fR]|\fBnotify\fR \fItitre\fR [\fItexte\fR]|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR] [\fB\-\-notifier\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
 .SH DESCRIPTION
 Sans argument, ouvre l'application graphique « Comptes Claude » : comptes et
 prévisions, planning, sessions et historique des conversations (un seul onglet
@@ -93,6 +93,26 @@ ou Ultra la moins chère pour l'usage mesuré, raisonnement et équivalent API
 Bilan de la semaine écoulée, ou de \fIN\fR semaines plus tôt (0 à 520).
 Code de retour 2 pour \fIN\fR invalide, 1 si le calcul échoue.
 .TP
+.B mois \fR[\fB\-\-precedent \fIN\fR]
+Rapport mensuel : dernier mois terminé, ou celui d'il y a \fIN\fR mois (0 à
+120). Code de retour 2 pour \fIN\fR invalide, 1 si le calcul échoue. Voir
+\fBccs\fR(1).
+.TP
+.B moment \fR[\fB\-\-duree \fIdurée\fR] [\fB\-\-sur \fIhorizon\fR]
+Meilleur moment pour une grosse tâche, en fenêtres de 5 h disponibles (durée de
+1 à 10 h, horizon de 1 à 72 h). Code de retour 2 pour un usage incorrect, 1
+sans état du service.
+.TP
+.B silence \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBoff\fR|\fBreprendre\fR|\fBstatus\fR]
+Ne pas déranger : silence temporaire des notifications, levée ou état (alias
+\fBquiet\fR ; voir \fBccs\fR(1)). Code de retour 2 pour un choix inconnu.
+.TP
+.B mise\-a\-jour \fR[\fB\-\-verifier\fR]
+Installe la dernière version de CCS (téléchargement, somme SHA\-256,
+\fBpkexec\fR) ou, avec \fB\-\-verifier\fR, la cherche seulement (alias
+\fBmaj\fR). Code de retour 1 en cas d'échec ou pour une copie de développement,
+2 pour un usage incorrect.
+.TP
 .B journal \fR[\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]
 Journal des bascules avec leur raison, groupé par jour (7 jours par défaut).
 Code de retour 2 pour un usage incorrect, 1 si l'historique est illisible.
@@ -161,11 +181,23 @@ recherche d'une nouvelle version sur GitHub au plus une fois par jour.
 .TP
 .B tray
 Indicateur de la barre du haut (nécessite l'extension GNOME AppIndicator) :
-jauge du compte actif, prévisions, sessions, pause, nouvelle version ; en bas
+jauge du compte actif, prévisions, pause, nouvelle version (« Installer CCS
+x.y.z… » ouvre l'application sur son bandeau d'installation) et « Ne pas
+déranger » dans le menu principal (1 heure, 4 heures, jusqu'à demain 08:00,
+reprendre les notifications ; un symbole de cloche barrée s'affiche pendant un
+silence, avant le symbole de pause). Un sous-menu « Sessions » liste une
+entrée par session, celles qui attendent ta réponse d'abord ; un clic l'ouvre
+dans l'application, « Toutes les sessions… » mène à l'onglet Sessions et
+« Terminal ou dossier d'une session » l'ouvre ailleurs ; un symbole de bulle
+suivi de n s'ajoute au libellé de l'indicateur quand n sessions attendent. En bas
 du menu, « Journal des bascules » (\fBgui \-\-page historique\fR), « Bilan
 de la semaine » (\fBgui \-\-page analyse\fR) et « Ouvrir Comptes Claude ».
 Une bascule choisie dans le menu est notée « depuis l'icône » dans le journal.
 Se relance seul quand le paquet est mis à jour.
+.SH FICHIERS
+.TP
+.I /etc/apt/sources.list.d/ccs.sources\fR, \fI/usr/share/keyrings/ccs.gpg
+Source du dépôt APT signé de CCS et sa clé, installées par le paquet.
 .SH ENVIRONNEMENT
 .TP
 .B CCS_APP_ID

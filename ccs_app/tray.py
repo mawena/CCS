@@ -3,8 +3,9 @@
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 
-from . import core, daemon, pause
+from . import core, daemon, pause, quiet
 from .forecast import fmt_when
 from .settings import load_settings, save_settings
 from .updates import PROJECT_URL
@@ -35,9 +36,15 @@ def _active_account(state):
     return next((a for a in state.get("accounts") or [] if a.get("name") == active), None)
 
 
-def label_for(state, paused=False):
+def label_for(state, paused=False, waiting=0, quiet=False):
+    """Libellé de l'indicateur ; « · 💬 n » quand n sessions attendent une réponse,
+    « 🔕 » pendant un silence (ne pas déranger)."""
     text = _label(state)
-    return f"⏸ {text}" if paused else text
+    if quiet:
+        text = f"🔕 {text}"
+    if paused:
+        text = f"⏸ {text}"
+    return f"{text} · 💬 {waiting}" if waiting else text
 
 
 def _label(state):
@@ -170,9 +177,97 @@ def pause_menu(st, now, hours=None):
     return None, [(text, choice) for choice, text in pause.choices(now, hours)]
 
 
+def quiet_menu(st, now, settings=None):
+    """(libellé du sous-menu, [(libellé, choix)], « Reprendre » possible) pour « Ne pas
+    déranger ». Le libellé porte l'état ; une plage de silence des réglages ne se lève pas
+    d'un clic (seul un silence temporaire se reprend)."""
+    if st is None:
+        label = "Ne pas déranger"
+    elif st.source == "plage":
+        label = f"Ne pas déranger — plage de silence {quiet.label(st, now)}"
+    else:
+        label = f"Ne pas déranger — silence {quiet.label(st, now)}"
+    items = [(text, choice) for choice, text in quiet.choices(now, settings)]
+    return label, items, st is not None and st.source == "temporaire"
+
+
+def install_entry(state):
+    """« Installer CCS x.y.z… » quand une version plus récente est annoncée, sinon None."""
+    from . import attention
+    found = attention.update_banner((state or {}).get("update"))
+    if found is None:
+        return None
+    version = found[0].split()[1]
+    return f"Installer CCS {version}…" if version.replace(".", "").isdigit() else None
+
+
 def session_lines(found):
     from . import sessions
     return [(f"{s.project} — {sessions.state_label(s)}", s) for s in found]
+
+
+ALL_SESSIONS_ARGS = ("gui", "--page", "sessions")  # entrée « Toutes les sessions… »
+SESSION_ORDER = {"waiting": 0, "busy": 1, "idle": 2}  # celles qui attendent ta réponse d'abord
+
+
+@dataclass
+class SessionEntry:
+    label: str
+    ref: str    # « <pid>:<identifiant> », pour `gui --session`
+    cwd: str
+
+
+def sort_sessions(found):
+    """En attente d'abord, puis au travail, puis au repos ; dans un état, la plus ancienne d'abord."""
+    return sorted(found, key=lambda s: (SESSION_ORDER.get(s.state, 3), s.state_since))
+
+
+def elapsed_label(seconds):
+    if seconds < 60:
+        return "à l'instant"
+    if seconds < 3600:
+        return f"depuis {int(seconds // 60)} min"
+    if seconds < 86400:
+        return f"depuis {int(seconds // 3600)} h {int(seconds % 3600 // 60):02d}"
+    return f"depuis {int(seconds // 86400)} j"
+
+
+def session_entries(found, title_of, now):
+    """Entrées du sous-menu, triées : « titre — état, depuis … ». `title_of(session)` donne le
+    titre de la conversation ; sans titre (ou en cas d'erreur), le nom du projet."""
+    from . import sessions
+    from .attention import session_ref
+    out = []
+    for s in sort_sessions(found):
+        try:
+            title = title_of(s)
+        except Exception:
+            title = None
+        out.append(SessionEntry(
+            f"{title or s.project} — {sessions.state_label(s)}, {elapsed_label(now - s.state_since)}",
+            session_ref(s), s.cwd))
+    return out
+
+
+def sessions_root_label(found):
+    n = sum(1 for s in found if s.state == "waiting")
+    if n:
+        return f"Sessions ({n} {'attend' if n == 1 else 'attendent'} ta réponse)"
+    return f"Sessions ({len(found)})" if found else "Sessions"
+
+
+def sessions_signature(found):
+    """Ce qui change la liste affichée (hors horloge) : ne relire les titres que si besoin."""
+    return tuple((s.pid, s.session_id, s.state, s.waiting_for, s.cwd) for s in sort_sessions(found))
+
+
+def open_session(ref):
+    """Ouvre l'application sur la session (détaché, comme la notification cliquable)."""
+    try:
+        from . import desktop
+        return desktop.show_session(ref) is not None
+    except Exception:
+        return False
 
 
 # Fin du menu : l'application sur la bonne page (noms français de `gui --page`).
@@ -263,6 +358,11 @@ def run():
         daemon.request_refresh()
         GLib.idle_add(lambda: (rebuild(), False)[1])
 
+    def set_quiet(_item, choice):
+        quiet.apply(choice)
+        daemon.request_refresh()
+        GLib.idle_add(lambda: (rebuild(), False)[1])
+
     def open_uri(_item, url):
         subprocess.Popen(["gio", "open", url], start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -287,16 +387,37 @@ def run():
             Gtk.main_quit()
         return False
 
+    titles = {"sig": None, "map": {}}
+
+    def cached_title(s):
+        from . import sessions
+        key = (s.pid, s.session_id)
+        if key not in titles["map"]:
+            titles["map"][key] = sessions.conversation_title(s.cwd, s.session_id)
+        return titles["map"][key]
+
     def rebuild():
         state = core.load_json(daemon.state_path())
         now = datetime.now(timezone.utc)
         s = load_settings()
         # Lu directement (et non dans state.json) : le menu suit aussitôt un clic.
         paused = pause.pause_state(now)
+        silence = quiet.quiet_state(now, s)
         name = icon_name_for(state)
         ensure_icon(name)
         ind.set_icon_full(name, "Usage du compte Claude actif")
-        ind.set_label(label_for(state, paused is not None), "⏸ ⚠ 100 %")
+        from . import sessions
+        try:
+            found = sessions.list_sessions()
+        except Exception:
+            found = []  # une fiche inattendue ne doit pas arrêter l'indicateur
+        waiting = sum(1 for s in found if s.state == "waiting")
+        ind.set_label(label_for(state, paused is not None, waiting, silence is not None),
+                     "⏸ 🔕 ⚠ 100 % · 💬 9")
+        sig = sessions_signature(found)
+        if sig != titles["sig"]:  # titres relus seulement si la liste des sessions a changé
+            titles["sig"] = sig
+            titles["map"] = {}
         menu = Gtk.Menu()
         pause_line, pause_items = pause_menu(paused, now, s["orchestrator"]["active_hours"])
         if pause_line:
@@ -315,28 +436,41 @@ def run():
             else:
                 it.set_sensitive(False)
             menu.append(it)
-        from . import sessions
-        try:
-            lines = session_lines(sessions.list_sessions())
-        except Exception:
-            lines = []  # une fiche inattendue ne doit pas arrêter l'indicateur
-        if lines:
-            menu.append(Gtk.SeparatorMenuItem())
-            root = Gtk.MenuItem(label=f"Sessions Claude Code ({len(lines)})")
-            sub = Gtk.Menu()
-            for text, sess in lines:
-                it = Gtk.MenuItem(label=text)
+        menu.append(Gtk.SeparatorMenuItem())
+        root = Gtk.MenuItem(label=sessions_root_label(found), use_underline=False)
+        sub = Gtk.Menu()
+        entries = session_entries(found, cached_title, now.timestamp())
+        for e in entries:
+            it = Gtk.MenuItem(label=e.label, use_underline=False)
+            it.connect("activate", lambda _i, r=e.ref: open_session(r))
+            sub.append(it)
+        if entries:
+            more = Gtk.MenuItem(label="Terminal ou dossier d'une session")
+            more_sub = Gtk.Menu()
+            for e in entries:
+                it = Gtk.MenuItem(label=e.label, use_underline=False)
                 actions = Gtk.Menu()
                 for label, cb in (("Ouvrir un terminal ici",
-                                   lambda *_, c=sess.cwd: sessions.open_terminal(c, start_claude=False)),
-                                  ("Ouvrir le dossier", lambda *_, c=sess.cwd: sessions.open_folder(c))):
+                                   lambda *_, c=e.cwd: sessions.open_terminal(c, start_claude=False)),
+                                  ("Ouvrir le dossier", lambda *_, c=e.cwd: sessions.open_folder(c))):
                     a = Gtk.MenuItem(label=label)
                     a.connect("activate", cb)
                     actions.append(a)
                 it.set_submenu(actions)
-                sub.append(it)
-            root.set_submenu(sub)
-            menu.append(root)
+                more_sub.append(it)
+            more.set_submenu(more_sub)
+            sub.append(Gtk.SeparatorMenuItem())
+            sub.append(more)
+        else:
+            it = Gtk.MenuItem(label="Aucune session ouverte")
+            it.set_sensitive(False)
+            sub.append(it)
+        sub.append(Gtk.SeparatorMenuItem())
+        it = Gtk.MenuItem(label="Toutes les sessions…")
+        it.connect("activate", launch_gui, ALL_SESSIONS_ARGS)
+        sub.append(it)
+        root.set_submenu(sub)
+        menu.append(root)
         menu.append(Gtk.SeparatorMenuItem())
         for label, section in (("Bascule automatique", "auto_switch"), ("Orchestrateur", "orchestrator")):
             check = Gtk.CheckMenuItem(label=label + (" (en pause)" if paused else ""))
@@ -357,6 +491,28 @@ def run():
                 sub.append(it)
             root.set_submenu(sub)
             menu.append(root)
+        # « Ne pas déranger » : dans le menu principal, à côté de la pause (même famille de
+        # réglages), et non dans le sous-menu Sessions.
+        label, choices, can_resume = quiet_menu(silence, now, s)
+        root = Gtk.MenuItem(label=label, use_underline=False)
+        sub = Gtk.Menu()
+        for text, choice in choices:
+            it = Gtk.MenuItem(label=text)
+            it.connect("activate", set_quiet, choice)
+            sub.append(it)
+        sub.append(Gtk.SeparatorMenuItem())
+        it = Gtk.MenuItem(label="Reprendre les notifications")
+        it.set_sensitive(can_resume)
+        it.connect("activate", set_quiet, "reprendre")
+        sub.append(it)
+        root.set_submenu(sub)
+        menu.append(root)
+        install = install_entry(state)
+        if install:
+            it = Gtk.MenuItem(label=install, use_underline=False)
+            # L'application s'ouvre ; son bandeau propose « Installer ».
+            it.connect("activate", launch_gui, ("gui",))
+            menu.append(it)
         it = Gtk.MenuItem(label="Actualiser")
         it.connect("activate", refresh)
         menu.append(it)

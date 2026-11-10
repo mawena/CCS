@@ -6,6 +6,7 @@ rien du système (systemctl, service, D-Bus, intégration)."""
 
 import json
 import os
+from datetime import datetime, timezone
 import subprocess
 import unittest
 import warnings
@@ -185,6 +186,22 @@ class PrefsPageTest(HomeTestCase):
         self.assertFalse(day.get_sensitive())
         self.assertFalse(hour.get_sensitive())
 
+    def test_monthly_report(self):
+        page = self.page()
+        rows = self.rows(page)
+        switch, hour = rows["Rapport mensuel"], rows["Heure du rapport mensuel"]
+        self.assertTrue(switch.get_active())
+        self.assertEqual(hour.get_value(), 9)
+        adj = hour.get_adjustment()
+        self.assertEqual((adj.get_lower(), adj.get_upper()), (0, 23))
+        hour.set_value(18)
+        self.assertEqual(self.saved()["alerts"]["monthly_report_hour"], 18)
+        switch.set_active(False)
+        self.assertIs(self.saved()["alerts"]["monthly_report"], False)
+        self.assertFalse(hour.get_sensitive())
+        switch.set_active(True)
+        self.assertTrue(hour.get_sensitive())
+
     def test_weekly_report_day_read_back(self):
         page = self.page({"alerts": {"weekly_report_day": 4, "weekly_report_hour": 7}})
         rows = self.rows(page)
@@ -194,6 +211,51 @@ class PrefsPageTest(HomeTestCase):
     def test_invalid_day_falls_back_to_accounts(self):
         page = self.page({"alerts": {"weekly_report_day": "lundi"}})
         self.assertEqual(self.rows(page)["Jour du bilan"].get_selected(), 0)
+
+    # ---- ne pas déranger -------------------------------------------------------------------
+
+    def buttons(self, page):
+        return {b.get_label(): b for b in walk(page) if isinstance(b, Gtk.Button)}
+
+    def test_quiet_group_after_alerts(self):
+        page = self.page()
+        titles = [g.get_title() for g in page.groups]
+        self.assertEqual(titles.index("Ne pas déranger"), titles.index("Alertes") + 1)
+
+    def test_quiet_settings_are_saved(self):
+        page = self.page()
+        rows = self.rows(page)
+        self.assertFalse(rows["Plage de silence"].get_active())
+        rows["Plage de silence"].set_active(True)
+        self.assertTrue(self.saved()["alerts"]["quiet"]["enabled"])
+        waiting = rows["Toujours prévenir quand une session attend ma réponse"]
+        self.assertTrue(waiting.get_active())
+        waiting.set_active(False)
+        self.assertFalse(self.saved()["alerts"]["quiet"]["allow_waiting"])
+        self.assertEqual(self.saved()["alerts"]["quiet"]["start"], "22:00")
+
+    def test_quiet_hours_are_validated(self):
+        page = self.page()
+        entries = [e for e in walk(self.group(page, "Ne pas déranger"))
+                   if isinstance(e, Gtk.Entry)]
+        start, end = entries
+        end.set_text("07:30")
+        self.assertEqual(self.saved()["alerts"]["quiet"]["end"], "07:30")
+        start.set_text("25:99")
+        self.assertEqual(self.saved()["alerts"]["quiet"]["start"], "22:00")
+        self.assertTrue(start.has_css_class("error"))
+
+    def test_quiet_temporary_buttons(self):
+        from ccs_app import quiet
+        page = self.page()
+        buttons = self.buttons(page)
+        buttons["1 h"].emit("clicked")
+        st = quiet.quiet_state(datetime.now(timezone.utc))
+        self.assertEqual(st.source, "temporaire")
+        self.assertTrue(self.refreshes)
+        self.assertIn("Silence", self.window.toasts[-1])
+        buttons["Reprendre"].emit("clicked")
+        self.assertIsNone(quiet.quiet_state(datetime.now(timezone.utc)))
 
     # ---- conseiller de formule ---------------------------------------------------------------
 

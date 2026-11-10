@@ -18,8 +18,29 @@ def actions_for(alert):
 
 def send(alert, transient=False):
     """Affiche l'alerte ; renvoie son identifiant, ou None (sans lever) si le
-    bureau est injoignable. `transient` : bulle seulement, pas gardée dans la liste
-    des notifications (résultat d'un raccourci clavier)."""
+    bureau est injoignable ou si l'alerte est retenue (ne pas déranger : voir `quiet`).
+    `transient` : bulle seulement, pas gardée dans la liste des notifications (résultat
+    d'un raccourci clavier, jamais retenue : action directe de l'utilisateur)."""
+    if not transient and _held(alert):
+        return None
+    return _dbus_send(alert, transient)
+
+
+def _held(alert):
+    """Alerte retenue pendant un silence (comptée pour le résumé) ? Sans jamais lever :
+    en cas de doute on notifie."""
+    try:
+        from . import quiet
+        if quiet.should_hold(alert) is None:
+            return False
+        quiet.hold(alert)
+        return True
+    except Exception as e:
+        log.warning("filtre ne pas déranger en échec : %s", e)
+        return False
+
+
+def _dbus_send(alert, transient=False):
     try:
         from gi.repository import Gio, GLib
         bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)

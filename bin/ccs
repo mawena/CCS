@@ -371,6 +371,9 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
   ccs auto on|off          active / désactive la bascule automatique (98 %)
   ccs pause [durée]        suspend la bascule automatique et l'orchestrateur :
                            1h, 4h, demain, manuel ; off pour reprendre ; status (défaut) : état
+  ccs silence [durée]      ne pas déranger : retient les notifications (résumées à la fin) :
+                           1h, 4h, demain ; off ou reprendre pour lever ; status (défaut) : état
+                           (alias : quiet)
   ccs orch on|off          orchestrateur : enchaîne et décale les fenêtres de 5 h des comptes
   ccs plan                 planning des fenêtres et des recharges à venir
   ccs sessions             sessions Claude Code ouvertes : projet, état, consommation
@@ -388,6 +391,13 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
                            (alias : conseil)
   ccs semaine [--precedente N]
                            bilan de la semaine écoulée (ou de N semaines plus tôt)
+  ccs mois [--precedent N]
+                           rapport du mois écoulé (ou de N mois plus tôt)
+  ccs moment [--duree 3h] [--sur 24h]
+                           meilleur moment pour lancer une grosse tâche (quota d'affilée)
+  ccs mise-a-jour [--verifier]
+                           installe la dernière version de CCS (.deb de GitHub, vérifié) ;
+                           --verifier : dit seulement s'il y en a une (alias : maj)
   ccs journal [--jours N | --tout]
                            journal des bascules avec leur raison (7 derniers jours par défaut)
   ccs projet [<dossier>] [<compte>|aucun]
@@ -401,7 +411,7 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
   ccs rename <a> <b>       renomme un profil
   ccs rm <nom>             supprime un profil
 
-  --notifier (next, use, best, pause) : résultat aussi en notification bureau ; c'est
+  --notifier (next, use, best, pause, silence) : résultat aussi en notification bureau ; c'est
   l'option des raccourcis clavier (bascule notée « raccourci » dans le journal)
 
 Profils stockés dans : $STORE
@@ -429,6 +439,10 @@ main() {
     doctor|bilan) exec "$CA" doctor ;;
     formule|conseil) exec "$CA" formule "$@" ;;
     semaine) exec "$CA" semaine "$@" ;;
+    mois) exec "$CA" mois "$@" ;;
+    moment) exec "$CA" moment "$@" ;;
+    silence|quiet) exec "$CA" silence "$@" ;;
+    mise-a-jour|maj) exec "$CA" mise-a-jour "$@" ;;
     journal) exec "$CA" journal "$@" ;;
     projet) exec "$CA" projet "$@" ;;
     raccourcis|shortcuts) exec "$CA" raccourcis "$@" ;;

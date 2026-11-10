@@ -10,7 +10,7 @@ from datetime import date, datetime, timezone
 
 from gi.repository import Adw, GLib, GObject, Gtk
 
-from .. import __version__, advisor, core, daemon, updates
+from .. import __version__, advisor, core, daemon, quiet, updates
 from ..settings import load_settings, save_settings
 from .common import string_factory
 from .shortcuts_group import ShortcutsGroup
@@ -87,6 +87,7 @@ class PrefsPage(Adw.PreferencesPage):
         self.add_group(self.auto_group())
         self.add_group(self.orchestrator_group())
         self.add_group(self.alerts_group())
+        self.add_group(self.quiet_group())
         self.add_group(self.advice_group())
         self.add_group(self.advisor_group())
         self.add_group(self.integration_group())
@@ -258,6 +259,101 @@ class PrefsPage(Adw.PreferencesPage):
                             "alerts", "waiting_reminder_min", 2, 120))
         return g
 
+    def quiet_group(self):
+        """Ne pas déranger : plage de silence (réglages) et silence temporaire (quiet.json)."""
+        q = self.s["alerts"]["quiet"]
+        g = Adw.PreferencesGroup(
+            title="Ne pas déranger",
+            description="Pendant le silence, les notifications sont retenues puis résumées en une "
+                        "seule à la fin ; une session bloquée par la limite reste signalée.")
+
+        def save_quiet(key, value):
+            q[key] = value
+            self.save()
+        enabled = Adw.SwitchRow(title="Plage de silence", subtitle="Chaque jour actif, de l'heure "
+                                "de début à l'heure de fin (peut passer minuit)", active=q["enabled"])
+        enabled.connect("notify::active", lambda r, _p: save_quiet("enabled", r.get_active()))
+        g.add(enabled)
+        hours = Adw.ActionRow(title="Début et fin", subtitle="Heure locale")
+        box = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
+        entries = {}
+        for key in ("start", "end"):
+            e = Gtk.Entry(text=q[key], width_chars=5, max_width_chars=5)
+            entries[key] = e
+            box.append(e)
+            if key == "start":
+                box.append(Gtk.Label(label="→"))
+
+        def apply_hours(*_):
+            vals = {k: e.get_text().strip() for k, e in entries.items()}
+            bad = False
+            for k, e in entries.items():
+                if TIME_RE.match(vals[k]):
+                    e.remove_css_class("error")
+                else:
+                    e.add_css_class("error")
+                    bad = True
+            if not bad:
+                q.update(vals)
+                self.save()
+        for e in entries.values():
+            e.connect("changed", apply_hours)
+        hours.add_suffix(box)
+        g.add(hours)
+        days_row = Adw.ActionRow(title="Jours", subtitle="Jour où la plage commence")
+        days_box = Gtk.Box(css_classes=["linked", "ccs-days"], valign=Gtk.Align.CENTER)
+        toggles = []
+        for i, lbl in enumerate(DAY_LABELS):
+            t = Gtk.ToggleButton(label=lbl, active=i in q["days"])
+            toggles.append(t)
+            days_box.append(t)
+
+        def apply_days(*_):
+            save_quiet("days", [i for i, t in enumerate(toggles) if t.get_active()])
+        for t in toggles:
+            t.connect("toggled", apply_days)
+        days_row.add_suffix(days_box)
+        g.add(days_row)
+        waiting = Adw.SwitchRow(title="Toujours prévenir quand une session attend ma réponse",
+                                subtitle="Aussi pendant un silence temporaire ; son rappel passe "
+                                         "de même", active=q["allow_waiting"])
+        waiting.connect("notify::active", lambda r, _p: save_quiet("allow_waiting", r.get_active()))
+        g.add(waiting)
+        status, buttons = self.quiet_now_rows()
+        g.add(status)
+        g.add(buttons)
+        return g
+
+    def quiet_now_rows(self):
+        """Silence temporaire : (ligne d'état, ligne de boutons qui se replient) : 1 h, 4 h,
+        jusqu'à demain, reprendre."""
+        row = Adw.ActionRow(title="Silence temporaire")
+        box = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=4,
+                          column_spacing=6, row_spacing=6, margin_top=6, margin_bottom=6,
+                          margin_start=12, margin_end=12, homogeneous=False)
+
+        def refresh():
+            now = datetime.now(timezone.utc)
+            st = quiet.quiet_state(now, self.s)
+            row.set_subtitle("Pas de silence en cours" if st is None else
+                             f"En silence ({'plage' if st.source == 'plage' else 'temporaire'}) "
+                             f"{quiet.label(st, now)}")
+
+        def choose(choice):
+            now = datetime.now(timezone.utc)
+            quiet.apply(choice, now, self.s)
+            daemon.request_refresh()
+            refresh()
+            self.window.toast(quiet.command(["status"], now, self.s)[1])
+        for choice, label in (("1h", "1 h"), ("4h", "4 h"), ("demain", "Jusqu'à demain"),
+                              ("off", "Reprendre")):
+            b = Gtk.Button(label=label)
+            b.connect("clicked", lambda _b, c=choice: choose(c))
+            box.append(b)
+        refresh()
+        buttons = Adw.PreferencesRow(title="Boutons du silence temporaire", child=box)
+        return row, buttons
+
     def advice_group(self):
         a = self.s["alerts"]
         g = Adw.PreferencesGroup(
@@ -288,7 +384,15 @@ class PrefsPage(Adw.PreferencesPage):
             "semaine (le lundi à cette heure si leur semaine n'est pas encore connue)",
             "alerts", "weekly_report_hour", 0, 23)
         self.depends_on(report, day, hour)
-        for row in (model, pct, report, day, hour):
+        monthly = self.switch_row(
+            "Rapport mensuel",
+            "Le 1er du mois, une notification résume le mois écoulé : usage, coût équivalent API, "
+            "modèles, projets et évolution (détail dans l'onglet Analyse ou avec « ccs mois »)",
+            "alerts", "monthly_report")
+        monthly_hour = self.spin_row("Heure du rapport mensuel", "Heure d'envoi, le 1er du mois",
+                                     "alerts", "monthly_report_hour", 0, 23)
+        self.depends_on(monthly, monthly_hour)
+        for row in (model, pct, report, day, hour, monthly, monthly_hour):
             g.add(row)
         return g
 

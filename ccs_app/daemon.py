@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import alerts, autoswitch, core, notify, orchestrator, pause, switch_log, updates
+from . import alerts, autoswitch, core, notify, orchestrator, pause, quiet, switch_log, updates
 from .forecast import (AccountState, best_account, capacity, effective_percent,
                        session_forecast, weekly_forecast, weekly_pace)
 from .settings import load_settings
@@ -206,7 +206,9 @@ class Daemon:
                 body = f"Session {s.name}" + (f" — {s.waiting_for}" if s.waiting_for else "")
             else:
                 title, body = f"{s.project} a terminé", f"Session {s.name} — prête pour la suite."
-            self.notifier(_session_alert(f"session:{s.pid}:{ts:.0f}", title, body, s))
+            # Clé « attente:… » pour l'attente, « session:… » pour la fin (voir quiet.kind).
+            prefix = "attente" if kind == "waiting" else "session"
+            self.notifier(_session_alert(f"{prefix}:{s.pid}:{ts:.0f}", title, body, s))
 
     def _remind_waiting(self, cur, first, cfg, ts):
         """Rappel unique par attente : session « waiting » depuis plus de N minutes."""
@@ -355,6 +357,16 @@ class Daemon:
             except Exception:  # un module optionnel ne doit pas arrêter la collecte
                 log.exception("erreur dans un module du daemon")
 
+        try:
+            quiet.flush(now, self.notifier, settings)  # fin de silence : résumé unique
+            qwake = quiet.next_wake(now, settings)
+        except Exception:
+            log.exception("silence : résumé impossible")
+            qwake = None
+        if qwake is not None:
+            # Réveil à la fin du silence (résumé sans attendre le relevé suivant).
+            delay = max(1.0, min(delay, (qwake - now).total_seconds() + EDGE_MARGIN_S))
+
         self.previous_sessions = {s.name: s.session for s in states}
         self.write_state(states, profiles, forecasts, paces, best, decision, settings, now,
                          reserve, weeklies, paused)
@@ -423,6 +435,8 @@ class Daemon:
             "orchestrator": self._orchestrator_state(states, settings, now, reserve, paused),
             # Mode pause : {"since", "until" (None : reprise manuelle), "label"} ou None.
             "pause": paused.as_dict(now) if paused is not None else None,
+            # Ne pas déranger : {"active", "until", "source" ("plage" | "temporaire"), "held"}.
+            "quiet": quiet.state_dict(now, settings),
             # Nouvelle version publiée : {"version", "url", "name"} ou None (cache, sans réseau).
             "update": self._update_state(settings),
         })

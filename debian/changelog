@@ -1,3 +1,19 @@
+ccs (0.7.0) unstable; urgency=medium
+
+  * Dépôt APT signé (https://mawena.github.io/CCS/apt) : le paquet ajoute
+    sa source et sa clé, apt upgrade installe les nouvelles versions ;
+    page d'accueil et installateur sur https://mawena.github.io/CCS/.
+  * Mise à jour en un clic depuis le bandeau de nouvelle version
+    (téléchargement de la release GitHub, SHA-256, pkexec) ;
+    ccs mise-a-jour.
+  * Ne pas déranger : plages de silence, silence temporaire, résumé à la
+    fin ; ccs silence, menu de l'icône, raccourci Super+Alt+D.
+  * Meilleur moment pour une grosse tâche (onglet Planning, ccs moment).
+  * Rapport mensuel (onglet Analyse, notification le 1er, ccs mois).
+  * Sessions ouvertes dans le menu de l'icône, cliquables.
+
+ -- mawena <gamligocharles@gmail.com>  Tue, 10 Nov 2026 18:30:00 +0000
+
 ccs (0.6.1) unstable; urgency=medium
 
   * Réglages édités à la main : une clé invalide reprend sa valeur par

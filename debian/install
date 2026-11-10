@@ -4,3 +4,5 @@ ccs_app usr/lib/ccs
 data/io.ccs.ClaudeAccounts.desktop usr/share/applications
 data/io.ccs.ClaudeAccounts.svg usr/share/icons/hicolor/scalable/apps
 data/io.ccs.ClaudeAccounts.Tray.desktop etc/xdg/autostart
+data/apt/ccs.sources etc/apt/sources.list.d
+data/apt/ccs.gpg usr/share/keyrings

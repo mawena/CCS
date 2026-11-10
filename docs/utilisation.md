@@ -9,7 +9,7 @@
   enregistré nulle part, CCS refuse de basculer pour ne pas le perdre : fais
   d'abord `ccs save`. Un argument en trop est refusé (usage, code 1).
 - `--notifier` (avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`,
-  `ccs pause`) affiche aussi le résultat en notification passagère : « Bascule
+  `ccs pause`, `ccs silence`) affiche aussi le résultat en notification passagère : « Bascule
   sur boulot » (avec l'adresse du compte et les sessions qui suivront), « Déjà
   sur perso », « Bascule impossible », « Aucun compte disponible », « Pause
   jusqu'à 14:00 », « Pause levée », « Pause impossible ». C'est l'option des
@@ -105,6 +105,38 @@ ouvertes passent en premier, puis le compte actif.
 **Planning.** `ccs plan` ou l'onglet **Planning** : frise par compte (fenêtre en
 cours remplie selon l'usage, fenêtres prévues en pointillés, trait rouge =
 maintenant) et liste des recharges à venir.
+
+### Meilleur moment pour une grosse tâche
+
+La carte **Meilleur moment pour une grosse tâche** de l'onglet Planning, et
+`ccs moment`, répondent à « quand lancer un long travail ? ». L'unité est la
+**fenêtre de 5 h disponible**, pas une durée de travail : la durée choisie
+(1, 2, 3, 4, 6 ou 8 h dans la carte) sert à dire si les fenêtres couvrent la
+tâche.
+
+```sh
+ccs moment                       # tâche de 3 h, sur les 24 prochaines heures
+ccs moment --duree 2h30 --sur 48h
+```
+
+La durée va de 1 à 10 h (`3h`, `2h30`, `90m`, `1,5h`), l'horizon (`--sur`) de 1 à
+72 h. Code de sortie 0 ; 1 sans état du service ; 2 pour un usage incorrect.
+
+Comment c'est calculé :
+
+- les départs testés sont **maintenant**, puis **tous les quarts d'heure**
+  sur l'horizon ;
+- pour chaque départ, CCS additionne, compte par compte : le **reste de la
+  fenêtre en cours**, la **fenêtre neuve** à sa réinitialisation puis toutes
+  les 5 h, et une **fenêtre fraîche** qui démarre au départ. Une fenêtre en
+  cours n'est comptée entière que s'il en reste au moins 1 h ;
+- le **plafond hebdomadaire** limite le total, avec l'hypothèse qu'**une semaine
+  pleine équivaut à environ 10 fenêtres de 5 h** : c'est une estimation, pas une
+  mesure ;
+- les comptes en erreur sont ignorés, et une pause en cours est signalée ;
+- « **Lance-la maintenant** » s'affiche quand maintenant est à 10 % du meilleur
+  départ ; sinon, le meilleur moment et jusqu'à 3 alternatives espacées d'au
+  moins 90 min. La carte dessine la frise des 24 h.
 
 ## Pause
 
@@ -215,6 +247,48 @@ Réglables dans **Réglages → Alertes** :
 
 Chaque alerte n'est envoyée qu'une fois par fenêtre (une fois par semaine pour
 la fin de semaine prévue et le bilan).
+
+## Ne pas déranger
+
+**Réglages → Ne pas déranger** (`alerts.quiet`) :
+
+| Clé | Défaut | Rôle |
+|---|---|---|
+| `enabled` | `false` | Active la plage de silence |
+| `start` / `end` | `22:00` / `08:00` | Début et fin, heure locale ; la plage peut passer minuit |
+| `days` | `[0,1,2,3,4,5,6]` | Jours où la plage commence (0 = lundi … 6 = dimanche) : une plage du vendredi 22:00 au samedi 08:00 compte pour le vendredi |
+| `allow_waiting` | `true` | Laisse passer « attend ta réponse » et son rappel |
+
+Les bornes suivent l'heure locale réelle (changement d'heure compris).
+
+**Silence temporaire** : `ccs silence 1h`, `4h` ou `demain` (jusqu'à la fin de
+la plage de silence en cours ou prochaine, sans plage jusqu'à 08:00) ; `ccs silence off` (ou `reprendre`) lève le
+silence, `ccs silence status` (défaut) affiche l'état. Alias : `ccs quiet`.
+`--notifier` affiche aussi le résultat en notification passagère (« Ne pas
+déranger jusqu'à 08:00 », « Silence levé »). Une durée inconnue donne le code 2.
+`ccs status` rappelle le silence : « Ne pas déranger jusqu'à … (ccs silence off
+pour reprendre) », ou « Ne pas déranger (plage de silence) … » pendant une plage
+des réglages. Le silence temporaire est gardé dans
+`~/.claude-accounts/quiet.json`.
+
+Aussi dans le **menu principal de l'icône** (après le bloc de pause) :
+« Ne pas déranger — silence jusqu'à 08:00 » (ou « plage de silence … »), avec
+« 1 heure », « 4 heures », « Jusqu'à demain 08:00 » et « Reprendre les
+notifications » (actif seulement pour un silence temporaire : une plage des
+réglages ne se lève pas d'un clic). L'indicateur affiche 🔕 pendant un silence,
+avant le symbole de pause. Le raccourci clavier « Ne pas déranger 1 h »
+(`silence`, Super+Alt+D, désactivé par défaut : `ccs raccourcis on silence`) est
+décrit dans [Raccourcis clavier globaux](#raccourcis-clavier-globaux).
+
+**Pendant le silence**, les notifications sont retenues et comptées
+(`~/.claude-accounts/quiet_held.json`). À la fin, **un seul résumé** « Fin du
+silence » dit combien ont été retenues. Une alerte retenue n'est jamais renvoyée
+après coup : elle n'est que résumée. **Jamais retenues** : « attend ta réponse »
+et son rappel (si `allow_waiting`), les sessions bloquées par une limite, le
+résumé lui-même et les retours des raccourcis clavier.
+
+L'état est publié dans la clé `quiet` de `state.json` (`active`, `until`,
+`source`, `held`).
 
 ## Warm-up à heure fixe
 
@@ -373,6 +447,36 @@ relevés. Réglages → Conseils : **Bilan de la semaine** (`alerts.weekly_repor
 activé par défaut), **Jour du bilan** (« Début de semaine des comptes » ou
 Lundi … Dimanche) et **Heure du bilan** (0 à 23, pour un jour fixe).
 
+### Rapport mensuel
+
+`ccs mois`, la carte **Rapport mensuel** de l'onglet Analyse (le mois en cours
+et les 11 précédents, le dernier mois terminé par défaut) et une
+**notification** le 1er du mois :
+
+- **Période** : mois civil en heure locale ; le mois en cours est comparé au
+  même nombre de jours du mois précédent ;
+- **Comptes** : semaines utilisées, pic hebdomadaire, fenêtres de 5 h entamées,
+  limites atteintes, bascules vers ce compte ;
+- **Activité** : conversations, sessions, tokens et équivalent au tarif de l'API,
+  comparé au prix des formules payées (le « ×N » est omis sur un mois
+  incomplet) ;
+- **Modèles** et **10 premiers projets** (avec leur coût) ;
+- **Évolution** par rapport au mois précédent et **tendance** sur 3 à 6 mois,
+  affichée à partir de 3 mois d'activité.
+
+```sh
+ccs mois                  # dernier mois terminé
+ccs mois --precedent 1    # celui d'avant (0 à 120 ; 0 = le mois en cours)
+```
+
+Code de sortie 2 pour un usage incorrect (nombre hors de 0 à 120, option
+inconnue), 1 si le calcul échoue. La notification part le 1er du mois à
+`alerts.monthly_report_hour` (9 par défaut), le 2 si le PC dormait, seulement si
+les relevés couvrent au moins 7 jours du mois écoulé. Réglages → Conseils :
+**Rapport mensuel** (`alerts.monthly_report`, activé par défaut) et **Heure du
+rapport mensuel**. Comme le bilan de la semaine, il ne couvre que les journaux
+Claude Code **de ce PC**.
+
 Le groupe **Conseils** ne fait qu'envoyer des notifications d'aide : elles ne
 partent que si les notifications sont activées (Réglages → Alertes →
 **Notifications**).
@@ -492,6 +596,16 @@ un message l'explique et rien ne s'ouvre. La session s'ouvre ensuite dans un
 onglet du terminal intégré (terminal externe sans VTE), avec
 `claude --model … --permission-mode …` lancé dans le dossier choisi ; l'onglet
 garde ces options pour Reprendre et la réouverture.
+
+### Sessions dans le menu de l'icône
+
+Le menu de l'icône contient un sous-menu **Sessions (n)**, ou « Sessions
+(1 attend ta réponse) » quand l'une t'attend : une entrée par session (titre,
+état, depuis quand), celles qui attendent en premier. Un clic ouvre la session
+dans l'application, comme une notification cliquable. Le sous-menu propose
+aussi « Toutes les sessions… » (onglet Sessions) et « Terminal ou dossier d'une
+session » pour l'ouvrir dans un terminal ou son dossier. Le libellé de
+l'indicateur affiche « · 💬 n » quand n sessions attendent ta réponse.
 
 ### Notifications
 
@@ -827,6 +941,7 @@ défaut**.
 | Basculer sur le meilleur compte (`meilleur`) | Super+Alt+M | `ccs best --notifier` |
 | Pause 1 h (`pause`) | Super+Alt+P | `ccs pause 1h --notifier` |
 | Reprendre (lever la pause) (`reprendre`) | Super+Alt+R | `ccs pause off --notifier` |
+| Ne pas déranger 1 h (`silence`) | Super+Alt+D | `ccs silence 1h --notifier` |
 
 Super+Alt+lettre : aucune de ces combinaisons n'est prise par GNOME, le Dock ou
 l'assistant de tuilage d'Ubuntu, et des lettres plutôt que des chiffres
@@ -925,7 +1040,50 @@ est plus récente que celle installée) et **Réglages → Service de collecte**
 version installée et le lien. Interrupteur **Nouvelles
 versions** (`updates.enabled`) ; cache `~/.claude-accounts/updates.json`.
 
-Installe le nouveau paquet : le service se relance seul (dans les 5 min) et
+### Installer en un clic
+
+Quand le paquet est installé par `dpkg`, le bandeau de la fenêtre propose
+**Installer** (le menu de l'icône : « Installer CCS x.y.z… »). Un dialogue
+affiche les **notes de la release**, la progression en trois temps
+(**téléchargement**, **vérification**, **installation**) et **Voir sur GitHub** ;
+à la fin, **Redémarrer l'application** relance la fenêtre sur la nouvelle
+version. En ligne de commande : `ccs mise-a-jour` (alias `ccs maj`) ;
+`--verifier` cherche seulement la dernière version, sans rien installer. Codes
+de sortie : 0 (à jour, installée, ou version signalée avec `--verifier`),
+1 (échec, ou copie de développement), 2 (usage incorrect).
+
+Ce que CCS contrôle avant d'installer :
+
+- **origine** : seules les URL
+  `github.com/mawena/CCS/releases/download/v<version>/…` ou de l'API des pièces
+  jointes du dépôt sont acceptées ; une redirection n'est suivie que vers
+  `objects.githubusercontent.com` ou `release-assets.githubusercontent.com`, en
+  https ;
+- **pièces exigées** : `ccs_<version>_all.deb` et `SHA256SUMS`, avec une limite de
+  taille pour chacune ; elles sont téléchargées dans un dossier temporaire
+  de droits 0700 ;
+- **somme SHA-256** du paquet comparée à `SHA256SUMS` ;
+- **contenu du paquet** (`dpkg-deb -f`) : paquet `ccs`, version égale à celle
+  annoncée et plus récente que celle installée.
+
+Avec le dépôt APT de CCS (ajouté par le paquet), `sudo apt update && sudo apt
+upgrade` fait aussi la mise à jour ; le bouton **Installer** reste utile pour
+ne pas ouvrir de terminal.
+
+En ligne de commande, `ccs mise-a-jour` affiche chaque étape au fil de l'eau ;
+le texte final va sur la sortie normale si le code est 0, sur la sortie d'erreur
+sinon. Une option inconnue donne le code 2. « Installer CCS x.y.z… » du menu de
+l'icône (affiché quand une version plus récente est annoncée, en plus de la ligne
+« ⬆ CCS x disponible — voir la version ») ouvre l'application, dont le bandeau
+propose **Installer**.
+
+L'installation se fait par `pkexec apt-get install -y` : une fenêtre demande ton
+mot de passe. Si `pkexec` manque ou si tu le refuses, le dialogue affiche la
+commande `sudo apt install '<chemin>'`, à copier dans un terminal. Une **copie
+de développement** (lancée depuis le dépôt) n'est pas installée par ce chemin :
+elle est « mise à jour par git » (`git pull`).
+
+Installe le nouveau paquet à la main, ou en un clic : le service se relance seul (dans les 5 min) et
 l'icône aussi, dès que les fichiers installés ne bougent plus (10 s). En venant
 de la 0.4.0 ou d'avant, l'icône ne sait pas encore se relancer : fais-le une
 fois avec `pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`.

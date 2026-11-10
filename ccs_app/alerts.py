@@ -2,7 +2,7 @@
 
 Pur, sauf le conseil de modèle qui lit la fin des journaux récents (avec cache), et
 seulement quand le compte actif dépasse son seuil sans que le conseil de cette fenêtre
-ait déjà été donné ; et le bilan de la semaine, calculé dans un fil une fois dû.
+ait déjà été donné ; et le bilan de la semaine et le rapport mensuel, calculés dans un fil une fois dus.
 """
 
 import logging
@@ -152,6 +152,9 @@ def pending_alerts(accounts, active, fc, paces, best, settings, now, sent_keys, 
     report = _weekly_report(accounts, settings, now, sent_keys)
     if report:
         out.append(report)
+    monthly = _monthly_report(accounts, settings, now, sent_keys)
+    if monthly:
+        out.append(monthly)
     return out
 
 
@@ -162,6 +165,16 @@ def _weekly_report(accounts, settings, now, sent_keys):
         return weekly_report.pending_alert(accounts, settings, now, sent_keys)
     except Exception:  # noqa: BLE001 — historique illisible : pas de bilan, jamais de tick en échec
         log.exception("bilan de la semaine impossible")
+        return None
+
+
+def _monthly_report(accounts, settings, now, sent_keys):
+    """Rapport du mois écoulé (calculé dans un fil le 1er, envoyé une fois par mois)."""
+    from . import monthly_report
+    try:
+        return monthly_report.pending_alert(accounts, settings, now, sent_keys)
+    except Exception:  # noqa: BLE001 — historique illisible : pas de rapport, jamais de tick en échec
+        log.exception("rapport mensuel impossible")
         return None
 
 
