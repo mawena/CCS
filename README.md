@@ -16,6 +16,15 @@ ccs status            # où j'en suis, quel compte utiliser
 ccs formule           # la formule qu'il te faut, d'après ton usage réel
 ```
 
+**Site :** [mawena.github.io/CCS](https://mawena.github.io/CCS/) ·
+**Installation sur Ubuntu** (dépôt APT signé, mises à jour par `apt upgrade`) :
+
+```sh
+curl -fsSL https://mawena.github.io/CCS/installer.sh | sudo sh
+```
+
+Les autres façons d'installer sont dans [Installation](#installation).
+
 ## Le palier qui manque
 
 | Formule | Prix / mois* | Capacité (Pro = 1×) |
@@ -417,56 +426,64 @@ terminal intégré, VTE pour GTK 4 : `gir1.2-vte-3.91`).
 Claude Code doit être installé
 (`claude` dans le `PATH`).
 
-### Installation par apt
+### Par le dépôt APT (recommandé)
 
-Le paquet ajoute lui-même le dépôt APT signé de CCS : après la première
-installation, `sudo apt update && sudo apt upgrade` installe les nouvelles
-versions. Première installation, au choix :
+CCS a son dépôt APT signé, sur GitHub Pages : <https://mawena.github.io/CCS/apt>.
+Une fois CCS installé, **les nouvelles versions arrivent avec les mises à jour
+du système** (`sudo apt update && sudo apt upgrade`, ou la Logithèque). Trois
+façons de faire la première installation :
 
 ```sh
-# 1. l'installateur (clé, dépôt, installation)
+# 1. l'installateur : ajoute la clé et le dépôt, puis installe CCS
 curl -fsSL https://mawena.github.io/CCS/installer.sh | sudo sh
 
-# 2. à la main
+# 2. à la main, les mêmes étapes
 sudo curl -fsSL https://mawena.github.io/CCS/apt/ccs.gpg -o /usr/share/keyrings/ccs.gpg
 sudo curl -fsSL https://mawena.github.io/CCS/apt/ccs.sources -o /etc/apt/sources.list.d/ccs.sources
 sudo apt update && sudo apt install ccs
 
-# 3. le .deb d'une release GitHub
-sudo apt install ./ccs_<version>_all.deb
-```
-
-Page d'accueil : <https://mawena.github.io/CCS/>. Clé « CCS APT (mawena) »
-(ed25519), empreinte `D21A 5E7D B4D3 56E5 5961 F7C6 6568 A5B4 420A ACD2`.
-
-### Avec le .deb seul
-
-```sh
+# 3. le .deb d'une release GitHub : il ajoute lui-même le dépôt APT
 gh release download -R mawena/CCS -p '*.deb'      # ou depuis la page Releases
 sudo apt install ./ccs_*_all.deb
+```
+
+Le site <https://mawena.github.io/CCS/> donne les mêmes commandes, à copier.
+Clé de signature « CCS APT (mawena) » (ed25519), empreinte
+`D21A 5E7D B4D3 56E5 5961 F7C6 6568 A5B4 420A ACD2` ; le paquet installe
+lui-même sa source (`/etc/apt/sources.list.d/ccs.sources`) et sa clé
+(`/usr/share/keyrings/ccs.gpg`).
+
+### Après la première installation
+
+```sh
 systemctl --user daemon-reload
 systemctl --user enable --now ccs-daemon
+claude-accounts tray &            # l'icône, sans attendre de te reconnecter
+ccs integrate on                  # optionnel : ligne d'état et bascule après blocage dans Claude Code
+ccs doctor                        # tout doit être au vert
 ```
 
 Le service démarre ensuite seul à chaque session, l'icône de la barre du haut
-aussi (première fois sans te reconnecter : `claude-accounts tray &`).
-Optionnel : `ccs integrate on` pour la ligne d'état et la bascule après blocage
-dans Claude Code.
+aussi.
 
 **Indicateur invisible ?** Active l'extension GNOME « Ubuntu AppIndicators » :
 `gnome-extensions enable ubuntu-appindicators@ubuntu.com` (ou bouton dans
 Réglages).
 
-**Mise à jour** : CCS te prévient quand une nouvelle version est publiée
-(notification, icône, bandeau de la fenêtre, Réglages ; vérification sur GitHub
-au plus une fois par jour). `sudo apt update && sudo apt upgrade` l'installe
-avec le dépôt APT ; le bouton **Installer** du bandeau (ou
-`ccs mise-a-jour`) télécharge, vérifie et installe le paquet en un clic ;
-sinon, installe le nouveau `.deb` à la main : le service se relance seul avec la nouvelle
-version (dans les 5 min), l'icône aussi (dans les 10 s). En venant de la 0.4.0
-ou d'avant, l'icône ne sait pas encore le faire : relance-la une fois
-(`pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`) ; en venant
-d'une version antérieure à 0.2.1, lance aussi une fois
+### Mettre à jour
+
+- **Par apt** (dépôt ajouté par le paquet) : `sudo apt update && sudo apt upgrade`.
+- **En un clic** : CCS te prévient quand une nouvelle version est publiée
+  (notification, icône, bandeau de la fenêtre, Réglages ; vérification sur
+  GitHub au plus une fois par jour). Le bouton **Installer** du bandeau, ou
+  `ccs mise-a-jour`, télécharge, vérifie et installe le paquet.
+- **À la main** : installe le nouveau `.deb` avec `sudo apt install ./ccs_*_all.deb`.
+
+Le service se relance seul avec la nouvelle version (dans les 5 min), l'icône
+aussi (dans les 10 s) ; ferme et rouvre la fenêtre « Comptes Claude ». En
+venant de la 0.4.0 ou d'avant, l'icône ne sait pas encore le faire : relance-la
+une fois (`pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`) ;
+en venant d'une version antérieure à 0.2.1, lance aussi une fois
 `systemctl --user restart ccs-daemon`. Tes profils sont conservés.
 
 ### Depuis les sources
@@ -616,9 +633,13 @@ Journaux du service : `journalctl --user -u ccs-daemon -f`.
 
 ```sh
 systemctl --user disable --now ccs-daemon
-sudo apt remove ccs
+sudo apt purge ccs             # retire aussi la source APT de CCS
 rm -rf ~/.claude-accounts      # optionnel : profils et historique
 ```
+
+Préfère `purge` à `remove` : la source APT (`/etc/apt/sources.list.d/ccs.sources`)
+est un fichier de configuration que `remove` laisse en place, alors que la clé
+est retirée ; `apt update` signalerait alors une source sans clé.
 
 ## Développement
 

@@ -3,6 +3,18 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.7.1] — 2026-11-10
+
+### Modifié
+
+- README : l'installation par le dépôt APT est mise en avant dès l'en-tête,
+  avec le lien du site <https://mawena.github.io/CCS/> ; section Installation
+  réorganisée (dépôt APT recommandé, trois façons de faire la première
+  installation, étapes après la première installation, mises à jour par apt,
+  en un clic ou à la main) ; désinstallation par `apt purge` pour retirer aussi
+  la source APT.
+- Guide d'utilisation : lien du site et installation par apt en tête.
+
 ## [0.7.0] — 2026-11-10
 
 ### Ajouté

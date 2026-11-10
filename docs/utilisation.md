@@ -1,5 +1,17 @@
 # Guide d'utilisation
 
+Site : <https://mawena.github.io/CCS/>. Installation sur Ubuntu par le dépôt APT
+signé (les nouvelles versions arrivent ensuite avec `sudo apt update && sudo apt
+upgrade`) :
+
+```sh
+curl -fsSL https://mawena.github.io/CCS/installer.sh | sudo sh
+```
+
+Les autres façons d'installer (à la main, `.deb` d'une release GitHub, depuis
+les sources) et les étapes qui suivent la première installation sont dans le
+[README](../README.md#installation).
+
 ## Profils
 
 - `ccs save <nom>` enregistre le compte actuellement connecté dans Claude Code.
