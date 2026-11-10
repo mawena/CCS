@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCS, plusieurs comptes Claude Code sur un seul poste</title>
+<meta name="description" content="CCS garde plusieurs comptes Claude Code sur un poste Linux, change de compte en une commande, surveille les limites et choisit le meilleur compte. Installation par apt sur Ubuntu.">
+<meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1814" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="entete">
+  <a class="marque" href="./"><img src="icone.svg" alt="" width="32" height="32"><span>CCS</span></a>
+  <nav aria-label="Liens du projet">
+    <a href="#installer">Installer</a>
+    <a href="https://github.com/mawena/CCS/releases/latest">Dernière version</a>
+    <a href="https://github.com/mawena/CCS">Code source</a>
+  </nav>
+</header>
+
+<main>
+  <section class="ouverture" aria-labelledby="titre">
+    <h1 id="titre">Plusieurs comptes Claude Code, un seul poste</h1>
+    <p class="chapeau">CCS garde vos comptes côte à côte et change de l'un à l'autre en une commande, sans se déconnecter ni se reconnecter. Il surveille la limite de 5 heures et la limite hebdomadaire de chacun, prévoit quand une session sera épuisée et bascule avant qu'elle ne le soit.</p>
+
+    <div class="installation-courte">
+      <p>Sur Ubuntu 24.04 :</p>
+      <div class="commande">
+        <pre><code id="cmd-courte">curl -fsSL https://mawena.github.io/CCS/installer.sh | sudo sh</code></pre>
+        <button type="button" class="copier" data-cible="cmd-courte">Copier</button>
+      </div>
+      <p class="nuance">Le script ajoute le dépôt APT signé puis installe le paquet ; <a href="#installer">les commandes qu'il lance</a> sont détaillées plus bas, pour qui préfère les taper soi-même.</p>
+    </div>
+  </section>
+
+  <section class="points" aria-labelledby="points-titre">
+    <h2 id="points-titre">Ce que fait CCS</h2>
+    <div class="grille">
+      <article>
+        <h3>Changer de compte</h3>
+        <p>Une commande, <code>ccs switch</code>, et les sessions déjà ouvertes suivent à leur prochaine requête.</p>
+      </article>
+      <article>
+        <h3>Voir les limites</h3>
+        <p>Session de 5 heures et semaine de chaque compte, prévision d'épuisement et conseil du meilleur compte à utiliser.</p>
+      </article>
+      <article>
+        <h3>Basculer seul</h3>
+        <p>Changement automatique avant d'atteindre une limite, plages de 5 heures enchaînées et décalées aux heures actives.</p>
+      </article>
+      <article>
+        <h3>Comprendre l'usage</h3>
+        <p>Analyse des journaux locaux de Claude Code par projet, modèle et heure ; notifications sur le bureau.</p>
+      </article>
+      <article>
+        <h3>Une application GNOME</h3>
+        <p>« Comptes Claude » : sessions reprises ou lancées dans des onglets de terminal intégré, conversations renommables, indicateur dans la barre du haut.</p>
+      </article>
+      <article>
+        <h3>Un service discret</h3>
+        <p>Un service systemd utilisateur veille en arrière-plan, pour tous les utilisateurs du poste.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="installer" id="installer" aria-labelledby="installer-titre">
+    <h2 id="installer-titre">Installer</h2>
+    <p>Pour Ubuntu 24.04 et les distributions Debian équivalentes. Une fois le dépôt ajouté, <code>sudo apt upgrade</code> apporte les nouvelles versions.</p>
+    <ol class="pas">
+      <li>
+        <p>Ajouter la clé qui signe le dépôt :</p>
+        <div class="commande"><pre><code id="cmd-cle">sudo curl -fsSLo /usr/share/keyrings/ccs.gpg https://mawena.github.io/CCS/apt/ccs.gpg</code></pre><button type="button" class="copier" data-cible="cmd-cle">Copier</button></div>
+      </li>
+      <li>
+        <p>Ajouter le dépôt :</p>
+        <div class="commande"><pre><code id="cmd-source">sudo curl -fsSLo /etc/apt/sources.list.d/ccs.sources https://mawena.github.io/CCS/apt/ccs.sources</code></pre><button type="button" class="copier" data-cible="cmd-source">Copier</button></div>
+      </li>
+      <li>
+        <p>Installer :</p>
+        <div class="commande"><pre><code id="cmd-installer">sudo apt update &amp;&amp; sudo apt install ccs</code></pre><button type="button" class="copier" data-cible="cmd-installer">Copier</button></div>
+      </li>
+      <li>
+        <p>Vérifier l'installation :</p>
+        <div class="commande"><pre><code id="cmd-verif">ccs doctor</code></pre><button type="button" class="copier" data-cible="cmd-verif">Copier</button></div>
+      </li>
+    </ol>
+    <p>Sans le dépôt : téléchargez le paquet <code>.deb</code> et sa somme de contrôle sur la page de la <a href="https://github.com/mawena/CCS/releases/latest">dernière version</a>, puis <code>sudo apt install ./ccs_*_all.deb</code>. Le paquet ajoute lui-même le dépôt : les mises à jour suivantes passent ensuite par <code>sudo apt upgrade</code>.</p>
+  </section>
+</main>
+
+<footer class="pied">
+  <p>CCS est un logiciel libre sous licence MIT, écrit par <a href="https://github.com/mawena">mawena</a>.</p>
+  <p>Clé du dépôt APT : <code>D21A 5E7D B4D3 56E5 5961 F7C6 6568 A5B4 420A ACD2</code></p>
+</footer>
+
+<script src="ccs.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+Package: ccs
+Version: 0.7.0
+Architecture: all
+Maintainer: mawena <gamligocharles@gmail.com>
+Installed-Size: 974
+Depends: init-system-helpers (>= 1.52), jq, procps, python3 (>= 3.10), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1 (>= 1.5), gir1.2-vte-3.91, gir1.2-gtk-3.0, gir1.2-ayatanaappindicator3-0.1
+Recommends: gnome-terminal | x-terminal-emulator
+Suggests: gnome-shell-extension-appindicator
+Filename: pool/main/ccs_0.7.0_all.deb
+Size: 269666
+MD5sum: cc0c7e4410c739d013fc9982457cad07
+SHA1: 2dbf3512bf579be5b4c572945cfc4363b6107849
+SHA256: 21ba74ddcef37955eed6bd6926571f6231f6802f800a4f7cd47ce55562f083b8
+Section: utils
+Priority: optional
+Description: multi-account switcher and usage assistant for Claude Code
+ CCS keeps several Claude Code accounts on one machine and switches between
+ them with a single command, without logging out and in again.
+ .
+ It also watches the usage of every account (5-hour session and weekly
+ limits), forecasts when a session will run out, recommends the best account,
+ switches automatically before a limit is reached (running sessions follow
+ on their next request), orchestrates the 5-hour windows of all accounts
+ (chained and staggered during active hours, expiring quota used first),
+ sends desktop notifications, analyses local Claude Code
+ logs per project, model and hour, and can start a 5-hour window early.
+ .
+ Claude Code sessions can be resumed or started inside the application, in
+ tabs of an embedded terminal, and conversations can be renamed.
+ .
+ Includes the `ccs` command, the "Comptes Claude" GTK application, a top bar
+ indicator and a systemd user service.
+
