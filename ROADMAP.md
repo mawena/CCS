@@ -145,7 +145,7 @@ Releases GitHub manquantes :
 - [x] Sessions dans le menu de l'icône : afficher une session ouverte dans son onglet de l'application
 - [x] Rapport mensuel : coût équivalent API, projets, modèles, évolution d'un mois à l'autre (onglet Analyse, notification)
 - [x] Commandes `ccs` (`mise-a-jour`, `silence`, `moment`, `mois`), Réglages, menu de l'icône
-- [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
 - [ ] Dépôt APT signé sur GitHub Pages (`https://mawena.github.io/CCS/apt`) sur le modèle de Gagarine : clé dédiée, `make apt`, page d'accueil, source deb822 et clé installées par le paquet
 - [ ] Release recommandée, paquet `.deb`, release GitHub
 
