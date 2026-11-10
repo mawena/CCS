@@ -186,6 +186,22 @@ class PrefsPageTest(HomeTestCase):
         self.assertFalse(day.get_sensitive())
         self.assertFalse(hour.get_sensitive())
 
+    def test_monthly_report(self):
+        page = self.page()
+        rows = self.rows(page)
+        switch, hour = rows["Rapport mensuel"], rows["Heure du rapport mensuel"]
+        self.assertTrue(switch.get_active())
+        self.assertEqual(hour.get_value(), 9)
+        adj = hour.get_adjustment()
+        self.assertEqual((adj.get_lower(), adj.get_upper()), (0, 23))
+        hour.set_value(18)
+        self.assertEqual(self.saved()["alerts"]["monthly_report_hour"], 18)
+        switch.set_active(False)
+        self.assertIs(self.saved()["alerts"]["monthly_report"], False)
+        self.assertFalse(hour.get_sensitive())
+        switch.set_active(True)
+        self.assertTrue(hour.get_sensitive())
+
     def test_weekly_report_day_read_back(self):
         page = self.page({"alerts": {"weekly_report_day": 4, "weekly_report_hour": 7}})
         rows = self.rows(page)

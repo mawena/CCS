@@ -38,6 +38,9 @@ DEFAULTS = {
         "weekly_report": True,
         "weekly_report_day": None,
         "weekly_report_hour": 9,
+        # Rapport mensuel : notification le 1er du mois (ou le 2), à l'heure donnée.
+        "monthly_report": True,
+        "monthly_report_hour": 9,
         # Ne pas déranger : pendant la plage (qui peut passer minuit, heure locale réelle,
         # jours = jour de début) les notifications sont retenues puis résumées en une seule ;
         # « attend ta réponse » (et son rappel) passe quand allow_waiting.
@@ -106,6 +109,7 @@ BOUNDS = {
     "alerts.waiting_reminder_min": (1, 1440),
     "alerts.model_advice_pct": (0, 100),
     "alerts.weekly_report_hour": (0, 23),
+    "alerts.monthly_report_hour": (0, 23),
     "poll.normal_s": (10, 86400),
     "poll.fast_s": (5, 86400),
     "advisor.weeks": (1, 52),
@@ -117,7 +121,7 @@ BOUNDS = {
     "orchestrator.reserve_points": (0, 100),
     "orchestrator.max_weekly_start": (0, 100),
 }
-INTEGERS = {"alerts.weekly_report_hour", "advisor.weeks", "advisor.max_accounts"}
+INTEGERS = {"alerts.weekly_report_hour", "alerts.monthly_report_hour","advisor.weeks", "advisor.max_accounts"}
 _HHMM = re.compile(r"^(\d{1,2}):(\d{2})$")
 
 
