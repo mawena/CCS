@@ -1,0 +1,2 @@
+# Voulu : le paquet installe sa propre source APT (dépôt signé du projet) pour que « apt upgrade » le mette à jour.
+ccs: package-installs-apt-sources [etc/apt/sources.list.d/ccs.sources]
