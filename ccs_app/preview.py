@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import core, sessions
+from . import archive, core, sessions
 
 USER, ASSISTANT, TOOL, NOTE = "utilisateur", "assistant", "outil", "note"
 
@@ -142,7 +142,7 @@ def _result_text(content, limit):
     return _short(text.strip(), limit)
 
 
-def _user_text(text):
+def user_text(text):
     """Texte tapé par l'utilisateur dans un bloc, sans ce que Claude Code y injecte."""
     cmd = COMMAND_RE.search(text)
     if cmd:
@@ -221,7 +221,7 @@ class _Reader:
                 if b["text"].strip().startswith(INTERRUPTED):
                     interrupted = True
                     continue
-                text = _user_text(b["text"])
+                text = user_text(b["text"])
                 if text:
                     parts.append(text)
             elif t == "image":
@@ -269,9 +269,9 @@ def _wanted(raw):
 def read_messages(path, limit=None, results=True, max_result_chars=RESULT_MAX):
     """Messages lisibles du journal, dans l'ordre. `limit` : seulement les N derniers.
     `results` : rattacher (raccourci) le résultat de chaque appel d'outil.
-    FileNotFoundError si le journal n'existe pas ; les lignes illisibles sont ignorées."""
+    FileNotFoundError si le journal n'existe ni sur le disque ni dans l'archive ; les lignes illisibles sont ignorées."""
     reader = _Reader(limit, results, max_result_chars)
-    with open(path, "rb") as fh:
+    with archive.open_journal(path) as fh:   # le journal, ou sa copie archivée s'il a disparu
         for raw in fh:
             if not raw.endswith(b"\n"):
                 break  # ligne en cours d'écriture

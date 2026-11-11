@@ -6,6 +6,7 @@ from gi.repository import Adw, Gtk
 
 from .. import core, transcripts
 from .advisor_cards import AdvisorCard, MonthlyReportCard, WeeklyReportCard
+from .budget_view import BudgetGroup
 from .charts import HourBars
 from .common import caption, clear, in_thread
 
@@ -25,6 +26,9 @@ class AnalysisPage(Gtk.ScrolledWindow):
         outer.append(self.advisor)
         self.monthly = MonthlyReportCard()
         outer.append(self.monthly)
+        # Budgets par projet : calculés dans un fil par le groupe lui-même.
+        self.budgets = BudgetGroup(toast=window.toast, parent=window)
+        outer.append(self.budgets)
         toggles = Gtk.Box(css_classes=["linked"], halign=Gtk.Align.CENTER)
         first = None
         for days in (7, 30):
@@ -45,6 +49,7 @@ class AnalysisPage(Gtk.ScrolledWindow):
             self.load()
 
     def ensure_loaded(self):
+        self.budgets.refresh()
         if not self.loaded:
             self.load()
             # Lectures en chaîne : chaque carte profite des journaux déjà en cache.

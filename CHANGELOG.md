@@ -3,6 +3,57 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.8.0] — 2026-11-11
+
+### Ajouté
+
+- **File de tâches** (`ccs tache`, onglet Planning) : des messages que Claude
+  exécute sans fenêtre, « dès qu'il y a du quota », « cette nuit » (meilleur
+  créneau de la plage de nuit, 23:00 à 07:00 par défaut) ou à `HH:MM`. Droits
+  `lecture`, `modifications` (défaut) ou `tout` (`bypassPermissions`, avec
+  l'avertissement). Une tâche à la fois, par la file de Gagarine en priorité
+  « fond » quand elle existe ; bascule avant le lancement (jamais en pause) ;
+  après une limite, bascule puis reprise par `--resume` (3 tentatives) ;
+  notification à la fin, durée et coût équivalent ; reprise dans un onglet.
+  Fichiers `tasks.json` et `tasks/<id>.jsonl`.
+- **Notifications sur le téléphone** par ntfy (`ccs telephone`, Réglages),
+  désactivées par défaut : canal secret tiré au hasard, lien d'abonnement et QR
+  code, bouton « Essayer » (`ccs telephone essai`). Événements : session qui
+  attend, tâche finie ou échouée, bascule, comptes épuisés. Seuls le nom du
+  projet et l'état sont envoyés ; « Ne pas déranger » s'applique aussi.
+- **Archive des conversations** : copies gzip des conversations inchangées depuis
+  1 jour dans `~/.local/share/ccs/archive`, avant que Claude Code ne les efface
+  (30 jours). Elles restent dans l'onglet Sessions (« archivée ») avec recherche,
+  aperçu, export et reprise. Réglages : interrupteur, délai, âge maximal ; taille
+  dans `ccs doctor`.
+- **Fiche « où j'en étais »** (`ccs fiche <id>`, encart de l'aperçu) : dernière
+  demande, début de la dernière réponse, fichiers modifiés, liste de tâches,
+  branche, compte. Lue dans le journal, sans appeler Claude.
+- **Sauvegarde chiffrée** (`ccs sauvegarde`, `ccs restaurer`, Réglages) : profils
+  (jetons chiffrés), réglages, comptes par projet, budgets et raccourcis, chiffrés
+  par gpg (AES-256, phrase de passe saisie dans pinentry) ; restauration avec
+  confirmation.
+- **Mémoire des sessions** (`ccs sessions`, onglet Sessions) : RAM de chaque
+  session et totale, sessions inactives depuis plus de 2 h (réglable), bandeau et
+  bouton « Fermer » avec confirmation. Rien n'est jamais fermé automatiquement.
+- **Alerte de contexte lourd** : une notification par session au-delà de
+  150 000 tokens (réglable), avec le coût d'un message ; badge dans l'onglet
+  Sessions et la ligne d'état.
+- **Budget par projet** (`ccs budget`, onglet Analyse) : budget hebdomadaire en
+  équivalent dollars, alertes à 80 % et 100 %, ne bloque jamais rien.
+- `claude-accounts gui --task <id>` : ouvre l'onglet Planning sur une tâche ;
+  c'est ce qu'utilise le clic sur la notification de fin de tâche quand
+  l'application est fermée.
+- Réglages `tasks`, `phone`, `archive`, `sessions`, `context_alert` et `budget`.
+- Paquet : dépend de `gnupg` ; recommande `python3-qrcode` (QR code du téléphone),
+  `gpg-agent` et `pinentry-gnome3` (phrase de passe de la sauvegarde).
+
+### Modifié
+
+- `ccs sessions` affiche aussi la RAM par session, le total, les sessions
+  inactives et le contexte lourd.
+- Guide d'utilisation, architecture et pages man : les huit fonctions.
+
 ## [0.7.1] — 2026-11-10
 
 ### Modifié

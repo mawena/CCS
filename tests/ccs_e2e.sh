@@ -260,4 +260,42 @@ out="$(timeout 5 "$ROOT/bin/claude-accounts" statusline </dev/null)" || fail "li
 out="$(echo '{"model":{"id":"claude-opus-5-5"}}' | timeout 5 "$ROOT/bin/claude-accounts" statusline)" \
   || fail "ligne d'état avec contexte"
 
+# Commandes de la 0.8 : file de tâches, budget, fiche, sauvegarde, téléphone (dossier de test,
+# aucun service, aucun envoi : le téléphone est désactivé et sans canal).
+out="$("$CCS" help)"
+for w in "ccs tache" "ccs budget" "ccs fiche" "ccs sauvegarde" "ccs restaurer" "ccs telephone"; do
+  expect "$out" "$w"
+done
+for alias in tache taches tasks; do
+  out="$("$CCS" "$alias")"; expect "$out" "Aucune tâche"
+done
+out="$("$CCS" tache ajouter "relire le journal" -C "$proj" --droits lecture --quand nuit)"
+expect "$out" "ajoutée"
+out="$("$CCS" tache)"; expect "$out" "relire le journal"
+[[ "$(stat -c %a "$HOME/.claude-accounts/tasks.json")" == 600 ]] || fail "droits de tasks.json"
+tid="$(jq -r '(.tasks // .)[0].id' "$HOME/.claude-accounts/tasks.json" 2>/dev/null || true)"
+[[ -n "$tid" && "$tid" != null ]] || fail "identifiant de tâche illisible"
+out="$("$CCS" tache annuler "$tid")"; expect "$out" "annulée"
+out="$("$CCS" tache supprimer "$tid")"; expect "$out" "supprimée"
+[[ "$(status_of "$CCS" tache annuler)" == 2 ]] || fail "tache annuler sans identifiant"
+[[ "$(status_of "$CCS" tache ajouter)" == 1 ]] || fail "tache ajouter sans message"
+[[ "$(status_of "$CCS" tache voir 999999)" == 1 ]] || fail "tache voir : identifiant inconnu"
+out="$("$CCS" budget "$proj" 25)"; expect "$out" "25"
+out="$("$CCS" budget)"; expect "$out" "App"
+out="$("$CCS" budget "$proj" aucun)"; expect "$out" "supprimé"
+[[ "$(status_of "$CCS" budget a b c)" == 2 ]] || fail "budget : usage"
+[[ "$(status_of "$CCS" budget "$proj" beaucoup)" == 2 ]] || fail "budget : montant illisible"
+[[ "$(status_of "$CCS" fiche)" == 2 ]] || fail "fiche sans identifiant"
+expect "$(cat "$T/err")" "usage : ccs fiche"
+[[ "$(status_of "$CCS" fiche zzzz)" == 1 ]] || fail "fiche : conversation inconnue"
+[[ "$(status_of "$CCS" restaurer)" == 2 ]] || fail "restaurer sans fichier"
+[[ "$(status_of "$CCS" restore "$T/inexistant.gpg" --oui)" == 1 ]] || fail "restaurer : fichier absent"
+[[ "$(status_of "$CCS" backup un deux)" == 2 ]] || fail "sauvegarde : trop d'arguments"
+out="$("$CCS" telephone)"; expect "$out" "désactivées"; expect "$out" "Canal   : aucun"
+out="$("$CCS" phone)"; expect "$out" "Serveur"
+[[ "$(status_of "$CCS" telephone essai)" == 1 ]] || fail "téléphone : essai sans canal"
+expect "$(cat "$T/err")" "crée un canal"
+[[ "$(status_of "$CCS" telephone zzz)" == 2 ]] || fail "téléphone : argument inconnu"
+out="$("$CCS" sessions)"; expect "$out" "Aucune session"
+
 echo "OK ccs_e2e"

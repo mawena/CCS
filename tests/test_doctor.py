@@ -39,6 +39,10 @@ def healthy(**over):
         which=lambda name: f"/usr/bin/{name}",
         local_deb=lambda version: None,
         settings_problems=lambda: [],
+        archive=lambda: {"count": 12, "bytes": 5 * 1024 ** 2, "dir": "/d/archive", "mode": 0o700,
+                         "index_ok": True},
+        phone=lambda: {"enabled": False, "server": "https://ntfy.sh", "channel": False},
+        dead_tasks=lambda: [],
     )
     values.update(over)
     return Probes(**values)
@@ -380,3 +384,94 @@ class FormatTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Phase11ChecksTest(unittest.TestCase):
+    def check(self, name, **over):
+        return by_name(doctor.run_checks(healthy(**over)))[name]
+
+    def test_archive_ok(self):
+        c = self.check("Archive des conversations")
+        self.assertEqual(c.statut, OK)
+        self.assertIn("12 conversations", c.detail)
+        self.assertIn("5,0 Mo", c.detail)
+        self.assertIn("700", c.detail)
+
+    def test_archive_not_started_yet(self):
+        c = self.check("Archive des conversations", archive=lambda: {
+            "count": 0, "bytes": 0, "dir": None, "mode": None, "index_ok": True})
+        self.assertEqual(c.statut, OK)
+
+    def test_archive_wrong_rights(self):
+        c = self.check("Archive des conversations", archive=lambda: {
+            "count": 1, "bytes": 10, "dir": "/d/archive", "mode": 0o755, "index_ok": True})
+        self.assertEqual(c.statut, AVERTISSEMENT)
+        self.assertIn("755", c.detail)
+        self.assertEqual(c.commande, "chmod 700 '/d/archive'")
+
+    def test_archive_unreadable_index(self):
+        c = self.check("Archive des conversations", archive=lambda: {
+            "count": 0, "bytes": 0, "dir": "/d/archive", "mode": 0o700, "index_ok": False})
+        self.assertEqual(c.statut, AVERTISSEMENT)
+        self.assertIn("index illisible", c.detail)
+
+    def test_gpg(self):
+        self.assertEqual(self.check("Chiffrement (gpg)").statut, OK)
+        c = self.check("Chiffrement (gpg)", which=lambda n: None if n == "gpg" else f"/usr/bin/{n}")
+        self.assertEqual(c.statut, AVERTISSEMENT)
+        self.assertEqual(c.commande, "sudo apt install gnupg")
+
+    def test_phone_states_never_show_the_channel(self):
+        self.assertEqual(self.check("Téléphone (ntfy)").detail, "désactivé")
+        c = self.check("Téléphone (ntfy)", phone=lambda: {"enabled": True, "server": "https://ntfy.sh",
+                                                           "channel": False})
+        self.assertEqual(c.statut, AVERTISSEMENT)
+        c = self.check("Téléphone (ntfy)", phone=lambda: {"enabled": True, "server": "https://ntfy.sh",
+                                                           "channel": True})
+        self.assertEqual(c.statut, OK)
+        self.assertIn("ntfy.sh", c.detail)
+        self.assertNotIn("ccs-", c.detail)
+
+    def test_dead_running_task(self):
+        self.assertNotIn("File de tâches", by_name(doctor.run_checks(healthy())))
+        c = self.check("File de tâches", dead_tasks=lambda: ["ab12", "cd34"])
+        self.assertEqual(c.statut, AVERTISSEMENT)
+        self.assertIn("ab12, cd34", c.detail)
+        self.assertEqual(c.commande, "ccs tache annuler ab12")
+
+    def test_failing_probe_is_only_a_warning(self):
+        def boom():
+            raise OSError("disque")
+        c = self.check("Archive des conversations", archive=boom)
+        self.assertEqual(c.statut, AVERTISSEMENT)
+
+
+class Phase11RealProbesTest(HomeTestCase):
+    def test_archive_probe_without_archive(self):
+        self.assertIsNone(doctor.archive_info()["dir"])
+
+    def test_archive_probe_reads_rights_and_index(self):
+        import os
+        from ccs_app import archive
+        folder = archive.archive_dir()
+        folder.mkdir(parents=True)
+        os.chmod(folder, 0o755)
+        write(archive.index_path(), {})
+        info = doctor.archive_info()
+        self.assertEqual((info["mode"], info["index_ok"], info["count"]), (0o755, True, 0))
+        archive.index_path().write_text("pas du json")
+        self.assertFalse(doctor.archive_info()["index_ok"])
+
+    def test_phone_probe_hides_the_channel(self):
+        info = doctor.phone_info()
+        self.assertEqual(set(info), {"enabled", "server", "channel"})
+        self.assertIs(info["channel"], False)
+
+    def test_dead_tasks_probe(self):
+        import os
+        from ccs_app import tasks
+        t = tasks.add("x", cwd=str(self.home))
+        tasks.update(t.id, state=tasks.RUNNING, pid=os.getpid())
+        self.assertEqual(doctor.dead_tasks(), [])
+        tasks.update(t.id, pid=2 ** 22 + 12345)
+        self.assertEqual(doctor.dead_tasks(), [t.id])

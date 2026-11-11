@@ -6,7 +6,7 @@ import logging
 import math
 import re
 
-from . import core
+from . import core, phone
 
 log = logging.getLogger("ccs.settings")
 
@@ -76,6 +76,19 @@ DEFAULTS = {
         "reserve_points": 10,
         "max_weekly_start": 95,
     },
+    # Phase 11 : file de tâches, téléphone (ntfy), archive, mémoire des sessions,
+    # contexte lourd, budget par projet (mêmes valeurs que les DEFAULTS des modules).
+    "tasks": {"enabled": True, "night": {"start": "23:00", "end": "07:00"}, "max_attempts": 3},
+    "phone": {
+        "enabled": False,
+        "server": "https://ntfy.sh",
+        "topic": "",
+        "events": {"waiting": True, "task": True, "switch": True, "exhausted": True},
+    },
+    "archive": {"enabled": True, "idle_days": 1, "max_age_days": 0},
+    "sessions": {"idle_hours": 2},
+    "context_alert": {"enabled": True, "threshold_tokens": 150000},
+    "budget": {"enabled": True, "alert_pcts": [80, 100]},
 }
 
 
@@ -120,8 +133,15 @@ BOUNDS = {
     "orchestrator.expiring_cooldown_min": (0, 1440),
     "orchestrator.reserve_points": (0, 100),
     "orchestrator.max_weekly_start": (0, 100),
+    "tasks.max_attempts": (1, 10),
+    "archive.idle_days": (0, 3650),
+    "archive.max_age_days": (0, 36500),
+    "sessions.idle_hours": (0.01, 720),
+    "context_alert.threshold_tokens": (1000, 10_000_000),
 }
-INTEGERS = {"alerts.weekly_report_hour", "alerts.monthly_report_hour","advisor.weeks", "advisor.max_accounts"}
+INTEGERS = {"alerts.weekly_report_hour", "alerts.monthly_report_hour", "advisor.weeks",
+            "advisor.max_accounts", "tasks.max_attempts", "archive.idle_days",
+            "archive.max_age_days", "context_alert.threshold_tokens"}
 _HHMM = re.compile(r"^(\d{1,2}):(\d{2})$")
 
 
@@ -150,6 +170,14 @@ def _valid(path, v, default):
         return v is None or (isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 6)
     if path == "alerts.session_thresholds":
         return isinstance(v, list) and all(_in_bounds("pct", x) and x <= 100 for x in v)
+    if path == "phone.server":
+        return isinstance(v, str) and phone.valid_server(v)
+    if path == "phone.topic":
+        return isinstance(v, str) and (v == "" or phone.valid_topic(v))
+    if path == "budget.alert_pcts":
+        return (isinstance(v, list) and all(_is_number(x) and 0 < x <= 1000 for x in v))
+    if path in ("tasks.night.start", "tasks.night.end"):
+        return _hhmm_ok(v)
     if isinstance(default, bool):
         return isinstance(v, bool)
     if _is_number(default):

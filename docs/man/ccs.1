@@ -1,4 +1,4 @@
-.TH CCS 1 "novembre 2026" "ccs 0.7.1" "Commandes utilisateur"
+.TH CCS 1 "novembre 2026" "ccs 0.8.0" "Commandes utilisateur"
 .SH NOM
 ccs \- bascule entre plusieurs comptes Claude Code et suit leur usage
 .SH SYNOPSIS
@@ -66,7 +66,9 @@ Avec \fBccs\fR \fInom\fR, \fBccs use\fR, \fBccs next\fR, \fBccs best\fR et
 alors notée « par un raccourci clavier » dans le journal des bascules.
 .TP
 .B ccs sessions
-Sessions Claude Code ouvertes : projet, état, durée, consommation.
+Sessions Claude Code ouvertes : projet, état, durée, consommation, RAM de
+chaque session et totale, sessions inactives (plus de 2 h, réglable ; rien
+n'est fermé automatiquement) et contexte lourd (plus de 150 000 tokens).
 .TP
 .B ccs conv \fR[\fImots\fR] [\fB\-p \fIprojet\fR] [\fB\-\-vscode\fR|\fB\-\-terminal\fR] [\fB\-\-all\fR] [\fB\-\-json\fR]
 Historique de toutes les conversations Claude Code du PC, groupées par date,
@@ -202,6 +204,51 @@ réécrit. CCS n'écrit que ses propres raccourcis personnalisés, ne retire
 jamais les autres et garde leur ordre. Sur un autre bureau, affiche les
 commandes à associer à la main. Alias : \fBccs shortcuts\fR.
 .TP
+.B ccs tache \fR[\fBajouter\fR \fI"message"\fR [\fB\-C \fIdossier\fR] [\fB\-\-modele \fImodèle\fR] [\fB\-\-droits \fBlecture\fR|\fBmodifications\fR|\fBtout\fR] [\fB\-\-quand \fBquota\fR|\fBnuit\fR|\fIHH:MM\fR]]
+.br
+.B ccs tache \fR[\fBvoir\fR|\fBannuler\fR|\fBsupprimer\fR] \fIid\fR
+File de tâches : Claude exécute un message sans fenêtre, dans un dossier, pendant
+que tu es ailleurs. Sans argument, liste les tâches. Moments : \fBquota\fR (dès
+qu'un compte a du quota, défaut), \fBnuit\fR (meilleur créneau de la plage de nuit,
+23:00 à 07:00 par défaut) ou \fIHH:MM\fR. Droits : \fBlecture\fR (ce qui demande
+une permission est refusé), \fBmodifications\fR (défaut) ou \fBtout\fR
+(\fBbypassPermissions\fR : Claude fait tout sans rien demander). Le service lance
+une tâche à la fois, par la file de Gagarine en priorité « fond » quand elle
+existe, avec le compte actif ; après une limite, il bascule puis reprend (3
+tentatives). \fBvoir\fR suit le journal. Alias : \fBtaches\fR, \fBtasks\fR.
+.TP
+.B ccs budget \fR[\fIdossier\fR \fImontant\fR|\fBaucun\fR]
+Budgets hebdomadaires par projet, en dollars (équivalent API). Sans argument,
+affiche pour chaque projet le dépensé, le budget, le pourcentage et la part de la
+consommation de la semaine ; avec un dossier et un montant, définit le budget ;
+\fBaucun\fR le retire. Alertes à 80 % et 100 %, une fois par seuil et par
+semaine ; rien n'est jamais bloqué.
+.TP
+.B ccs fiche \fIid\fR
+Fiche « où j'en étais » d'une conversation, lue dans son journal sans appeler
+Claude : dernière demande, début de la dernière réponse, fichiers modifiés,
+dernière liste de tâches, dossier, branche, compte. Marche aussi pour une
+conversation archivée.
+.TP
+.B ccs sauvegarde \fR[\fIfichier\fR]
+Sauvegarde chiffrée par gpg (AES\-256) des profils (jetons compris), des
+réglages, des comptes par projet, des budgets et des raccourcis ; pas des
+conversations. Fichier par défaut : \fIccs\-sauvegarde\-AAAA\-MM\-JJ.gpg\fR dans le
+dossier courant, en 600. La phrase de passe est saisie dans la fenêtre de gpg :
+la garder, elle ne peut pas être retrouvée. Alias : \fBbackup\fR.
+.TP
+.B ccs restaurer \fIfichier\fR [\fB\-\-oui\fR]
+Restaure une sauvegarde : liste le contenu et demande confirmation avant
+d'écraser un profil existant (\fB\-\-oui\fR : sans confirmation). Le compte
+actif ne change pas. Alias : \fBrestore\fR.
+.TP
+.B ccs telephone \fR[\fBessai\fR]
+Notifications sur le téléphone par ntfy (désactivées par défaut). Sans argument,
+affiche l'état et le lien d'abonnement à ouvrir dans l'application ntfy ;
+\fBessai\fR envoie un message de test. Seuls le nom du projet et l'état sont
+envoyés, jamais un titre, un message, un chemin ni un nom de compte. Alias :
+\fBphone\fR.
+.TP
 .B ccs doctor
 Bilan de santé (alias \fBccs bilan\fR) : service et relevés, version installée et version qui tourne,
 extension et indicateur de la barre du haut, intégration dans Claude Code,
@@ -232,7 +279,14 @@ l'historique des conversations \fIconversations-cache.json\fR, journaux copiés
 pour des projets déplacés \fIconversations-moves.json\fR, onglets et options du
 terminal intégré \fIterminals.json\fR, marqueurs de limite atteinte par
 conversation \fIlimits/\fR, comptes par projet \fIprojects.json\fR, origine
-de la dernière bascule demandée par l'application \fIswitch-origin.json\fR.
+de la dernière bascule demandée par l'application \fIswitch-origin.json\fR,
+tâches \fItasks.json\fR et leurs journaux \fItasks/\fR, budgets par projet
+\fIbudgets.json\fR, sessions déjà alertées d'un contexte lourd
+\fIcontext-alerts.json\fR.
+.TP
+.I ~/.local/share/ccs/archive/
+Copies compressées des conversations (dossier 700) et leur index
+\fIindex.json\fR.
 .TP
 .I ~/.claude/.credentials.json\fR, \fI~/.claude.json
 Fichiers de Claude Code réécrits lors d'une bascule.

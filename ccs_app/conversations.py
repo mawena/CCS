@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
-from . import core, sessions
+from . import core, costs, sessions
 
 CACHE_VERSION = 1
 TITLE_MAX = 80
@@ -50,6 +50,7 @@ class Conversation:
     git_branch: str
     size: int
     folder_exists: bool = field(default=True)
+    archived: bool = field(default=False)   # l'original a disparu : copie dans l'archive de CCS
 
     @property
     def project(self):
@@ -180,11 +181,47 @@ def _to_conversation(path, e, cwd=None):
         size=e["size"], folder_exists=bool(cwd) and os.path.isdir(cwd))
 
 
+def _from_archive(item):
+    """Conversation d'un élément de l'archive (le chemin est celui où elle sera remise)."""
+    from . import archive
+    cwd = item.get("cwd") or ""
+    return Conversation(
+        session_id=item["id"], path=str(archive.journal_path(item)), cwd=cwd,
+        title=item.get("title") or "(sans titre)", first_prompt=item.get("first_prompt") or "",
+        last_prompt=item.get("last_prompt") or "", prompts=item.get("prompts") or 0,
+        started_at=item.get("started_at"), updated_at=item.get("updated_at") or 0.0,
+        origin=item.get("origin") or "autre", git_branch=item.get("git_branch") or "",
+        size=item.get("size") or 0, folder_exists=bool(cwd) and os.path.isdir(cwd), archived=True)
+
+
+def archived_only(live):
+    """Conversations archivées dont l'original a disparu (aucun journal vivant de même
+    identifiant dans `live`, un ensemble d'identifiants)."""
+    from . import archive
+    best = {}
+    for item in archive.items():
+        sid = item.get("id")
+        if sid in live or sid in best or not item.get("prompts"):
+            continue
+        best[sid] = item   # items() : la plus récente d'abord
+    out = []
+    for item in best.values():
+        if not Path(archive.journal_path(item)).is_file():
+            out.append(_from_archive(item))
+    return out
+
+
 def from_journal(path, cwd=None):
     """Conversation d'un seul journal (aperçu depuis l'onglet Sessions). L'index de scan()
     sert s'il est à jour ; sinon seule la fin non lue est parcourue. `cwd` : dossier à
-    prendre si le journal n'en dit rien."""
+    prendre si le journal n'en dit rien. Un journal disparu mais archivé donne une
+    conversation `archived`."""
     path = Path(path)
+    if not path.is_file():
+        from . import archive
+        item = archive.item_for_path(path)
+        if item is not None:
+            return _from_archive(item)
     entry = _load_cache().get(str(path))
     st = path.stat()
     if not entry or entry.get("size") != st.st_size or entry.get("mtime") != st.st_mtime:
@@ -192,9 +229,11 @@ def from_journal(path, cwd=None):
     return _to_conversation(path, entry, None if entry.get("cwd") else cwd)
 
 
-def scan():
+def scan(archived=True):
     """Toutes les conversations (au moins une demande), de la plus récente à la plus
-    ancienne. Met à jour le cache ; un fichier illisible est simplement ignoré."""
+    ancienne. Met à jour le cache ; un fichier illisible est simplement ignoré.
+    `archived` : ajoute celles dont l'original a disparu mais que l'archive garde
+    (`archived=True` sur l'objet)."""
     root = sessions.projects_dir()
     cache = _load_cache()
     moves = core.load_json(moves_path())
@@ -223,6 +262,12 @@ def scan():
         cur = best.get(c.session_id)
         if cur is None or (c.folder_exists, c.updated_at) > (cur.folder_exists, cur.updated_at):
             best[c.session_id] = c
+    if archived:
+        try:
+            for c in archived_only(set(best) | {Path(k).stem for k in files}):
+                best[c.session_id] = c
+        except (OSError, ValueError, KeyError, TypeError):
+            pass  # archive illisible : l'historique vivant reste affiché
     return sorted(best.values(), key=lambda c: c.updated_at, reverse=True)
 
 
@@ -248,7 +293,8 @@ def search(convs, query="", project=None, origin=None):
         if not words:   # rien à chercher : inutile de préparer le texte (relu souvent par l'application)
             out.append(c)
             continue
-        hay = fold(" ".join((c.title, c.first_prompt, c.last_prompt, c.project, c.cwd, c.git_branch)))
+        hay = fold(" ".join((c.title, c.first_prompt, c.last_prompt, c.project, c.cwd, c.git_branch,
+                             "archivee" if c.archived else "")))
         if all(w in hay for w in words):
             out.append(c)
     return out
@@ -305,6 +351,49 @@ def find(convs, ref):
 
 
 # ---- reprise -------------------------------------------------------------------------
+
+def ensure_available(session_id, cwd=None):
+    """Chemin du journal de la conversation, remise en place depuis l'archive si son
+    original a disparu (date de modification « maintenant »). À appeler avant toute
+    reprise. FileNotFoundError si elle n'existe ni sur le disque ni dans l'archive."""
+    try:
+        return journal_of(session_id, cwd)
+    except FileNotFoundError:
+        pass
+    from . import archive
+    return archive.restore(session_id, cwd)
+
+
+def ensure_conversation(conv):
+    """`conv` prête à être reprise : si elle est archivée, elle est restaurée (l'objet
+    rendu n'est plus `archived`) ; sinon renvoyée telle quelle."""
+    if not conv.archived:
+        return conv
+    return replace(conv, path=str(ensure_available(conv.session_id, conv.cwd)), archived=False)
+
+
+def cost_for_path(path):
+    """Coût d'un journal, lu dans l'archive s'il a disparu (calculé une fois, copie
+    temporaire supprimée aussitôt)."""
+    path = Path(path)
+    if path.is_file():
+        return costs.conversation_cost(path)
+    from . import archive
+    item = archive.item_for_path(path)
+    if item is None:
+        return costs.conversation_cost(path)
+    key = (item["slug"], item["id"], item.get("archived_at"))
+    hit = _ARCHIVE_COSTS.get(key)
+    if hit is None:
+        with archive.extracted(item) as tmp:
+            hit = _ARCHIVE_COSTS[key] = costs.conversation_cost(tmp)
+        while len(_ARCHIVE_COSTS) > 500:
+            _ARCHIVE_COSTS.pop(next(iter(_ARCHIVE_COSTS)))
+    return hit
+
+
+_ARCHIVE_COSTS = {}
+
 
 def open_ids():
     """Identifiants des conversations ouvertes en ce moment dans une session Claude Code."""
@@ -390,6 +479,7 @@ def relocate(conv, new_cwd):
     new_cwd = os.path.abspath(os.path.expanduser(new_cwd))
     if not os.path.isdir(new_cwd):
         raise FileNotFoundError(f"dossier introuvable : {new_cwd}")
+    conv = ensure_conversation(conv)
     dest = sessions.projects_dir() / sessions.project_slug(new_cwd) / f"{conv.session_id}.jsonl"
     if Path(conv.path) != dest and not dest.exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -472,6 +562,7 @@ def vscode_url(conv):
 
 
 def resume_terminal(conv):
+    ensure_conversation(conv)
     sessions.open_terminal(conv.cwd, resume=conv.session_id)
 
 
@@ -481,6 +572,7 @@ def resume_vscode(conv, wait=False):
     code = vscode_bin()
     if not code:
         raise FileNotFoundError("VS Code (commande « code ») introuvable")
+    ensure_conversation(conv)
     quiet = {"start_new_session": True, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
     def run():

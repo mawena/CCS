@@ -1,9 +1,9 @@
-.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.7.1" "Commandes utilisateur"
+.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.8.0" "Commandes utilisateur"
 .SH NOM
 claude-accounts \- application, service et outils d'usage des comptes Claude Code
 .SH SYNOPSIS
 .B claude-accounts
-[\fBgui\fR [\fB\-\-page \fIonglet\fR|\fB\-\-new\-session\fR|\fB\-\-session \fIréf\fR]|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBtitle \fIid titre\fR|\fBpreview \fIid\fR|\fBexport \fIid\fR [\fIfichier\fR]|\fBdoctor\fR|\fBpause\fR [\fIchoix\fR] [\fB\-\-notifier\fR]|\fBformule\fR|\fBsemaine\fR [\fB\-\-precedente \fIN\fR]|\fBmois\fR [\fB\-\-precedent \fIN\fR]|\fBmoment\fR [\fB\-\-duree \fIdurée\fR] [\fB\-\-sur \fIhorizon\fR]|\fBsilence\fR [\fIchoix\fR] [\fB\-\-notifier\fR]|\fBmise\-a\-jour\fR [\fB\-\-verifier\fR]|\fBjournal\fR [\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]|\fBprojet\fR [\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]|\fBraccourcis\fR [\fIsous-commande\fR]|\fBnotify\fR \fItitre\fR [\fItexte\fR]|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR] [\fB\-\-notifier\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
+[\fBgui\fR [\fB\-\-page \fIonglet\fR|\fB\-\-new\-session\fR|\fB\-\-session \fIréf\fR|\fB\-\-task \fIid\fR]|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBtitle \fIid titre\fR|\fBpreview \fIid\fR|\fBexport \fIid\fR [\fIfichier\fR]|\fBdoctor\fR|\fBpause\fR [\fIchoix\fR] [\fB\-\-notifier\fR]|\fBformule\fR|\fBsemaine\fR [\fB\-\-precedente \fIN\fR]|\fBmois\fR [\fB\-\-precedent \fIN\fR]|\fBmoment\fR [\fB\-\-duree \fIdurée\fR] [\fB\-\-sur \fIhorizon\fR]|\fBsilence\fR [\fIchoix\fR] [\fB\-\-notifier\fR]|\fBmise\-a\-jour\fR [\fB\-\-verifier\fR]|\fBjournal\fR [\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]|\fBprojet\fR [\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]|\fBtache\fR [\fIsous-commande\fR]|\fBbudget\fR [\fIdossier\fR \fImontant\fR|\fBaucun\fR]|\fBfiche \fIid\fR|\fBsauvegarde\fR [\fIfichier\fR]|\fBrestaurer \fIfichier\fR [\fB\-\-oui\fR]|\fBtelephone\fR [\fBessai\fR]|\fBraccourcis\fR [\fIsous-commande\fR]|\fBnotify\fR \fItitre\fR [\fItexte\fR]|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR] [\fB\-\-notifier\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
 .SH DESCRIPTION
 Sans argument, ouvre l'application graphique « Comptes Claude » : comptes et
 prévisions, planning, sessions et historique des conversations (un seul onglet
@@ -31,7 +31,9 @@ ou plus récent.
 \fBterminaux\fR ou \fBreglages\fR (accents et majuscules indifférents ;
 \fBconversations\fR mène à \fBsessions\fR ; \fBterminaux\fR sans onglet
 ouvert affiche Sessions avec un message). \fB\-\-new\-session\fR ouvre
-directement le dialogue « Nouvelle session ». Ces options se combinent entre
+directement le dialogue « Nouvelle session ». \fB\-\-task\fR \fIid\fR ouvre
+l'onglet Planning sur cette tâche de la file (clic sur une notification de
+tâche finie ou échouée). Ces options se combinent entre
 elles et avec \fB\-\-session\fR, et marchent aussi quand l'application est
 déjà ouverte : ce sont les commandes des raccourcis clavier.
 \fB\-\-session\fR \fIpid\fR:\fIid\fR (ou l'un des deux) ouvre la fenêtre sur
@@ -42,7 +44,8 @@ session.
 Usage de tous les comptes dans le terminal.
 .TP
 .B sessions
-Sessions Claude Code ouvertes.
+Sessions Claude Code ouvertes, avec la RAM de chaque session, le total, les
+sessions inactives et le contexte lourd.
 .TP
 .B conversations \fR[\fImots\fR] [\fB\-p \fIprojet\fR] [\fB\-\-vscode\fR|\fB\-\-terminal\fR] [\fB\-n \fIN\fR|\fB\-\-all\fR] [\fB\-\-json\fR]
 Historique des conversations Claude Code du PC (\fI~/.claude/projects\fR), groupé
@@ -175,9 +178,56 @@ Analyse des journaux locaux de Claude Code.
 .B daemon
 Service de collecte, lancé par l'unité systemd utilisateur \fIccs-daemon.service\fR :
 relevés, bascule automatique, orchestrateur, alertes (dont la fin de semaine
-prévue, le rappel des sessions en attente, le conseil de modèle près des
+prévue, le rappel des sessions en attente, les tâches de la file,
+l'archive des conversations, l'alerte de contexte lourd, les budgets, les
+notifications sur le téléphone, le conseil de modèle près des
 limites et le bilan de la semaine), levée de la pause à l'échéance,
 recherche d'une nouvelle version sur GitHub au plus une fois par jour.
+.TP
+.B tache \fR[\fBajouter\fR \fI"message"\fR [\fB\-C \fIdossier\fR] [\fB\-\-modele \fImodèle\fR] [\fB\-\-droits \fBlecture\fR|\fBmodifications\fR|\fBtout\fR] [\fB\-\-quand \fBquota\fR|\fBnuit\fR|\fIHH:MM\fR]]
+.br
+.B tache \fR[\fBvoir\fR|\fBannuler\fR|\fBsupprimer\fR] \fIid\fR
+File de tâches : Claude exécute un message sans fenêtre, dans un dossier, pendant
+que tu es ailleurs. Sans argument, liste les tâches. Moments : \fBquota\fR (dès
+qu'un compte a du quota, défaut), \fBnuit\fR (meilleur créneau de la plage de nuit,
+23:00 à 07:00 par défaut) ou \fIHH:MM\fR. Droits : \fBlecture\fR (ce qui demande
+une permission est refusé), \fBmodifications\fR (défaut) ou \fBtout\fR
+(\fBbypassPermissions\fR : Claude fait tout sans rien demander). Le service lance
+une tâche à la fois, par la file de Gagarine en priorité « fond » quand elle
+existe, avec le compte actif ; après une limite, il bascule puis reprend (3
+tentatives). \fBvoir\fR suit le journal. Alias : \fBtaches\fR, \fBtasks\fR.
+.TP
+.B budget \fR[\fIdossier\fR \fImontant\fR|\fBaucun\fR]
+Budgets hebdomadaires par projet, en dollars (équivalent API). Sans argument,
+affiche pour chaque projet le dépensé, le budget, le pourcentage et la part de la
+consommation de la semaine ; avec un dossier et un montant, définit le budget ;
+\fBaucun\fR le retire. Alertes à 80 % et 100 %, une fois par seuil et par
+semaine ; rien n'est jamais bloqué.
+.TP
+.B fiche \fIid\fR
+Fiche « où j'en étais » d'une conversation, lue dans son journal sans appeler
+Claude : dernière demande, début de la dernière réponse, fichiers modifiés,
+dernière liste de tâches, dossier, branche, compte. Marche aussi pour une
+conversation archivée.
+.TP
+.B sauvegarde \fR[\fIfichier\fR]
+Sauvegarde chiffrée par gpg (AES\-256) des profils (jetons compris), des
+réglages, des comptes par projet, des budgets et des raccourcis ; pas des
+conversations. Fichier par défaut : \fIccs\-sauvegarde\-AAAA\-MM\-JJ.gpg\fR dans le
+dossier courant, en 600. La phrase de passe est saisie dans la fenêtre de gpg :
+la garder, elle ne peut pas être retrouvée. Alias : \fBbackup\fR.
+.TP
+.B restaurer \fIfichier\fR [\fB\-\-oui\fR]
+Restaure une sauvegarde : liste le contenu et demande confirmation avant
+d'écraser un profil existant (\fB\-\-oui\fR : sans confirmation). Le compte
+actif ne change pas. Alias : \fBrestore\fR.
+.TP
+.B telephone \fR[\fBessai\fR]
+Notifications sur le téléphone par ntfy (désactivées par défaut). Sans argument,
+affiche l'état et le lien d'abonnement à ouvrir dans l'application ntfy ;
+\fBessai\fR envoie un message de test. Seuls le nom du projet et l'état sont
+envoyés, jamais un titre, un message, un chemin ni un nom de compte. Alias :
+\fBphone\fR.
 .TP
 .B tray
 Indicateur de la barre du haut (nécessite l'extension GNOME AppIndicator) :

@@ -1,5 +1,6 @@
 """Onglet Réglages : bascule automatique, orchestrateur, alertes, conseils, conseiller de
-formule, intégration, raccourcis clavier, warm-up, service.
+formule, intégration, raccourcis clavier, téléphone, sauvegarde, archive, sessions, tâches,
+budgets, warm-up, service.
 
 `render()` recrée tous les groupes à chaque affichage de l'onglet ; chaque changement est
 enregistré aussitôt (`settings.json`) et réveille le service."""
@@ -10,9 +11,12 @@ from datetime import date, datetime, timezone
 
 from gi.repository import Adw, GLib, GObject, Gtk
 
-from .. import __version__, advisor, core, daemon, quiet, updates
+from .. import __version__, advisor, archive, budget, context_alert, core, daemon, quiet, session_memory, \
+    tasks, updates
 from ..settings import load_settings, save_settings
-from .common import string_factory
+from .backup_group import BackupGroup
+from .common import in_thread, string_factory
+from .phone_group import PhoneGroup
 from .shortcuts_group import ShortcutsGroup
 
 DAY_LABELS = ["L", "M", "M", "J", "V", "S", "D"]
@@ -83,7 +87,7 @@ class PrefsPage(Adw.PreferencesPage):
         for g in self.groups:
             self.remove(g)
         self.groups = []
-        self.s = load_settings()
+        self.s = self.seeded(load_settings())
         self.add_group(self.auto_group())
         self.add_group(self.orchestrator_group())
         self.add_group(self.alerts_group())
@@ -95,8 +99,36 @@ class PrefsPage(Adw.PreferencesPage):
             self.add_group(self.terminal_group())
         # Recréé à chaque rendu : l'ancien groupe, retiré, cesse seul de suivre GSettings.
         self.add_group(ShortcutsGroup(toast=self.window.toast))
+        self.add_group(PhoneGroup(self.s, self.save, toast=self.window.toast))
+        self.add_group(BackupGroup(toast=self.window.toast))
+        self.add_group(self.archive_group())
+        self.add_group(self.sessions_group())
+        self.add_group(self.tasks_group())
+        self.add_group(self.budget_group())
         self.add_group(self.warmup_group())
         self.add_group(self.service_group())
+
+    @staticmethod
+    def seeded(settings):
+        """Réglages complétés des sections de la phase 11 absentes (valeurs par défaut de chaque
+        module) : les groupes marchent même si `settings.json` ne les connaît pas encore."""
+        for name, cfg in (("archive", archive.config(settings)), ("tasks", tasks.config(settings)),
+                          ("budget", budget.config(settings)),
+                          ("context_alert", context_alert.config(settings))):
+            section = settings.get(name)
+            section = settings[name] = section if isinstance(section, dict) else {}
+            for key, value in cfg.items():
+                if key == "night":
+                    night = section.get("night")
+                    night = section["night"] = night if isinstance(night, dict) else {}
+                    for k, v in value.items():
+                        night.setdefault(k, v)
+                else:
+                    section.setdefault(key, value)
+        sessions = settings.get("sessions")
+        sessions = settings["sessions"] = sessions if isinstance(sessions, dict) else {}
+        sessions.setdefault("idle_hours", int(session_memory.idle_hours(settings)))
+        return settings
 
     def add_group(self, g):
         self.groups.append(g)
@@ -509,6 +541,99 @@ class PrefsPage(Adw.PreferencesPage):
             row.connect("notify::active", lambda r, _p, a=action: terms.page_actions.change_action_state(
                 a, GLib.Variant.new_boolean(r.get_active())))
             g.add(row)
+        return g
+
+    def archive_group(self):
+        g = Adw.PreferencesGroup(
+            title="Archive des conversations",
+            description="Claude Code efface ses conversations après 30 jours : le service en garde une "
+                        "copie compressée, que tu peux rouvrir et reprendre depuis l'onglet Sessions.")
+        enabled = self.switch_row("Archiver les conversations", "Une copie par conversation, mise à jour "
+                                  "si elle change", "archive", "enabled")
+        days = self.spin_row("Archiver après (jours d'inactivité)", "Une conversation inchangée depuis "
+                             "ce temps est copiée", "archive", "idle_days", 0, 365)
+        age = self.spin_row("Supprimer l'archive après (jours)", "0 = ne jamais supprimer",
+                            "archive", "max_age_days", 0, 3650, 30)
+        size = Adw.ActionRow(title="Taille de l'archive", subtitle="Calcul…")
+        self.depends_on(enabled, days, age)
+        for row in (enabled, days, age, size):
+            g.add(row)
+
+        def done(result):
+            size.set_subtitle("Archive illisible" if result is None else
+                              f"{result[0]} conversation(s), {session_memory.fmt_bytes(result[1])}")
+
+        def work():
+            try:
+                return archive.stats()
+            except Exception:  # noqa: BLE001 — l'archive peut manquer ou être illisible
+                return None
+        in_thread(work, done)
+        return g
+
+    def sessions_group(self):
+        g = Adw.PreferencesGroup(
+            title="Sessions ouvertes",
+            description="Mémoire des sessions Claude Code et alerte quand une conversation devient "
+                        "lourde (chaque message coûte alors plus cher en quota).")
+        g.add(self.spin_row("Sessions inactives après (h)", "Au-delà, l'onglet Sessions propose de les "
+                            "fermer pour libérer la mémoire ; rien n'est jamais fermé tout seul",
+                            "sessions", "idle_hours", 1, 72))
+        alert = self.switch_row("Alerte de contexte lourd", "Une notification par session, avec le coût "
+                                "d'un message et le conseil /compact", "context_alert", "enabled")
+        tokens = self.spin_row("Seuil du contexte lourd (tokens)", "Taille du contexte au-delà de laquelle "
+                               "prévenir", "context_alert", "threshold_tokens", 10000, 1000000, 10000)
+        self.depends_on(alert, tokens)
+        g.add(alert)
+        g.add(tokens)
+        return g
+
+    def tasks_group(self):
+        night = self.s["tasks"]["night"]
+        g = Adw.PreferencesGroup(
+            title="Tâches",
+            description="Messages que Claude traite sans fenêtre (onglet Planning, « ccs tache »), "
+                        "avec le compte actif, une seule à la fois.")
+        enabled = self.switch_row("Exécuter les tâches", "Sinon elles restent en file", "tasks", "enabled")
+        hours = Adw.ActionRow(title="Plage de nuit", subtitle="Pour les tâches « cette nuit » (peut passer minuit)")
+        box = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
+        entries = {}
+        for key in ("start", "end"):
+            e = Gtk.Entry(text=night[key], width_chars=5, max_width_chars=5)
+            entries[key] = e
+            box.append(e)
+            if key == "start":
+                box.append(Gtk.Label(label="→"))
+
+        def apply_night(*_):
+            vals = {k: e.get_text().strip() for k, e in entries.items()}
+            bad = False
+            for k, e in entries.items():
+                if TIME_RE.match(vals[k]):
+                    e.remove_css_class("error")
+                else:
+                    e.add_css_class("error")
+                    bad = True
+            if not bad:
+                night.update(vals)
+                self.save()
+        for e in entries.values():
+            e.connect("changed", apply_night)
+        hours.add_suffix(box)
+        attempts = self.spin_row("Tentatives par tâche", "Reprises après une limite atteinte",
+                                 "tasks", "max_attempts", 1, 10)
+        self.depends_on(enabled, hours, attempts)
+        for row in (enabled, hours, attempts):
+            g.add(row)
+        return g
+
+    def budget_group(self):
+        g = Adw.PreferencesGroup(
+            title="Budgets par projet",
+            description="Plafond hebdomadaire en équivalent dollars, réglé dans l'onglet Analyse ; "
+                        "rien n'est jamais bloqué.")
+        g.add(self.switch_row("Alertes de budget", "Une notification à 80 % et à 100 % du budget de "
+                              "chaque projet", "budget", "enabled"))
         return g
 
     def warmup_group(self):

@@ -157,7 +157,8 @@ def statusline_text(state, now, payload=None, settings=None):
 
     `payload` : contexte JSON envoyé par Claude Code (dont le `model` de la session).
     Avec un modèle cher et le compte actif au-delà du seuil du conseil de modèle, la
-    ligne ajoute « → sonnet ? » ; rien sinon."""
+    ligne ajoute « → sonnet ? » ; avec un contexte lourd (`transcript_path` du contexte),
+    elle termine par « ⚠ contexte 182 k » ; rien sinon."""
     hint = ""
     model = payload.get("model") if isinstance(payload, dict) else None
     if model:
@@ -167,7 +168,27 @@ def statusline_text(state, now, payload=None, settings=None):
         except Exception:  # noqa: BLE001 — réglages illisibles : la ligne reste, sans l'indice
             hint = ""
     text = _statusline(state, now, hint)
+    warning = _context_warning(payload, settings)
+    if warning:
+        text = f"{text} · {warning}"
     return f"⏸ {text}" if (state or {}).get("pause") else text
+
+
+def _context_warning(payload, settings=None):
+    """« ⚠ contexte 182 k » quand la conversation de la session dépasse le seuil de contexte
+    lourd (journal donné par `transcript_path` dans le contexte de Claude Code) ; « » sinon,
+    et jamais d'erreur : la ligne d'état s'affiche dans chaque session."""
+    path = payload.get("transcript_path") if isinstance(payload, dict) else None
+    if not path or not isinstance(path, str):
+        return ""
+    try:
+        from . import context_alert
+        settings = settings or load_settings()
+        if not context_alert.config(settings)["enabled"]:
+            return ""
+        return context_alert.statusline_hint(context_alert.read_context(path), settings)
+    except Exception:  # noqa: BLE001 — journal ou réglages illisibles : pas d'avertissement
+        return ""
 
 
 def _statusline(state, now, hint=""):

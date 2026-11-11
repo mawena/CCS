@@ -225,6 +225,51 @@ def local_deb(version):
     return str(deb) if deb.is_file() else None
 
 
+def archive_info():
+    """État de l'archive des conversations : {"count", "bytes", "dir", "mode", "index_ok"} ;
+    "dir" vaut None si le dossier n'existe pas encore. Lit l'index, jamais les conversations."""
+    from . import archive
+    folder = archive.archive_dir()
+    if not folder.is_dir():
+        return {"count": 0, "bytes": 0, "dir": None, "mode": None, "index_ok": True}
+    index = archive.index_path()
+    index_ok = True
+    if index.exists():
+        try:
+            import json
+            data = json.loads(index.read_text())
+            index_ok = isinstance(data, dict)
+        except (OSError, ValueError):
+            index_ok = False
+    count, size = archive.stats() if index_ok else (0, 0)
+    return {"count": count, "bytes": size, "dir": str(folder),
+            "mode": folder.stat().st_mode & 0o777, "index_ok": index_ok}
+
+
+def phone_info():
+    """Téléphone : {"enabled", "server", "channel"} (canal : valide ou non, jamais sa valeur)."""
+    from . import phone
+    cfg = phone.config(settings.load_settings())
+    return {"enabled": cfg["enabled"], "server": cfg["server"],
+            "channel": phone.subscribe_url(cfg) is not None}
+
+
+def _pid_alive(pid):
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except (OSError, ValueError, TypeError):
+        return True  # PermissionError : il existe
+    return True
+
+
+def dead_tasks():
+    """Identifiants des tâches « en cours » dont le processus n'existe plus."""
+    from . import tasks
+    return [t.id for t in tasks.all() if t.state == tasks.RUNNING and t.pid and not _pid_alive(t.pid)]
+
+
 @dataclass
 class Probes:
     systemctl: Callable = systemctl
@@ -247,6 +292,9 @@ class Probes:
     which: Callable = shutil.which
     local_deb: Callable = local_deb
     settings_problems: Callable = settings.problems
+    archive: Callable = archive_info
+    phone: Callable = phone_info
+    dead_tasks: Callable = dead_tasks
     _cache: dict = field(default_factory=dict, repr=False)
 
     def once(self, name, *args):
@@ -473,13 +521,71 @@ def check_vte(p):
                                      "séparé", "sudo apt install gir1.2-vte-3.91")
 
 
+def _mo(n):
+    return f"{n / 1024 ** 2:.1f}".replace(".", ",") + " Mo"
+
+
+def check_archive(p):
+    """Archive des conversations : nombre, taille, dossier en 700, index lisible."""
+    nom = "Archive des conversations"
+    info = p.once("archive")
+    if not info:
+        return None
+    if not info.get("index_ok", True):
+        return Check(nom, AVERTISSEMENT, "index illisible : il sera reconstruit au prochain passage du "
+                                         "service (ou supprime index.json dans le dossier d'archive)",
+                     f"rm -f '{info.get('dir')}/index.json'" if info.get("dir") else None)
+    if info.get("dir") is None:
+        return Check(nom, OK, "aucune copie pour l'instant (le service en fait au plus toutes les 30 min)")
+    detail = f"{info['count']} conversation{'s' if info['count'] > 1 else ''}, {_mo(info['bytes'])}"
+    if info.get("mode") is not None and info["mode"] != 0o700:
+        return Check(nom, AVERTISSEMENT, f"{detail} ; dossier en {info['mode']:03o} au lieu de 700",
+                     f"chmod 700 '{info['dir']}'")
+    return Check(nom, OK, detail + " (dossier en 700)")
+
+
+def check_gpg(p):
+    nom = "Chiffrement (gpg)"
+    if p.which("gpg"):
+        return Check(nom, OK, "gpg présent : ccs sauvegarde est disponible")
+    return Check(nom, AVERTISSEMENT, "gpg introuvable : ccs sauvegarde et ccs restaurer ne marcheront pas",
+                 "sudo apt install gnupg")
+
+
+def check_phone(p):
+    nom = "Téléphone (ntfy)"
+    info = p.once("phone")
+    if not info:
+        return None
+    if not info.get("enabled"):
+        return Check(nom, OK, "désactivé")
+    if not info.get("channel"):
+        return Check(nom, AVERTISSEMENT, "activé mais sans canal valide : crée-le dans Réglages > Téléphone")
+    from urllib.parse import urlparse
+    host = urlparse(info.get("server") or "").netloc or "serveur inconnu"
+    return Check(nom, OK, f"configuré (serveur {host}, canal secret non affiché)")
+
+
+def check_tasks(p):
+    nom = "File de tâches"
+    dead = p.once("dead_tasks")
+    if not dead:
+        return None
+    ids = ", ".join(dead)
+    return Check(nom, AVERTISSEMENT, f"tâche en cours dont le processus n'existe plus : {ids}",
+                 f"ccs tache annuler {dead[0]}")
+
+
 CHECKS = (check_service, check_state, check_package, check_daemon_code, check_extension, check_tray,
-          check_integration, check_profiles, check_settings, check_claude, check_tools, check_vte)
+          check_integration, check_profiles, check_settings, check_claude, check_tools, check_gpg,
+          check_archive, check_phone, check_tasks, check_vte)
 CHECK_NAMES = {check_service: f"Service {SERVICE}", check_state: "Relevés", check_package: "Version installée",
                check_daemon_code: "Code du service", check_extension: "Extension AppIndicator",
                check_tray: "Indicateur", check_integration: "Intégration Claude Code", check_profiles: "Comptes",
                check_settings: "Réglages",
-               check_claude: "Commande claude", check_tools: "Outils de ccs", check_vte: "Terminal intégré"}
+               check_claude: "Commande claude", check_tools: "Outils de ccs", check_vte: "Terminal intégré",
+               check_gpg: "Chiffrement (gpg)", check_archive: "Archive des conversations",
+               check_phone: "Téléphone (ntfy)", check_tasks: "File de tâches"}
 
 
 def run_checks(probes=None):
