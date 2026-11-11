@@ -156,7 +156,7 @@ Conception : `docs/superpowers/specs/2026-11-11-phase-11-design.md`.
 
 Travailler pendant que tu n'es pas là :
 - [ ] File de tâches Claude (`ccs tache`, onglet Planning) : lancement sans fenêtre au bon moment (quota libre, heure, nuit), par la file Gagarine, bascule et relance après une limite
-- [ ] Notifications sur le téléphone (ntfy, optionnel) : session en attente, tâche finie, bascule, comptes épuisés ; projet et état seulement
+- [x] Notifications sur le téléphone (ntfy, optionnel) : session en attente, tâche finie, bascule, comptes épuisés ; projet et état seulement
 
 Ne rien perdre :
 - [x] Archive des conversations avant leur effacement par Claude Code, toujours visibles et reprenables dans l'onglet Sessions
@@ -166,7 +166,7 @@ Ne rien perdre :
 Économiser la machine et le quota :
 - [x] Mémoire des sessions : RAM et inactivité par session, fermeture des sessions inactives (jamais automatique)
 - [x] Alerte de contexte lourd (seuil réglable, coût d'un message, badge et ligne d'état)
-- [ ] Budget par projet (`ccs budget`, onglet Analyse), alertes à 80 % et 100 %
+- [x] Budget par projet (`ccs budget`, onglet Analyse), alertes à 80 % et 100 %
 
 Raccordement, documentation et release :
 - [ ] Service et commandes : `daemon`, `settings`, `cli`, `bin/ccs`, `doctor`, paquet
