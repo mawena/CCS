@@ -174,7 +174,7 @@ class ShowTaskTest(unittest.TestCase):
         with mock.patch.object(desktop, "activate_action", return_value=False), \
                 mock.patch.object(desktop, "launch_gui") as launch:
             self.assertEqual(desktop.show_task("ab12cd", None), "lancement")
-        launch.assert_called_once_with("ab12cd", None, args=("--page", "planning"))
+        launch.assert_called_once_with("ab12cd", None, args=("--page", "planning", "--task", "ab12cd"))
 
     def test_launch_command_targets_the_planning_page(self):
         cmd = desktop.gui_command("x", python="/usr/bin/python3", launcher="/usr/bin/claude-accounts",

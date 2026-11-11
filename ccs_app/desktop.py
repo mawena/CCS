@@ -260,16 +260,21 @@ def show_session(ref, token=None):
     return "lancement"
 
 
+def valid_task_id(task_id):
+    """Vrai si `task_id` peut être un identifiant de tâche (jamais une option)."""
+    return isinstance(task_id, str) and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", task_id))
+
+
 def show_task(task_id, token=None):
     """Affiche la tâche `task_id` dans l'onglet Planning ; renvoie « action » (application
-    déjà ouverte), « lancement » (application lancée sur l'onglet Planning), ou None
+    déjà ouverte), « lancement » (application lancée sur la tâche, onglet Planning), ou None
     (identifiant illisible)."""
-    if not isinstance(task_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", task_id):
+    if not valid_task_id(task_id):
         return None
     try:
         if activate_action(app_id(), SHOW_TASK_ACTION, task_id, token):
             return "action"
     except Exception as e:  # bus injoignable, application qui ne répond pas…
         log.warning("application injoignable (%s) : lancement", e)
-    launch_gui(task_id, token, args=("--page", "planning"))
+    launch_gui(task_id, token, args=("--page", "planning", "--task", task_id))
     return "lancement"

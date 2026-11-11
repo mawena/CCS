@@ -314,6 +314,17 @@ class GuiCliTest(HomeTestCase):
         self.assertIn("onglet inconnu", err.getvalue())
         self.assertIn("sessions, comptes, planning", err.getvalue())
 
+    def test_task_from_a_notification(self):
+        code, launched = self.run_gui("gui", "--page", "planning", "--task", "12")
+        self.assertEqual(code, 0)
+        launched.assert_called_once_with(session=None, page="planning", new_session=False, task="12")
+
+    def test_unreadable_task_is_refused(self):
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err), self.assertRaises(SystemExit) as raised:
+            self.run_gui("gui", "--task", "-x")
+        self.assertEqual(raised.exception.code, 2)
+
     def test_new_session(self):
         code, launched = self.run_gui("gui", "--new-session")
         launched.assert_called_once_with(session=None, page=None, new_session=True)
