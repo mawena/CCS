@@ -170,7 +170,7 @@ Ne rien perdre :
 
 Raccordement, documentation et release :
 - [ ] Service et commandes : `daemon`, `settings`, `cli`, `bin/ccs`, `doctor`, paquet
-- [ ] Application : Réglages, Planning, Analyse, Sessions
+- [x] Application : Réglages, Planning, Analyse, Sessions
 - [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
 - [ ] Release mineure 0.8.0 (recommandée : nouvelles fonctions compatibles), `main`, `develop` et le tag poussés
 - [ ] Paquet `.deb`, release GitHub v0.8.0 et publication dans le dépôt APT (vérifiée par `apt-get update`)
