@@ -4,14 +4,20 @@ terminal intégré, terminal ici, dossier, aperçu, renommage, terminer.
 
 Les entrées des menus « ⋮ » passent par les actions « sess.* » de la page
 (sess.preview((dossier, conversation)), sess.shell('dossier'), sess.rename((dossier,
-conversation)))."""
+conversation))).
+
+Mémoire (facultatif) : avec `memory` ({pid: session_memory.SessionMemory}), chaque carte montre sa
+RAM et son inactivité, l'en-tête la RAM totale et un bandeau « N sessions inactives occupent X Go » ;
+avec `on_close(session)` en plus, les sessions inactives ont un bouton « Fermer » (confirmation,
+la conversation reste reprenable). Avec `contexts` ({pid: context_alert.Context}), un badge signale
+le contexte lourd (au-delà de `heavy_tokens`, ou du seuil par défaut)."""
 
 import os
 import time
 
 from gi.repository import Adw, GLib, Gtk, Pango
 
-from .. import core, costs, sessions, transcripts
+from .. import context_alert, core, costs, session_memory, sessions, transcripts
 from ..session_hub import plural
 from .common import caption, clear, menu_button
 
@@ -42,6 +48,8 @@ class SessionCards(Gtk.Box):
         self.window = window
         self.on_changed = on_changed     # relecture des sessions (après « Terminer »)
         self.menus = []
+        self.memory, self.contexts, self.on_close = {}, {}, None
+        self.heavy_tokens = context_alert.DEFAULTS["threshold_tokens"]
         self.cost_loader = costs.Loader()
         self.known_costs = {}            # journal -> (empreinte, Cost) : affichés sans attendre
         self.cost_labels = {}            # journal -> [(libellé, texte sans le coût)]
@@ -50,8 +58,13 @@ class SessionCards(Gtk.Box):
         """Un menu « ⋮ » est ouvert : ne pas redessiner sous la souris."""
         return any(m.get_active() for m in self.menus)
 
-    def render(self, found, usage, titles, stamps, show_project, target=None, compact=False):
+    def render(self, found, usage, titles, stamps, show_project, target=None, compact=False,
+               memory=None, contexts=None, on_close=None, heavy_tokens=None):
         """Cartes des sessions `found` ; renvoie celle de `target` (mise en évidence) ou None."""
+        self.memory = memory or {}
+        self.contexts = contexts or {}
+        self.on_close = on_close
+        self.heavy_tokens = heavy_tokens or context_alert.DEFAULTS["threshold_tokens"]
         self.menus = []
         self.cost_labels = {}
         clear(self)
@@ -65,8 +78,14 @@ class SessionCards(Gtk.Box):
         count = f"{len(found)} ouverte" + ("s" if len(found) > 1 else "")
         if waiting:
             count += f" · {waiting} " + ("attendent ta réponse" if waiting > 1 else "attend ta réponse")
+        total = session_memory.summary(self.memory) if self.memory else None
+        if total and total.total:
+            count += f" · {session_memory.fmt_bytes(total.total)}"
         head.append(Gtk.Label(label=count, valign=Gtk.Align.BASELINE_CENTER, css_classes=["caption", "dim-label"]))
         self.append(head)
+        banner = session_memory.banner_text(total) if total else None
+        if banner:
+            self.append(Adw.Banner(title=banner, revealed=True))
         active = core.active_profile_name() or "compte non enregistré"
         self.append(caption(f"Toutes utilisent le compte actif ({active}) ; une bascule s'applique à "
                             "chacune à sa prochaine requête."))
@@ -128,6 +147,21 @@ class SessionCards(Gtk.Box):
         parts = ([s.project] if show_project else []) + [
             where, f"ouverte depuis {duration(time.time() - s.started_at)}", f"pid {s.pid}"]
         info.append(caption(" · ".join(parts)))
+        mem = self.memory.get(s.pid)
+        ctx = self.contexts.get(s.pid)
+        if mem is not None:
+            line = caption(session_memory.line_text(mem))
+            line.set_tooltip_text("Mémoire de la session et de ses programmes (PSS) ; inactivité depuis "
+                                  "la dernière activité")
+            info.append(line)
+        if ctx is not None and ctx.tokens >= self.heavy_tokens:
+            cost = context_alert.message_cost(ctx)
+            badge = Gtk.Label(label=context_alert.badge_text(ctx), xalign=0, halign=Gtk.Align.START,
+                              css_classes=["caption", "warning"],
+                              tooltip_text="Chaque message relit tout ce contexte"
+                              + (f" (environ {costs.format_dollars(cost)})" if cost is not None else "")
+                              + " : /compact ou une nouvelle session l'allège.")
+            info.append(badge)
         if u and u.messages:
             text = (f"{u.model} · {transcripts.fmt_tokens(u.weighted)} tokens pondérés · "
                     f"{plural(u.messages, 'réponse')}")
@@ -162,6 +196,12 @@ class SessionCards(Gtk.Box):
             more = menu_button(entries)
             self.menus.append(more)
             buttons.append(more)
+        if mem is not None and mem.idle and self.on_close is not None:
+            close = Gtk.Button(label="Fermer", css_classes=["flat"], valign=Gtk.Align.CENTER,
+                               tooltip_text=f"Libérer {session_memory.fmt_bytes(mem.ram)} : session inactive, "
+                                            "la conversation reste reprenable")
+            close.connect("clicked", lambda *_: self.confirm_close(s, mem))
+            buttons.append(close)
         stop = Gtk.Button(icon_name="process-stop-symbolic", tooltip_text="Terminer la session…",
                           css_classes=["flat", "error"], valign=Gtk.Align.CENTER)
         stop.connect("clicked", lambda *_: self.confirm_terminate(s))
@@ -173,6 +213,17 @@ class SessionCards(Gtk.Box):
         else:
             top.append(buttons)
         return card
+
+    def confirm_close(self, s, mem):
+        """« Fermer » une session inactive : confirmation, puis rappel de la page."""
+        d = Adw.AlertDialog(heading=f"Fermer la session « {s.project} » ?",
+                            body=f"Elle est inactive et occupe {session_memory.fmt_bytes(mem.ram)}. "
+                                 "La conversation est enregistrée : tu pourras la reprendre.")
+        d.add_response("cancel", "Annuler")
+        d.add_response("close", "Fermer")
+        d.set_response_appearance("close", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.connect("response", lambda _d, r: self.on_close(s) if r == "close" else None)
+        d.present(self.window)
 
     def confirm_terminate(self, s):
         d = Adw.AlertDialog(heading=f"Terminer la session « {s.project} » ?",
