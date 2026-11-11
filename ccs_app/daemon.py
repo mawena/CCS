@@ -173,7 +173,7 @@ class Daemon:
 
     def _run_archive(self, settings, now):
         from . import archive
-        res = archive.tick(now, settings)
+        res = archive.tick(now.timestamp(), settings)   # l'archive compte en secondes
         if res.changed or res.errors:
             log.info("archive : %s ajoutée(s), %s mise(s) à jour, %s supprimée(s), erreurs : %s",
                      res.archived, res.updated, res.pruned, res.errors)

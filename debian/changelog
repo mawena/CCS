@@ -1,3 +1,10 @@
+ccs (0.8.1) unstable; urgency=medium
+
+  * Archive des conversations : le premier passage du service échouait
+    (heure donnée en date au lieu de secondes) ; rien n'était archivé.
+
+ -- mawena <gamligocharles@gmail.com>  Wed, 11 Nov 2026 18:18:04 +0000
+
 ccs (0.8.0) unstable; urgency=medium
 
   * File de tâches Claude (ccs tache, onglet Planning) : exécution sans
