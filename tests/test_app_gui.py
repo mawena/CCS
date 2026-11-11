@@ -56,6 +56,38 @@ class ShowSessionActionTest(unittest.TestCase):
         self.assertIsNone(sent[2][1])
         self.assertEqual(self.appmod.remote_actions(), [])
 
+    def test_show_task_action_like_show_session(self):
+        a = self.appmod.App()
+        action = a.lookup_action("show-task")
+        self.assertIsNotNone(action)
+        self.assertEqual(action.get_parameter_type().dup_string(), "s")
+        self.assertEqual(self.appmod.App(task="7").pending_task, "7")
+        self.assertIsNone(a.pending_task)
+
+    def test_show_task_action_reaches_the_window(self):
+        a = self.appmod.App()
+        win = mock.Mock()
+        with mock.patch.object(a, "window", return_value=win):
+            a.lookup_action("show-task").activate(GLib.Variant("s", "12"))
+        win.present.assert_called_once()
+        win.show_task.assert_called_once_with("12")
+
+    def test_show_task_goes_to_planning_then_the_task(self):
+        from types import SimpleNamespace
+        shown = []
+        fake = SimpleNamespace(
+            stack=mock.Mock(),
+            planning=SimpleNamespace(tasks_view=mock.Mock(show_task=lambda i: shown.append(i) or i == "3")))
+        self.assertEqual(self.appmod.Window.show_task(fake, "3"), "planning")
+        fake.stack.set_visible_child_name.assert_called_once_with("planning")
+        self.assertEqual(shown, ["3"])
+        self.assertIsNone(self.appmod.Window.show_task(fake, "999"))
+
+    def test_task_action_sent_to_the_running_app(self):
+        sent = self.appmod.remote_actions(task="5")
+        self.assertEqual([n for n, _ in sent], ["show-task"])
+        self.assertEqual(sent[0][1].get_string(), "5")
+
     def test_switch_notes_its_origin_for_the_journal(self):
         calls = []
         with mock.patch.object(self.appmod.switch_log, "note_origin",

@@ -193,6 +193,29 @@ from unittest import mock  # noqa: E402
 from tests.helpers import HomeTestCase  # noqa: E402
 
 
+class TasksEntryTest(unittest.TestCase):
+    @staticmethod
+    def task(state):
+        from types import SimpleNamespace
+        return SimpleNamespace(state=state)
+
+    def test_label_counts_running_and_queued(self):
+        from ccs_app.desktop import page_name
+        from ccs_app.tray import TASKS_ARGS, tasks_label
+        self.assertEqual(page_name(TASKS_ARGS[-1]), "planning")
+        self.assertIsNone(tasks_label([]))
+        self.assertIsNone(tasks_label([self.task("done"), self.task("failed"), self.task("cancelled")]))
+        self.assertEqual(tasks_label([self.task("queued"), self.task("waiting"), self.task("done")]),
+                         "Tâches (2 en file)")
+        self.assertEqual(tasks_label([self.task("running"), self.task("queued")]),
+                         "Tâches (1 en cours, 1 en file)")
+
+    def test_unreadable_tasks_never_stop_the_indicator(self):
+        from ccs_app import tray
+        with mock.patch("ccs_app.tasks.all", side_effect=OSError("illisible")):
+            self.assertEqual(tray.tasks_now(), [])
+
+
 class AppEntriesTest(unittest.TestCase):
     def test_entries_open_the_right_page(self):
         from ccs_app.desktop import page_name

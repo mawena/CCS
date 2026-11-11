@@ -270,6 +270,31 @@ def open_session(ref):
         return False
 
 
+TASKS_ARGS = ("gui", "--page", "planning")  # entrée « Tâches » : onglet Planning
+
+
+def tasks_label(all_tasks):
+    """Libellé de l'entrée « Tâches » (None : aucune tâche en file ni en cours, pas d'entrée).
+    En file = en attente ou à reprendre (limite atteinte)."""
+    running = sum(1 for t in all_tasks if t.state == "running")
+    queued = sum(1 for t in all_tasks if t.state in ("queued", "waiting"))
+    parts = []
+    if running:
+        parts.append(f"{running} en cours")
+    if queued:
+        parts.append(f"{queued} en file")
+    return f"Tâches ({', '.join(parts)})" if parts else None
+
+
+def tasks_now():
+    """Tâches connues (liste vide si le fichier est illisible : l'indicateur ne s'arrête jamais)."""
+    try:
+        from . import tasks
+        return tasks.all()
+    except Exception:
+        return []
+
+
 # Fin du menu : l'application sur la bonne page (noms français de `gui --page`).
 APP_ENTRIES = (
     ("Journal des bascules", ("gui", "--page", "historique")),
@@ -471,6 +496,11 @@ def run():
         sub.append(it)
         root.set_submenu(sub)
         menu.append(root)
+        text = tasks_label(tasks_now())
+        if text:
+            it = Gtk.MenuItem(label=text, use_underline=False)
+            it.connect("activate", launch_gui, TASKS_ARGS)
+            menu.append(it)
         menu.append(Gtk.SeparatorMenuItem())
         for label, section in (("Bascule automatique", "auto_switch"), ("Orchestrateur", "orchestrator")):
             check = Gtk.CheckMenuItem(label=label + (" (en pause)" if paused else ""))
