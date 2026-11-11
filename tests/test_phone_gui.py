@@ -12,7 +12,8 @@ try:
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
     from gi.repository import Adw, Gtk
-    GTK = bool(Gtk.init_check())
+    from tests.helpers import gui_ready
+    GTK = gui_ready()
 except (ImportError, ValueError):
     GTK = False
 

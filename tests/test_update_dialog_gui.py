@@ -11,7 +11,8 @@ try:
     from gi.repository import Adw, GLib, Gtk
     Adw.init()
     from gi.repository import Gdk
-    GTK = Gdk.Display.get_default() is not None
+    from tests.helpers import gui_ready
+    GTK = gui_ready()
 except (ImportError, ValueError):
     GTK = False
 
