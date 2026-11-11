@@ -79,7 +79,7 @@ class CloseSessionTest(unittest.TestCase):
 
     def read(self, settings, contexts):
         captured = {}
-        page = SimpleNamespace(loading_sessions=False, sessions_again=False)
+        page = SimpleNamespace(loading_sessions=False, sessions_again=False, sessions_loaded=None)
         found = [SimpleNamespace(pid=7, session_id="sid", cwd="/x")]
         with mock.patch.object(self.mod, "in_thread", side_effect=lambda work, done: captured.update(work=work)), \
                 mock.patch.object(self.mod.sessions, "list_sessions", return_value=found), \
