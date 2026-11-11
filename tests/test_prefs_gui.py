@@ -75,6 +75,7 @@ class PrefsPageTest(HomeTestCase):
                 mock.patch("ccs_app.daemon.running_pid", return_value=None),
                 mock.patch("ccs_app.tray.watcher_available", return_value=True),
                 mock.patch("ccs_app.updates.available", return_value=None),
+                mock.patch("ccs_app.archive.stats", return_value=(3, 5 * 1024 * 1024)),
                 mock.patch("ccs_app.integration.status", return_value={"statusline": None, "hook": False})):
             p.start()
             self.addCleanup(p.stop)
@@ -112,6 +113,82 @@ class PrefsPageTest(HomeTestCase):
         self.assertLess(titles.index("Alertes"), titles.index("Conseils"))
         self.assertLess(titles.index("Intégration dans Claude Code"), titles.index("Raccourcis clavier"))
         self.assertLess(titles.index("Raccourcis clavier"), titles.index("Warm-up"))
+
+    def test_phase_11_groups_after_the_shortcuts(self):
+        from ccs_app.gui.backup_group import BackupGroup
+        from ccs_app.gui.phone_group import PhoneGroup
+        page = self.page()
+        titles = [g.get_title() for g in page.groups]
+        for title in ("Téléphone", "Sauvegarde", "Archive des conversations", "Sessions ouvertes",
+                      "Tâches", "Budgets par projet"):
+            self.assertIn(title, titles)
+        self.assertLess(titles.index("Raccourcis clavier"), titles.index("Téléphone"))
+        self.assertLess(titles.index("Téléphone"), titles.index("Sauvegarde"))
+        self.assertLess(titles.index("Budgets par projet"), titles.index("Warm-up"))
+        self.assertEqual(len([g for g in page.groups if isinstance(g, PhoneGroup)]), 1)
+        self.assertEqual(len([g for g in page.groups if isinstance(g, BackupGroup)]), 1)
+        page.render()  # recréés à chaque rendu, jamais en double
+        self.assertEqual(len([g for g in walk(page) if isinstance(g, (PhoneGroup, BackupGroup))]), 2)
+
+    def test_phone_group_writes_the_phone_section(self):
+        page = self.page()
+        phone_group = next(g for g in page.groups if g.get_title() == "Téléphone")
+        phone_group.enabled.set_active(True)
+        self.assertTrue(self.saved()["phone"]["enabled"])
+
+    def test_phase_11_rows_work_without_their_sections(self):
+        # settings.json sans archive, tâches, budget, sessions ni contexte : valeurs des modules.
+        rows = self.rows(self.page())
+        self.assertTrue(rows["Archiver les conversations"].get_active())
+        self.assertEqual(rows["Archiver après (jours d'inactivité)"].get_value(), 1)
+        self.assertEqual(rows["Supprimer l'archive après (jours)"].get_value(), 0)
+        self.assertEqual(rows["Sessions inactives après (h)"].get_value(), 2)
+        self.assertEqual(rows["Seuil du contexte lourd (tokens)"].get_value(), 150000)
+        self.assertEqual(rows["Tentatives par tâche"].get_value(), 3)
+        self.assertTrue(rows["Exécuter les tâches"].get_active())
+        self.assertTrue(rows["Alertes de budget"].get_active())
+
+    def test_archive_size_is_computed_in_a_thread(self):
+        import time
+        from gi.repository import GLib
+        size = self.rows(self.page())["Taille de l'archive"]
+        ctx = GLib.MainContext.default()
+        for _ in range(300):
+            while ctx.iteration(False):
+                pass
+            if size.get_subtitle() != "Calcul…":
+                break
+            time.sleep(0.01)
+        self.assertEqual(size.get_subtitle(), "3 conversation(s), 5 Mo")
+
+    def test_phase_11_rows_save_their_values(self):
+        rows = self.rows(self.page())
+        rows["Archiver les conversations"].set_active(False)
+        rows["Archiver après (jours d'inactivité)"].set_value(4)
+        rows["Supprimer l'archive après (jours)"].set_value(90)
+        rows["Sessions inactives après (h)"].set_value(5)
+        rows["Alerte de contexte lourd"].set_active(False)
+        rows["Seuil du contexte lourd (tokens)"].set_value(200000)
+        rows["Exécuter les tâches"].set_active(False)
+        rows["Tentatives par tâche"].set_value(5)
+        rows["Alertes de budget"].set_active(False)
+        saved = self.saved()
+        self.assertEqual(saved["archive"], {"enabled": False, "idle_days": 4, "max_age_days": 90})
+        self.assertEqual(saved["sessions"]["idle_hours"], 5)
+        self.assertEqual(saved["context_alert"], {"enabled": False, "threshold_tokens": 200000})
+        self.assertFalse(saved["tasks"]["enabled"])
+        self.assertEqual(saved["tasks"]["max_attempts"], 5)
+        self.assertFalse(saved["budget"]["enabled"])
+
+    def test_night_range_is_validated_and_saved(self):
+        row = self.rows(self.page())["Plage de nuit"]
+        entries = [w for w in walk(row) if isinstance(w, Gtk.Entry)]
+        self.assertEqual([e.get_text() for e in entries], ["23:00", "07:00"])
+        entries[0].set_text("22:30")
+        self.assertEqual(self.saved()["tasks"]["night"], {"start": "22:30", "end": "07:00"})
+        entries[1].set_text("25:00")  # invalide : refusé, signalé
+        self.assertIn("error", entries[1].get_css_classes())
+        self.assertEqual(self.saved()["tasks"]["night"]["end"], "07:00")
 
     def test_shortcuts_group_uses_the_injected_backend(self):
         from ccs_app.gui.shortcuts_group import ShortcutsGroup

@@ -15,7 +15,8 @@ des projets se replie (bouton « Projets ») ; plus étroite encore, les boutons
 lignes passent en icônes. Tri, recherche et filtres : `session_hub` (pur, testé).
 
 Deux lectures, chacune dans un fil :
-- sessions ouvertes, consommation, titres, comptes par projet : toutes les 15 s quand
+- sessions ouvertes, consommation, titres, comptes par projet, mémoire (RAM et inactivité,
+  `session_memory`) et contexte (`context_alert`) : toutes les 15 s quand
   l'onglet est affiché (sinon les seules fiches de session, pour le badge) ;
 - historique (`conversations.scan`, index incrémental) : toutes les 30 s.
 """
@@ -25,12 +26,14 @@ import time
 
 from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango
 
-from .. import attention, conversations, core, project_accounts, sessions, terminal
+from .. import attention, context_alert, conversations, core, project_accounts, session_memory, sessions, \
+    terminal
 from .. import session_hub as hub
 from .common import caption, clear, in_thread, short_path, string_factory
 from .conversation_list import ConversationList
 from .project_account_dialog import MENU_LABEL, account_action, account_label, confirm_switch, \
     load_associations, paused_now
+from ..settings import load_settings
 from .project_list import ProjectList
 from .session_cards import SessionCards, pair, stamp
 
@@ -57,6 +60,7 @@ class SessionsPage(Adw.BreakpointBin):
         # Sessions ouvertes (None tant que la première lecture n'est pas finie).
         self.found = None
         self.usage, self.titles, self.stamps, self.assocs = {}, {}, {}, []
+        self.memory, self.contexts, self.heavy_tokens = {}, {}, None
         self.loading_sessions = False
         self.sessions_again = False
         self.counting = False
@@ -211,7 +215,13 @@ class SessionsPage(Adw.BreakpointBin):
                 titles = {s.session_id: sessions.conversation_title(s.cwd, s.session_id) for s in found}
                 journals = [sessions.transcript_path(s.cwd, s.session_id) for s in found if s.session_id]
                 stamps = {str(p): stamp(p) for p in journals}
-                return found, usage, titles, stamps, load_associations()
+                # Lectures de /proc et des journaux : ici, jamais dans le fil principal.
+                settings = load_settings()
+                memory = session_memory.snapshot(found, settings=settings)
+                cfg = context_alert.config(settings)
+                contexts = context_alert.contexts_for(found) if cfg["enabled"] else {}
+                heavy = cfg["threshold_tokens"] if cfg["enabled"] else None
+                return found, usage, titles, stamps, load_associations(), (memory, contexts, heavy)
             except Exception:  # noqa: BLE001 — relevé raté : on garde le précédent
                 return None
         in_thread(work, self.sessions_loaded)
@@ -219,7 +229,8 @@ class SessionsPage(Adw.BreakpointBin):
     def sessions_loaded(self, result):
         self.loading_sessions = False
         if result is not None:
-            self.found, self.usage, titles, self.stamps, self.assocs = result
+            self.found, self.usage, titles, self.stamps, self.assocs, extra = result
+            self.memory, self.contexts, self.heavy_tokens = extra
             self.titles = {sid: t for sid, t in titles.items() if t}   # titre seul, sans repli
             self.opened = {s.session_id for s in self.found if s.session_id}
             self.set_badge(self.found)
@@ -399,7 +410,9 @@ class SessionsPage(Adw.BreakpointBin):
         self.render_header()
         if cards and self.found is not None and not (quiet and self.cards.busy()):
             card = self.cards.render(self.view.sessions, self.usage, self.titles, self.stamps,
-                                     self.view.selected.cwd is hub.ALL, self.highlight_target(), self.compact)
+                                     self.view.selected.cwd is hub.ALL, self.highlight_target(), self.compact,
+                                     memory=self.memory, contexts=self.contexts, on_close=self.close_session,
+                                     heavy_tokens=self.heavy_tokens)
             if card is not None:
                 GLib.timeout_add(80, self.scroll_to, card)
         if convs and self.convs is not None and not (quiet and self.conv_list.busy()):
@@ -484,6 +497,13 @@ class SessionsPage(Adw.BreakpointBin):
         return new
 
     # ---- actions -------------------------------------------------------------
+
+    def close_session(self, s):
+        """« Fermer » d'une session inactive (après la confirmation de la carte) : arrêt propre
+        du processus, puis relecture ; la conversation reste reprenable."""
+        ok = sessions.terminate(s.pid, s.proc_start)
+        self.window.toast("Session fermée" if ok else "Session déjà fermée")
+        GLib.timeout_add(800, lambda: (self.load_sessions(), False)[1])
 
     def with_conv(self, session_id, handler):
         conv = self.by_id.get(session_id)
