@@ -161,7 +161,7 @@ Travailler pendant que tu n'es pas là :
 Ne rien perdre :
 - [ ] Archive des conversations avant leur effacement par Claude Code, toujours visibles et reprenables dans l'onglet Sessions
 - [ ] Fiche « où j'en étais » (`ccs fiche`, aperçu) : dernière demande, fichiers modifiés, tâches, branche, sans appel à Claude
-- [ ] Sauvegarde chiffrée des comptes et réglages (`ccs sauvegarde`, `ccs restaurer`, gpg)
+- [x] Sauvegarde chiffrée des comptes et réglages (`ccs sauvegarde`, `ccs restaurer`, gpg)
 
 Économiser la machine et le quota :
 - [x] Mémoire des sessions : RAM et inactivité par session, fermeture des sessions inactives (jamais automatique)
