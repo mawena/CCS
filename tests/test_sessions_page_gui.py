@@ -12,7 +12,8 @@ try:
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
     from gi.repository import Gtk  # noqa: F401
-    GTK = True
+    from tests.helpers import gui_ready
+    GTK = gui_ready()
 except (ImportError, ValueError):
     GTK = False
 
@@ -50,7 +51,7 @@ class ArchivedProjectsTest(unittest.TestCase):
         self.assertEqual(conversations.suggest_folders([archived("z", "")]), {})
 
 
-@unittest.skipUnless(GTK, "GTK 4 et libadwaita absents")
+@unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
 class CloseSessionTest(unittest.TestCase):
     def setUp(self):
         from ccs_app.gui import sessions_page

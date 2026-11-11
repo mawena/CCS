@@ -3,6 +3,15 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Modifié
+
+- Tests : les tests graphiques ne tournent plus jamais sur le bureau réel. Ils
+  demandent `CCS_GUI_TESTS=1` et un affichage joignable (`tests/helpers.gui_ready`),
+  et `make unit` (donc `make deb`) les lance sous Xvfb quand `xvfb-run` est là ;
+  sinon l'affichage est retiré et ils sont sautés.
+
 ## [0.8.0] — 2026-11-11
 
 ### Ajouté
