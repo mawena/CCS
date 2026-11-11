@@ -164,8 +164,8 @@ Ne rien perdre :
 - [ ] Sauvegarde chiffrée des comptes et réglages (`ccs sauvegarde`, `ccs restaurer`, gpg)
 
 Économiser la machine et le quota :
-- [ ] Mémoire des sessions : RAM et inactivité par session, fermeture des sessions inactives (jamais automatique)
-- [ ] Alerte de contexte lourd (seuil réglable, coût d'un message, badge et ligne d'état)
+- [x] Mémoire des sessions : RAM et inactivité par session, fermeture des sessions inactives (jamais automatique)
+- [x] Alerte de contexte lourd (seuil réglable, coût d'un message, badge et ligne d'état)
 - [ ] Budget par projet (`ccs budget`, onglet Analyse), alertes à 80 % et 100 %
 
 Raccordement, documentation et release :
