@@ -140,6 +140,23 @@ class ArchiveTest(DaemonBase):
             self.d.join_jobs()
         self.assertEqual(delay, 300)
 
+    def test_real_pass_with_the_service_clock(self):
+        # Le service a une horloge datetime ; le vrai module d'archive doit la recevoir en
+        # secondes (0.8.0 : TypeError au premier passage, rien n'était archivé).
+        import json
+        import os
+        from ccs_app import archive, sessions
+        conv = sessions.projects_dir() / "-home-proj" / "abc.jsonl"
+        conv.parent.mkdir(parents=True, exist_ok=True)
+        conv.write_text(json.dumps({"type": "user", "message": {"content": "x"}}) + "\n")
+        old = (NOW - timedelta(days=2)).timestamp()
+        os.utime(conv, (old, old))
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(self.home / "data")}):
+            with self.assertNoLogs("ccs.daemon", "ERROR"):
+                tick(self.d, self.settings)
+                self.d.join_jobs()
+            self.assertEqual(archive.stats()[0], 1)
+
     def test_disabled_archive_is_never_started(self):
         from ccs_app import archive
         self.settings["archive"]["enabled"] = False
