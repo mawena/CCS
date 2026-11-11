@@ -19,7 +19,11 @@ except (ImportError, ValueError):
 
 class FakeWindow:
     def __init__(self):
-        self.toasts = []
+        self.toasts, self.opened = [], []
+
+    def open_claude(self, cwd, resume=None, title=None, external=False):
+        self.opened.append((cwd, resume))
+        return "integre"
 
     def toast(self, text):
         self.toasts.append(text)
@@ -84,6 +88,41 @@ class MomentCardTest(HomeTestCase):
         page = PlanningPage(FakeWindow())
         page.render({"accounts": []})
         self.assertNotIn("Meilleur moment pour une grosse tâche", "\n".join(labels(page.box)))
+
+
+@unittest.skipUnless(GTK, "affichage graphique requis")
+class TasksViewTest(HomeTestCase):
+    def test_one_instance_survives_every_render(self):
+        from ccs_app.gui.planning import PlanningPage
+        from ccs_app.gui.tasks_view import TasksView
+        page = PlanningPage(FakeWindow())
+        view = page.tasks_view
+        for st in (state(), state(), {"accounts": []}, state()):
+            page.render(st)
+            self.assertIs(view.get_parent(), page.box)
+            found, child = [], page.box.get_first_child()
+            while child is not None:
+                found += [child] if isinstance(child, TasksView) else []
+                child = child.get_next_sibling()
+            self.assertEqual(found, [view])
+
+    def test_selection_is_kept_across_renders(self):
+        from ccs_app import tasks
+        from ccs_app.gui.planning import PlanningPage
+        task = tasks.add("lire le dossier", cwd=str(self.home))
+        page = PlanningPage(FakeWindow())
+        page.render(state())
+        self.assertTrue(page.tasks_view.show_task(task.id))
+        page.render(state())
+        self.assertEqual(page.tasks_view.selected, task.id)
+
+    def test_resume_opens_the_conversation_in_a_tab(self):
+        from types import SimpleNamespace
+        from ccs_app.gui.planning import PlanningPage
+        window = FakeWindow()
+        page = PlanningPage(window)
+        page.tasks_view.on_resume(SimpleNamespace(cwd="/tmp/projet", session_id="abc-123"))
+        self.assertEqual(window.opened, [("/tmp/projet", "abc-123")])
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from .charts import PALETTE, _fg
 from .accounts import pause_box
 from .common import caption, clear, now_utc, parse_ts
 from .geometry import span_to_x
+from .tasks_view import TasksView
 
 ROW_H = 34
 LABEL_W = 110
@@ -160,6 +161,13 @@ class PlanningPage(Gtk.ScrolledWindow):
         self.set_child(Adw.Clamp(maximum_size=900, child=self.box))
         self.moment_hours = 3
         self.state = {}
+        # Une seule instance, gardée d'un rendu à l'autre : `clear(box)` la détache, `render` la
+        # remet (sa sélection et son journal ne se perdent pas).
+        self.tasks_view = TasksView(on_resume=self.resume_task, window=window)
+
+    def resume_task(self, task):
+        """« Reprendre dans un onglet » : la conversation de la tâche, dans son dossier."""
+        self.window.open_claude(task.cwd, resume=task.session_id)
 
     def toggle(self, sw, _p):
         s = load_settings()
@@ -237,6 +245,7 @@ class PlanningPage(Gtk.ScrolledWindow):
         if paused is not None:
             head.append(paused)
         self.box.append(head)
+        self.box.append(self.tasks_view)
 
         plan = o.get("plan") or []
         accounts = state.get("accounts") or []

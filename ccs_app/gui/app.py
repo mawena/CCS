@@ -164,6 +164,8 @@ class Window(Adw.ApplicationWindow):
         state = load_state()
         self.accounts.render(state, self.store)
         self.planning.render(state)
+        if self.stack.get_visible_child_name() == "analysis":
+            self.analysis.budgets.refresh()
         if self.stack.get_visible_child_name() == "history":
             self.history.render(state, self.store)
         else:
@@ -397,6 +399,13 @@ class Window(Adw.ApplicationWindow):
         self.sessions.highlight(target[1], target[2])
         return "sessions"
 
+    def show_task(self, task_id):
+        """Tâche désignée par la notification de fin : onglet Planning, journal de la tâche
+        ouvert. Renvoie « planning » (la tâche est affichée) ou None (identifiant inconnu : on
+        n'affiche alors que l'onglet)."""
+        self.stack.set_visible_child_name("planning")
+        return "planning" if self.planning.tasks_view.show_task(task_id) else None
+
     def preview(self, conv):
         show_preview(self, conv)
 
@@ -493,21 +502,30 @@ class Window(Adw.ApplicationWindow):
             self.auto.set_active(enabled)
 
 
+# Action d'application déclenchée depuis desktop.py (clic sur « tâche finie »), comme
+# `desktop.SHOW_ACTION` pour les sessions.
+SHOW_TASK_ACTION = getattr(desktop, "SHOW_TASK_ACTION", "show-task")
+
+
 class App(Adw.Application):
     """Instance unique. Actions d'application, appelées aussi par une deuxième instance
     (`claude-accounts gui …` alors que l'application tourne) :
     - « show-session » (paramètre : référence de session, cf. attention.parse_session_ref) :
       clic sur une notification, ou `gui --session <réf>` ;
+    - « show-task » (paramètre : identifiant de la tâche) : clic sur la notification de fin d'une
+      tâche (onglet Planning, journal de la tâche) ;
     - « show-page » (paramètre : nom d'un onglet, cf. desktop.page_name) : `gui --page` ;
     - « new-session » (sans paramètre) : `gui --new-session`."""
 
-    def __init__(self, session=None, page=None, new_session=False):
+    def __init__(self, session=None, page=None, new_session=False, task=None):
         # CCS_APP_ID : lancer une instance distincte (tests) sans réveiller l'application ouverte.
         super().__init__(application_id=desktop.app_id(), flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.pending_session = session
         self.pending_page = page
+        self.pending_task = task
         self.pending_new_session = bool(new_session)
         for name, kind, handler in ((desktop.SHOW_ACTION, "s", lambda v: self.show_session(v.get_string())),
+                                    (SHOW_TASK_ACTION, "s", lambda v: self.show_task(v.get_string())),
                                     (desktop.SHOW_PAGE_ACTION, "s", lambda v: self.show_page(v.get_string())),
                                     (desktop.NEW_SESSION_ACTION, None, lambda _v: self.new_session())):
             action = Gio.SimpleAction.new(name, GLib.VariantType.new(kind) if kind else None)
@@ -537,6 +555,9 @@ class App(Adw.Application):
         if self.pending_session:
             ref, self.pending_session = self.pending_session, None
             win.show_session(ref)
+        if self.pending_task:
+            task_id, self.pending_task = self.pending_task, None
+            win.show_task(task_id)
         if self.pending_new_session:
             self.pending_new_session = False
             GLib.idle_add(lambda: (win.new_session(), False)[1])   # fenêtre affichée d'abord
@@ -545,6 +566,11 @@ class App(Adw.Application):
         win = self.window()
         win.present()
         win.show_session(ref)
+
+    def show_task(self, task_id):
+        win = self.window()
+        win.present()
+        win.show_task(task_id)
 
     def show_page(self, name):
         win = self.window()
@@ -557,21 +583,23 @@ class App(Adw.Application):
         win.new_session()
 
 
-def remote_actions(session=None, page=None, new_session=False):
+def remote_actions(session=None, page=None, new_session=False, task=None):
     """[(action, paramètre)] à envoyer à l'application déjà ouverte, dans l'ordre."""
     out = []
     if page:
         out.append((desktop.SHOW_PAGE_ACTION, GLib.Variant("s", page)))
     if session:
         out.append((desktop.SHOW_ACTION, GLib.Variant("s", session)))
+    if task:
+        out.append((SHOW_TASK_ACTION, GLib.Variant("s", str(task))))
     if new_session:
         out.append((desktop.NEW_SESSION_ACTION, None))
     return out
 
 
-def run(session=None, page=None, new_session=False):
-    app = App(session, page, new_session)
-    actions = remote_actions(session, page, new_session)
+def run(session=None, page=None, new_session=False, task=None):
+    app = App(session, page, new_session, task)
+    actions = remote_actions(session, page, new_session, task)
     if actions:
         try:
             app.register(None)
@@ -582,6 +610,7 @@ def run(session=None, page=None, new_session=False):
             # run() ci-dessous la met au premier plan et envoie les messages avant de rendre
             # la main.
             app.pending_session, app.pending_page, app.pending_new_session = None, None, False
+            app.pending_task = None
             for name, value in actions:
                 app.activate_action(name, value)
     return app.run([sys.argv[0]])
