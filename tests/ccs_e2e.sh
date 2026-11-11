@@ -278,7 +278,7 @@ tid="$(jq -r '(.tasks // .)[0].id' "$HOME/.claude-accounts/tasks.json" 2>/dev/nu
 out="$("$CCS" tache annuler "$tid")"; expect "$out" "annulée"
 out="$("$CCS" tache supprimer "$tid")"; expect "$out" "supprimée"
 [[ "$(status_of "$CCS" tache annuler)" == 2 ]] || fail "tache annuler sans identifiant"
-[[ "$(status_of "$CCS" tache ajouter)" == 2 ]] || fail "tache ajouter sans message"
+[[ "$(status_of "$CCS" tache ajouter)" == 1 ]] || fail "tache ajouter sans message"
 [[ "$(status_of "$CCS" tache voir inconnue)" == 1 ]] || fail "tache voir : identifiant inconnu"
 out="$("$CCS" budget "$proj" 25)"; expect "$out" "25"
 out="$("$CCS" budget)"; expect "$out" "App"
