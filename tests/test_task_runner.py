@@ -46,7 +46,7 @@ args = sys.argv[1:]
 open(os.environ["FAKE_GAGARINE_LOG"], "a").write(json.dumps(args) + "\\n")
 print("  en file d'attente (messages de gagarine qui ne doivent pas finir dans le journal)")
 i = args.index("--")
-os.execv(args[i + 1], args[i + 1:])
+os.execvp(args[i + 1], args[i + 1:])
 """
 
 
@@ -67,7 +67,7 @@ class RunnerCase(HomeTestCase):
         self.glog = self.home / "gagarine.log"
         self.work = self.home / "proj"
         self.work.mkdir()
-        self.env = dict(os.environ, FAKE_LOG=str(self.log), FAKE_GAGARINE_LOG=str(self.glog), FAKE_MODE="ok")
+        self.run_env = dict(os.environ, FAKE_LOG=str(self.log), FAKE_GAGARINE_LOG=str(self.glog), FAKE_MODE="ok")
         self.procs = []
 
     def tearDown(self):
@@ -81,9 +81,9 @@ class RunnerCase(HomeTestCase):
         return tasks.add("Corrige les tests", cwd=str(self.work), **kw)
 
     def run_task(self, task, mode="ok", gagarine=None, resume=False, timeout=15):
-        self.env["FAKE_MODE"] = mode
+        self.run_env["FAKE_MODE"] = mode
         task_runner.start(task, NOW, resume=resume, attempts=1 if resume else 0, claude=self.claude,
-                          gagarine=gagarine, env=self.env)
+                          gagarine=gagarine, env=self.run_env)
         end = time.monotonic() + timeout
         while time.monotonic() < end:
             res = task_runner.poll(tasks.get(task.id), NOW + timedelta(seconds=5))
@@ -193,8 +193,8 @@ class RunTest(RunnerCase):
 
     def test_stop_kills_a_running_task(self):
         t = self.new()
-        self.env["FAKE_MODE"] = "slow"
-        task_runner.start(t, NOW, claude=self.claude, gagarine=None, env=self.env)
+        self.run_env["FAKE_MODE"] = "slow"
+        task_runner.start(t, NOW, claude=self.claude, gagarine=None, env=self.run_env)
         pid = tasks.get(t.id).pid
         self.assertTrue(task_runner._alive(pid))
         task_runner.stop(tasks.get(t.id))
@@ -209,7 +209,7 @@ class RunTest(RunnerCase):
         t = self.new()
         proj = self.home / ".claude" / "projects" / "-home-proj"
         entry = {"type": "assistant", "timestamp": "2026-11-12T10:00:00Z", "message": {
-            "model": "claude-sonnet-4-5", "id": "m1", "usage": {"input_tokens": 1_000_000, "output_tokens": 0}}}
+            "model": "claude-sonnet-5-5", "id": "m1", "usage": {"input_tokens": 1_000_000, "output_tokens": 0}}}
         write(proj / "sess-1.jsonl", json.dumps(entry) + "\n")
         res = self.run_task(t)
         self.assertTrue(res.total)
