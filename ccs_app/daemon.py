@@ -9,7 +9,8 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import alerts, autoswitch, core, notify, orchestrator, pause, quiet, switch_log, updates
+from . import (alerts, autoswitch, core, notify, orchestrator, pause, phone, quiet,
+               switch_log, updates)
 from .forecast import (AccountState, best_account, capacity, effective_percent,
                        session_forecast, weekly_forecast, weekly_pace)
 from .settings import load_settings
@@ -24,6 +25,9 @@ EVENTS_LOOKBACK = timedelta(hours=8)
 ALERTS_LOOKBACK = timedelta(days=8)
 RATE_LIMIT_PAUSE = timedelta(minutes=5)
 SESSION_NOTIFY_GAP_S = 120
+TASKS_WAKE_S = 30           # réveil tant qu'une tâche est en file, en cours ou en attente
+ARCHIVE_EVERY_S = 30 * 60   # un passage d'archive toutes les 30 min
+BUDGET_EVERY_S = 15 * 60    # alertes de budget : au plus toutes les 15 min
 EDGE_MARGIN_S = 2.0  # marge après une borne de plage horaire (début ou fin) avant de se réveiller
 
 
@@ -70,6 +74,11 @@ def _show_session(ref, token=None):
     return desktop.show_session(ref, token)
 
 
+def _show_task(task_id, token=None):
+    from . import desktop
+    return desktop.show_task(task_id, token)
+
+
 def _session_alert(key, title, body, session):
     """Notification d'une session : un clic (ou « Afficher ») ouvre l'application dessus."""
     from .attention import SHOW_PREFIX, session_ref
@@ -77,12 +86,35 @@ def _session_alert(key, title, body, session):
     return alerts.Alert(key, title, body, 1, ((show, "Afficher"),), default=show)
 
 
+def _task_project(alert):
+    """Nom du dossier de la tâche d'une alerte « task:<id>:… » (None sinon) : le seul
+    détail transmis au téléphone (jamais de chemin complet ni de message)."""
+    parts = str(alert.key).split(":")
+    if len(parts) < 2 or parts[0] not in ("task", "tache"):
+        return None
+    try:
+        from . import tasks
+        t = tasks.get(parts[1])
+        return (os.path.basename((t.cwd or "").rstrip("/")) or None) if t else None
+    except Exception:
+        log.exception("projet de la tâche introuvable")
+        return None
+
+
 class Daemon:
     def __init__(self, store, notifier=notify.send, starter=None, shower=None):
         self.store = store
-        self.notifier = notifier
+        self._notifier = notifier
+        self.settings = None        # réglages du tick en cours (envoi au téléphone)
+        self.background_jobs = True  # tâches, archive, budget : coupé pour l'observation seule
+        self.last_archive = None
+        self.last_budget = None
+        self.jobs = {}              # nom -> fil de fond (jamais deux à la fois)
+        self.jobs_lock = threading.Lock()
+        self.tasks_active = False   # une tâche en file, en cours ou en attente
         self.starter = starter or self._start_window
         self.shower = shower or _show_session  # (référence de session, jeton d'activation)
+        self.task_shower = _show_task          # (identifiant de tâche, jeton d'activation)
         self.states = {}            # dernier AccountState connu par profil
         self.previous_sessions = {}  # limite session au tick précédent
         self.last_full = None
@@ -95,6 +127,93 @@ class Daemon:
         self.next_reminder = None   # instant du prochain rappel d'attente (secondes)
         self.waiting_seen = {}      # pid -> premier relevé où la session attendait
         self.hooks = []             # fonctions (daemon, states, settings, now) appelées à chaque tick
+
+    # ---- envoi des alertes (bureau + téléphone, à un seul endroit) -------------
+
+    @property
+    def notifier(self):
+        return self._send
+
+    @notifier.setter
+    def notifier(self, fn):
+        self._notifier = fn
+
+    def _send(self, alert):
+        """Envoie l'alerte au bureau, puis la propose au téléphone (`phone.send` décide :
+        interrupteur, événement, ne pas déranger). Aucune erreur ne remonte."""
+        try:
+            phone.send(alert, self.settings, datetime.now(timezone.utc),
+                       project=_task_project(alert))
+        except Exception:
+            log.exception("envoi au téléphone en échec")
+        return self._notifier(alert)
+
+    # ---- tâches de fond ------------------------------------------------------
+
+    def _spawn(self, name, fn):
+        """Lance `fn` dans un fil unique `name` ; ignoré si le précédent tourne encore.
+        Une erreur est journalisée, jamais propagée."""
+        def work():
+            try:
+                fn()
+            except Exception:
+                log.exception("tâche de fond « %s » en échec", name)
+        with self.jobs_lock:
+            cur = self.jobs.get(name)
+            if cur is not None and cur.is_alive():
+                return None
+            t = threading.Thread(target=work, name=f"ccs-{name}", daemon=True)
+            self.jobs[name] = t
+        t.start()
+        return t
+
+    def join_jobs(self, timeout=60):
+        for t in list(self.jobs.values()):
+            t.join(timeout)
+
+    def _run_archive(self, settings, now):
+        from . import archive
+        res = archive.tick(now, settings)
+        if res.changed or res.errors:
+            log.info("archive : %s ajoutée(s), %s mise(s) à jour, %s supprimée(s), erreurs : %s",
+                     res.archived, res.updated, res.pruned, res.errors)
+
+    def _run_budget(self, settings, now):
+        from . import budget
+        if not settings["budget"]["enabled"]:
+            return
+        for a in budget.pending_alerts(now, settings):
+            self.notifier(a)
+
+    def _background(self, settings, now):
+        """Archive (30 min) et budget (15 min), chacun dans son fil."""
+        if not self.background_jobs:
+            return
+        ts = now.timestamp()
+        if settings["archive"]["enabled"] and (
+                self.last_archive is None or ts - self.last_archive >= ARCHIVE_EVERY_S):
+            if self._spawn("archive", lambda: self._run_archive(settings, now)):
+                self.last_archive = ts
+        if settings["budget"]["enabled"] and (
+                self.last_budget is None or ts - self.last_budget >= BUDGET_EVERY_S):
+            if self._spawn("budget", lambda: self._run_budget(settings, now)):
+                self.last_budget = ts
+
+    def _run_tasks(self, settings, now, paused):
+        """File de tâches : un tour (`tasks.tick`), alertes envoyées. Renvoie True s'il
+        reste une tâche en file, en cours ou en attente (réveil toutes les 30 s)."""
+        if not self.background_jobs:
+            return False
+        try:
+            from . import tasks
+            state = core.load_json(state_path())
+            for a in tasks.tick(now, settings, state, paused is not None) or []:
+                self.notifier(a)
+            return settings["tasks"]["enabled"] and any(
+                t.state in (tasks.QUEUED, tasks.RUNNING, tasks.WAITING) for t in tasks.all())
+        except Exception:
+            log.exception("file de tâches en échec")
+            return False
 
     # ---- collecte ---------------------------------------------------------
 
@@ -138,6 +257,7 @@ class Daemon:
         """À l'arrêt : laisse les démarrages en cours finir (jeton relu, dossier supprimé)."""
         for w in getattr(self, "workers", []):
             w.join(timeout)
+        self.join_jobs(timeout)
 
     # ---- actions de notification et sessions ---------------------------------
 
@@ -151,6 +271,12 @@ class Daemon:
                 self.shower(name, token)
             except Exception:
                 log.exception("affichage de la session impossible")
+            return False
+        if kind == "task":
+            try:
+                self.task_shower(name.partition(":")[0], token)
+            except Exception:
+                log.exception("affichage de la tâche impossible")
             return False
         if kind != "use":
             return False
@@ -191,6 +317,13 @@ class Daemon:
     def _on_sessions(self, settings, now):
         from . import sessions
         cur = sessions.list_sessions()
+        if self.background_jobs:
+            try:
+                from . import context_alert
+                for a in context_alert.tick(cur, settings):
+                    self.notifier(a)
+            except Exception:
+                log.exception("alerte de contexte lourd en échec")
         prev, self.prev_sessions = self.prev_sessions, {s.pid: s for s in cur}
         cfg = settings["alerts"]
         ts = now.timestamp()
@@ -258,6 +391,7 @@ class Daemon:
     # ---- tick ---------------------------------------------------------------
 
     def tick(self, settings, now):
+        self.settings = settings
         poll = settings["poll"]
         paused = self._pause(settings, now)
         self.detect_manual_switch(now)
@@ -329,6 +463,11 @@ class Daemon:
         if paused is not None and paused.until is not None:
             # Réveil à l'échéance de la pause, pour reprendre sans attendre le relevé suivant.
             delay = max(1.0, min(delay, (paused.until - now).total_seconds() + 1))
+
+        self.tasks_active = self._run_tasks(settings, now, paused)
+        if self.tasks_active:
+            delay = min(delay, TASKS_WAKE_S)
+        self._background(settings, now)
 
         sent = {e.detail.get("key") for e in
                 self.store.events((now - ALERTS_LOOKBACK).timestamp(), type="alert")}
@@ -611,6 +750,7 @@ def run():
 def observe_once():
     """Relevé et état partagé seulement : aucune bascule, alerte ni démarrage."""
     d = Daemon(Store(), notifier=lambda _a: None, starter=lambda *_: None)
+    d.background_jobs = False  # ni tâche lancée, ni archive, ni budget
     s = load_settings()
     s["auto_switch"]["enabled"] = False
     s["orchestrator"]["enabled"] = False

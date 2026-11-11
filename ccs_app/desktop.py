@@ -10,6 +10,10 @@ Afficher une session (`show_session`) : si l'application tourne, son action
 lancée avec `gui --session <réf>`, dans sa propre unité systemd (`systemd-run --user
 --scope`) pour qu'un redémarrage du service ne ferme pas la fenêtre.
 
+Afficher une tâche (`show_task`) : même mécanisme avec l'action « show-task » (paramètre :
+identifiant de la tâche) ; l'application fermée est lancée sur l'onglet Planning
+(`gui --page planning`).
+
 Onglets de la fenêtre (`page_name`) : `gui --page <onglet>` accepte le nom d'un onglet
 du ViewStack ou son titre en français ; l'application reçoit la demande par ses actions
 « show-page » (paramètre : nom de l'onglet) et « new-session » (sans paramètre), y
@@ -34,6 +38,7 @@ WATCH_S = 5  # vérification de l'existence du dossier des sessions (un simple s
 APP_ID = "io.ccs.ClaudeAccounts"
 MAX_TRACKED = 200          # notifications suivies (clics, jetons d'activation)
 SHOW_ACTION = "show-session"
+SHOW_TASK_ACTION = "show-task"
 SHOW_PAGE_ACTION = "show-page"
 NEW_SESSION_ACTION = "new-session"
 
@@ -219,10 +224,12 @@ def _launcher():
     return shutil.which("claude-accounts") or "/usr/bin/claude-accounts"
 
 
-def gui_command(ref, python=None, launcher=None, systemd_run=""):
-    """Commande qui ouvre l'application sur la session `ref`. `systemd_run` : chemin de
-    systemd-run (« » : cherché dans le PATH ; None : lancement direct)."""
-    cmd = [python or sys.executable, launcher or _launcher(), "gui", "--session", ref]
+def gui_command(ref, python=None, launcher=None, systemd_run="", args=None):
+    """Commande qui ouvre l'application sur la session `ref` (ou avec `args`, par exemple
+    ("--page", "planning")). `systemd_run` : chemin de systemd-run (« » : cherché dans le
+    PATH ; None : lancement direct)."""
+    cmd = [python or sys.executable, launcher or _launcher(), "gui",
+           *(args if args is not None else ("--session", ref))]
     if systemd_run == "":
         systemd_run = shutil.which("systemd-run")
     if not systemd_run:
@@ -230,11 +237,11 @@ def gui_command(ref, python=None, launcher=None, systemd_run=""):
     return [systemd_run, "--user", "--scope", "--quiet", "--collect", "--slice=app.slice", "--", *cmd]
 
 
-def launch_gui(ref, token=None):
+def launch_gui(ref, token=None, args=None):
     env = dict(os.environ)
     if token:
         env.update(XDG_ACTIVATION_TOKEN=token, DESKTOP_STARTUP_ID=token)
-    subprocess.Popen(gui_command(ref), env=env, start_new_session=True, stdin=subprocess.DEVNULL,
+    subprocess.Popen(gui_command(ref, args=args), env=env, start_new_session=True, stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -250,4 +257,19 @@ def show_session(ref, token=None):
     except Exception as e:  # bus injoignable, application qui ne répond pas…
         log.warning("application injoignable (%s) : lancement", e)
     launch_gui(ref, token)
+    return "lancement"
+
+
+def show_task(task_id, token=None):
+    """Affiche la tâche `task_id` dans l'onglet Planning ; renvoie « action » (application
+    déjà ouverte), « lancement » (application lancée sur l'onglet Planning), ou None
+    (identifiant illisible)."""
+    if not isinstance(task_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", task_id):
+        return None
+    try:
+        if activate_action(app_id(), SHOW_TASK_ACTION, task_id, token):
+            return "action"
+    except Exception as e:  # bus injoignable, application qui ne répond pas…
+        log.warning("application injoignable (%s) : lancement", e)
+    launch_gui(task_id, token, args=("--page", "planning"))
     return "lancement"
