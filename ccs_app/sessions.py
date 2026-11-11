@@ -129,6 +129,14 @@ def transcript_path(cwd, session_id):
     return projects_dir() / project_slug(cwd) / f"{session_id}.jsonl"
 
 
+def journal_path(session):
+    """Journal de la conversation d'une session ouverte, ou None si la fiche n'a pas de
+    dossier ou d'identifiant (session pas encore écrite)."""
+    if not (session.cwd and session.session_id):
+        return None
+    return transcript_path(session.cwd, session.session_id)
+
+
 @dataclass
 class ConversationUsage:
     weighted: float
