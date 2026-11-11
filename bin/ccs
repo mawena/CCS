@@ -376,10 +376,24 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
                            (alias : quiet)
   ccs orch on|off          orchestrateur : enchaîne et décale les fenêtres de 5 h des comptes
   ccs plan                 planning des fenêtres et des recharges à venir
-  ccs sessions             sessions Claude Code ouvertes : projet, état, consommation
+  ccs sessions             sessions Claude Code ouvertes : projet, état, consommation, mémoire (RAM)
+                           et badge « contexte lourd »
+  ccs tache [ajouter "<message>" [-C dossier] [--modele m] [--droits lecture|modifications|tout]
+            [--quand quota|nuit|HH:MM] | voir <id> | annuler <id> | supprimer <id>]
+                           file de tâches lancées par le service, sans fenêtre (alias : taches, tasks)
+  ccs budget [<dossier> <montant>|aucun]
+                           budget hebdomadaire par projet (équivalent dollars) : état, fixer, retirer
+  ccs fiche <id>           fiche « où j'en étais » d'une conversation (marche aussi sur une archivée)
+  ccs sauvegarde [fichier] sauvegarde chiffrée (gpg) des profils, réglages, budgets, raccourcis
+                           (alias : backup)
+  ccs restaurer <fichier> [--oui]
+                           restaure une sauvegarde, avec confirmation avant d'écraser (alias : restore)
+  ccs telephone [essai]    notifications sur le téléphone (ntfy) : état et lien d'abonnement ;
+                           « essai » envoie un message d'essai (alias : phone)
   ccs conv [mots] [opts]   historique des conversations Claude Code du PC (recherche)
                            opts : -p <projet>  --vscode  --terminal  --all  --json
-  ccs resume <id> [opts]   reprend une conversation ici (ou --vscode, --new-terminal, --print)
+  ccs resume <id> [opts]   reprend une conversation ici (ou --vscode, --new-terminal, --print) ;
+                           une conversation archivée est d'abord restaurée
                            --dir <dossier> : depuis un projet déplacé
   ccs title <id> <titre>   renomme une conversation (comme /rename dans Claude Code)
   ccs preview <id>         affiche une conversation en Markdown, avec son coût (alias : apercu)
@@ -449,6 +463,12 @@ main() {
     orch|orchestrateur) exec "$CA" orch "$@" ;;
     plan|planning) exec "$CA" plan ;;
     sessions|ps) exec "$CA" sessions ;;
+    tache|taches|tasks) exec "$CA" tache "$@" ;;
+    budget) exec "$CA" budget "$@" ;;
+    fiche) exec "$CA" fiche "$@" ;;
+    sauvegarde|backup) exec "$CA" sauvegarde "$@" ;;
+    restaurer|restore) exec "$CA" restaurer "$@" ;;
+    telephone|phone) exec "$CA" telephone "$@" ;;
     conv|conversations|historique) exec "$CA" conversations "$@" ;;
     resume|reprendre) exec "$CA" resume "$@" ;;
     title|titre) exec "$CA" title "$@" ;;

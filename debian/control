@@ -10,6 +10,7 @@ Package: ccs
 Architecture: all
 Depends: ${misc:Depends},
          jq,
+         gnupg,
          procps,
          python3 (>= 3.10),
          python3-gi,
@@ -18,7 +19,10 @@ Depends: ${misc:Depends},
          gir1.2-vte-3.91,
          gir1.2-gtk-3.0,
          gir1.2-ayatanaappindicator3-0.1
-Recommends: gnome-terminal | x-terminal-emulator
+Recommends: gnome-terminal | x-terminal-emulator,
+            python3-qrcode,
+            gpg-agent,
+            pinentry-gnome3
 Suggests: gnome-shell-extension-appindicator
 Description: multi-account switcher and usage assistant for Claude Code
  CCS keeps several Claude Code accounts on one machine and switches between
