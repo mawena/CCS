@@ -69,6 +69,70 @@ def _page(text):
     return name
 
 
+def cmd_tache(args):
+    from . import tasks
+    return tasks.command(list(args.args))
+
+
+def cmd_budget(args):
+    from . import budget
+    from .settings import load_settings
+    return budget.command(list(args.args), settings=load_settings())
+
+
+def cmd_fiche(args):
+    from . import fiche
+    return fiche.command(list(args.args))
+
+
+def cmd_sauvegarde(args):
+    from . import backup
+    return backup.command(["sauvegarde", *args.args])
+
+
+def cmd_restaurer(args):
+    from . import backup
+    return backup.command(["restaurer", *args.args])
+
+
+TELEPHONE_USAGE = "usage : ccs telephone [essai]"
+
+
+def cmd_telephone(args):
+    """`ccs telephone` : état et lien d'abonnement ; `ccs telephone essai` : message d'essai."""
+    from . import phone
+    from .settings import load_settings
+    rest = list(args.args)
+    settings = load_settings()
+    if rest in (["essai"], ["test"]):
+        ok, text = phone.send_test(settings)
+        print(text, file=sys.stdout if ok else sys.stderr)
+        return 0 if ok else 1
+    if rest:
+        print(TELEPHONE_USAGE, file=sys.stderr)
+        return 2
+    cfg = phone.config(settings)
+    link = phone.subscribe_url(cfg)
+    print("Notifications sur le téléphone : " + ("activées" if cfg["enabled"] else "désactivées"))
+    print(f"  Serveur : {cfg['server']}")
+    if link is None:
+        print("  Canal   : aucun (crée-le dans Réglages > Téléphone de l'application)")
+        return 0
+    print(f"  Lien d'abonnement (à ouvrir dans l'application ntfy, à garder secret) : {link}")
+    events = ", ".join(label for key, label in phone.EVENTS if cfg["events"].get(key, True))
+    print(f"  Événements : {events or 'aucun'}")
+    try:
+        import qrcode
+        qr = qrcode.QRCode(border=1)
+        qr.add_data(link)
+        qr.make(fit=True)
+        qr.print_ascii(invert=True)
+    except Exception:  # python3-qrcode absent : le lien suffit
+        pass
+    print("  Essayer : ccs telephone essai")
+    return 0
+
+
 def cmd_daemon(_args):
     from . import daemon
     return daemon.run()
@@ -388,12 +452,36 @@ def cmd_sessions(_args):
     if not found:
         print("Aucune session Claude Code ouverte.")
         return 0
+    from . import context_alert, session_memory
+    from .settings import load_settings
+    settings = load_settings()
     active = core.active_profile_name() or "compte non enregistré"
     print(f"{len(found)} session(s) ouverte(s) — toutes sur le compte actif : {active}")
+    try:
+        memory = session_memory.snapshot(found, settings=settings)
+    except Exception:  # /proc illisible : on affiche le reste
+        memory = {}
+    heavy = {}
+    if settings["context_alert"]["enabled"]:
+        try:
+            heavy = context_alert.contexts_for(found)
+        except Exception:
+            heavy = {}
     for s in found:
         u = sessions.conversation_usage(s)
+        mem = memory.get(s.pid)
+        ctx = heavy.get(s.pid)
+        ram = f"  {session_memory.line_text(mem)}" if mem else ""
+        badge = (f"  [{context_alert.badge_text(ctx)}]"
+                 if ctx is not None and context_alert.is_heavy(ctx, settings) else "")
         print(f"  {s.project:<16} {sessions.state_label(s):<28} depuis {_duration(time.time() - s.started_at):<9}"
-              f" {u.model:<7} {transcripts.fmt_tokens(u.weighted):>8} tokens  (pid {s.pid}, {s.name})")
+              f" {u.model:<7} {transcripts.fmt_tokens(u.weighted):>8} tokens  (pid {s.pid}, {s.name}){ram}{badge}")
+    if memory:
+        total = session_memory.summary(memory)
+        print(f"Mémoire des sessions : {session_memory.fmt_bytes(total.total)} au total.")
+        banner = session_memory.banner_text(total)
+        if banner:
+            print(f"{banner}. Ferme celles dont tu n'as plus besoin pour libérer la RAM.")
     return 0
 
 
@@ -439,6 +527,8 @@ def cmd_conversations(args):
                 moved = moved_to.get(c.session_id)
                 flag = (f"  {red}✗ dossier introuvable{off}" + (
                     f" {dim}(déplacé vers {moved.replace(home, '~', 1)} ?){off}" if moved else ""))
+            if c.archived:
+                flag += f"  {dim}◌ archivée{off}"
             n = f"{c.prompts} demande{'s' if c.prompts > 1 else ''}"
             print(f"  {c.session_id[:8]}  {conv.ago(c.updated_at):<13} {c.project[:18]:<18} "
                   f"{c.origin_label:<8} {c.title}  {dim}({n}){off}{flag}")
@@ -487,6 +577,13 @@ def cmd_resume(args):
         print(f"Erreur : « {c.title} » est {problem}." if "ouverte" in problem
               else f"Erreur : {problem}", file=sys.stderr)
         return 1
+    if c.archived:
+        try:
+            c = conv.ensure_conversation(c)
+        except (OSError, ValueError) as e:
+            print(f"Erreur : restauration de la conversation archivée impossible : {e}", file=sys.stderr)
+            return 1
+        print(f"Conversation archivée restaurée dans {c.path}.", file=sys.stderr)
     if args.print:
         print(conv.resume_command(c))
         return 0
@@ -531,7 +628,8 @@ def _conversation(ref):
 
 def _cost_text(c):
     from . import costs
-    return costs.format_cost(costs.conversation_cost(c.path))
+    from . import conversations as conv
+    return costs.format_cost(conv.cost_for_path(c.path))
 
 
 def cmd_preview(args):
@@ -860,7 +958,19 @@ def build_parser():
     orch.add_argument("state", choices=["on", "off"])
     orch.set_defaults(func=cmd_orch)
     sub.add_parser("plan", help="planning des fenêtres de 5 h").set_defaults(func=cmd_plan)
-    sub.add_parser("sessions", help="sessions Claude Code ouvertes").set_defaults(func=cmd_sessions)
+    sub.add_parser("sessions", help="sessions Claude Code ouvertes (mémoire, contexte lourd)").set_defaults(
+        func=cmd_sessions)
+    for names, helptext, func in (
+            (["tache", "taches", "tasks"], "file de tâches lancées par le service : ajouter, voir, annuler",
+             cmd_tache),
+            (["budget"], "budget hebdomadaire par projet", cmd_budget),
+            (["fiche"], "fiche « où j'en étais » d'une conversation", cmd_fiche),
+            (["sauvegarde", "backup"], "sauvegarde chiffrée des profils et réglages", cmd_sauvegarde),
+            (["restaurer", "restore"], "restaure une sauvegarde chiffrée", cmd_restaurer),
+            (["telephone", "phone"], "notifications sur le téléphone : état, lien, essai", cmd_telephone)):
+        p = sub.add_parser(names[0], aliases=names[1:], help=helptext)
+        p.add_argument("args", nargs=argparse.REMAINDER, help="arguments de la commande")
+        p.set_defaults(func=func)
     convs = sub.add_parser("conversations", help="historique des conversations Claude Code du PC")
     convs.add_argument("query", nargs="*", help="mots à chercher (titre, demandes, projet)")
     convs.add_argument("-p", "--project", help="nom ou dossier du projet")
@@ -906,11 +1016,22 @@ def build_parser():
     return parser
 
 
+DELEGATED = {"tache": cmd_tache, "taches": cmd_tache, "tasks": cmd_tache,
+             "budget": cmd_budget, "fiche": cmd_fiche,
+             "sauvegarde": cmd_sauvegarde, "backup": cmd_sauvegarde,
+             "restaurer": cmd_restaurer, "restore": cmd_restaurer,
+             "telephone": cmd_telephone, "phone": cmd_telephone}
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     # Compatibilité avec l'ancienne option.
     if argv[:1] == ["--print"]:
         argv[0] = "print"
+    # Commandes qui analysent elles-mêmes leurs options (-C, --droits, --oui…) : argparse
+    # ne doit pas les voir.
+    if argv and argv[0] in DELEGATED:
+        return DELEGATED[argv[0]](argparse.Namespace(args=argv[1:])) or 0
     args = build_parser().parse_args(argv)
     func = getattr(args, "func", cmd_gui)
     return func(args) or 0

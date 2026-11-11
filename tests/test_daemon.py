@@ -45,6 +45,7 @@ class DaemonBase(HomeTestCase):
         core_clock = mock.patch.object(core.time, "time", return_value=NOW.timestamp())
         core_clock.start()
         self.addCleanup(core_clock.stop)
+        self.addCleanup(self.d.join_jobs)  # fils de fond (archive, budget) finis avant le nettoyage
 
     def state(self):
         return json.loads((self.store / "state.json").read_text())

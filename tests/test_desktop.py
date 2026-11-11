@@ -159,3 +159,32 @@ class PageNameTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShowTaskTest(unittest.TestCase):
+    def test_running_app_gets_the_show_task_action(self):
+        calls = []
+        with mock.patch.object(desktop, "activate_action", side_effect=lambda *a: calls.append(a) or True), \
+                mock.patch.object(desktop, "launch_gui") as launch:
+            self.assertEqual(desktop.show_task("ab12cd", "jeton"), "action")
+        self.assertEqual(calls, [(desktop.app_id(), "show-task", "ab12cd", "jeton")])
+        launch.assert_not_called()
+
+    def test_closed_app_is_launched_on_the_planning_page(self):
+        with mock.patch.object(desktop, "activate_action", return_value=False), \
+                mock.patch.object(desktop, "launch_gui") as launch:
+            self.assertEqual(desktop.show_task("ab12cd", None), "lancement")
+        launch.assert_called_once_with("ab12cd", None, args=("--page", "planning"))
+
+    def test_launch_command_targets_the_planning_page(self):
+        cmd = desktop.gui_command("x", python="/usr/bin/python3", launcher="/usr/bin/claude-accounts",
+                                  systemd_run=None, args=("--page", "planning"))
+        self.assertEqual(cmd, ["/usr/bin/python3", "/usr/bin/claude-accounts", "gui", "--page", "planning"])
+
+    def test_invalid_identifier_does_nothing(self):
+        with mock.patch.object(desktop, "activate_action") as act, \
+                mock.patch.object(desktop, "launch_gui") as launch:
+            self.assertIsNone(desktop.show_task("--help", None))
+            self.assertIsNone(desktop.show_task("", None))
+        act.assert_not_called()
+        launch.assert_not_called()
