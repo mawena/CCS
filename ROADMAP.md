@@ -150,6 +150,31 @@ Releases GitHub manquantes :
 - [x] Release mineure 0.7.0 (recommandée : nouvelles fonctions compatibles), `main`, `develop` et le tag poussés
 - [x] Paquet `.deb` construit, release GitHub v0.7.0 et première publication dans le dépôt APT (vérifiée par `apt-get update`)
 
+## Phase 11 — Travailler sans toi, ne rien perdre, économiser (0.8.0)
+
+Conception : `docs/superpowers/specs/2026-11-11-phase-11-design.md`.
+
+Travailler pendant que tu n'es pas là :
+- [ ] File de tâches Claude (`ccs tache`, onglet Planning) : lancement sans fenêtre au bon moment (quota libre, heure, nuit), par la file Gagarine, bascule et relance après une limite
+- [ ] Notifications sur le téléphone (ntfy, optionnel) : session en attente, tâche finie, bascule, comptes épuisés ; projet et état seulement
+
+Ne rien perdre :
+- [ ] Archive des conversations avant leur effacement par Claude Code, toujours visibles et reprenables dans l'onglet Sessions
+- [ ] Fiche « où j'en étais » (`ccs fiche`, aperçu) : dernière demande, fichiers modifiés, tâches, branche, sans appel à Claude
+- [ ] Sauvegarde chiffrée des comptes et réglages (`ccs sauvegarde`, `ccs restaurer`, gpg)
+
+Économiser la machine et le quota :
+- [ ] Mémoire des sessions : RAM et inactivité par session, fermeture des sessions inactives (jamais automatique)
+- [ ] Alerte de contexte lourd (seuil réglable, coût d'un message, badge et ligne d'état)
+- [ ] Budget par projet (`ccs budget`, onglet Analyse), alertes à 80 % et 100 %
+
+Raccordement, documentation et release :
+- [ ] Service et commandes : `daemon`, `settings`, `cli`, `bin/ccs`, `doctor`, paquet
+- [ ] Application : Réglages, Planning, Analyse, Sessions
+- [ ] Documentation (README, guide, architecture, pages man, CHANGELOG)
+- [ ] Release mineure 0.8.0 (recommandée : nouvelles fonctions compatibles), `main`, `develop` et le tag poussés
+- [ ] Paquet `.deb`, release GitHub v0.8.0 et publication dans le dépôt APT (vérifiée par `apt-get update`)
+
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
 Recommandées :
