@@ -5,8 +5,9 @@ from pathlib import Path
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
-from .. import core, costs, preview
+from .. import conversations, core, costs, fiche, preview
 from .common import in_thread
+from .fiche_view import FicheView
 
 PREVIEW_LIMIT = 300        # messages affichés d'abord (les plus récents)
 UI_TEXT_MAX = 20_000       # au-delà, un message est tronqué à l'écran (l'export reste complet)
@@ -72,10 +73,14 @@ class PreviewDialog(Adw.Dialog):
         self.export_btn.connect("clicked", self.on_export)
         header.pack_end(self.export_btn)
 
-        self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
-                            margin_top=12, margin_bottom=18, margin_start=12, margin_end=12)
+        self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.fiche_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)   # fiche « où j'en étais »
+        column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
+                         margin_top=12, margin_bottom=18, margin_start=12, margin_end=12)
+        column.append(self.fiche_box)
+        column.append(self.body)
         self.scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True,
-                                           child=Adw.Clamp(maximum_size=760, child=self.body))
+                                           child=Adw.Clamp(maximum_size=760, child=column))
         self.toasts = Adw.ToastOverlay(child=self.scroller)
         view = Adw.ToolbarView(content=self.toasts)
         view.add_top_bar(header)
@@ -86,13 +91,17 @@ class PreviewDialog(Adw.Dialog):
 
     def load(self):
         self.show_status("content-loading-symbolic", "Lecture de la conversation…", spinner=True)
-        path, limit = self.conv.path, self.limit
+        conv, path, limit = self.conv, self.conv.path, self.limit
 
         def work():
             try:
                 msgs = preview.read_messages(path, limit=limit + 1 if limit else None)
-                cost = costs.conversation_cost(path)
-                return msgs, cost
+                cost = conversations.cost_for_path(path)
+                try:
+                    card = fiche.build(conv)
+                except (OSError, ValueError):
+                    card = None   # la fiche est un plus : l'aperçu s'affiche sans elle
+                return msgs, cost, card
             except OSError as e:
                 return e
         in_thread(work, self.loaded)
@@ -102,11 +111,15 @@ class PreviewDialog(Adw.Dialog):
             self.show_status("dialog-error-symbolic", "Lecture impossible",
                              f"{result.strerror or result} ({result.filename or self.conv.path})")
             return
-        msgs, cost = result
+        msgs, cost, card = result
         self.cost = cost
+        while (child := self.fiche_box.get_first_child()) is not None:
+            self.fiche_box.remove(child)
+        if card is not None and (card.last_request or card.last_reply):
+            self.fiche_box.append(FicheView(card))
         truncated = bool(self.limit) and len(msgs) > self.limit
         self.messages = msgs[1:] if truncated else msgs
-        sub = [self.conv.project]
+        sub = [self.conv.project] + (["archivée"] if self.conv.archived else [])
         if cost.reponses:
             sub.append(costs.format_cost(cost))
         self.heading.set_subtitle(" · ".join(s for s in sub if s))
