@@ -1,3 +1,19 @@
+ccs (0.8.0) unstable; urgency=medium
+
+  * File de tâches Claude (ccs tache, onglet Planning) : exécution sans
+    fenêtre au bon moment (quota, heure, nuit), par la file Gagarine.
+  * Notifications sur le téléphone par ntfy (ccs telephone), désactivées
+    par défaut.
+  * Archive des conversations avant leur effacement par Claude Code.
+  * Fiche « où j'en étais » (ccs fiche).
+  * Sauvegarde chiffrée par gpg (ccs sauvegarde, ccs restaurer).
+  * Mémoire des sessions et alerte de contexte lourd.
+  * Budget hebdomadaire par projet (ccs budget).
+  * Dépend de gnupg ; recommande python3-qrcode, gpg-agent et
+    pinentry-gnome3.
+
+ -- mawena <gamligocharles@gmail.com>  Wed, 11 Nov 2026 17:21:50 +0000
+
 ccs (0.7.1) unstable; urgency=medium
 
   * Documentation : installation par le dépôt APT mise en avant, lien du

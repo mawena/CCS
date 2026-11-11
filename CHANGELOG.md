@@ -41,6 +41,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   Sessions et la ligne d'état.
 - **Budget par projet** (`ccs budget`, onglet Analyse) : budget hebdomadaire en
   équivalent dollars, alertes à 80 % et 100 %, ne bloque jamais rien.
+- `claude-accounts gui --task <id>` : ouvre l'onglet Planning sur une tâche ;
+  c'est ce qu'utilise le clic sur la notification de fin de tâche quand
+  l'application est fermée.
 - Réglages `tasks`, `phone`, `archive`, `sessions`, `context_alert` et `budget`.
 - Paquet : dépend de `gnupg` ; recommande `python3-qrcode` (QR code du téléphone),
   `gpg-agent` et `pinentry-gnome3` (phrase de passe de la sauvegarde).
