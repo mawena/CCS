@@ -159,8 +159,8 @@ Travailler pendant que tu n'es pas là :
 - [ ] Notifications sur le téléphone (ntfy, optionnel) : session en attente, tâche finie, bascule, comptes épuisés ; projet et état seulement
 
 Ne rien perdre :
-- [ ] Archive des conversations avant leur effacement par Claude Code, toujours visibles et reprenables dans l'onglet Sessions
-- [ ] Fiche « où j'en étais » (`ccs fiche`, aperçu) : dernière demande, fichiers modifiés, tâches, branche, sans appel à Claude
+- [x] Archive des conversations avant leur effacement par Claude Code, toujours visibles et reprenables dans l'onglet Sessions
+- [x] Fiche « où j'en étais » (`ccs fiche`, aperçu) : dernière demande, fichiers modifiés, tâches, branche, sans appel à Claude
 - [x] Sauvegarde chiffrée des comptes et réglages (`ccs sauvegarde`, `ccs restaurer`, gpg)
 
 Économiser la machine et le quota :
