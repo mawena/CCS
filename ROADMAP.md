@@ -155,7 +155,7 @@ Releases GitHub manquantes :
 Conception : `docs/superpowers/specs/2026-11-11-phase-11-design.md`.
 
 Travailler pendant que tu n'es pas là :
-- [ ] File de tâches Claude (`ccs tache`, onglet Planning) : lancement sans fenêtre au bon moment (quota libre, heure, nuit), par la file Gagarine, bascule et relance après une limite
+- [x] File de tâches Claude (`ccs tache`, onglet Planning) : lancement sans fenêtre au bon moment (quota libre, heure, nuit), par la file Gagarine, bascule et relance après une limite
 - [x] Notifications sur le téléphone (ntfy, optionnel) : session en attente, tâche finie, bascule, comptes épuisés ; projet et état seulement
 
 Ne rien perdre :
