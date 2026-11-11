@@ -44,6 +44,15 @@ raccourcis clavier.
 | `quiet` | Ne pas déranger : plage `alerts.quiet` et silence temporaire (`quiet.json`), décision de retenir (`should_hold`), notifications retenues et comptées (`quiet_held.json`), résumé de fin (`flush`), `command()` de `ccs silence` |
 | `installer` | Mise à jour en un clic : plan d'après la release GitHub, liste blanche d'URL, téléchargement borné, SHA-256, contrôle du paquet, installation par `pkexec apt-get`, `command()` de `ccs mise-a-jour` |
 | `shortcuts` | Raccourcis clavier globaux GNOME : actions, lecture et validation des raccourcis, moteurs `GioBackend` / `MemoryBackend`, installation sous les seuls chemins de CCS, conflits, `command()` de `ccs raccourcis` ; `NOTIFIER` (`--notifier` des commandes de bascule et de pause) |
+| `tasks` | File de tâches : `~/.claude-accounts/tasks.json` (600, écriture atomique sous verrou), états (`queued`, `running`, `waiting`, `done`, `failed`, `cancelled`), moments (`quota`, `nuit`, `HH:MM`), décision pure (`due`, `decide`), `tick(now, settings, state, paused)` appelé par le service (renvoie les alertes `task:<id>:…`), `command()` de `ccs tache` |
+| `task_runner` | Exécution d'une tâche : `claude -p --output-format stream-json --verbose` dans le dossier (droits via `launch_options`), journal `tasks/<id>.jsonl`, passage par `gagarine file --priorite fond` quand la commande existe, une tâche à la fois, bascule avant lancement (jamais en pause), reprise `--resume` après une limite (3 tentatives) |
+| `phone` | Notifications sur le téléphone (ntfy, désactivées par défaut) : canal secret, message sans contenu (projet et état seulement), « ne pas déranger », envoi dans un fil sans exception, `send_test`, lien d'abonnement ; appelé par le service au seul endroit où les alertes sont envoyées |
+| `archive` | Archive des conversations : copies gzip dans `${XDG_DATA_HOME:-~/.local/share}/ccs/archive` (700), `index.json`, passages bornés (20 fichiers ou 100 Mo, toutes les 30 min, dans un fil du service), restauration à la reprise, élagage par âge |
+| `fiche` | Fiche « où j'en étais » lue dans le journal (dernière demande, réponse, fichiers, tâches, branche, compte d'après le journal des bascules), `command()` de `ccs fiche` ; encart de l'aperçu |
+| `backup` | Sauvegarde chiffrée : tar en mémoire, `gpg --symmetric --cipher-algo AES256` (phrase de passe saisie dans pinentry, jamais en argument), contenu, restauration atomique en 600 avec confirmation, `command()` de `ccs sauvegarde` et `ccs restaurer` |
+| `session_memory` | RAM par session (PSS du processus et de ses descendants, à défaut RSS), inactivité, total, textes du bandeau ; lu par `ccs sessions` et l'onglet Sessions |
+| `context_alert` | Taille du contexte (dernier usage du journal), seuil, une alerte `context:<session_id>` par session (état `context-alerts.json`), indice de la ligne d'état |
+| `budget` | Budgets hebdomadaires par projet : `budgets.json`, dépensé de la semaine (cache par chemin, date, taille), alertes à 80 % et 100 % (`pending_alerts`, une fois par seuil, projet et semaine), `command()` de `ccs budget` |
 | `daemon` | Boucle : relevés, prévisions, pause, décision, alertes, rappel des sessions en attente, warm-up, modules optionnels (`hooks`), écriture de `state.json` |
 | `pause` | Mode pause : `pause.json` (sous verrou), `set_pause`, `pause_state`, `expire`, `until_for` (1 h, 4 h, début de la plage suivante, reprise manuelle), libellés, `command()` de `ccs pause` |
 | `updates` | Nouvelle version : dernière release GitHub, comparaison SemVer, cache `updates.json`, une notification par version (module du daemon, dans un fil) |
@@ -63,9 +72,9 @@ raccourcis clavier.
 | `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` (revérifié toutes les 5 s, `WATCH_S` : installé quand le dossier apparaît, réinstallé s'il est supprimé ou remplacé) ; `show_session` : ouvrir l'application sur une session ; onglets acceptés par `gui --page` (`PAGES`, `page_name`) |
 | `attention` | Ce qui demande l'attention dans la fenêtre (pur) : libellé de pause de l'en-tête, bandeaux nouvelle version et bilan, badge des sessions en attente, référence de session (`<pid>:<id>`) et cible d'un clic sur une notification |
 | `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie ; ligne « Réglages » en avertissement quand des clés de `settings.json` sont ignorées |
-| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages ; `gui/update_dialog` : dialogue de mise à jour en un clic ; carte « Meilleur moment » (`gui/planning`) et carte « Rapport mensuel » (`gui/advisor_cards`) |
+| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages ; `gui/update_dialog` : dialogue de mise à jour en un clic ; `gui/tasks_view` : tâches de l'onglet Planning ; `gui/budget_view` : budgets de l'onglet Analyse ; `gui/phone_group`, `gui/backup_group` : groupes « Téléphone » et « Sauvegarde » des Réglages ; `gui/fiche_view` : fiche de l'aperçu ; carte « Meilleur moment » (`gui/planning`) et carte « Rapport mensuel » (`gui/advisor_cards`) |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version (« Installer CCS x.y.z… ») ; sous-menu Sessions (une entrée par session, en attente d'abord ; un clic ouvre la session par la même route que les notifications ; « · 💬 n » dans le libellé) ; entrée « Ne pas déranger » du menu principal (sous-menu 1 heure, 4 heures, Jusqu'à demain 08:00, Reprendre les notifications ; 🔕 dans le libellé pendant un silence) ; `APP_ENTRIES` (« Journal des bascules » → `gui --page historique`, « Bilan de la semaine » → `gui --page analyse`, « Ouvrir Comptes Claude ») ; `switch_to` (bascule notée « icone ») ; se relance seul quand le code installé change |
-| `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `mois`, `moment`, `silence` / `quiet`, `mise-a-jour` / `maj`, `journal`, `projet`, `raccourcis` / `shortcuts`, `notify`, `best --notifier`, `pause --notifier`, `gui --session`, `--page`, `--new-session`) |
+| `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `mois`, `moment`, `silence` / `quiet`, `mise-a-jour` / `maj`, `journal`, `projet`, `raccourcis` / `shortcuts`, `tache` / `taches` / `tasks`, `budget`, `fiche`, `sauvegarde` / `backup`, `restaurer` / `restore`, `telephone` / `phone`, `notify`, `best --notifier`, `pause --notifier`, `gui --session`, `--page`, `--new-session`) |
 
 `ccs` (bash) reste **l'unique implémentation de la bascule** ; le service,
 l'application et l'indicateur l'appellent.
@@ -699,6 +708,39 @@ jamais exigé) :
 - `CaptureDialog` suspend les raccourcis du bureau pendant la capture
   (`inhibit_system_shortcuts`) ; le groupe suit les changements de
   `custom-keybindings` faits ailleurs tant qu'il est affiché.
+
+## Phase 11 : tâches, archive, sauvegarde, budget
+
+Qui appelle quoi :
+
+- **Service (`daemon`)** : `tasks.tick` à chaque tour (après la décision de bascule ;
+  réveil toutes les 30 s tant qu'une tâche est active), `archive.tick` toutes les
+  30 min dans un fil unique, `context_alert.tick` à chaque relevé des sessions,
+  `budget.pending_alerts` dans un fil comme le bilan de la semaine. Toutes les alertes
+  passent par le chemin habituel (`notify`, ne pas déranger) ; `phone.send` est
+  branché à l'envoi des alertes, au seul endroit.
+- **Commandes** : `ccs tache`, `budget`, `fiche`, `sauvegarde`, `restaurer`,
+  `telephone` appellent le `command()` du module (`bin/ccs` délègue à Python).
+  `ccs sessions` ajoute `session_memory`.
+- **Application** : `TasksView` dans Planning, `BudgetGroup` dans Analyse, `PhoneGroup`
+  et `BackupGroup` dans Réglages, RAM et contexte dans les cartes de session, encart
+  de fiche dans l'aperçu, pastille « archivée » dans la liste des conversations ;
+  une notification `task:<id>` ouvre l'onglet Planning sur la tâche.
+
+Fichiers :
+
+| Fichier | Contenu |
+|---|---|
+| `~/.claude-accounts/tasks.json` | Les tâches (600) |
+| `~/.claude-accounts/tasks/<id>.jsonl` | Journal de chaque tâche |
+| `~/.claude-accounts/budgets.json` | Budgets par dossier |
+| `~/.claude-accounts/context-alerts.json` | Sessions déjà alertées |
+| `~/.local/share/ccs/archive/` | Copies gzip des conversations et `index.json` (700) |
+
+Règles : le téléphone n'envoie que le nom du projet et l'état ; la sauvegarde ne passe
+jamais la phrase de passe à gpg autrement que par pinentry ; rien n'est fermé
+automatiquement ; le budget ne bloque rien. Dépendances du paquet : `gnupg` ;
+recommandés `python3-qrcode`, `gpg-agent`, `pinentry-gnome3`.
 
 ## Règles de sécurité des jetons
 

@@ -414,6 +414,14 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Journal des bascules** | Chaque changement de compte avec sa raison en clair, groupé par jour (onglet Historique, `ccs journal`). |
 | **Raccourcis clavier** | Raccourcis globaux GNOME, même application fermée : ouvrir, sessions, nouvelle session, compte suivant ou meilleur, pause. |
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets ; bilan de la semaine et conseiller de formule. |
+| **File de tâches** | Des tâches pour Claude quand tu n'es pas là : « dès qu'il y a du quota », « cette nuit » ou à une heure. Exécutées sans fenêtre, une à la fois, par la file de Gagarine quand elle existe ; reprise après une limite ; notification à la fin (onglet Planning, `ccs tache`). |
+| **Notifications sur le téléphone** | Optionnel, désactivé par défaut : via ntfy, le nom du projet et l'état (session qui attend, tâche finie, bascule, comptes épuisés), jamais le contenu ; lien et QR code dans les Réglages, `ccs telephone`. |
+| **Archive des conversations** | Claude Code efface les conversations de plus de 30 jours : CCS en garde une copie compressée, cherchable, avec aperçu, export et reprise comme les autres. |
+| **Fiche « où j'en étais »** | En un coup d'œil : dernière demande, début de la dernière réponse, fichiers modifiés, liste de tâches, branche, compte. Lue dans le journal, sans appeler Claude (`ccs fiche <id>`, aperçu d'une conversation). |
+| **Sauvegarde chiffrée** | Comptes (jetons compris), réglages, comptes par projet et budgets dans un seul fichier chiffré par gpg ; restauration avec confirmation (Réglages, `ccs sauvegarde`, `ccs restaurer`). |
+| **Mémoire des sessions** | RAM de chaque session ouverte, total, sessions inactives, bouton « Fermer » avec confirmation ; rien n'est jamais fermé tout seul (onglet Sessions, `ccs sessions`). |
+| **Alerte de contexte lourd** | Une notification par session quand son contexte dépasse 150 000 tokens (réglable), avec le coût d'un message ; badge dans l'onglet Sessions et la ligne d'état. |
+| **Budget par projet** | Un budget hebdomadaire en équivalent dollars par projet, alertes à 80 % et 100 % ; ne bloque jamais rien (onglet Analyse, `ccs budget`). |
 | **Bilan de santé** | `ccs doctor` : service, versions, barre du haut, intégration, comptes, Claude Code, terminal ; une commande à copier par problème. |
 | **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Sessions, Terminaux, Historique, Analyse, Réglages. |
 | **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge, ⏸ en pause) ; au clic : comptes, recharges, prévisions, sessions, interrupteurs, pause, nouvelle version, journal des bascules, bilan de la semaine. |
@@ -513,7 +521,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs next` / `ccs best` | Profil suivant / meilleur compte du moment |
 | `ccs status` | Compte actif, prévision, meilleur compte, capacité, orchestrateur, pause, service |
 | `ccs plan` | Planning des fenêtres et recharges à venir |
-| `ccs sessions` | Sessions Claude Code ouvertes : projet, état, consommation |
+| `ccs sessions` | Sessions Claude Code ouvertes : projet, état, consommation, RAM par session et totale, sessions inactives, contexte lourd |
 | `ccs conv [mots]` | Historique des conversations du PC, recherche, `-p <projet>`, `--vscode`/`--terminal` |
 | `ccs resume <id>` | Reprend une conversation ici, `--vscode`, `--new-terminal`, `--dir <dossier>` |
 | `ccs title <id> <titre>` | Renomme une conversation (comme `/rename`) |
@@ -538,6 +546,11 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `… --notifier` | Avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`, `ccs pause`, `ccs silence` : résultat aussi en notification (option des raccourcis clavier) |
 | `ccs save <nom>` / `ccs add <nom>` | Enregistre le compte connecté / connecte un nouveau compte |
 | `ccs rename <a> <b>` / `ccs rm <nom>` | Renomme / supprime un profil |
+| `ccs tache` | File de tâches pour Claude : liste ; `ajouter "<message>" [-C dossier] [--modele m] [--droits lecture\|modifications\|tout] [--quand quota\|nuit\|HH:MM]`, `voir <id>`, `annuler <id>`, `supprimer <id>` (alias `ccs taches`, `ccs tasks`) |
+| `ccs budget [<dossier> <montant>\|aucun]` | Budgets hebdomadaires par projet : état, définition (en dollars, équivalent API) ou retrait |
+| `ccs fiche <id>` | Fiche « où j'en étais » d'une conversation, sans appeler Claude |
+| `ccs sauvegarde [fichier]` / `ccs restaurer <fichier> [--oui]` | Sauvegarde chiffrée (gpg) des comptes et réglages / restauration (alias `backup`, `restore`) |
+| `ccs telephone [essai]` | Notifications sur le téléphone (ntfy) : état et lien d'abonnement, ou message d'essai (alias `ccs phone`) |
 | `ccs gui` | Application graphique |
 
 Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisation.md).
@@ -548,7 +561,7 @@ Tout se règle dans l'onglet **Réglages** de l'application — Bascule
 automatique, Orchestrateur, Alertes, Ne pas déranger, Conseils, Conseiller de formule,
 Intégration, Terminal intégré, Raccourcis clavier, Warm-up, Service — ou par
 les commandes `ccs auto`, `ccs orch`, `ccs pause`, `ccs integrate`,
-`ccs projet`, `ccs raccourcis`. Les réglages vivent dans
+`ccs projet`, `ccs raccourcis`, `ccs tache`, `ccs budget`, `ccs telephone`. Les réglages vivent dans
 `~/.claude-accounts/settings.json`, fusionnés avec les valeurs par défaut :
 bascule automatique (`auto_switch`), alertes (`alerts` : seuils, fin de semaine
 prévue `weekly_forecast` / `weekly_forecast_days`, rappel d'attente
@@ -558,15 +571,24 @@ prévue `weekly_forecast` / `weekly_forecast_days`, rappel d'attente
 `monthly_report_hour`, ne pas déranger `quiet` : `enabled`, `start`, `end`,
 `days`, `allow_waiting`…), conseiller de formule (`advisor` : semaines analysées,
 marge, tarifs, formule d'un profil), orchestrateur et plage horaire
-(`orchestrator`), warm-up (`warmup`), nouvelles versions (`updates.enabled`). Une valeur invalide (mauvais type,
+(`orchestrator`), warm-up (`warmup`), nouvelles versions (`updates.enabled`).
+Depuis la 0.8.0 : file de tâches (`tasks` : `enabled`, plage de la nuit `night.start` /
+`night.end`, `max_attempts`), téléphone (`phone` : `enabled`, `server`, `topic`,
+`events`), archive (`archive` : `enabled`, `idle_days`, `max_age_days`),
+sessions inactives (`sessions.idle_hours`), alerte de contexte lourd
+(`context_alert` : `enabled`, `threshold_tokens`), budgets (`budget` : `enabled`,
+`alert_pcts`). Une valeur invalide (mauvais type,
 hors bornes, heure impossible) ou un fichier illisible n'empêche rien : la clé
 fautive reprend sa valeur par défaut, le fichier n'est pas modifié, et
 `ccs doctor` la signale.
 Les deux interrupteurs du terminal intégré (**Réglages → Terminal intégré**, ou
 menu « ⋮ » de la page Terminaux) sont gardés dans
 `~/.claude-accounts/terminals.json`, les comptes par projet dans
-`~/.claude-accounts/projects.json`, les raccourcis clavier dans les réglages de
-GNOME. `CCS_HOME` change le dossier des profils (défaut `~/.claude-accounts`).
+`~/.claude-accounts/projects.json`, les budgets dans
+`~/.claude-accounts/budgets.json`, les tâches dans `~/.claude-accounts/tasks.json`
+(leurs journaux dans `~/.claude-accounts/tasks/<id>.jsonl`), les copies de
+l'archive des conversations dans `~/.local/share/ccs/archive`, les raccourcis
+clavier dans les réglages de GNOME. `CCS_HOME` change le dossier des profils (défaut `~/.claude-accounts`).
 
 ## Comment ça marche
 
@@ -602,7 +624,12 @@ projet déplacé y ajoute une copie du journal, et renommer une conversation ajo
 une ligne de titre à la fin de son journal (comme `/rename`). L'aperçu, l'export,
 le coût, les conseils et le bilan de la semaine ne font que lire. Les
 raccourcis clavier s'écrivent dans les réglages de GNOME, sous les seuls
-chemins de CCS. Aucun jeton n'apparaît dans
+chemins de CCS. Depuis la 0.8.0, le service copie aussi les
+conversations dans l'archive (`~/.local/share/ccs/archive`, dossier 700), et
+les tâches lancent `claude` en ton nom. Les notifications sur le téléphone
+(désactivées par défaut) n'envoient que le nom du projet et l'état, jamais un
+titre, un message, un chemin ni un nom de compte. La sauvegarde contient les
+jetons, mais chiffrés : garde la phrase de passe. Aucun jeton n'apparaît dans
 les journaux, l'état partagé, les notifications ou le bilan de santé (qui n'en
 retient que la présence et les dates d'expiration).
 
@@ -650,7 +677,7 @@ bash ; pas d'autre dépendance.
 ```
 bin/ccs              commande ccs (bash) : profils et bascule
 bin/claude-accounts  lanceur Python de ccs_app
-ccs_app/             service, prévisions, alertes, pause, conversations, conseils, journal, raccourcis…
+ccs_app/             service, prévisions, alertes, pause, conversations, conseils, journal, raccourcis, tâches, archive, sauvegarde, budgets…
 ccs_app/gui/         application GTK 4 / libadwaita et ses dialogues
 data/  debian/       unité systemd, entrées de menu, icône, paquet
 scripts/             construction du .deb

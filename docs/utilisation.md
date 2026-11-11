@@ -1005,6 +1005,192 @@ et les Réglages l'indiquent et donnent les commandes (avec un bouton pour les
 copier) : crée toi-même les raccourcis dans les réglages du clavier de ton
 bureau.
 
+## File de tâches
+
+Une tâche, c'est un message que Claude exécute **sans fenêtre**, pendant que tu es
+ailleurs. Tu la poses dans l'onglet **Planning** (bouton « Nouvelle tâche ») ou en
+ligne de commande.
+
+Une tâche a un message, un dossier, un modèle (facultatif), des droits et un moment.
+
+| Moment | Quand la tâche part |
+|---|---|
+| `quota` (défaut) | Dès qu'un compte a du quota. |
+| `nuit` | Au meilleur créneau de [Meilleur moment](#meilleur-moment-pour-une-grosse-tâche) dans la plage de nuit (23:00 à 07:00 par défaut, réglable). |
+| `HH:MM` | À partir de cette heure, aujourd'hui ou demain. |
+
+| Droits | Effet |
+|---|---|
+| `lecture` | Claude lit et analyse. Tout ce qui demande une permission est refusé. |
+| `modifications` (défaut) | Claude peut modifier des fichiers (`acceptEdits`). |
+| `tout` | Claude peut tout faire sans rien demander (`bypassPermissions`). L'application affiche le même avertissement que pour une nouvelle session avancée. À réserver à un dossier que tu peux perdre. |
+
+```sh
+ccs tache ajouter "Écris les tests de parser.py" -C ~/Work/projet --quand nuit
+ccs tache ajouter "Relis le README" --droits lecture --quand 22:30
+ccs tache                 # la liste
+ccs tache voir 3          # suit le journal de la tâche 3
+ccs tache annuler 3
+ccs tache supprimer 3
+```
+
+Sans `-C`, le dossier est le dossier courant. `ccs taches` et `ccs tasks` marchent aussi.
+
+Comment ça se passe :
+
+- C'est le **service** qui lance les tâches, **une seule à la fois**. Si la commande
+  `gagarine` existe, la tâche passe par sa file, en priorité « fond » : elle ne gêne
+  pas ton travail et attend si le poste est chargé.
+- Elle utilise le **compte actif**. S'il est au-dessus du seuil de bascule, CCS
+  bascule d'abord, sauf pendant une [pause](#pause) : la tâche attend alors la fin
+  de la pause.
+- Si la limite est atteinte en cours de route, CCS bascule (hors pause), puis
+  relance la tâche avec « continue » : 3 tentatives au plus (`tasks.max_attempts`).
+- À la fin, une notification dit « tâche finie » ou « tâche échouée », avec la
+  durée et le coût équivalent. Un clic ouvre l'application sur la tâche.
+- La conversation est ensuite une conversation normale : **Reprendre dans un onglet**
+  l'ouvre dans le terminal intégré.
+- États : en attente, en cours, à reprendre (limite atteinte), finie, échouée, annulée.
+
+Les tâches sont dans `~/.claude-accounts/tasks.json`, leurs journaux dans
+`~/.claude-accounts/tasks/<id>.jsonl`. Interrupteur : `tasks.enabled`.
+
+## Notifications sur le téléphone
+
+Optionnel, **désactivé par défaut**. CCS peut t'envoyer l'état de tes sessions sur le
+téléphone, par [ntfy](https://ntfy.sh), un service de notifications simple et libre.
+
+**Activer :** Réglages → Téléphone → « Notifications sur le téléphone ». CCS tire au
+hasard un **canal secret** (`ccs-…`) : quiconque le connaît peut lire les
+notifications, ne le partage pas. « Nouveau canal » en tire un autre (l'ancien cesse
+de marcher). Le serveur est `https://ntfy.sh` par défaut ; tu peux mettre le tien.
+
+**S'abonner sur le téléphone :**
+
+1. Installe l'application **ntfy** (Android : Google Play ou F-Droid ; iPhone :
+   App Store).
+2. Dans CCS, scanne le **QR code** des Réglages (il est affiché si
+   `python3-qrcode` est installé), ou copie le **lien d'abonnement** et ouvre-le sur le
+   téléphone. À la main : dans ntfy, « + », puis le nom du canal (et ton serveur s'il
+   n'est pas ntfy.sh).
+3. Clique sur **Essayer** (ou `ccs telephone essai`) : un message de test doit arriver.
+
+En ligne de commande : `ccs telephone` donne l'état et le lien d'abonnement.
+
+**Quels événements** (chacun a son interrupteur) : une session attend ta réponse, une
+tâche est finie ou échouée, une bascule a eu lieu, tous les comptes sont épuisés.
+
+**Ce qui est envoyé :** le nom du projet (le dernier élément du dossier) et l'état,
+par exemple « projet : tâche finie ». **Ce qui n'est JAMAIS envoyé :** un titre de
+conversation, un message, un chemin complet, un nom de compte.
+
+[Ne pas déranger](#ne-pas-déranger) vaut aussi pour le téléphone, avec la même
+exception : une session qui attend ta réponse passe toujours. L'envoi se fait en
+arrière-plan ; s'il échoue, rien ne bloque et l'échec est noté dans le journal.
+
+## Archive des conversations
+
+Claude Code efface par défaut les conversations de plus de 30 jours. Le service en
+garde une copie, **compressée**, dans `~/.local/share/ccs/archive` (dossier 700) :
+les conversations qui n'ont pas bougé depuis 1 jour, puis chaque copie remise à jour
+si l'original change. Le travail est léger : 20 fichiers ou 100 Mo au plus toutes les
+30 minutes, donc la première archive se remplit en plusieurs passages.
+
+Une conversation dont l'original a disparu reste dans l'onglet **Sessions**, avec la
+pastille « archivée » : recherche, aperçu, export et reprise marchent comme avant.
+`ccs resume <id>` la restaure avant de la lancer. À la reprise, la conversation est
+remise à sa place avec la date du jour, sinon Claude Code l'effacerait de nouveau.
+
+Réglages → Archive des conversations : interrupteur, « Archiver après N jours
+d'inactivité », « Supprimer l'archive après N jours » (0 = jamais, le défaut), et la
+taille de l'archive. `ccs doctor` donne aussi le nombre de conversations et la taille.
+
+## Fiche « où j'en étais »
+
+Tu reprends une conversation après une semaine et tu ne sais plus où tu en étais ?
+La fiche le dit, **sans appeler Claude** : elle est lue dans le journal.
+
+```sh
+ccs fiche <id>
+```
+
+Elle donne la dernière demande (ce que tu avais écrit, pas les résultats d'outils), le
+début de la dernière réponse, les fichiers modifiés, la dernière liste de tâches, le
+dossier, la branche git, le compte actif à ce moment (s'il est connu par le
+[journal des bascules](#journal-des-bascules)) et la date. Dans l'application, c'est
+l'encart en haut de l'aperçu d'une conversation. Elle marche aussi pour une
+conversation archivée.
+
+## Sauvegarde chiffrée
+
+```sh
+ccs sauvegarde                       # ccs-sauvegarde-AAAA-MM-JJ.gpg dans le dossier courant
+ccs sauvegarde ~/Documents/comptes.gpg
+ccs restaurer ~/Documents/comptes.gpg
+ccs restaurer ~/Documents/comptes.gpg --oui   # sans confirmation
+```
+
+Dans l'application : Réglages → Sauvegarde → **Sauvegarder…** et **Restaurer…**.
+
+La sauvegarde contient les profils **avec leurs jetons**, les réglages, les comptes par
+projet, les budgets et la configuration des raccourcis. Elle ne contient pas les
+conversations, ni les états passagers, caches et journaux.
+
+Elle est chiffrée par **gpg** (AES-256). La phrase de passe se saisit dans la fenêtre
+de gpg, jamais en ligne de commande. **Les jetons sont chiffrés, mais garde la phrase
+de passe : sans elle, la sauvegarde est perdue, et personne ne peut la retrouver.**
+Le fichier est créé en 600. Garde-le hors du PC (clé USB, autre machine).
+
+À la restauration, CCS liste le contenu et demande confirmation avant d'écraser un
+profil qui existe déjà (`--oui` pour s'en passer en ligne de commande). Le compte actif
+ne change pas. Les raccourcis clavier sont réinstallés.
+
+Il faut `gnupg` (installé avec le paquet) ; `gpg-agent` et `pinentry-gnome3` sont
+recommandés pour la fenêtre de phrase de passe.
+
+## Mémoire des sessions
+
+`ccs sessions` et l'onglet **Sessions** montrent, pour chaque session ouverte, la RAM
+qu'elle occupe (avec ses processus enfants), le total, et depuis combien de temps elle
+est inactive.
+
+Une session est **inactive** quand son journal n'a pas bougé depuis plus de 2 h
+(`sessions.idle_hours`). Un bandeau dit « N sessions inactives occupent X Go » et
+chaque session inactive a un bouton **Fermer**, avec une confirmation.
+
+**Rien n'est jamais fermé automatiquement.** C'est toi qui décides. Les sessions en
+attente de ta réponse comptent comme inactives : vérifie avant de fermer.
+
+## Alerte de contexte lourd
+
+Plus le contexte d'une conversation grossit, plus chaque message coûte cher en quota.
+Au-delà de **150 000 tokens** (`context_alert.threshold_tokens`), CCS envoie **une seule
+notification par session**. Elle donne le coût d'un message en équivalent dollars et
+le conseil : `/compact` pour résumer, ou une nouvelle session.
+
+Un badge apparaît aussi sur la session dans l'onglet Sessions et dans la ligne
+d'état de Claude Code. Interrupteur et seuil : Réglages → Alerte de contexte lourd.
+La notification respecte [Ne pas déranger](#ne-pas-déranger).
+
+## Budget par projet
+
+Un budget par **semaine**, en équivalent dollars API, pour un dossier de projet (un
+sous-dossier compte pour le projet le plus proche). La semaine est la même que dans
+`ccs semaine`.
+
+```sh
+ccs budget                       # état : dépensé, budget, %, part de la consommation
+ccs budget ~/Work/projet 25      # 25 $ par semaine
+ccs budget ~/Work/projet aucun   # retire le budget
+```
+
+Dans l'application : onglet **Analyse** → « Budgets par projet » → « Ajouter un
+budget… », puis les boutons modifier et supprimer de chaque ligne.
+
+CCS alerte une fois à **80 %** et une fois à **100 %**, par projet et par semaine.
+Le budget **ne bloque jamais rien** : ni les sessions, ni les tâches. C'est un
+repère. Les budgets sont dans `~/.claude-accounts/budgets.json`.
+
 ## Bilan de santé
 
 `ccs doctor` (alias `ccs bilan`, ou `claude-accounts doctor`, ou **Bilan de
