@@ -3,6 +3,15 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.8.1] — 2026-11-11
+
+### Corrigé
+
+- Archive des conversations : le premier passage du service échouait
+  (`TypeError` : le service donnait l'heure en date au lieu de secondes), et
+  rien n'était archivé. Un test fait maintenant passer le vrai module d'archive
+  par le service.
+
 ## [0.8.0] — 2026-11-11
 
 ### Ajouté
