@@ -33,6 +33,8 @@ def tooltip(c):
     if c.last_prompt and c.last_prompt != c.first_prompt:
         lines.append(f"Dernière demande : {c.last_prompt}")
     lines += [f"Dossier : {c.cwd or '?'}", f"Identifiant : {c.session_id}"]
+    if c.archived:
+        lines.append("Archivée : l'original a été effacé par Claude Code, CCS en garde une copie")
     return "\n".join(lines)
 
 
@@ -50,7 +52,7 @@ class ConversationList(Gtk.Box):
         self.rendered_at = 0.0
         self.shown = []
         # Coût de chaque ligne affichée, calculé après le rendu, un journal après l'autre.
-        self.cost_loader = costs.Loader()
+        self.cost_loader = costs.Loader(compute=conversations.cost_for_path)  # lit aussi l'archive
         self.known_costs = {}      # identifiant -> ((taille, date), Cost)
         self.cost_rows = {}        # identifiant -> (ligne, libellé, texte, infobulle) des lignes affichées
 
@@ -101,7 +103,7 @@ class ConversationList(Gtk.Box):
         conversations sans filtre ; `empty_all` : aucune session ni conversation sur le PC."""
         opened, suggestions = self.page.opened, self.page.suggestions
         shown = convs[:self.limit]
-        signature = (tuple((c.session_id, c.cwd, c.title, c.prompts, c.updated_at, c.folder_exists, c.origin)
+        signature = (tuple((c.session_id, c.cwd, c.title, c.prompts, c.updated_at, c.folder_exists, c.origin, c.archived)
                            for c in shown),
                      len(convs), total, filtering, show_project, compact, empty_all,
                      frozenset(c.session_id for c in shown if c.session_id in opened),
@@ -198,6 +200,9 @@ class ConversationList(Gtk.Box):
         top.append(Gtk.Label(label=c.title, xalign=0, ellipsize=Pango.EllipsizeMode.END))
         if c.session_id in opened:
             top.append(Gtk.Label(label="ouverte", valign=Gtk.Align.CENTER, css_classes=["badge", "active"]))
+        if c.archived:
+            top.append(Gtk.Label(label="archivée", valign=Gtk.Align.CENTER, css_classes=["badge"],
+                                 tooltip_text="Original effacé : copie gardée par CCS, remise en place à la reprise"))
         info.append(top)
         meta = ([c.project] if show_project else []) + [c.origin_label]
         meta += ([c.git_branch] if c.git_branch else [])
@@ -338,7 +343,19 @@ class ConversationList(Gtk.Box):
     def launch(self, conv, target):
         """Reprise ; si le projet utilise un autre compte que l'actif, la bascule est
         d'abord proposée (VS Code utilise aussi le compte actif)."""
-        confirm_switch(self.window, conv.cwd, lambda: self.launch_now(conv, target))
+        def go():
+            if not conv.archived:
+                self.launch_now(conv, target)
+                return
+            # Conversation archivée : remise en place (hors de l'interface) avant la reprise.
+            def work():
+                try:
+                    return conversations.ensure_conversation(conv)
+                except (OSError, ValueError) as e:
+                    return e
+            in_thread(work, lambda r: self.window.toast(error_text(r)) if isinstance(r, Exception)
+                      else self.launch_now(r, target))
+        confirm_switch(self.window, conv.cwd, go)
 
     def launch_now(self, conv, target):
         try:
@@ -364,6 +381,15 @@ class ConversationList(Gtk.Box):
         sessions.open_folder(conv.cwd)
 
     def rename(self, conv):
+        if conv.archived:   # le titre s'écrit dans le journal : on le remet d'abord en place
+            def work():
+                try:
+                    return conversations.ensure_conversation(conv)
+                except (OSError, ValueError) as e:
+                    return e
+            in_thread(work, lambda r: self.window.toast(error_text(r)) if isinstance(r, Exception)
+                      else self.rename(r))
+            return
         self.window.rename_conversation(conv.session_id, cwd=conv.cwd, path=conv.path, current=conv.title)
 
     def choose_folder(self, conv, target=None):
