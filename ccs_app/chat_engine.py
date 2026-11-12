@@ -270,16 +270,14 @@ class ChatSession:
                 ok = self._write(proto.user_message(cmd)) and ok
             self._pending_cmds.clear()
             self._expected += 1
+            self._set_state("busy")  # avant l'écriture : le fil de lecture peut conclure aussitôt
             ok = self._write(proto.user_message(text, list(images))) and ok
             self.last_activity = self._clock()
-        if not ok:
-            return False  # le processus est mort : le fil de lecture signale la sortie
-        self._set_state("busy")
-        return True
+        return ok  # faux : le processus est mort, le fil de lecture signale la sortie
 
     def interrupt(self):
         with self._lock:
-            if self._proc is None:
+            if self._proc is None or self.state not in ("busy", "permission"):
                 return False
             self._requested_stop = True  # la CLI s'arrête (code 1) après le tour interrompu
         return self._control("interrupt")
