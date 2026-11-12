@@ -580,7 +580,7 @@ class App(Adw.Application):
             self.set_accels_for_action("win.refresh", ["F5", "<Control>r"])
             self.set_accels_for_action("win.prefs", ["<Control>comma"])
             for key, tab in enumerate(desktop.PAGES, 1):
-                self.set_accels_for_action(f"win.show-tab('{tab}')", [f"<Control>{key}"])
+                self.set_accels_for_action(f"win.show-tab::{tab}", [f"<Control>{key}"])
         return win
 
     def do_activate(self):

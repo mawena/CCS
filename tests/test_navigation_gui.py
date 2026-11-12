@@ -62,7 +62,7 @@ class NavigationTest(HomeTestCase):
     def test_prefs_in_menu_opens_dialog(self):
         shown = []
         with mock.patch.object(Adw.PreferencesDialog, "present", lambda d, parent=None: shown.append(d)):
-            self.win.activate_action("prefs", None)
+            self.win.activate_action("win.prefs", None)
             self.assertEqual(self.win.show_page("reglages"), "prefs")
         self.assertEqual(len(shown), 2)
         self.assertIsInstance(shown[0], Adw.PreferencesDialog)
@@ -111,10 +111,10 @@ class NavigationTest(HomeTestCase):
         with mock.patch.object(self.appmod, "Window", return_value=self.win):
             app2.window()
         for key, tab in enumerate(("home", "sessions", "projects", "analysis"), 1):
-            self.assertEqual(app2.get_actions_for_accel(f"<Control>{key}"), [f"win.show-tab('{tab}')"])
+            self.assertEqual(app2.get_actions_for_accel(f"<Control>{key}"), [f"win.show-tab::{tab}"])
         self.assertEqual(app2.get_actions_for_accel("<Control>comma"), ["win.prefs"])
         for tab in ("analysis", "projects", "sessions", "home"):
-            self.win.activate_action("show-tab", GLib.Variant("s", tab))
+            self.win.activate_action("win.show-tab", GLib.Variant("s", tab))
             self.assertEqual(self.tab(), tab)
 
     def test_badge_counts_waiting_sessions(self):
