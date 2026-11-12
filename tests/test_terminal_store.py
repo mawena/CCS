@@ -45,7 +45,8 @@ class OptionsTest(HomeTestCase):
 
 
 CLAUDE = {"kind": "claude", "cwd": "/w/App", "title": "Export CSV", "session_id": "0f3c-aa_1",
-          "extra_args": ["--model", "opus"], "queue": ["lance les tests"]}
+          "extra_args": ["--model", "opus"], "queue": ["lance les tests"],
+          "chat": {"model": None, "effort": None, "ultracode": False, "rights": None}}
 SHELL = {"kind": "shell", "cwd": "/w", "title": "Terminal · w", "session_id": None, "extra_args": [],
          "queue": []}
 
@@ -82,7 +83,8 @@ class TabsTest(HomeTestCase):
         tabs, selected = terminal_store.load_tabs()
         self.assertEqual(tabs[0], CLAUDE)
         self.assertEqual(tabs[1], {"kind": "claude", "cwd": "/w/B", "title": "", "session_id": None,
-                                   "extra_args": [], "queue": ["ok"]})
+                                   "extra_args": [], "queue": ["ok"],
+                                   "chat": terminal_store.DEFAULT_CHAT})
         self.assertEqual(len(tabs), 2)
         self.assertIsNone(selected)  # hors des onglets gardés
 
@@ -93,3 +95,54 @@ class TabsTest(HomeTestCase):
         self.assertEqual(terminal_store.load_tabs(), ([], None))
         self.assertTrue(terminal_store.save_tabs([SHELL], 0))
         self.assertEqual(terminal_store.load_tabs(), ([SHELL], 0))
+
+
+class ChatAndPanesTest(HomeTestCase):
+    def path(self):
+        return self.store / "terminals.json"
+
+    def test_v1_file_reads_with_chat_defaults(self):
+        write(self.path(), {"version": 1, "selected": 0, "options": {"auto_resume": False},
+                            "tabs": [{"kind": "claude", "cwd": "/w/App", "title": "T",
+                                      "session_id": "abc", "extra_args": ["--model", "opus"],
+                                      "queue": ["a"]},
+                                     {"kind": "shell", "cwd": "/w", "title": "S"}]})
+        tabs, selected = terminal_store.load_tabs()
+        self.assertEqual(selected, 0)
+        self.assertEqual(tabs[0]["chat"], {"model": None, "effort": None, "ultracode": False,
+                                           "rights": None})
+        self.assertEqual((tabs[0]["session_id"], tabs[0]["extra_args"], tabs[0]["queue"]),
+                         ("abc", ["--model", "opus"], ["a"]))
+        self.assertNotIn("chat", tabs[1])
+        self.assertFalse(terminal_store.load_options()["auto_resume"])
+        self.assertEqual(terminal_store.load_panes(), terminal_store.DEFAULT_PANES)
+
+    def test_chat_options_round_trip(self):
+        chat = {"model": "opus", "effort": "high", "ultracode": True, "rights": "plan"}
+        tab = {**CLAUDE, "chat": chat}
+        self.assertTrue(terminal_store.save_tabs([tab], 0))
+        self.assertEqual(terminal_store.load_tabs(), ([tab], 0))
+        self.assertEqual(json.loads(self.path().read_text())["version"], 2)
+
+    def test_odd_chat_values_fall_back(self):
+        write(self.path(), {"tabs": [{**CLAUDE, "chat": {"model": 3, "effort": "", "ultracode": "oui",
+                                                         "rights": ["x"]}}]})
+        self.assertEqual(terminal_store.load_tabs()[0][0]["chat"], terminal_store.DEFAULT_CHAT)
+
+    def test_panes_round_trip_and_defaults(self):
+        self.assertEqual(terminal_store.load_panes(),
+                         {"A": {"tree": 240, "side": 460}, "B": {"tree": 240, "side": 460},
+                          "tree_visible": True, "left": "fichiers"})
+        panes = {"A": {"tree": 200, "side": 500}, "B": {"tree": 260, "side": 400},
+                 "tree_visible": False, "left": "feuille"}
+        self.assertTrue(terminal_store.save_panes(panes))
+        self.assertEqual(terminal_store.load_panes(), panes)
+
+    def test_odd_panes_fall_back_and_tabs_are_kept(self):
+        terminal_store.save_tabs([CLAUDE], 0)
+        write(self.path(), {**json.loads(self.path().read_text()),
+                            "panes": {"A": {"tree": -5, "side": "x"}, "B": 3, "tree_visible": 1,
+                                      "left": "autre"}})
+        self.assertEqual(terminal_store.load_panes(), terminal_store.DEFAULT_PANES)
+        terminal_store.save_panes({"left": "feuille"})
+        self.assertEqual(terminal_store.load_tabs(), ([CLAUDE], 0))
