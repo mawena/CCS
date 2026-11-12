@@ -109,6 +109,7 @@ class ChatTab(Gtk.Box):
         self.messages_overlay.add_overlay(self.messages.new_button)   # « ↓ Nouveaux messages »
         # Sous-agents : une pastille par sous-agent au-dessus du fil, chacun sa vue (comme VS Code).
         self.agents = {}                                              # tool_use_id -> _Agent
+        self._turn_started, self._cost_seen = None, 0.0               # bilan de chaque tour
         self.view_stack = Gtk.Stack(vexpand=True, transition_type=Gtk.StackTransitionType.CROSSFADE)
         self.view_stack.add_named(self.messages_overlay, "principale")
         self.agent_pills = Gtk.Box(spacing=6)
@@ -273,6 +274,7 @@ class ChatTab(Gtk.Box):
         self.messages.add_user(text, images, during=during)
         if during:
             return True
+        self._turn_started = time.time()
         self._pending = (text, list(images))
         self._turn_done = False
         self._on_state(chat_engine.StateChanged("busy"))   # tout de suite : la page lit cet état
@@ -543,6 +545,14 @@ class ChatTab(Gtk.Box):
     def _on_result(self, ev):
         self._turn_done = True
         self._pending = None
+        # bilan du tour : durée et coût de CE tour (la CLI donne un total cumulé sur la session)
+        total = ev.cost_usd if isinstance(ev.cost_usd, (int, float)) else None
+        turn_cost = (total - self._cost_seen) if total is not None and total >= self._cost_seen else total
+        if total is not None:
+            self._cost_seen = total
+        if ev.ok and not ev.interrupted and self._turn_started is not None:
+            self.messages.add_turn_footer(time.time() - self._turn_started, turn_cost)
+        self._turn_started = None
         if ev.interrupted:
             self.messages.add_notice("Arrêté.")
         elif getattr(ev, "is_limit", False):

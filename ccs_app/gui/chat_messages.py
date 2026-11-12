@@ -9,6 +9,7 @@ sont lus par leurs champs (`ToolUse.name`, `.input`…), les formes sont celles 
 import difflib
 import json
 import os
+import time
 
 import gi
 
@@ -22,6 +23,8 @@ from .markdown_view import MarkdownView  # noqa: E402
 PAGE = 50                   # messages d'historique construits à la fois
 RENDER_MS = 90              # un rendu Markdown au plus toutes les 90 ms pendant le flux
 RESULT_CHARS = 20_000       # résultat d'outil montré (le reste est coupé à l'affichage)
+FOLD_LINES = 14             # un message de l'utilisateur plus long est replié (« Afficher tout »)
+FOLD_CHARS = 1500
 STICK_PX = 48               # à moins de 48 px du bas, la liste suit le texte qui arrive
 MAX_WIDTH = 920
 
@@ -59,6 +62,7 @@ CSS = """
   box-shadow: 0 0 0 1px alpha(@window_fg_color, 0.14); padding: 6px 8px; }
 .ccs-composer.drop { box-shadow: 0 0 0 2px @accent_bg_color; }
 .ccs-composer textview, .ccs-composer textview text { background: transparent; }
+.ccs-copy { min-width: 28px; min-height: 28px; margin: 2px; transition: opacity 120ms; }
 .ccs-thumb { border-radius: 8px; }
 .ccs-chat-bar button.ccs-barbtn { padding: 2px 10px; min-height: 0; border-radius: 99px; font-size: 0.92em; }
 .ccs-chat-bar button.ccs-barbtn:checked { background-color: alpha(@warning_bg_color, 0.30);
@@ -87,6 +91,26 @@ def install_css():
 
 
 # ---- lecture des appels d'outils -----------------------------------------------------------
+
+def _duration(seconds):
+    """42 s, 2 min 05 s, 1 h 03 min."""
+    s = int(round(seconds or 0))
+    if s < 60:
+        return f"{s} s"
+    if s < 3600:
+        return f"{s // 60} min {s % 60:02d} s"
+    return f"{s // 3600} h {(s % 3600) // 60:02d} min"
+
+
+def _fold(text):
+    """Les FOLD_LINES premières lignes (et au plus FOLD_CHARS caractères) suivies de « … »,
+    ou le texte tel quel s'il est court."""
+    lines = text.split("\n")
+    short = "\n".join(lines[:FOLD_LINES])
+    if len(short) > FOLD_CHARS:
+        short = short[:FOLD_CHARS].rstrip()
+    return text if short == text else short.rstrip() + " …"
+
 
 def _first_line(text, limit=160):
     for line in str(text).splitlines():
@@ -433,6 +457,8 @@ class MessageList(Gtk.ScrolledWindow):
         self.new_button.connect("clicked", lambda *_: self.follow())
         self._scroll_pending = False
         self._history_loading = False
+        self._busy_text, self._busy_started, self._busy_timer = "", time.time(), 0
+        self._last_footer = None
         adj = self.get_vadjustment()
         adj.connect("value-changed", self._on_value)
         adj.connect("notify::upper", self._on_upper)
@@ -521,8 +547,23 @@ class MessageList(Gtk.ScrolledWindow):
                               width_request=min(320, texture.get_width()))
             col.append(pic)
         if text:
-            col.append(Gtk.Label(label=text, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
-                                 selectable=True, max_width_chars=80))
+            label = Gtk.Label(label=text, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+                              selectable=True, max_width_chars=80)
+            col.append(label)
+            short = _fold(text)
+            if short != text:
+                # un long texte collé n'occupe pas tout l'écran : replié, « Afficher tout »
+                # (le texte est coupé à la main : la limite de lignes de GTK ignore les vrais
+                # retours à la ligne)
+                label.set_label(short)
+                more = Gtk.Button(label="Afficher tout", halign=Gtk.Align.START, css_classes=["flat", "small"])
+
+                def toggle(btn, label=label, full=text, short=short):
+                    unfold = btn.get_label() == "Afficher tout"
+                    label.set_label(full if unfold else short)
+                    btn.set_label("Replier" if unfold else "Afficher tout")
+                more.connect("clicked", toggle)
+                col.append(more)
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.END, margin_start=60, spacing=2)
         outer.append(self._bubble_widget("ccs-bubble-user", col, Gtk.Align.END))
         if during:
@@ -533,8 +574,47 @@ class MessageList(Gtk.ScrolledWindow):
     def _assistant_widget(self, text=""):
         view = self._markdown(text)
         bubble = Gtk.Box(css_classes=["ccs-bubble-claude"], hexpand=True, margin_end=24, visible=bool(text))
-        bubble.append(view)
+        overlay = Gtk.Overlay(child=view, hexpand=True)
+        # « Copier » (texte Markdown brut) : visible au survol de la réponse
+        copy = Gtk.Button(icon_name="edit-copy-symbolic", tooltip_text="Copier la réponse",
+                          halign=Gtk.Align.END, valign=Gtk.Align.START, opacity=0,
+                          css_classes=["flat", "circular", "ccs-copy"])
+        bubble.copy_text = text
+        copy.connect("clicked", lambda *_b: self._to_clipboard(bubble.copy_text or ""))
+        overlay.add_overlay(copy)
+        hover = Gtk.EventControllerMotion()
+        hover.connect("enter", lambda *_a: copy.set_opacity(1))
+        hover.connect("leave", lambda *_a: copy.set_opacity(0))
+        bubble.add_controller(hover)
+        bubble.copy_button = copy
+        bubble.append(overlay)
         return bubble, view
+
+    def _to_clipboard(self, text):
+        display = Gdk.Display.get_default()
+        if display is not None:
+            display.get_clipboard().set(text)
+
+    # -- fin de tour, activité --
+
+    def add_turn_footer(self, seconds, cost_usd=None):
+        """« ✓ Terminé en 42 s · 0,12 $ éq. » sous la réponse : durée du tour et coût de ce tour."""
+        parts = [f"✓ Terminé en {_duration(seconds)}"]
+        if cost_usd:
+            parts.append(f"{cost_usd:.2f}".replace(".", ",") + " $ éq.")
+        label = Gtk.Label(label=" · ".join(parts), xalign=0, css_classes=["ccs-subtle", "caption"],
+                          margin_start=4)
+        self._last_footer = label
+        self._append(label)
+        return label
+
+    def _tick_busy(self):
+        if not self.busy_row.get_visible():
+            self._busy_timer = 0
+            return False
+        elapsed = int(time.time() - self._busy_started)
+        self.busy_label.set_label(self._busy_text + (f" · {_duration(elapsed)}" if elapsed >= 1 else ""))
+        return True
 
     def _tool_widget(self, name, target, data=None, nested=False):
         return ToolCard(name, target, data, on_diff=lambda *a: self.on_diff and self.on_diff(*a),
@@ -582,6 +662,7 @@ class MessageList(Gtk.ScrolledWindow):
     def _render(self, seg):
         seg.timer = 0
         seg.bubble.set_visible(bool(seg.text.strip()))
+        seg.bubble.copy_text = seg.text
         seg.view.set_text(seg.text)
         self.scroll_end_if_stuck()
         return False
@@ -642,11 +723,20 @@ class MessageList(Gtk.ScrolledWindow):
         return widget
 
     def set_busy(self, busy, text="Claude travaille…"):
+        """Ligne d'activité : ce que fait Claude, et depuis combien de temps dans ce tour."""
+        was = self.busy_row.get_visible()
         self.busy_row.set_visible(bool(busy))
         self.busy_spinner.set_spinning(bool(busy))
-        self.busy_label.set_label(text)
+        self._busy_text = text
+        if busy and not was:
+            self._busy_started = time.time()
+        if busy and not self._busy_timer:
+            self._busy_timer = GLib.timeout_add_seconds(1, self._tick_busy)
         if busy:
+            self._tick_busy()
             self.scroll_end_if_stuck()
+        else:
+            self.busy_label.set_label(text)
 
     def scroll_end_if_stuck(self):
         self._content_added()

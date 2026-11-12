@@ -296,6 +296,14 @@ class ChatTabTest(HomeTestCase):
         self.assertIn("@notes.txt", text)                  # relatif au projet
         self.assertEqual(c.files, [])
 
+    def test_turn_footer_after_an_answer(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        next(iter(tab.messages._perms.values())).allow.emit("clicked")
+        self.assertTrue(pump_until(lambda: tab.messages._last_footer is not None))
+        self.assertIn("Terminé en", tab.messages._last_footer.get_label())
+
     def test_start_failure_shows_notice(self):
         tab, owner = self.make(env={"FAKE_CLAUDE_EXIT": "1"})
         self.say(tab, "Bonjour")

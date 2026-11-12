@@ -158,6 +158,68 @@ class MessageListTest(unittest.TestCase):
         self.assertLess(texts.index("fait"), texts.index("merci"))
 
 
+
+@unittest.skipUnless(GTK, "tests graphiques : CCS_GUI_TESTS=1 avec xvfb-run")
+class MessageListBehaviourTest(unittest.TestCase):
+    def test_busy_row_shows_elapsed_time(self):
+        ml = MessageList()
+        ml.set_busy(True, "Lecture…")
+        ml._busy_started -= 12
+        ml._tick_busy()
+        self.assertIn("12 s", ml.busy_label.get_label())
+        self.assertIn("Lecture…", ml.busy_label.get_label())
+        ml.set_busy(True, "Commande…")                  # même tour : le compteur continue
+        self.assertIn("12 s", ml.busy_label.get_label())
+        ml.set_busy(False)
+        ml.set_busy(True, "Lecture…")                   # nouveau tour : repart de zéro
+        self.assertNotIn("12 s", ml.busy_label.get_label())
+
+    def test_turn_footer(self):
+        ml = MessageList()
+        ml.add_turn_footer(42.4, 0.123)
+        self.assertIn("42 s", ml._last_footer.get_label())
+        self.assertTrue(ml._last_footer.get_label().endswith("0,12 $ éq."))
+        ml.add_turn_footer(125, None)
+        self.assertIn("2 min 05 s", ml._last_footer.get_label())
+
+    def test_copy_answer(self):
+        ml = MessageList()
+        copied = []
+        ml._to_clipboard = copied.append
+        ml.finish_assistant("m1", "Voici **la** réponse")
+        bubble = ml._segs["m1"].bubble
+        bubble.copy_button.emit("clicked")
+        self.assertEqual(copied, ["Voici **la** réponse"])
+
+    def test_long_user_message_is_folded(self):
+        ml = MessageList()
+        ml.add_user("\n".join(f"ligne {i}" for i in range(60)), ())
+        outer = ml._last
+        label = next(w for w in descend(outer) if isinstance(w, Gtk.Label) and "ligne 0" in w.get_label())
+        more = next(w for w in descend(outer) if isinstance(w, Gtk.Button) and w.get_label() == "Afficher tout")
+        self.assertLessEqual(label.get_label().count("\n"), 14)    # texte réellement affiché
+        self.assertNotIn("ligne 59", label.get_label())
+        more.emit("clicked")
+        self.assertIn("ligne 59", label.get_label())
+        self.assertEqual(more.get_label(), "Replier")
+        more.emit("clicked")
+        self.assertNotIn("ligne 59", label.get_label())
+        ml.add_user("court", ())
+        self.assertFalse(any(isinstance(w, Gtk.Button) for w in descend(ml._last)
+                             if isinstance(w, Gtk.Button) and w.get_label() == "Afficher tout"))
+
+
+def descend(widget):
+    out, stack = [], [widget]
+    while stack:
+        w = stack.pop()
+        out.append(w)
+        c = w.get_first_child()
+        while c is not None:
+            stack.append(c)
+            c = c.get_next_sibling()
+    return out
+
 def shown(ml, width=640, height=360):
     win = Gtk.Window(default_width=width, default_height=height)
     win.set_child(ml)

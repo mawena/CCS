@@ -36,6 +36,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   connaît pas reçoit « non pris en charge » (avec un message dans le fil) au lieu de
   laisser Claude bloqué ; un chat qui a lancé des sous-agents en arrière-plan ne se
   met jamais en veille (la veille les couperait).
+- **Fil de la réponse** : la ligne d'activité dit ce que fait Claude et depuis combien de
+  temps (« Lecture de README.md… · 12 s ») ; chaque réponse finit par un bilan discret
+  (« ✓ Terminé en 42 s · 0,12 $ éq. », coût de ce tour seulement) ; un bouton « Copier »
+  apparaît au survol d'une réponse ; un long message collé est replié à 14 lignes
+  (« Afficher tout »).
 - **Fichiers joints** : bouton trombone à côté d'Envoyer (ou glisser-déposer depuis le
   gestionnaire de fichiers) ; une image devient une vignette, tout autre fichier une
   étiquette avec ✕, envoyée en référence `@chemin` que Claude lit.
