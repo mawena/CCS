@@ -516,6 +516,10 @@ cas de doute : `ccs doctor` (voir [Bilan de santé](#bilan-de-santé)).
 L'onglet **Sessions** réunit les sessions ouvertes et l'historique des
 conversations (il remplace les anciens onglets Sessions et Conversations) :
 
+(L'ensemble de ce qui suit est l'onglet fixe « Toutes les sessions » de l'onglet
+Sessions ; les chats ouverts s'y ajoutent en onglets, voir
+[Chat graphique](#chat-graphique).)
+
 - **En haut** : ☰ (afficher ou masquer la liste des projets), la recherche
   (titre, demandes, projet, dossier ; sans accents ni majuscules ; taper
   n'importe où sur la page la lance), le filtre d'origine (Toutes les
@@ -801,11 +805,239 @@ propres informations : elle garde le nouveau titre. CCS n'envoie pas `/rename`
 dans le terminal d'une session, pour ne jamais taper dans une question ou une
 demande de permission en cours.
 
+## Navigation et apparence
+
+La fenêtre a **quatre onglets** en haut (une barre en bas quand elle est étroite) :
+
+| Onglet | Contenu |
+|---|---|
+| **Accueil** | cartes des comptes, file de tâches et meilleur moment (l'ancien Planning), fil des derniers événements (bascules, tâches finies) |
+| **Sessions** | l'onglet fixe « Toutes les sessions » (projets, sessions ouvertes, conversations), puis un onglet par chat et par shell ouvert |
+| **Projets** | les feuilles de route de tous tes projets (voir [Page Projets](#page-projets)) |
+| **Analyse** | l'analyse et l'historique (courbes, journal des bascules), choisis par le sélecteur en haut |
+
+**Réglages** est dans le menu ☰, en fenêtre à part. Raccourcis : **Ctrl+1** à
+**Ctrl+4** pour les quatre onglets, **Ctrl+virgule** pour les réglages, F5 ou
+Ctrl+R pour actualiser. Le badge de l'onglet Sessions compte les chats et les
+terminaux qui attendent ta réponse.
+
+Les anciens noms de page restent acceptés partout, y compris par
+`claude-accounts gui --page`, par les raccourcis du bureau, par le menu de
+l'icône et par le clic sur une notification :
+
+| Nom | Mène à |
+|---|---|
+| `accueil` | Accueil |
+| `comptes`, `planning` | Accueil (`--page planning --task <id>` affiche la tâche) |
+| `sessions`, `conversations`, `terminaux` | Sessions |
+| `projets` | Projets |
+| `analyse`, `historique` | Analyse (partie Analyse ou partie Historique) |
+| `reglages` | la fenêtre des réglages |
+
+**Apparence** (Réglages → Apparence) : le **thème** suit le système (Automatique),
+ou reste Clair ou Sombre. Chaque compte reçoit **une couleur** automatiquement,
+lisible en clair comme en sombre ; le sélecteur de couleur de sa ligne la change,
+la flèche arrière revient à la couleur automatique. Cette couleur est reprise sur
+les cartes des comptes, les jauges, les courbes de l'analyse, la barre du chat et
+la liste des sessions.
+
+## Chat graphique
+
+Une session Claude ouverte depuis CCS (reprendre une conversation, « Nouvelle
+session… », « Ouvrir une session dans ce projet ») est un **chat**, dans un onglet de la
+page Sessions. Le chat tourne sous le compte que CCS aurait donné à un terminal
+(compte actif, ou compte du projet) et lance `claude` en arrière-plan : il n'y
+a pas de terminal à regarder.
+
+### Lire la conversation
+
+- Tes messages sont en bulles à droite ; les réponses de Claude, à gauche, en
+  Markdown mis en forme : titres, listes, tableaux, code coloré, citations,
+  liens. Le texte arrive au fil de l'eau.
+- Chaque action de Claude est une **carte repliable** : fichier lu, fichier
+  modifié (avec `+12 −3` ; « voir le diff » ouvre la modification dans le
+  [panneau Fichiers](#panneau-fichiers)), commande lancée (la sortie est
+  repliée), recherche, sous-agent, outil MCP. Une roue tourne tant que
+  l'action est en cours ; une action en échec est marquée.
+- La **liste de tâches** de Claude s'affiche en cases à cocher qui se mettent à
+  jour.
+- Un chat **rouvert** (au démarrage, depuis l'historique, ou migré de l'ancien
+  format) montre d'abord la conversation, lue dans son journal, **sans lancer
+  `claude`** : le processus ne démarre qu'au premier message envoyé. Si la
+  conversation est encore ouverte dans un autre terminal, le chat est en lecture
+  seule (« Cette conversation est ouverte ailleurs ») jusqu'à ce que l'autre
+  processus se termine.
+
+### La barre sous la zone de saisie
+
+À gauche, quatre boutons ; à droite, deux informations.
+
+| Bouton | Choix |
+|---|---|
+| **Modèle** | « Par défaut » (le réglage de Claude Code) puis les modèles que Claude Code annonce : Opus, Sonnet, Haiku, Fable et les autres |
+| **Effort** | Automatique, Faible, Moyen, Élevé, Très élevé, Max. Les niveaux que le modèle choisi n'accepte pas sont grisés (par exemple « Très élevé » avec un modèle 4.6) |
+| **⚡ Ultracode** | bouton à bascule : Claude orchestre des workflows pour les grosses tâches. Grisé si le modèle n'accepte pas « Très élevé » |
+| **Droits** | **Demander** (par défaut : une carte d'autorisation à chaque action qui le demande), **Modifications acceptées**, **Plan**, **Tout autoriser** (avec le même avertissement que l'option avancée de « Nouvelle session ») |
+
+À droite : le **contexte utilisé** (vert, orange au-delà du seuil de
+l'[alerte de contexte lourd](#alerte-de-contexte-lourd), rouge à partir de
+90 %) et le **compte**, avec sa couleur.
+
+Le modèle et les droits changent en direct. L'effort et l'ultracode passent par
+la commande `/effort` de Claude Code, qui ne fait pas travailler le modèle. CCS
+retient lui-même l'effort choisi, car Claude Code ne l'annonce jamais. Un
+changement dit « Modèle changé » (ou « Effort changé », « Droits changés ») et
+vaut pour les messages suivants. Les valeurs choisies sont gardées par onglet et
+retrouvées à la réouverture. Les droits des nouveaux chats viennent du réglage
+`chat.rights` (`manual`, c'est-à-dire « Demander », par défaut).
+
+### Autorisations : Autoriser, Toujours, Refuser
+
+Quand Claude veut faire quelque chose qui demande ta permission (une commande,
+une modification de fichier selon les droits choisis), le chat affiche une
+**carte** avec la commande ou le fichier en évidence, et trois boutons :
+
+- **Autoriser** : cette fois seulement ;
+- **Toujours** : autorise aussi les fois suivantes. CCS écrit la règle exacte
+  que Claude Code propose (par exemple `Bash(make test)`) dans
+  `.claude/settings.local.json`, à la racine du projet. Cela ne change pas les
+  droits de toute la session : seuls les cas identiques ne redemanderont plus ;
+- **Refuser** : avec un motif facultatif, que Claude reçoit.
+
+Les commandes en lecture seule (`ls`, `cat`…) ne demandent rien. Tant qu'une carte
+attend, l'onglet porte un point d'interrogation, le badge de l'onglet Sessions
+compte, et l'alerte « attend ta réponse » part (bureau et, si tu l'as activé,
+téléphone).
+
+### Écrire à Claude
+
+- **Entrée** envoie, **Maj+Entrée** va à la ligne.
+- **`@`** propose les fichiers du projet ; **`/`** propose les commandes (celles
+  que Claude Code annonce, plus tes commandes personnalisées et celles des
+  plugins). Les commandes réservées au terminal répondent qu'elles ne sont pas
+  disponibles ici : utilise alors « Ouvrir dans un terminal ».
+- **Images** : colle une image ou glisse-la dans la zone de saisie ; une vignette
+  avec ✕ s'ajoute au message. Glisser un fichier de l'arbre insère `@chemin`.
+- **Arrêter** : pendant que Claude travaille, le bouton d'envoi devient
+  « Arrêter » (Échap fait de même). Claude s'interrompt ; c'est un arrêt voulu,
+  pas une erreur, et le message suivant reprend la conversation.
+- **File de messages** : un message écrit pendant que Claude travaille rejoint la
+  file, comme dans les terminaux (voir [Messages en attente](#messages-en-attente)) :
+  bulles modifiables d'un clic, déplaçables, supprimables, « envoyer
+  maintenant » ; chaque message part quand Claude a fini son tour. Une image ne
+  peut pas attendre : envoie-la quand Claude est libre.
+
+### Mise en veille après 30 minutes
+
+Le processus `claude` d'un chat reste vivant entre les messages. Pour ménager la
+mémoire du PC, un chat resté **au repos 30 minutes** est mis **en veille** : CCS
+arrête proprement ce processus. Ce n'est pas une fermeture : l'onglet,
+l'historique et la file de messages restent, et au message suivant CCS relance
+`claude` sur la même conversation (`--resume`), sans rien changer à ce que tu
+vois. Après 30 minutes le cache de l'API est de toute façon refroidi : la reprise
+ne coûte rien de plus en quota. Jamais de veille pendant que Claude travaille,
+qu'il attend une autorisation ou qu'une action est en cours.
+
+Le délai se règle avec `chat.idle_suspend_min` dans les réglages (`0` = jamais) ;
+il n'a pas de bouton dans la fenêtre des Réglages.
+
+### Ouvrir dans un terminal
+
+Certaines commandes interactives de Claude Code (`/config`, `/login`, les menus
+en plein écran…) n'existent pas dans le chat. **Ouvrir cette conversation dans
+un terminal** (clic droit sur l'onglet, ou son menu « ⋮ ») arrête le chat — après
+confirmation si Claude travaille — et ouvre un onglet terminal qui lance
+`claude --resume` sur la même conversation, sous le même compte. Quand ce
+terminal est fini, **Revenir au chat** rouvre le chat. Les onglets **shell**
+(« Terminal ici ») restent de vrais terminaux.
+
+### Ce qui reste comme dans les terminaux
+
+Reprise automatique après une limite (bascule de compte, puis « continue » dans
+le chat), onglets rouverts au démarrage, vue **côte à côte** (Ctrl+Maj+E), alertes
+(« attend ta réponse », contexte lourd, budget), compte par projet, confirmation
+avant de fermer un onglet pendant que Claude travaille. Une session ouverte dans
+un autre terminal reste listée dans « Toutes les sessions » ; CCS ne la reprend
+pas tant qu'elle tourne.
+
+## Panneau Fichiers
+
+Chaque onglet de session montre, à gauche, une page **Fichiers** et une page
+**Feuille de route** (le sélecteur est en haut du panneau). Le panneau
+Fichiers donne les fichiers du dossier de la session, sans quitter le chat.
+
+- **Arbre** : les dossiers se chargent à l'ouverture, et la liste se met à jour
+  quand des fichiers changent. Marques git à côté des fichiers : `M` modifié,
+  `A` ajouté, `?` non suivi, `D` supprimé. `.git`, `node_modules` et les fichiers
+  ignorés par git sont masqués ; le réglage `files.show_ignored` les affiche.
+  Clic droit : **Ouvrir**, **Copier le chemin**, **Insérer @chemin dans le
+  message**, **Ouvrir avec l'application par défaut**, **Afficher dans Fichiers**.
+- **Dispositions** (bouton « disposition » de la page Sessions, retenue pour tous
+  les onglets) : **B**, par défaut, arbre | chat | fichier, le panneau du fichier
+  n'apparaissant que quand un fichier est ouvert ; **A**, arbre | fichier | chat,
+  comme VS Code. Chaque séparation se tire à la souris, et les largeurs sont
+  retenues pour chaque disposition. **Ctrl+B** replie ou rouvre l'arbre.
+- **Fichier ouvert** : un onglet par fichier, avec numéros de ligne, coloration
+  selon le langage (thème clair ou sombre suivi), **Ctrl+F** pour chercher dans le
+  fichier, annuler et refaire. Les images s'affichent ; un fichier binaire est
+  signalé (« Fichier binaire ») sans être affiché ; au-delà de **2 Mo**, le fichier
+  s'ouvre en lecture seule avec un bandeau.
+- **Markdown** : le bouton **Source / Aperçu** bascule vers un aperçu mis en forme
+  (titres, listes, cases à cocher, tableaux, code coloré, citations, liens). Une
+  image distante n'est jamais chargée : elle apparaît comme un lien. L'aperçu suit tes modifications.
+- **Enregistrer** : **Ctrl+S**. L'écriture est atomique et les droits du fichier
+  sont gardés. Un point sur l'onglet signale un fichier non enregistré ; le
+  fermer demande de l'enregistrer, de ne pas l'enregistrer ou d'annuler.
+- **Quand Claude modifie un fichier ouvert** : s'il n'a pas de changement de ta
+  part, il se recharge tout seul. Sinon, un bandeau propose **Garder les miens**,
+  **Prendre la version sur le disque** ou **Voir les différences** : rien n'est
+  écrasé sans ton choix.
+- **Diff** : « voir le diff » sur une carte de modification du chat ouvre, dans le
+  panneau du fichier, les lignes ajoutées et supprimées de cette modification,
+  avec un bouton **Fichier entier**.
+
+## Feuille de route
+
+La page **Feuille de route** d'un onglet de session lit `ROADMAP.md` à la racine
+du dossier de la session (à défaut, en remontant jusqu'à la racine du dépôt git).
+Le format est celui des feuilles de route des projets :
+un titre `#`, des phases en titres `##` (« Phase 12 — Titre (0.10.0) ✅ »), des
+tâches `- [ ]` / `- [x]`, éventuellement imbriquées, du texte libre entre les
+deux. Les phases n'ont pas besoin d'être dans l'ordre ; la version est lue dans
+les parenthèses du titre.
+
+L'en-tête donne le projet, la dernière version et le nombre de phases finies.
+Chaque phase a sa barre de progression et son compte `cochées/total` ; les phases
+non finies sont dépliées, les finies repliées. **Un clic sur une case** la coche
+(ou la décoche) dans `ROADMAP.md` en ne changeant que ce caractère ; si le
+fichier a changé depuis sa lecture, il est relu d'abord, et jamais réécrit en
+entier. Quand Claude coche une case, la tâche s'allume brièvement. Sans
+`ROADMAP.md`, la page propose **Demander à Claude d'en créer une**, qui envoie ce
+message au chat de l'onglet.
+
+## Page Projets
+
+L'onglet **Projets** liste les projets où tu as déjà ouvert une session Claude et
+qui ont un `ROADMAP.md`. Le réglage `projects.hidden` (liste de dossiers) en
+masque certains. Chaque carte donne le nom, la dernière version (dernier tag git
+`v*`), la dernière activité (dernier commit ou dernière conversation), la phase
+en cours et sa barre.
+
+Un clic sur une carte ouvre le **détail** : la feuille de route complète (cases
+cliquables comme dans l'onglet de session), la **frise des versions** (tags git et
+dates), les **tâches cochées par jour** sur les derniers jours, tirées de
+l'historique git de `ROADMAP.md`, la date de fin de chaque phase finie, et le
+bouton **Ouvrir une session dans ce projet**. Les calculs git se font en arrière-plan
+et ne bloquent pas la fenêtre ; un projet hors git garde sa carte, sans versions
+ni historique. CCS n'écrit jamais dans le dépôt, hors la case que tu cliques.
+
 ## Terminal intégré
 
-Les sessions Claude Code s'ouvrent dans la fenêtre de l'application, dans des
-onglets (page **Terminaux**, visible tant qu'un onglet est ouvert, avec le
-nombre d'onglets). Il faut VTE pour GTK 4 (`gir1.2-vte-3.91`, dépendance du
+Les **shells** (« Terminal ici ») et la sortie de secours « Ouvrir dans un
+terminal » d'un chat s'ouvrent dans la fenêtre de l'application, dans des onglets
+de la page Sessions (avec les chats ; l'ancien nom `terminaux` y mène toujours).
+Les sessions Claude elles-mêmes sont des [chats](#chat-graphique) ; ce qui suit
+s'applique aux onglets terminal. Il faut VTE pour GTK 4 (`gir1.2-vte-3.91`, dépendance du
 paquet) ; sans lui, tout s'ouvre dans un terminal externe comme avant et
 l'onglet Sessions indique `sudo apt install gir1.2-vte-3.91`.
 
