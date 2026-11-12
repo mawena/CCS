@@ -95,28 +95,18 @@ class Window(Adw.ApplicationWindow):
         self.home = HomePage(self)
         self.accounts, self.planning = self.home.accounts, self.home.planning
         self.sessions = SessionsPage(self)
-        # Onglet Sessions : la vue d'ensemble et les terminaux ouverts, l'un à côté de l'autre.
-        # TODO tâche 9 : overview épinglé. TerminalsPage(self, overview=self.sessions) fera de la
-        # vue d'ensemble sa première page épinglée ; `sessions_stack` disparaît alors.
-        self.terminals = TerminalsPage(self)
-        self.sessions_stack = Adw.ViewStack(vexpand=True)
-        self.sessions_stack.add_titled(self.sessions, "overview", "Toutes les sessions")
-        self.sessions_stack.add_titled(self.terminals, "terminals", "Terminaux")
-        self.terminals_page = self.sessions_stack.get_page(self.terminals)
-        sessions_tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        sessions_tab.append(Adw.ViewSwitcher(stack=self.sessions_stack, policy=Adw.ViewSwitcherPolicy.WIDE,
-                                             halign=Gtk.Align.CENTER, margin_top=6, margin_bottom=2))
-        sessions_tab.append(self.sessions_stack)
+        # Onglet Sessions : la vue d'ensemble est la première page épinglée de la barre
+        # d'onglets des chats et des terminaux.
+        self.terminals = TerminalsPage(self, overview=self.sessions)
         self.projects = ProjectsPage(self)
         self.analysis_hub = AnalysisHub(self)
         self.history, self.analysis = self.analysis_hub.history, self.analysis_hub.analysis
         for page, name, title, icon in (
                 (self.home, "home", "Accueil", "go-home-symbolic"),
-                (sessions_tab, "sessions", "Sessions", "utilities-terminal-symbolic"),
+                (self.terminals, "sessions", "Sessions", "utilities-terminal-symbolic"),
                 (self.projects, "projects", "Projets", "folder-symbolic"),
                 (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
-        self.sessions_stack.connect("notify::visible-child-name", self.on_page)
         self.stack.connect("notify::visible-child-name", self.on_page)
         top_switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
         header.set_title_widget(top_switcher)
@@ -283,8 +273,10 @@ class Window(Adw.ApplicationWindow):
         refresh_data(self.reload)
 
     def on_page(self, *_):
+        if getattr(self, "terminals", None) is None:
+            return  # la page Sessions se construit encore
         name = self.stack.get_visible_child_name()
-        on_terminals = name == "sessions" and self.sessions_stack.get_visible_child_name() == "terminals"
+        on_terminals = name == "sessions" and not self.terminals.overview_shown()
         if on_terminals:
             self.terminals.focus_selected()
         else:
@@ -314,7 +306,7 @@ class Window(Adw.ApplicationWindow):
             page.set_badge_number(n)
             page.set_needs_attention(
                 self.stack.get_visible_child_name() != "sessions"
-                and (n > 0 or self.terminals_page.get_needs_attention()))
+                and (n > 0 or self.terminals.wants_attention))
         in_thread(work, done)
 
     # ---- terminal intégré ----------------------------------------------------------
@@ -327,11 +319,10 @@ class Window(Adw.ApplicationWindow):
 
     def show_terminals(self):
         self.stack.set_visible_child_name("sessions")
-        self.sessions_stack.set_visible_child_name("terminals")
 
     def hide_terminals(self):
-        """Plus de terminal ouvert : retour à la vue d'ensemble des sessions."""
-        self.sessions_stack.set_visible_child_name("overview")
+        """Plus de chat ouvert : retour à la vue d'ensemble des sessions."""
+        self.terminals.show_overview()
 
     def open_claude(self, cwd, resume=None, title=None, external=False):
         """Claude Code dans `cwd` (reprise de la conversation `resume`) : dans un onglet de
@@ -428,7 +419,7 @@ class Window(Adw.ApplicationWindow):
                 return "onglet"
             target = ("sessions", target[1].pid, target[1].session_id)
         self.stack.set_visible_child_name("sessions")
-        self.sessions_stack.set_visible_child_name("overview")
+        self.terminals.show_overview()
         self.sessions.highlight(target[1], target[2])
         return "sessions"
 

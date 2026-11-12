@@ -86,6 +86,7 @@ class TabState:
     queue: list = field(default_factory=list)    # messages à envoyer quand claude sera libre
     queued_at: float | None = None    # dernier message ajouté à la file
     limit_at: float | None = None     # limite non reprise automatiquement : la file attend
+    chat: bool = False                # claude : onglet de chat (état tenu par le moteur du chat)
 
 
 # ---- lancement ------------------------------------------------------------------------
@@ -205,7 +206,8 @@ def sync_tabs(tabs, live, now=None):
     by_pid = {s.pid: s for s in live}
     done = []
     for tab in tabs:
-        s = by_pid.get(tab.pid) if tab.kind == "claude" and tab.running else None
+        # Un chat n'est pas suivi par les fiches de session : son état vient du moteur.
+        s = by_pid.get(tab.pid) if tab.kind == "claude" and tab.running and not tab.chat else None
         if s is None:
             continue
         if s.session_id:
@@ -226,18 +228,24 @@ def free_for_input(tab):
     Jamais pendant une demande de permission (Entrée y validerait un choix)."""
     if tab.state == "idle":
         return True
+    if tab.chat and not tab.running and tab.state is None:
+        return True  # chat sans processus (rouvert) : le prochain envoi le lance
     return tab.state == "waiting" and (tab.waiting_for or "").lower().startswith("input")
 
 
 def indicator(tab):
     """(sablier, icône, infobulle) de l'onglet."""
-    if not tab.running:
-        return STOPPED
+    if not tab.running and not (tab.chat and not tab.exit_status):
+        return STOPPED  # un chat sans processus (rouvert, en veille) n'est pas « arrêté »
     return INDICATORS.get(tab.state, (False, None, None))
 
 
 def needs_confirm(tab):
-    """Fermer cet onglet arrêterait claude ou un programme lancé dans le shell."""
+    """Fermer cet onglet arrêterait claude ou un programme lancé dans le shell. Un chat au
+    repos (ou qui attend seulement le prochain message) se ferme sans question : son
+    processus ne fait rien et la conversation est déjà enregistrée."""
+    if tab.kind == "claude" and tab.chat:
+        return tab.running and (tab.state == "busy" or (tab.state == "waiting" and not free_for_input(tab)))
     return tab.running and (tab.kind == "claude" or tab.busy)
 
 
@@ -252,7 +260,7 @@ def _saved(n):
 
 def close_question(tabs):
     """(titre, texte) de la confirmation avant de fermer la fenêtre, ou None."""
-    n = running_claude(tabs)
+    n = sum(1 for t in tabs if t.kind == "claude" and needs_confirm(t))
     shells = any(t.kind == "shell" and needs_confirm(t) for t in tabs)
     if not n and not shells:
         return None
@@ -337,13 +345,17 @@ def resume_decision(tab, event, now, enabled=True, max_per_hour=RESUME_MAX_PER_H
 
 # ---- onglets rouverts au redémarrage ---------------------------------------------------
 
-def tab_record(tab):
-    """Ce qu'on garde d'un onglet pour le rouvrir au prochain lancement (terminal_store)."""
+def tab_record(tab, chat=None):
+    """Ce qu'on garde d'un onglet pour le rouvrir au prochain lancement (terminal_store).
+    `chat` : options du chat (modèle, effort, ultracode, droits) d'un onglet de chat."""
     claude = tab.kind == "claude"
-    return {"kind": tab.kind, "cwd": tab.cwd, "title": tab.title,
-            "session_id": tab.session_id if claude else None,
-            "extra_args": list(tab.extra_args) if claude else [],
-            "queue": list(tab.queue) if claude else []}
+    record = {"kind": tab.kind, "cwd": tab.cwd, "title": tab.title,
+              "session_id": tab.session_id if claude else None,
+              "extra_args": list(tab.extra_args) if claude else [],
+              "queue": list(tab.queue) if claude else []}
+    if claude and chat is not None:
+        record["chat"] = dict(chat)
+    return record
 
 
 @dataclass(frozen=True)
@@ -355,6 +367,7 @@ class Reopen:
     session_id: str | None
     extra_args: tuple
     queue: tuple
+    chat: dict | None = None   # options du chat gardées (None : onglet de la 0.9, ou shell)
 
     def launch(self, environ=None):
         if self.kind == "shell":
@@ -402,7 +415,8 @@ def restore_plan(records, selected=None, opened=(), present=(), folder_exists=os
         if i == selected:
             chosen = len(tabs)
         tabs.append(Reopen(r["kind"], r["cwd"], r.get("title") or "", sid,
-                           tuple(r.get("extra_args") or ()), tuple(r.get("queue") or ())))
+                           tuple(r.get("extra_args") or ()), tuple(r.get("queue") or ()),
+                           r.get("chat") if r["kind"] == "claude" else None))
     return RestorePlan(tabs, chosen, skipped)
 
 
@@ -485,7 +499,7 @@ def queue_next(tab, now, blocked=False, grace=QUEUE_GRACE_S, stall=QUEUE_STALL_S
     écrit dans l'onglet depuis le début du dernier tour (son texte serait mêlé au message)."""
     if tab.kind != "claude" or not tab.queue:
         return QueueDecision(None)
-    if not tab.running:
+    if not tab.running and not tab.chat:  # un chat sans processus repart au prochain envoi
         return QueueDecision(None, "Session arrêtée.")
     if tab.state == "busy":
         return QueueDecision(None, "Claude travaille : envoi à la fin du tour.")
@@ -510,3 +524,29 @@ def queue_next(tab, now, blocked=False, grace=QUEUE_GRACE_S, stall=QUEUE_STALL_S
     if turn_done or added_free or in_flight:
         return QueueDecision(tab.queue[0])
     return QueueDecision(None, "Envoi à la fin du prochain tour de Claude.")
+
+
+# ---- chats : conversation ouverte ailleurs, alerte d'attente --------------------------------
+
+def elsewhere_pid(session_id, live, own_pids=()):
+    """Pid d'une session Claude Code vivante (`live` : sessions.list_sessions()) sur la
+    conversation `session_id` et qui n'est pas dans nos onglets (`own_pids`), ou None.
+    Deux processus sur une même conversation la corrompraient : le chat reste en lecture seule."""
+    if not session_id:
+        return None
+    own = set(own_pids)
+    for s in live:
+        if s.session_id == session_id and s.pid not in own:
+            return s.pid
+    return None
+
+
+def waiting_alert_key(tab):
+    """Clé de l'alerte « attend ta réponse » d'un chat : une par attente (début de l'attente)."""
+    since = int(tab.state_since or 0)
+    return f"attente:{tab.session_id or tab.pid or tab.cwd}:{since}"
+
+
+def is_waiting_for_user(tab):
+    """Un chat qui attend ta réponse : fin de réponse ou demande d'autorisation."""
+    return tab.kind == "claude" and tab.chat and tab.state == "waiting"
