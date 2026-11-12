@@ -185,17 +185,17 @@ Déjà fait :
 
 Le chat :
 - [x] Essai réel du protocole de Claude Code (stream-json, autorisations, `/effort`, ultracode), avec l'accord de Charles (12/11, 5 messages Haiku)
-- [ ] Moteur du chat sans GTK et faux `claude` pour les tests
-- [ ] Chat graphique : bulles, Markdown, cartes d'actions, autorisations, liste de tâches, saisie avec `@`, `/` et images
-- [ ] Barre cliquable : modèle, effort, ultracode, droits ; contexte et compte
-- [ ] Fonctions des terminaux reprises : file de messages, vue partagée, réouverture, bascule sur limite, alertes, « Ouvrir dans un terminal »
+- [x] Moteur du chat sans GTK et faux `claude` pour les tests
+- [x] Chat graphique : bulles, Markdown, cartes d'actions, autorisations, liste de tâches, saisie avec `@`, `/` et images
+- [x] Barre cliquable : modèle, effort, ultracode, droits ; contexte et compte
+- [x] Fonctions des terminaux reprises : file de messages, vue partagée, réouverture, bascule sur limite, alertes, « Ouvrir dans un terminal »
 
 Les fichiers :
-- [ ] Panneau Fichiers : arbre avec marques git, dispositions B (par défaut) et A, panneaux redimensionnables
-- [ ] Fichier ouvert : coloration, aperçu Markdown, édition, diff des modifications de Claude
+- [x] Panneau Fichiers : arbre avec marques git, dispositions B (par défaut) et A, panneaux redimensionnables
+- [x] Fichier ouvert : coloration, aperçu Markdown, édition, diff des modifications de Claude
 
 Feuille de route et projets :
-- [ ] Feuille de route dans l'onglet de session : phases, cases cliquables, case cochée mise en avant
+- [x] Feuille de route dans l'onglet de session : phases, cases cliquables, case cochée mise en avant
 - [x] Page Projets : cartes des projets, frise des versions, tâches cochées par jour
 
 Le design :
@@ -203,7 +203,7 @@ Le design :
 - [x] Nouveau design : couleur par compte, cartes, écrans vides, clair et sombre
 
 Documentation et release :
-- [ ] Documentation (README, guide, architecture, pages man, CHANGELOG, site)
+- [x] Documentation (README, guide, architecture, pages man, CHANGELOG, site)
 - [ ] Release mineure 0.10.0, `.deb`, release GitHub et dépôt APT
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
