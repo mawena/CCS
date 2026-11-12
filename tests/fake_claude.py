@@ -10,6 +10,8 @@ Variables d'environnement :
   FAKE_CLAUDE_BIG_LINE   nombre de caractères : avant le `result` de chaque tour, émet un
                          `tool_result` d'une seule ligne de cette taille ;
   FAKE_CLAUDE_DELAY_MS   pause entre deux lignes rejouées (0 par défaut).
+  FAKE_CLAUDE_REFUSE_MODE mode refusé par set_permission_mode (comme la CLI qui refuse
+                         bypassPermissions sans --allow-dangerously-skip-permissions).
 
 Comportement :
   - `initialize`, `get_context_usage` : réponse tirée du scénario (sinon réponse minimale) ;
@@ -166,6 +168,13 @@ class Fake:
             self.reply(request_id, {"model": MODELS.get(name, name)})
         elif sub == "set_permission_mode":
             mode = request.get("mode") or "default"
+            allow_bypass = any(a in sys.argv for a in ("--allow-dangerously-skip-permissions",
+                                                       "--dangerously-skip-permissions"))
+            refused = os.environ.get("FAKE_CLAUDE_REFUSE_MODE", "")
+            if mode == refused or (mode == "bypassPermissions" and not allow_bypass):
+                # comme la CLI : bypassPermissions seulement si autorisé au lancement
+                self.error(request_id, f"Cannot set permission mode to {mode}")
+                return
             self.mode = "default" if mode == "manual" else mode
             self.reply(request_id, {"mode": self.mode})
             self.status()

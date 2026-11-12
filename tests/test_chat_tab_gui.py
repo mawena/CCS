@@ -16,7 +16,8 @@ FIXTURES = Path(__file__).parent / "fixtures" / "chat"
 
 if GTK:
     from gi.repository import GLib, Gtk
-    from ccs_app import terminal
+    from ccs_app import chat_engine, terminal
+    from ccs_app import chat_protocol as proto
     from ccs_app.gui.chat_tab import ChatTab
 
 
@@ -178,6 +179,26 @@ class ChatTabTest(HomeTestCase):
         self.assertTrue(tab.send_auto("Réponds juste OK."))       # file de messages, reprise, « créer une feuille de route »
         self.assertIsNotNone(tab.state.sent_at)
         self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
+
+    def test_composer_text_readable_in_dark_mode(self):
+        tab, _owner = self.make()
+        tab.apply_colors(True)
+        self.assertIn("dark", tab.composer.buffer.get_style_scheme().get_id())
+        tab.apply_colors(False)
+        self.assertNotIn("dark", tab.composer.buffer.get_style_scheme().get_id())
+
+    def test_bar_follows_the_mode_confirmed_by_claude(self):
+        tab, _owner = self.make()
+        tab._dispatch(proto.Status("bypassPermissions"))
+        self.assertEqual(tab.options.rights, "bypassPermissions")
+        self.assertEqual(tab.bar.options.rights, "bypassPermissions")
+        tab._dispatch(proto.Status("default"))                    # « default » = Demander
+        self.assertEqual(tab.options.rights, "manual")
+
+    def test_refused_option_is_shown(self):
+        tab, _owner = self.make()
+        tab._dispatch(chat_engine.OptionRefused("set_permission_mode", "Cannot set permission mode"))
+        self.assertTrue(any("refusé" in t for t in texts(tab)))
 
     def test_start_failure_shows_notice(self):
         tab, owner = self.make(env={"FAKE_CLAUDE_EXIT": "1"})

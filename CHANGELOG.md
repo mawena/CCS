@@ -18,9 +18,13 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - **Barre cliquable du chat** : modèle, effort (faible à max, les niveaux que le
   modèle n'accepte pas sont grisés), ultracode et droits (Demander,
   Modifications acceptées, Plan, Tout autoriser), avec le contexte utilisé et le
-  compte à droite. Les choix sont gardés par onglet.
+  compte à droite. Les choix sont gardés par onglet. La barre montre le mode de
+  droits confirmé par Claude Code ; « Tout autoriser » marche en cours de session
+  (Claude est lancé avec `--allow-dangerously-skip-permissions`, qui ne fait que le
+  permettre), et un changement refusé en direct est appliqué en relançant la
+  conversation au message suivant.
 - **Autorisations dans le chat** : une demande de Claude devient une carte avec
-  Autoriser, Toujours (la règle exacte est écrite dans le
+  Autoriser, Toujours pour cette commande (la commande exacte est écrite dans le
   `.claude/settings.local.json` du projet, sans changer les droits de la session)
   et Refuser (motif facultatif). L'alerte « attend ta réponse » se déclenche.
 - **Saisie du chat** : `@` propose les fichiers du projet, `/` les commandes de

@@ -10,6 +10,7 @@ Signaux : `open-file(path, line)` et `show-diff(path, ancien, nouveau)`, pour l'
 session (panneau Fichiers).
 """
 
+import dataclasses
 import os
 import re
 import threading
@@ -184,6 +185,7 @@ class ChatTab(Gtk.Box):
 
     def apply_colors(self, dark):
         self.messages.set_dark(dark)
+        self.composer.set_dark(dark)
 
     def set_account(self, name, color, usage=None):
         """Compte et couleur montrés à droite de la barre."""
@@ -338,6 +340,8 @@ class ChatTab(Gtk.Box):
             chat_engine.StateChanged: self._on_state,
             chat_engine.ProcessExited: self._on_exited,
             chat_engine.ContextUsage: self._on_context,
+            chat_engine.OptionRefused: self._on_option_refused,
+            proto.Status: self._on_status,
             proto.Init: self._on_init,
             proto.Hello: self._on_hello,
             proto.TextDelta: lambda e: self._text(e, delta=True),
@@ -390,6 +394,19 @@ class ChatTab(Gtk.Box):
         if ev.session_id and ev.session_id != self.state.session_id:
             self.state.session_id = ev.session_id
             self.owner.changed(self)
+
+    def _on_status(self, ev):
+        """Mode de droits réellement en vigueur, confirmé par la CLI : la barre le reflète."""
+        mode = "manual" if ev.permission_mode in (None, "default") else ev.permission_mode
+        if mode != self.options.rights:
+            self.options = dataclasses.replace(self.options, rights=mode)
+            self.bar.set_options(self.options)
+            self.owner.schedule_save()
+
+    def _on_option_refused(self, ev):
+        what = "Les droits" if ev.what == "set_permission_mode" else "Le modèle"
+        self.messages.add_notice(f"{what} : Claude Code a refusé le changement en direct ; il sera "
+                                 "appliqué en relançant la conversation au prochain message.", "warning")
 
     def _on_hello(self, ev):
         self.composer.set_commands(ev.commands)

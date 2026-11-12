@@ -39,6 +39,14 @@ class ContextUsage:
 
 
 @dataclass(frozen=True)
+class OptionRefused:
+    """La CLI a refusé un changement en direct (`set_model`, `set_permission_mode`) : il sera
+    appliqué en relançant le processus (`--resume`) avant le prochain message."""
+    what: str
+    error: str
+
+
+@dataclass(frozen=True)
 class ProcessExited:
     code: int | None
     stderr_tail: str  # les 20 dernières lignes de stderr
@@ -70,6 +78,7 @@ class ChatSession:
         self._expected = 0                  # `result` attendus (un par ligne utilisateur)
         self._silent = 0                    # commandes locales du moteur dont la réponse est cachée
         self._pending_cmds = []             # `/effort …` à envoyer avant le prochain message
+        self._relaunch_needed = False       # changement refusé en direct : relance au prochain message
         self._requested_stop = False
 
     # ------------------------------------------------------------------ état
@@ -102,6 +111,8 @@ class ChatSession:
                 "--input-format", "stream-json", "--output-format", "stream-json",
                 "--verbose", "--include-partial-messages",
                 "--permission-prompt-tool", "stdio",
+                # permet de passer en « Tout autoriser » plus tard, sans l'activer
+                "--allow-dangerously-skip-permissions",
                 *chat_options.launch_args(self.options)]
         if self.session_id:
             argv += ["--resume", self.session_id]
@@ -212,6 +223,10 @@ class ChatSession:
                     forward = False
         elif isinstance(ev, proto.ControlReply):
             sub = self._ctrl.pop(ev.request_id, None)
+            if sub in ("set_model", "set_permission_mode") and not ev.ok:
+                self._relaunch_needed = True   # appliqué par relance au prochain message
+                self._emit(OptionRefused(sub, ev.error or ""))
+                forward = False
             if sub == "get_context_usage" and ev.ok:
                 d = ev.data or {}
                 self._emit(ContextUsage(int(d.get("percentage", 0)), int(d.get("totalTokens", 0)),
@@ -256,6 +271,13 @@ class ChatSession:
 
     def send(self, text, images=()):
         """Envoie un message (lance ou relance le processus). Faux si busy ou permission."""
+        if self._relaunch_needed and self._proc is not None and self.state not in ("busy", "permission"):
+            self._relaunch_needed = False
+            old = self._proc
+            self.stop(grace_s=2)   # relance avec les options refusées en direct (`--resume`)
+            with self._lock:       # sans attendre le fil de lecture : le processus est mort
+                if self._proc is old:
+                    self._proc, self.pid = None, None
         with self._lock:
             if self.state in ("busy", "permission"):
                 return False

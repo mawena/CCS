@@ -15,7 +15,7 @@ import gi
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 gi.require_version("GtkSource", "5")
-from gi.repository import Gdk, Gio, GLib, GObject, Gtk, GtkSource, Pango  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, GtkSource, Pango  # noqa: E402
 
 from .chat_messages import install_css  # noqa: E402
 
@@ -77,6 +77,10 @@ class Composer(Gtk.Box):
         self.buffer = self.view.get_buffer()
         self.buffer.set_highlight_syntax(False)
         self.buffer.connect("changed", self._on_changed)
+        # Le tampon garde sinon le schéma clair par défaut : texte noir sur fond sombre.
+        style = Adw.StyleManager.get_default()
+        self.set_dark(style.get_dark())
+        style.connect("notify::dark", lambda sm, _p: self.set_dark(sm.get_dark()))
         overlay = Gtk.Overlay(child=Gtk.ScrolledWindow(
             child=self.view, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True,
             min_content_height=40, max_content_height=220))
@@ -189,6 +193,15 @@ class Composer(Gtk.Box):
             self.queue_rows.append(row)
 
     # ---- état ----------------------------------------------------------------------------
+
+    def set_dark(self, dark):
+        """Schéma de couleurs du texte saisi, lisible en clair comme en sombre."""
+        manager = GtkSource.StyleSchemeManager.get_default()
+        for name in (("Adwaita-dark", "classic-dark") if dark else ("Adwaita", "classic")):
+            scheme = manager.get_scheme(name)
+            if scheme:
+                self.buffer.set_style_scheme(scheme)
+                return
 
     def set_busy(self, busy):
         """Pendant que Claude travaille : bouton Arrêter, et Entrée met en file."""

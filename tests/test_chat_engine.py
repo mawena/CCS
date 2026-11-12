@@ -214,6 +214,32 @@ class ChatEngineTest(EngineCase):
         self.assertEqual(argv[argv.index("--effort") + 1], "max")
         self.assertEqual(argv[argv.index("--permission-mode") + 1], "acceptEdits")
 
+    def test_launch_allows_switching_to_bypass_later(self):
+        # Sans cette option au lancement, la CLI refuse de passer en bypassPermissions en cours
+        # de session (« Tout autoriser » ne prenait pas).
+        s = self.make(SCEN_LOCAL)
+        s.send("x")
+        self.assertIn("--allow-dangerously-skip-permissions", self.wait_argvs(1)[0])
+        self.col.wait_state("idle")
+        s.set_options(ChatOptions(rights="bypassPermissions"))
+        self.col.wait(lambda evs: any(isinstance(e, proto.Status) and e.permission_mode == "bypassPermissions"
+                                      for e in evs))
+        self.assertEqual(len(self.argvs()), 1)                    # changé en direct, sans relance
+
+    def test_refused_rights_change_is_applied_by_relaunch(self):
+        s = self.make(SCEN_LOCAL, FAKE_CLAUDE_REFUSE_MODE="bypassPermissions")
+        s.send("x")
+        self.col.wait_state("idle")
+        s.set_options(ChatOptions(rights="bypassPermissions"))
+        self.col.wait(lambda evs: any(isinstance(e, eng.OptionRefused) for e in evs))
+        refused = self.col.of(eng.OptionRefused)[0]
+        self.assertEqual(refused.what, "set_permission_mode")
+        self.assertTrue(s.send("y"))                              # relance avant ce message
+        argv = self.wait_argvs(2)[1]
+        self.assertEqual(argv[argv.index("--permission-mode") + 1], "bypassPermissions")
+        self.assertIn("--resume", argv)
+        self.col.wait_state("idle")
+
     def test_resume_uses_session_id(self):
         s = self.make(SCEN_LOCAL, session_id="abc-123")
         s.send("x")

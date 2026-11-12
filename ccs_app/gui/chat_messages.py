@@ -305,8 +305,11 @@ class PermissionCard(Gtk.Box):
         self.allow.connect("clicked", lambda *_: self._answer("allow"))
         rules = [s for s in (getattr(req, "suggestions", None) or ())
                  if isinstance(s, dict) and s.get("type") == "addRules"]
-        self.always = Gtk.Button(label="Toujours", tooltip_text="Autoriser cette règle pour la suite, "
-                                 "dans les réglages du projet", visible=bool(rules))
+        self.always = Gtk.Button(label="Toujours pour cette commande",
+                                 tooltip_text="Autorise cette commande exacte pour la suite, dans les "
+                                 "réglages du projet (pas les commandes voisines). Pour ne plus être "
+                                 "interrompu, choisis « Modifications acceptées » ou « Tout autoriser » "
+                                 "dans la barre du chat.", visible=bool(rules))
         self.always.connect("clicked", lambda *_: self._answer("always"))
         self.deny = Gtk.Button(label="Refuser", css_classes=["destructive-action"])
         self.deny.connect("clicked", lambda *_: self._answer("deny"))
