@@ -766,6 +766,7 @@ class TerminalsPage(Gtk.Box):
             if not tab.send_auto(ASK_CREATE_TEXT):
                 tab.state.queue[:] = terminal.queue_add(tab.state.queue, ASK_CREATE_TEXT)
                 self.queue_changed(tab)
+        tab.remove(chat)  # le chat n'a plus de parent avant d'entrer dans le Gtk.Paned de l'espace
         workspace = SessionWorkspace(tab.state.cwd, chat, on_ask_create=ask, layout=self.layout)
         workspace.set_dark(self.dark)
         for name, handler in (("open-file", lambda _t, path, line=0: workspace.open_file(path, line or None)),
@@ -773,7 +774,6 @@ class TerminalsPage(Gtk.Box):
             if GObject.signal_lookup(name, type(tab)):
                 tab.connect(name, handler)
         workspace.connect("insert-reference", lambda _w, rel: insert_reference(tab, rel))
-        tab.remove(chat)
         tab.panel = workspace
         tab.append(workspace)
 
