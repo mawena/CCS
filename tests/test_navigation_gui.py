@@ -38,6 +38,16 @@ class NavigationTest(HomeTestCase):
     def tab(self):
         return self.win.stack.get_visible_child_name()
 
+    def test_color_scheme_applied_at_startup(self):
+        from ccs_app.gui import app
+        with mock.patch.object(app.style, "apply_color_scheme") as applied, \
+                mock.patch("ccs_app.gui.app.load_settings",
+                           return_value={"appearance": {"color_scheme": "sombre"},
+                                         "auto_switch": {"enabled": False}}):
+            win = app.Window(self.app)
+            self.addCleanup(win.destroy)
+        applied.assert_called_once_with("sombre")
+
     def test_four_tabs_in_order(self):
         pages = self.win.stack.get_pages()
         titles = [(pages.get_item(i).get_name(), pages.get_item(i).get_title())
