@@ -25,7 +25,6 @@ from .home_page import HomePage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
 from .prefs_dialog import PrefsDialog  # noqa: E402
-from .projects_page import ProjectsPage  # noqa: E402
 from .sessions_page import SessionsPage  # noqa: E402
 from .update_dialog import show_update  # noqa: E402
 from .terminals import TerminalsPage  # noqa: E402
@@ -101,13 +100,11 @@ class Window(Adw.ApplicationWindow):
         # Onglet Sessions : la vue d'ensemble est la première page épinglée de la barre
         # d'onglets des chats et des terminaux.
         self.terminals = TerminalsPage(self, overview=self.sessions)
-        self.projects = ProjectsPage(self)
         self.analysis_hub = AnalysisHub(self)
         self.history, self.analysis = self.analysis_hub.history, self.analysis_hub.analysis
         for page, name, title, icon in (
                 (self.home, "home", "Accueil", "go-home-symbolic"),
                 (self.terminals, "sessions", "Sessions", "utilities-terminal-symbolic"),
-                (self.projects, "projects", "Projets", "folder-symbolic"),
                 (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
         self.stack.connect("notify::visible-child-name", self.on_page)
@@ -298,8 +295,6 @@ class Window(Adw.ApplicationWindow):
             self.sessions.load()
         if name == "analysis":
             self.analysis_hub.on_shown()
-        elif name == "projects" and hasattr(self.projects, "refresh"):
-            self.projects.refresh()
         self.update_badge()
 
     def update_badge(self):

@@ -900,7 +900,7 @@ def build_parser():
                      help="affiche cette session Claude Code (pid, identifiant de conversation, "
                           "ou les deux) : clic sur une notification")
     gui.add_argument("--page", metavar="ONGLET", type=_page,
-                     help="affiche cet onglet : accueil, sessions, projets, analyse, ou une partie : "
+                     help="affiche cet onglet : accueil, sessions, analyse, ou une partie : "
                           "comptes, planning, historique, terminaux, reglages (fenêtre des réglages)")
     gui.add_argument("--task", metavar="ID", type=_task_ref,
                      help="affiche cette tâche dans l'onglet Planning : clic sur une notification")

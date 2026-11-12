@@ -452,7 +452,7 @@ class PrefsPageTest(HomeTestCase):
         self.assertTrue(shown)
         self.assertTrue(all(w.get_ellipsize() == Pango.EllipsizeMode.NONE for w in shown))
 
-    # ---- Chat et fichiers, projets masqués ----------------------------------------------
+    # ---- Chat et fichiers ----------------------------------------------
 
     def test_chat_files_settings_saved(self):
         page = self.page()
@@ -486,22 +486,6 @@ class PrefsPageTest(HomeTestCase):
         rights.set_selected(3)
         asked[1][0]()                             # accepté
         self.assertEqual(self.saved()["chat"]["rights"], "bypassPermissions")
-
-    def test_hidden_projects_listed_and_shown_again(self):
-        window = FakeWindow()
-        window.projects = mock.Mock()
-        self.window = window
-        page = self.page({"projects": {"hidden": ["/p/Alpha", "/p/Beta"]}})
-        buttons = [b for b in walk(page) if isinstance(b, Gtk.Button) and b.get_label() == "Réafficher"]
-        self.assertEqual(len(buttons), 2)
-        buttons[0].emit("clicked")
-        self.assertEqual(self.saved()["projects"]["hidden"], ["/p/Beta"])
-        window.projects.refresh.assert_called()
-        buttons = [b for b in walk(page) if isinstance(b, Gtk.Button) and b.get_label() == "Réafficher"]
-        self.assertEqual(len(buttons), 1)
-        buttons[0].emit("clicked")
-        self.assertEqual(self.saved()["projects"]["hidden"], [])
-
 
     def test_groups_fit_the_narrow_window(self):
         """360 px moins les marges de la page (2 × 12 px). Le groupe des raccourcis clavier

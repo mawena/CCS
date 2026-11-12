@@ -108,7 +108,6 @@ class PrefsPage(Adw.PreferencesPage):
         self.add_group(self.archive_group())
         self.add_group(self.sessions_group())
         self.add_group(self.chat_files_group())
-        self.add_group(self.projects_group())
         self.add_group(self.tasks_group())
         self.add_group(self.budget_group())
         self.add_group(self.warmup_group())
@@ -714,43 +713,6 @@ class PrefsPage(Adw.PreferencesPage):
         dialog.set_close_response("cancel")
         dialog.connect("response", lambda _d, r: on_yes() if r == "allow" else on_no())
         dialog.present(self.get_root())
-
-    def projects_group(self):
-        """Projets masqués de la page Projets, avec « Réafficher » pour chacun."""
-        self.s["projects"] = self.s.get("projects") if isinstance(self.s.get("projects"), dict) else {}
-        self.s["projects"].setdefault("hidden", [])
-        g = Adw.PreferencesGroup(title="Projets")
-        self._hidden_row = Adw.ExpanderRow(title="Projets masqués")
-        self._hidden_rows = []
-        self._fill_hidden()
-        g.add(self._hidden_row)
-        return g
-
-    def _fill_hidden(self):
-        for r in self._hidden_rows:
-            self._hidden_row.remove(r)
-        self._hidden_rows = []
-        hidden = list(self.s["projects"]["hidden"])
-        self._hidden_row.set_subtitle(f"{len(hidden)} masqué(s)" if hidden else "Aucun projet masqué")
-        if not hidden:
-            self._hidden_row.set_expanded(False)
-        for path in hidden:
-            row = Adw.ActionRow(title=GLib.markup_escape_text(path.rstrip("/").rsplit("/", 1)[-1] or path),
-                                subtitle=GLib.markup_escape_text(path))
-            button = Gtk.Button(label="Réafficher", valign=Gtk.Align.CENTER)
-            button.connect("clicked", lambda _b, p=path: self.unhide_project(p))
-            row.add_suffix(button)
-            self._hidden_row.add_row(row)
-            self._hidden_rows.append(row)
-
-    def unhide_project(self, path):
-        hidden = [p for p in load_settings().get("projects", {}).get("hidden", []) if p != path]
-        self.s["projects"]["hidden"] = hidden
-        self.save()
-        self._fill_hidden()
-        page = getattr(self.window, "projects", None)
-        if page is not None:
-            page.refresh()
 
     def tasks_group(self):
         night = self.s["tasks"]["night"]

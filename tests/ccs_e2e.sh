@@ -300,7 +300,7 @@ out="$("$CCS" sessions)"; expect "$out" "Aucune session"
 
 # `gui --page` : les quatre onglets et les anciens noms sont acceptés ; on lit seulement les
 # arguments (jamais de fenêtre ouverte), et un nom inconnu est refusé avant tout affichage.
-for page in accueil sessions projets analyse comptes planning historique terminaux reglages; do
+for page in accueil sessions analyse comptes planning historique terminaux reglages; do
     got="$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1])
 from ccs_app.cli import build_parser
 print(build_parser().parse_args(["gui", "--page", sys.argv[2]]).page)' "$ROOT" "$page")"

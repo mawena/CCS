@@ -1,4 +1,4 @@
-"""Navigation en quatre onglets (Accueil, Sessions, Projets, Analyse) : fenêtre réelle dans un
+"""Navigation en trois onglets (Accueil, Sessions, Analyse) : fenêtre réelle dans un
 HOME temporaire, sans écran réel (Xvfb), sans service ni vraie session."""
 
 import os
@@ -65,12 +65,11 @@ class NavigationTest(HomeTestCase):
             self.addCleanup(win.destroy)
         applied.assert_called_once_with("sombre")
 
-    def test_four_tabs_in_order(self):
+    def test_three_tabs_in_order(self):
         pages = self.win.stack.get_pages()
         titles = [(pages.get_item(i).get_name(), pages.get_item(i).get_title())
                   for i in range(pages.get_n_items())]
-        self.assertEqual(titles, [("home", "Accueil"), ("sessions", "Sessions"),
-                                  ("projects", "Projets"), ("analysis", "Analyse")])
+        self.assertEqual(titles, [("home", "Accueil"), ("sessions", "Sessions"), ("analysis", "Analyse")])
 
     def test_sessions_tab_always_visible(self):
         page = self.win.stack.get_page(self.win.stack.get_child_by_name("sessions"))
@@ -110,7 +109,7 @@ class NavigationTest(HomeTestCase):
     def test_old_page_names_land_on_the_right_tab(self):
         for name, tab in (("comptes", "home"), ("planning", "home"), ("terminaux", "sessions"),
                           ("sessions", "sessions"), ("historique", "analysis"), ("analyse", "analysis"),
-                          ("projets", "projects"), ("accueil", "home"), ("accounts", "home")):
+                          ("accueil", "home"), ("accounts", "home")):
             self.win.stack.set_visible_child_name("sessions" if tab != "sessions" else "home")
             self.assertEqual(self.win.show_page(name), tab, name)
             self.assertEqual(self.tab(), tab, name)
@@ -127,10 +126,10 @@ class NavigationTest(HomeTestCase):
         app2 = self.appmod.App()
         with mock.patch.object(self.appmod, "Window", return_value=self.win):
             app2.window()
-        for key, tab in enumerate(("home", "sessions", "projects", "analysis"), 1):
+        for key, tab in enumerate(("home", "sessions", "analysis"), 1):
             self.assertEqual(app2.get_actions_for_accel(f"<Control>{key}"), [f"win.show-tab::{tab}"])
         self.assertEqual(app2.get_actions_for_accel("<Control>comma"), ["win.prefs"])
-        for tab in ("analysis", "projects", "sessions", "home"):
+        for tab in ("analysis", "sessions", "home"):
             self.win.activate_action("win.show-tab", GLib.Variant("s", tab))
             self.assertEqual(self.tab(), tab)
 
@@ -149,10 +148,6 @@ class NavigationTest(HomeTestCase):
         with mock.patch.object(self.win, "open_claude", return_value="integre") as opened:
             self.win.open_session("/tmp/projet")
         opened.assert_called_once_with("/tmp/projet")
-
-    def test_projects_tab_holds_the_projects_page(self):
-        from ccs_app.gui.projects_page import ProjectsPage
-        self.assertIsInstance(self.win.projects, ProjectsPage)
 
     def test_overview_pinned_in_sessions(self):
         tab = self.win.stack.get_child_by_name("sessions")

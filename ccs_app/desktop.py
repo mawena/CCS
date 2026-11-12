@@ -14,7 +14,7 @@ Afficher une tâche (`show_task`) : même mécanisme avec l'action « show-task 
 identifiant de la tâche) ; l'application fermée est lancée sur l'onglet Planning
 (`gui --page planning`).
 
-Onglets de la fenêtre (`page_name`) : quatre onglets (accueil, sessions, projets, analyse)
+Onglets de la fenêtre (`page_name`) : trois onglets (accueil, sessions, analyse)
 et les réglages, une fenêtre à part. `gui --page <nom>` accepte aussi les anciens noms
 (comptes, planning, terminaux, historique) : `page_name` les ramène à (onglet, sous-partie).
 `gui --page <onglet>` accepte le nom d'un onglet ou son titre en français ; l'application reçoit la demande par ses actions
@@ -45,16 +45,16 @@ SHOW_PAGE_ACTION = "show-page"
 NEW_SESSION_ACTION = "new-session"
 
 # Onglets de la fenêtre (noms du ViewStack, dans l'ordre) et titres acceptés par « gui --page ».
-PAGES = ("home", "sessions", "projects", "analysis")
+PAGES = ("home", "sessions", "analysis")
 # Nom de page (ancien ou nouveau) -> (onglet, sous-partie). « prefs » n'est pas un onglet : il
 # ouvre la fenêtre des réglages.
 SUBPAGES = {"accounts": ("home", "accounts"), "planning": ("home", "planning"),
             "terminals": ("sessions", None), "history": ("analysis", "history"),
             "analysis": ("analysis", "analysis"), "prefs": ("prefs", None),
-            "projects": ("projects", None), "home": ("home", None), "sessions": ("sessions", None)}
-PAGE_CHOICES = ("accueil", "sessions", "projets", "analyse", "comptes", "planning", "historique",
+            "home": ("home", None), "sessions": ("sessions", None)}
+PAGE_CHOICES = ("accueil", "sessions", "analyse", "comptes", "planning", "historique",
                 "terminaux", "reglages")
-PAGE_ALIASES = {"accueil": "home", "projets": "projects", "comptes": "accounts",
+PAGE_ALIASES = {"accueil": "home", "comptes": "accounts",
                 "terminaux": "terminals", "historique": "history", "analyse": "analysis",
                 "reglages": "prefs",
                 "conversations": "sessions"}   # ancien onglet, réuni à l'onglet Sessions

@@ -77,7 +77,6 @@ class Phase12SettingsTest(HomeTestCase):
         s = settings.load_settings()
         self.assertEqual(s["chat"], {"idle_suspend_min": 30, "rights": "manual"})
         self.assertEqual(s["files"], {"layout": "B", "show_ignored": False})
-        self.assertEqual(s["projects"], {"hidden": []})
         self.assertEqual(s["appearance"], {"color_scheme": "auto", "account_colors": {}})
         write(self.store / "settings.json", {"chat": {"idle_suspend_min": 2000, "rights": "plan"}})
         self.assertEqual(settings.load_settings()["chat"], {"idle_suspend_min": 30, "rights": "plan"})
@@ -104,13 +103,8 @@ class Phase12SettingsTest(HomeTestCase):
         self.assertEqual(settings.load_settings()["appearance"]["color_scheme"], "auto")
         self.assertIn("appearance.color_scheme", settings.problems())
 
-    def test_account_colors_and_hidden_projects(self):
+    def test_account_colors(self):
         write(self.store / "settings.json", {
-            "appearance": {"account_colors": {"perso": "#aabbcc", "pro": "rouge", "x": 3}},
-            "projects": {"hidden": ["/w/A"]}})
+            "appearance": {"account_colors": {"perso": "#aabbcc", "pro": "rouge", "x": 3}}})
         s = settings.load_settings()
         self.assertEqual(s["appearance"]["account_colors"], {"perso": "#aabbcc"})
-        self.assertEqual(s["projects"]["hidden"], ["/w/A"])
-        write(self.store / "settings.json", {"projects": {"hidden": ["/w/A", 3]}})
-        self.assertEqual(settings.load_settings()["projects"]["hidden"], [])
-        self.assertIn("projects.hidden", settings.problems())
