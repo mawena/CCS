@@ -1,0 +1,672 @@
+"""Liste des messages du chat : bulles, texte de Claude en Markdown, cartes d'outils,
+demandes d'autorisation, liste de tâches.
+
+Rien ici ne parle à `claude` : `ChatTab` y verse les événements du moteur. Les événements
+sont lus par leurs champs (`ToolUse.name`, `.input`…), les formes sont celles de
+`ccs_app.chat_protocol`.
+"""
+
+import difflib
+import json
+import os
+
+import gi
+
+gi.require_version("Adw", "1")
+gi.require_version("Gtk", "4.0")
+from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
+
+from .. import preview  # noqa: E402
+from .markdown_view import MarkdownView  # noqa: E402
+
+PAGE = 50                   # messages d'historique construits à la fois
+RENDER_MS = 90              # un rendu Markdown au plus toutes les 90 ms pendant le flux
+RESULT_CHARS = 20_000       # résultat d'outil montré (le reste est coupé à l'affichage)
+STICK_PX = 48               # à moins de 48 px du bas, la liste suit le texte qui arrive
+MAX_WIDTH = 920
+
+TOOL_LABELS = {"Read": "Lecture", "Edit": "Modification", "MultiEdit": "Modifications",
+               "Write": "Écriture", "Bash": "Commande", "Grep": "Recherche", "Glob": "Fichiers",
+               "Task": "Sous-agent", "Agent": "Sous-agent", "WebFetch": "Page web",
+               "WebSearch": "Recherche web", "NotebookEdit": "Notebook", "LS": "Dossier",
+               "TodoWrite": "Tâches"}
+TOOL_ICONS = {"Read": "text-x-generic-symbolic", "Edit": "document-edit-symbolic",
+              "MultiEdit": "document-edit-symbolic", "Write": "document-new-symbolic",
+              "Bash": "utilities-terminal-symbolic", "Grep": "system-search-symbolic",
+              "Glob": "system-search-symbolic", "Task": "avatar-default-symbolic",
+              "Agent": "avatar-default-symbolic", "WebFetch": "web-browser-symbolic",
+              "WebSearch": "web-browser-symbolic", "NotebookEdit": "document-edit-symbolic",
+              "LS": "folder-symbolic"}
+EDIT_TOOLS = ("Edit", "MultiEdit", "Write")
+FILE_TOOLS = ("Read", "Edit", "MultiEdit", "Write", "NotebookEdit")
+
+CSS = """
+.ccs-chat-notice { padding: 6px 12px; border-radius: 10px; font-size: 0.92em;
+  background-color: alpha(@window_fg_color, 0.06); }
+.ccs-chat-notice.error { background-color: alpha(@error_bg_color, 0.16); }
+.ccs-chat-notice.warning { background-color: alpha(@warning_bg_color, 0.20); }
+.ccs-code-box { background-color: alpha(@window_fg_color, 0.07); border-radius: 8px;
+  padding: 6px 10px; font-family: monospace; font-size: 0.92em; }
+.ccs-code-box.command { font-weight: 600; font-size: 1.0em; padding: 8px 12px; }
+.ccs-tool-head { padding: 2px 0; min-height: 0; }
+.ccs-tool-card .ccs-tool-name { font-weight: 700; }
+.ccs-diff-add { color: @success_color; font-weight: 700; font-feature-settings: "tnum"; }
+.ccs-diff-del { color: @error_color; font-weight: 700; font-feature-settings: "tnum"; }
+.ccs-todo-done label { text-decoration: line-through; opacity: 0.6; }
+.ccs-todo-now label { font-weight: 700; }
+.ccs-busy-row { padding: 4px 6px; }
+.ccs-composer { background-color: @card_bg_color; border-radius: 14px;
+  box-shadow: 0 0 0 1px alpha(@window_fg_color, 0.14); padding: 6px 8px; }
+.ccs-composer.drop { box-shadow: 0 0 0 2px @accent_bg_color; }
+.ccs-composer textview, .ccs-composer textview text { background: transparent; }
+.ccs-thumb { border-radius: 8px; }
+.ccs-chat-bar button.ccs-barbtn { padding: 2px 10px; min-height: 0; border-radius: 99px; font-size: 0.92em; }
+.ccs-chat-bar button.ccs-barbtn:checked { background-color: alpha(@warning_bg_color, 0.30);
+  color: @window_fg_color; }
+.ccs-chat-bar { padding: 2px 4px; }
+.ccs-queue-row { padding: 1px 0; }
+"""
+
+_css = False
+
+
+def install_css():
+    """Styles du chat (une fois par affichage)."""
+    global _css
+    display = Gdk.Display.get_default()
+    if _css or display is None:
+        return
+    _css = True
+    provider = Gtk.CssProvider()
+    if hasattr(provider, "load_from_string"):
+        provider.load_from_string(CSS)
+    else:
+        provider.load_from_data(CSS.encode())
+    Gtk.StyleContext.add_provider_for_display(display, provider,
+                                              Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 2)
+
+
+# ---- lecture des appels d'outils -----------------------------------------------------------
+
+def _first_line(text, limit=160):
+    for line in str(text).splitlines():
+        if line.strip():
+            line = line.strip()
+            return line if len(line) <= limit else line[:limit - 1] + "…"
+    return ""
+
+
+def tool_target(name, data, base_dir=None):
+    """Ce sur quoi porte l'outil, en une ligne : fichier (relatif au projet), commande,
+    motif, adresse…"""
+    data = data if isinstance(data, dict) else {}
+    for key in ("file_path", "notebook_path", "path"):
+        if isinstance(data.get(key), str) and data[key]:
+            return relative(data[key], base_dir)
+    for key in ("command", "pattern", "url", "query", "description", "prompt"):
+        if isinstance(data.get(key), str) and data[key].strip():
+            return _first_line(data[key])
+    for value in data.values():
+        if isinstance(value, str) and value.strip():
+            return _first_line(value)
+    return ""
+
+
+def relative(path, base_dir):
+    if base_dir and path.startswith(str(base_dir).rstrip("/") + "/"):
+        return os.path.relpath(path, base_dir)
+    return path
+
+
+def _counts(old, new):
+    plus = minus = 0
+    a, b = old.splitlines(), new.splitlines()
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag in ("replace", "delete"):
+            minus += i2 - i1
+        if tag in ("replace", "insert"):
+            plus += j2 - j1
+    return plus, minus
+
+
+def edit_info(name, data):
+    """(chemin, ancien texte, nouveau texte, +n, −m) d'une modification de fichier, ou None."""
+    if name not in EDIT_TOOLS or not isinstance(data, dict):
+        return None
+    path = data.get("file_path")
+    if not isinstance(path, str) or not path:
+        return None
+    if name == "Write":
+        new = str(data.get("content", ""))
+        return path, "", new, len(new.splitlines()), 0
+    if name == "Edit":
+        old, new = str(data.get("old_string", "")), str(data.get("new_string", ""))
+    else:
+        edits = [e for e in data.get("edits") or () if isinstance(e, dict)]
+        old = "\n".join(str(e.get("old_string", "")) for e in edits)
+        new = "\n".join(str(e.get("new_string", "")) for e in edits)
+    plus, minus = _counts(old, new)
+    return path, old, new, plus, minus
+
+
+def tool_label(name):
+    if name in TOOL_LABELS:
+        return TOOL_LABELS[name]
+    if name.startswith("mcp__"):
+        return " · ".join(p for p in name.split("__")[1:] if p) or name
+    return name
+
+
+def _clear(box):
+    while (child := box.get_first_child()) is not None:
+        box.remove(child)
+
+
+def _cut(text, limit=RESULT_CHARS):
+    text = str(text)
+    return text if len(text) <= limit else text[:limit] + f"\n… ({len(text) - limit} caractères de plus)"
+
+
+# ---- widgets -------------------------------------------------------------------------------
+
+class ToolCard(Gtk.Box):
+    """Carte repliable d'une action de Claude : icône (roue tant qu'elle tourne), nom, cible,
+    `+n −m` pour une modification ; le détail montre la commande et le résultat.
+
+    Le clic sur l'en-tête fait l'action principale (diff d'une modification, ouverture d'un
+    fichier lu, sinon déplier) ; la flèche déplie toujours."""
+
+    def __init__(self, name, target="", data=None, on_diff=None, on_open=None, nested=False):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4, css_classes=["ccs-tool-card"])
+        self.name, self.target, self.data = name, target, data or {}
+        self.on_diff, self.on_open = on_diff, on_open
+        self.edit = edit_info(name, self.data)
+        self.running = True
+        self.result_text = None
+        if nested:
+            self.set_margin_start(24)
+
+        self.icon = Gtk.Image(icon_name=TOOL_ICONS.get(name, "emblem-system-symbolic"))
+        self.spinner = Gtk.Spinner(spinning=True)
+        self.stack = Gtk.Stack()
+        self.stack.add_named(self.icon, "icon")
+        self.stack.add_named(self.spinner, "spin")
+        self.stack.set_visible_child_name("spin")
+
+        head = Gtk.Box(spacing=8)
+        head.append(self.stack)
+        head.append(Gtk.Label(label=tool_label(name), css_classes=["ccs-tool-name"]))
+        head.append(Gtk.Label(label=target, xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.MIDDLE,
+                              css_classes=["ccs-subtle"], tooltip_text=target or None))
+        if self.edit:
+            _p, _o, _n, plus, minus = self.edit
+            self.counts = Gtk.Box(spacing=6)
+            self.counts.append(Gtk.Label(label=f"+{plus}", css_classes=["ccs-diff-add"]))
+            self.counts.append(Gtk.Label(label=f"−{minus}", css_classes=["ccs-diff-del"]))
+            head.append(self.counts)
+        self.main = Gtk.Button(child=head, css_classes=["flat", "ccs-tool-head"], hexpand=True)
+        self.main.connect("clicked", self._on_main)
+        self.chevron = Gtk.Button(icon_name="pan-end-symbolic", css_classes=["flat", "circular"],
+                                  valign=Gtk.Align.CENTER, tooltip_text="Détail")
+        self.chevron.connect("clicked", lambda *_: self.toggle())
+        top = Gtk.Box(spacing=2)
+        top.append(self.main)
+        top.append(self.chevron)
+        self.append(top)
+
+        self.detail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_start=4, margin_end=4,
+                              margin_bottom=4)
+        self.revealer = Gtk.Revealer(child=self.detail, reveal_child=False,
+                                     transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+        self.append(self.revealer)
+        self._fill_detail()
+
+    # -- états --
+
+    def _fill_detail(self):
+        _clear(self.detail)
+        command = self.data.get("command") if self.name == "Bash" else None
+        if isinstance(command, str) and command:
+            self.detail.append(self._code("$ " + command))
+        elif self.edit:
+            self.detail.append(Gtk.Label(label="Clique sur la ligne pour voir le diff dans le panneau du fichier.",
+                                         xalign=0, css_classes=["ccs-subtle"], wrap=True))
+        if self.result_text:
+            self.detail.append(self._result(self.result_text))
+        elif self.running and not self.detail.get_first_child():
+            self.detail.append(Gtk.Label(label="En cours…", xalign=0, css_classes=["ccs-subtle"]))
+
+    @staticmethod
+    def _code(text):
+        return Gtk.Label(label=_cut(text, 4000), xalign=0, selectable=True, wrap=True,
+                         wrap_mode=Pango.WrapMode.WORD_CHAR, css_classes=["ccs-code-box", "command"])
+
+    @staticmethod
+    def _result(text):
+        label = Gtk.Label(label=_cut(text), xalign=0, yalign=0, selectable=True, wrap=True,
+                          wrap_mode=Pango.WrapMode.WORD_CHAR, css_classes=["ccs-code-box"])
+        scroll = Gtk.ScrolledWindow(child=label, hscrollbar_policy=Gtk.PolicyType.NEVER,
+                                    propagate_natural_height=True, max_content_height=260)
+        return scroll
+
+    def set_result(self, text, is_error=False):
+        self.running = False
+        self.result_text = (text or "").strip() or None
+        self.stack.set_visible_child_name("icon")
+        self.spinner.set_spinning(False)
+        self.icon.set_from_icon_name("dialog-error-symbolic" if is_error else "object-select-symbolic")
+        self.add_css_class("error" if is_error else "done")
+        self._fill_detail()
+        if is_error:
+            self.revealer.set_reveal_child(True)
+            self.chevron.set_icon_name("pan-down-symbolic")
+
+    def toggle(self, show=None):
+        show = (not self.revealer.get_reveal_child()) if show is None else show
+        self.revealer.set_reveal_child(show)
+        self.chevron.set_icon_name("pan-down-symbolic" if show else "pan-end-symbolic")
+
+    def _on_main(self, *_):
+        if self.edit and self.on_diff:
+            path, old, new, _p, _m = self.edit
+            self.on_diff(path, old, new)
+        elif self.name in ("Read", "NotebookEdit") and self.on_open and self.data.get("file_path"):
+            self.on_open(self.data["file_path"], 0)
+        else:
+            self.toggle()
+
+
+class PermissionCard(Gtk.Box):
+    """Demande d'autorisation : la commande en évidence, puis Autoriser / Toujours / Refuser
+    (motif facultatif pour le refus)."""
+
+    def __init__(self, req, on_answer, base_dir=None):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["ccs-permission-card"])
+        self.req, self.on_answer = req, on_answer
+        name = getattr(req, "display_name", "") or req.tool_name
+        head = Gtk.Box(spacing=8)
+        head.append(Gtk.Image(icon_name="dialog-password-symbolic"))
+        head.append(Gtk.Label(label=f"Claude demande l'autorisation : {name}", xalign=0, hexpand=True,
+                              wrap=True, css_classes=["heading"]))
+        self.append(head)
+        desc = getattr(req, "description", "") or ""
+        if desc:
+            self.append(Gtk.Label(label=desc, xalign=0, wrap=True, css_classes=["ccs-subtle"]))
+        self.append(Gtk.Label(label=_cut(self._shown(req, base_dir), 4000), xalign=0, selectable=True,
+                              wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+                              css_classes=["ccs-code-box", "command"]))
+        blocked = getattr(req, "blocked_path", None)
+        if blocked:
+            self.append(Gtk.Label(label=f"Chemin concerné : {blocked}", xalign=0, wrap=True,
+                                  css_classes=["ccs-subtle"]))
+
+        self.reason = Gtk.Entry(placeholder_text="Motif du refus (facultatif)", hexpand=True)
+        self.allow = Gtk.Button(label="Autoriser", css_classes=["suggested-action"])
+        self.allow.connect("clicked", lambda *_: self._answer("allow"))
+        rules = [s for s in (getattr(req, "suggestions", None) or ())
+                 if isinstance(s, dict) and s.get("type") == "addRules"]
+        self.always = Gtk.Button(label="Toujours", tooltip_text="Autoriser cette règle pour la suite, "
+                                 "dans les réglages du projet", visible=bool(rules))
+        self.always.connect("clicked", lambda *_: self._answer("always"))
+        self.deny = Gtk.Button(label="Refuser", css_classes=["destructive-action"])
+        self.deny.connect("clicked", lambda *_: self._answer("deny"))
+        self.reason.connect("activate", lambda *_: self._answer("deny"))
+        row = Gtk.Box(spacing=8)
+        for w in (self.allow, self.always, self.reason, self.deny):
+            row.append(w)
+        self.buttons = row
+        self.append(row)
+        self.verdict = Gtk.Label(xalign=0, css_classes=["heading"], visible=False)
+        self.append(self.verdict)
+
+    @staticmethod
+    def _shown(req, base_dir):
+        data = req.input if isinstance(req.input, dict) else {}
+        if isinstance(data.get("command"), str):
+            return data["command"]
+        for key in ("file_path", "path", "url", "pattern", "query"):
+            if isinstance(data.get(key), str):
+                return relative(data[key], base_dir)
+        try:
+            return json.dumps(data, ensure_ascii=False, indent=1)
+        except (TypeError, ValueError):
+            return str(data)
+
+    def _answer(self, decision):
+        if self.answered:
+            return
+        self.resolve(decision)
+        self.on_answer(self.req.request_id, decision, self.reason.get_text().strip() if decision == "deny" else "")
+
+    @property
+    def answered(self):
+        return self.verdict.get_visible()
+
+    def resolve(self, decision):
+        """Fige la carte : l'autorisation a reçu sa réponse."""
+        self.buttons.set_visible(False)
+        self.verdict.set_label({"allow": "Autorisé", "always": "Autorisé, et toujours pour cette règle",
+                                "deny": "Refusé", "cancelled": "Annulée"}.get(decision, decision))
+        self.verdict.add_css_class("success" if decision in ("allow", "always") else "error")
+        self.verdict.set_visible(True)
+
+
+class TodosCard(Gtk.Box):
+    """Liste de tâches de Claude, en cases à cocher mises à jour."""
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6, css_classes=["ccs-card", "flat"])
+        self.title = Gtk.Label(xalign=0, css_classes=["ccs-card-title"])
+        self.rows = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.append(self.title)
+        self.append(self.rows)
+
+    def update(self, items):
+        _clear(self.rows)
+        done = 0
+        for text, status in items:
+            check = Gtk.CheckButton(label=text, active=status == "completed", can_target=False,
+                                    focusable=False)
+            child = check.get_last_child()
+            if isinstance(child, Gtk.Label):
+                child.set_wrap(True)
+            if status == "completed":
+                done += 1
+                check.add_css_class("ccs-todo-done")
+            row = Gtk.Box(spacing=8)
+            row.append(check)
+            if status == "in_progress":
+                check.add_css_class("ccs-todo-now")
+                row.append(Gtk.Spinner(spinning=True))
+            self.rows.append(row)
+        self.title.set_label(f"Tâches · {done}/{len(items)}")
+
+
+class _Segment:
+    """Un morceau de réponse de Claude (une bulle) : texte brut accumulé et rendu différé."""
+
+    def __init__(self, bubble, view):
+        self.bubble, self.view = bubble, view
+        self.text, self.timer, self.closed = "", 0, False
+
+
+# ---- la liste ------------------------------------------------------------------------------
+
+class MessageList(Gtk.ScrolledWindow):
+    """Fil de la conversation. Les widgets sont ajoutés en bas ; l'historique d'un chat rouvert
+    se construit par paquets de 50 en remontant."""
+
+    def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None):
+        super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True, hexpand=True)
+        install_css()
+        self.on_diff, self.on_open, self.on_link = on_diff, on_open, on_link
+        self.base_dir = base_dir
+        self._dark = False
+        self._views = []
+        self._segs = {}           # msg_id -> segment courant
+        self._tools = {}          # tool_id -> ToolCard
+        self._perms = {}          # request_id -> PermissionCard
+        self._todos = None
+        self._last = None         # dernier widget de contenu (avant la ligne d'activité)
+        self._hist, self._hist_pos = [], 0
+        self._built = 0
+        self._stick, self._moving = True, False
+
+        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin_top=14, margin_bottom=14,
+                           margin_start=16, margin_end=16)
+        self.busy_label = Gtk.Label(xalign=0, css_classes=["ccs-subtle"])
+        self.busy_spinner = Gtk.Spinner(spinning=True)
+        self.busy_row = Gtk.Box(spacing=8, css_classes=["ccs-busy-row"], visible=False)
+        self.busy_row.append(self.busy_spinner)
+        self.busy_row.append(self.busy_label)
+        self.box.append(self.busy_row)
+        self.set_child(Adw.Clamp(child=self.box, maximum_size=MAX_WIDTH, tightening_threshold=MAX_WIDTH - 200))
+        adj = self.get_vadjustment()
+        adj.connect("value-changed", self._on_value)
+        adj.connect("notify::upper", self._on_upper)
+
+    # -- défilement --
+
+    def _on_value(self, adj):
+        if self._moving:
+            return
+        self._stick = adj.get_upper() - adj.get_page_size() - adj.get_value() < STICK_PX
+        if adj.get_value() < 80 and self._hist_pos > 0:
+            self._load_more()
+
+    def _on_upper(self, adj, _p):
+        if self._stick:
+            self.scroll_end()
+
+    def scroll_end(self):
+        adj = self.get_vadjustment()
+        self._moving = True
+        adj.set_value(max(0.0, adj.get_upper() - adj.get_page_size()))
+        self._moving = False
+
+    # -- ajout --
+
+    def _append(self, widget):
+        """Ajoute en bas du fil, avant la ligne d'activité."""
+        self.box.insert_child_after(widget, self._last)
+        self._last = widget
+        self._built += 1
+        return widget
+
+    def _bubble_widget(self, role_class, child, halign):
+        bubble = Gtk.Box(css_classes=[role_class], halign=halign)
+        bubble.append(child)
+        return bubble
+
+    def _markdown(self, text=""):
+        view = MarkdownView(text, base_dir=self.base_dir, on_link=lambda uri: self.on_link and self.on_link(uri))
+        view.set_dark(self._dark)
+        self._views.append(view)
+        return view
+
+    def _user_widget(self, text, images=()):
+        col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        for media_type, data in images or ():
+            try:
+                texture = Gdk.Texture.new_from_bytes(GLib.Bytes.new(data))
+            except (GLib.Error, TypeError):
+                continue
+            pic = Gtk.Picture(paintable=texture, content_fit=Gtk.ContentFit.SCALE_DOWN, halign=Gtk.Align.START,
+                              css_classes=["ccs-thumb"], height_request=min(180, texture.get_height()),
+                              width_request=min(320, texture.get_width()))
+            col.append(pic)
+        if text:
+            col.append(Gtk.Label(label=text, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+                                 selectable=True, max_width_chars=80))
+        outer = Gtk.Box(halign=Gtk.Align.END, margin_start=60)
+        outer.append(self._bubble_widget("ccs-bubble-user", col, Gtk.Align.END))
+        return outer
+
+    def _assistant_widget(self, text=""):
+        view = self._markdown(text)
+        bubble = Gtk.Box(css_classes=["ccs-bubble-claude"], hexpand=True, margin_end=24, visible=bool(text))
+        bubble.append(view)
+        return bubble, view
+
+    def _tool_widget(self, name, target, data=None, nested=False):
+        return ToolCard(name, target, data, on_diff=lambda *a: self.on_diff and self.on_diff(*a),
+                        on_open=lambda *a: self.on_open and self.on_open(*a), nested=nested)
+
+    def _notice_widget(self, text, kind="info", action=None):
+        row = Gtk.Box(spacing=8, css_classes=["ccs-chat-notice"] + ([kind] if kind != "info" else []))
+        icon = {"error": "dialog-error-symbolic", "warning": "dialog-warning-symbolic"}.get(
+            kind, "dialog-information-symbolic")
+        row.append(Gtk.Image(icon_name=icon, valign=Gtk.Align.START))
+        row.append(Gtk.Label(label=text, xalign=0, hexpand=True, wrap=True, selectable=True,
+                             wrap_mode=Pango.WrapMode.WORD_CHAR))
+        if action:
+            label, callback = action
+            button = Gtk.Button(label=label, valign=Gtk.Align.CENTER, css_classes=["suggested-action"])
+            button.connect("clicked", lambda b: callback())
+            row.append(button)
+        return row
+
+    def add_user(self, text, images=()):
+        self._append(self._user_widget(text, images))
+        self.scroll_end_if_stuck()
+
+    def _segment(self, msg_id, create=True):
+        seg = self._segs.get(msg_id)
+        if seg is not None and seg.bubble is self._last and not seg.closed:
+            return seg
+        if not create:
+            return None
+        bubble, view = self._assistant_widget()
+        seg = _Segment(bubble, view)
+        self._append(bubble)
+        self._segs[msg_id] = seg
+        return seg
+
+    def start_assistant(self, msg_id):
+        self._segment(msg_id)
+
+    def append_delta(self, msg_id, text):
+        seg = self._segment(msg_id)
+        seg.text += text
+        if not seg.timer:
+            seg.timer = GLib.timeout_add(RENDER_MS, self._render, seg)
+
+    def _render(self, seg):
+        seg.timer = 0
+        seg.bubble.set_visible(bool(seg.text.strip()))
+        seg.view.set_text(seg.text)
+        self.scroll_end_if_stuck()
+        return False
+
+    def finish_assistant(self, msg_id, text):
+        seg = self._segment(msg_id, create=bool(text and text.strip()))
+        if seg is None:
+            return
+        if seg.timer:
+            GLib.source_remove(seg.timer)
+            seg.timer = 0
+        if text and text.strip():
+            seg.text = text
+        seg.closed = True
+        self._render(seg)
+
+    def add_tool(self, ev):
+        card = self._tool_widget(ev.name, tool_target(ev.name, ev.input, self.base_dir), ev.input,
+                                 nested=bool(getattr(ev, "parent_id", None)))
+        self._tools[ev.tool_id] = card
+        self._append(card)
+        self.scroll_end_if_stuck()
+        return card
+
+    def set_tool_result(self, ev):
+        card = self._tools.get(ev.tool_id)
+        if card is not None:
+            card.set_result(ev.text, ev.is_error)
+
+    def add_permission(self, req, on_answer):
+        card = PermissionCard(req, on_answer, self.base_dir)
+        self._perms[req.request_id] = card
+        self._append(card)
+        self.scroll_end_if_stuck()
+        return card
+
+    def resolve_permission(self, request_id, decision):
+        card = self._perms.get(request_id)
+        if card is not None and not card.answered:
+            card.resolve(decision)
+
+    def cancel_permissions(self):
+        for card in self._perms.values():
+            if not card.answered:
+                card.resolve("cancelled")
+
+    def set_todos(self, ev):
+        if self._todos is None:
+            self._todos = TodosCard()
+            self._append(self._todos)
+        self._todos.update(ev.items)
+        self.scroll_end_if_stuck()
+
+    def add_notice(self, text, kind="info", action=None):
+        widget = self._notice_widget(text, kind, action)
+        self._append(widget)
+        self.scroll_end_if_stuck()
+        return widget
+
+    def set_busy(self, busy, text="Claude travaille…"):
+        self.busy_row.set_visible(bool(busy))
+        self.busy_spinner.set_spinning(bool(busy))
+        self.busy_label.set_label(text)
+        if busy:
+            self.scroll_end_if_stuck()
+
+    def scroll_end_if_stuck(self):
+        if self._stick:
+            GLib.idle_add(lambda: (self.scroll_end(), False)[1])
+
+    def set_dark(self, dark):
+        self._dark = bool(dark)
+        for view in self._views:
+            view.set_dark(dark)
+
+    # -- historique --
+
+    @property
+    def built_count(self):
+        """Lignes de contenu réellement construites."""
+        return self._built
+
+    def row_count(self):
+        return self.box.observe_children().get_n_items() - 1
+
+    def load_history(self, messages):
+        """Montre `messages` (preview.Message) : les derniers d'abord, les plus anciens au
+        défilement vers le haut."""
+        self._hist, self._hist_pos = list(messages), len(messages)
+        self._stick = True
+        self._load_more(initial=True)
+
+    def _history_widget(self, m):
+        if m.role == preview.USER:
+            return self._user_widget(m.text)
+        if m.role == preview.ASSISTANT:
+            if not (m.text or "").strip():
+                return None
+            bubble, _view = self._assistant_widget(m.text)
+            return bubble
+        if m.role == preview.TOOL and m.tool is not None:
+            card = self._tool_widget(m.tool.name, m.tool.target or "")
+            card.set_result(m.tool.result, m.tool.is_error)
+            if not m.tool.is_error:
+                card.remove_css_class("done")
+            return card
+        if m.text:
+            return self._notice_widget(m.text)
+        return None
+
+    def _load_more(self, initial=False):
+        start = max(0, self._hist_pos - PAGE)
+        batch = self._hist[start:self._hist_pos]
+        self._hist_pos = start
+        adj = self.get_vadjustment()
+        old_upper, old_value = adj.get_upper(), adj.get_value()
+        prev = None
+        for m in batch:
+            widget = self._history_widget(m)
+            if widget is None:
+                continue
+            self.box.insert_child_after(widget, prev)
+            self._built += 1
+            prev = widget
+        if initial:
+            self._last = self.busy_row.get_prev_sibling()  # la fin de l'historique est la fin du fil
+        elif prev is not None:
+            # garde à l'écran ce que l'on regardait : le contenu ajouté pousse tout vers le bas
+            handler = []
+
+            def keep(a, _p):
+                a.disconnect(handler[0])
+                self._moving = True
+                a.set_value(old_value + a.get_upper() - old_upper)
+                self._moving = False
+            handler.append(adj.connect("notify::upper", keep))
