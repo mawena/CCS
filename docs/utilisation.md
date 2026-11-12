@@ -807,17 +807,16 @@ demande de permission en cours.
 
 ## Navigation et apparence
 
-La fenêtre a **quatre onglets** en haut (une barre en bas quand elle est étroite) :
+La fenêtre a **trois onglets** en haut (une barre en bas quand elle est étroite) :
 
 | Onglet | Contenu |
 |---|---|
-| **Accueil** | cartes des comptes, file de tâches et meilleur moment (l'ancien Planning), fil des derniers événements (bascules, tâches finies) |
+| **Accueil** | cartes des comptes, fil des derniers événements (bascules, tâches finies), puis le planning : orchestrateur, file de tâches et meilleur moment |
 | **Sessions** | l'onglet fixe « Toutes les sessions » (projets, sessions ouvertes, conversations), puis un onglet par chat et par shell ouvert |
-| **Projets** | les feuilles de route de tous tes projets (voir [Page Projets](#page-projets)) |
 | **Analyse** | l'analyse et l'historique (courbes, journal des bascules), choisis par le sélecteur en haut |
 
 **Réglages** est dans le menu ☰, en fenêtre à part. Raccourcis : **Ctrl+1** à
-**Ctrl+4** pour les quatre onglets, **Ctrl+virgule** pour les réglages, F5 ou
+**Ctrl+3** pour les trois onglets, **Ctrl+virgule** pour les réglages, F5 ou
 Ctrl+R pour actualiser. Le badge de l'onglet Sessions compte les chats et les
 terminaux qui attendent ta réponse.
 
@@ -830,7 +829,6 @@ l'icône et par le clic sur une notification :
 | `accueil` | Accueil |
 | `comptes`, `planning` | Accueil (`--page planning --task <id>` affiche la tâche) |
 | `sessions`, `conversations`, `terminaux` | Sessions |
-| `projets` | Projets |
 | `analyse`, `historique` | Analyse (partie Analyse ou partie Historique) |
 | `reglages` | la fenêtre des réglages |
 
@@ -1040,22 +1038,6 @@ personnel. **Dossier du projet…** (clic droit sur l'onglet) fait partir l'arbr
 fichiers et la feuille de route d'un autre dossier ; si la conversation est arrêtée,
 elle y est aussi reliée, et sa reprise se fait depuis le projet. Ces choix sont
 gardés quand l'onglet est rouvert.
-
-## Page Projets
-
-L'onglet **Projets** liste les projets où tu as déjà ouvert une session Claude et
-qui ont un `ROADMAP.md`. Le réglage `projects.hidden` (liste de dossiers) en
-masque certains. Chaque carte donne le nom, la dernière version (dernier tag git
-`v*`), la dernière activité (dernier commit ou dernière conversation), la phase
-en cours et sa barre.
-
-Un clic sur une carte ouvre le **détail** : la feuille de route complète (cases
-cliquables comme dans l'onglet de session), la **frise des versions** (tags git et
-dates), les **tâches cochées par jour** sur les derniers jours, tirées de
-l'historique git de `ROADMAP.md`, la date de fin de chaque phase finie, et le
-bouton **Ouvrir une session dans ce projet**. Les calculs git se font en arrière-plan
-et ne bloquent pas la fenêtre ; un projet hors git garde sa carte, sans versions
-ni historique. CCS n'écrit jamais dans le dépôt, hors la case que tu cliques.
 
 ## Terminal intégré
 

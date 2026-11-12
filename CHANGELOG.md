@@ -80,9 +80,6 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   (dépôt git). « Dossier du projet… » (menu de l'onglet) fait partir l'arbre et la
   feuille de route d'un autre dossier, et relie aussi une conversation arrêtée à ce
   dossier. Ces choix sont gardés à la réouverture.
-- **Page Projets** : tous les projets qui ont une feuille de route, avec leur
-  dernière version, leur dernière activité, leur phase en cours, la frise des
-  versions et les tâches cochées par jour (tirées de l'historique git).
 - **Couleur par compte**, choisie automatiquement et modifiable (Réglages →
   Apparence), reprise sur les cartes, les jauges, les courbes et la barre du chat ;
   thème Automatique, Clair ou Sombre.
@@ -95,13 +92,16 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ### Modifié
 
-- **Navigation en quatre onglets** : Accueil (comptes, file de tâches, derniers
-  événements), Sessions (« Toutes les sessions », puis un onglet par chat et par
-  shell), Projets, Analyse (analyse et historique). Les Réglages sont dans le menu
-  ☰, en fenêtre à part (Ctrl+virgule). Ctrl+1 à Ctrl+4 changent d'onglet. Les
-  anciens noms de `claude-accounts gui --page` (`comptes`, `planning`,
-  `terminaux`, `historique`…) mènent au bon onglet, et `accueil` et `projets`
-  s'ajoutent.
+- **Navigation en trois onglets** : Accueil, Sessions (« Toutes les sessions », puis
+  un onglet par chat et par shell), Analyse (analyse et historique). Les Réglages
+  sont dans le menu ☰, en fenêtre à part (Ctrl+virgule). Ctrl+1 à Ctrl+3 changent
+  d'onglet. Les anciens noms de `claude-accounts gui --page` (`comptes`, `planning`,
+  `terminaux`, `historique`…) mènent au bon onglet, et `accueil` s'ajoute.
+- **Accueil redessiné** : une seule colonne de même largeur, des titres de section
+  (Comptes, Derniers événements, Planning), les derniers événements avant le
+  planning. L'erreur d'un compte se lit en clair (« Connexion refusée par
+  Anthropic : reconnecte ce compte ») au lieu de la réponse brute de l'API, gardée
+  dans l'info-bulle.
 - « Nouvelle session… », « Reprendre » et les sessions rouvertes au démarrage
   ouvrent un chat au lieu d'un terminal Claude. Les onglets enregistrés par la 0.9
   se rouvrent en chat, avec leur historique ; un onglet shell reste un shell.
@@ -109,10 +109,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   onglet, largeurs des volets) ; un fichier de la version 1 se lit sans perte.
 - Nouveaux réglages, dans la fenêtre des Réglages : groupe « Chat et fichiers »
   (mise en veille d'un chat inactif, droits par défaut des nouveaux chats,
-  fichiers ignorés par git, disposition A ou B), projets masqués (« Masquer ce
-  projet » sur une carte de la page Projets, « Réafficher » dans les Réglages),
-  apparence (thème, couleur par compte). Clés de `settings.json` : `chat`,
-  `files`, `projects`, `appearance`.
+  fichiers ignorés par git, disposition A ou B), apparence (thème, couleur par
+  compte). Clés de `settings.json` : `chat`, `files`, `appearance`.
 - Dépendances : le paquet requiert maintenant `gir1.2-gtksource-5` (éditeur et
   coloration) et `python3-markdown-it` (rendu du Markdown).
 - Documentation : README, guide d'utilisation, architecture (avec le protocole

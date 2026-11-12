@@ -69,7 +69,7 @@ raccourcis clavier.
 | `terminal_store` | `terminals.json` : interrupteurs de la page Terminaux, onglets à rouvrir (écriture atomique, fichier illisible ignoré) |
 | `limit_events` | Marqueurs « limite atteinte » par conversation (`limits/<session_id>.json`) : écrits par le hook, lus puis consommés par le terminal intégré |
 | `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état (⏸ en pause, « → sonnet ? » près des limites avec un modèle cher), hook `StopFailure` (bascule, sauf en pause ; marqueur de limite) ; `read_stdin_json(timeout)` : contexte JSON de Claude Code, jamais lu sur un terminal, 2 s d'attente au plus |
-| `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` (revérifié toutes les 5 s, `WATCH_S` : installé quand le dossier apparaît, réinstallé s'il est supprimé ou remplacé) ; `show_session` : ouvrir l'application sur une session ; pages acceptées par `gui --page` : les quatre onglets `PAGES` (`home`, `sessions`, `projects`, `analysis`) et, par `SUBPAGES`, les anciens noms ramenés à (onglet, sous-partie) ; `canonical_page` normalise (accents, casse), `page_name` renvoie le couple |
+| `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` (revérifié toutes les 5 s, `WATCH_S` : installé quand le dossier apparaît, réinstallé s'il est supprimé ou remplacé) ; `show_session` : ouvrir l'application sur une session ; pages acceptées par `gui --page` : les trois onglets `PAGES` (`home`, `sessions`, `analysis`) et, par `SUBPAGES`, les anciens noms ramenés à (onglet, sous-partie) ; `canonical_page` normalise (accents, casse), `page_name` renvoie le couple |
 | `attention` | Ce qui demande l'attention dans la fenêtre (pur) : libellé de pause de l'en-tête, bandeaux nouvelle version et bilan, badge des sessions en attente, référence de session (`<pid>:<id>`) et cible d'un clic sur une notification |
 | `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie ; ligne « Réglages » en avertissement quand des clés de `settings.json` sont ignorées |
 | `chat_protocol` | Protocole stream-json de Claude Code, sans GTK : `parse_line` transforme une ligne de stdout en événements (dataclasses gelées : `Init`, `Hello`, `TextDelta`, `AssistantText`, `ToolUse`, `ToolResult`, `Todos`, `PermissionRequest`, `ControlReply`, `TurnResult`…, `Unknown` pour tout le reste) et ne lève jamais ; `user_message`, `control`, `allow`, `allow_always`, `deny` fabriquent les lignes de stdin (JSON ASCII pur) |
@@ -78,9 +78,8 @@ raccourcis clavier.
 | `markdown_render` | Markdown (markdown-it) en blocs simples (`Heading`, `Paragraph`, `ListBlock`, `Code`, `Table`, `Quote`, `Rule`, `Image`) et balisage Pango échappé ; sert au chat et à l'aperçu des fichiers |
 | `file_tree` | Sans GTK : marques git (`git status --porcelain`, sans verrou), fichiers ignorés, type d'un fichier (texte, image, binaire, trop gros), lecture sûre, empreinte, enregistrement atomique qui garde les droits |
 | `roadmap` | `ROADMAP.md` : `parse` (phases `##`, tâches `- [ ]`, version des parenthèses), `toggle` (change un seul caractère, relit si le fichier a changé), `newly_done` (cases cochées depuis la lecture précédente) |
-| `projects` | Projets (conversations avec un `ROADMAP.md`), versions (tags `v*`), cases cochées par jour tirées de l'historique git de `ROADMAP.md` ; calcul mis en cache dans `projects-cache.json` par (dossier, dernier commit) ; n'écrit jamais dans les dépôts |
 | `account_colors` | Couleur de chaque compte : palette attribuée dans l'ordre alphabétique des profils, remplacée par le choix de `appearance.account_colors` |
-| `gui/` | Application GTK 4 / libadwaita (quatre onglets : `gui/home_page`, `gui/sessions_page` + `gui/terminals`, `gui/projects_page`, `gui/analysis_hub`) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets de session, chats et shells (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages ; `gui/update_dialog` : dialogue de mise à jour en un clic ; `gui/tasks_view` : tâches de l'onglet Planning ; `gui/budget_view` : budgets de l'onglet Analyse ; `gui/phone_group`, `gui/backup_group` : groupes « Téléphone » et « Sauvegarde » des Réglages ; `gui/fiche_view` : fiche de l'aperçu ; chat : `gui/chat_tab`, `gui/chat_messages`, `gui/chat_composer`, `gui/chat_bar`, `gui/markdown_view` ; espace de session : `gui/session_workspace`, `gui/file_panel`, `gui/file_editor`, `gui/roadmap_view` ; `gui/prefs_dialog` (Réglages en `Adw.PreferencesDialog`), `gui/style` (CSS commun, couleurs des comptes, thème) ; carte « Meilleur moment » (`gui/planning`) et carte « Rapport mensuel » (`gui/advisor_cards`) |
+| `gui/` | Application GTK 4 / libadwaita (trois onglets : `gui/home_page`, `gui/sessions_page` + `gui/terminals`, `gui/analysis_hub`) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets de session, chats et shells (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages ; `gui/update_dialog` : dialogue de mise à jour en un clic ; `gui/tasks_view` : tâches de l'onglet Planning ; `gui/budget_view` : budgets de l'onglet Analyse ; `gui/phone_group`, `gui/backup_group` : groupes « Téléphone » et « Sauvegarde » des Réglages ; `gui/fiche_view` : fiche de l'aperçu ; chat : `gui/chat_tab`, `gui/chat_messages`, `gui/chat_composer`, `gui/chat_bar`, `gui/markdown_view` ; espace de session : `gui/session_workspace`, `gui/file_panel`, `gui/file_editor`, `gui/roadmap_view` ; `gui/prefs_dialog` (Réglages en `Adw.PreferencesDialog`), `gui/style` (CSS commun, couleurs des comptes, thème) ; carte « Meilleur moment » (`gui/planning`) et carte « Rapport mensuel » (`gui/advisor_cards`) |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version (« Installer CCS x.y.z… ») ; sous-menu Sessions (une entrée par session, en attente d'abord ; un clic ouvre la session par la même route que les notifications ; « · 💬 n » dans le libellé) ; entrée « Ne pas déranger » du menu principal (sous-menu 1 heure, 4 heures, Jusqu'à demain 08:00, Reprendre les notifications ; 🔕 dans le libellé pendant un silence) ; `APP_ENTRIES` (« Journal des bascules » → `gui --page historique`, « Bilan de la semaine » → `gui --page analyse`, « Ouvrir CCS ») ; `switch_to` (bascule notée « icone ») ; se relance seul quand le code installé change |
 | `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `mois`, `moment`, `silence` / `quiet`, `mise-a-jour` / `maj`, `journal`, `projet`, `raccourcis` / `shortcuts`, `tache` / `taches` / `tasks`, `budget`, `fiche`, `sauvegarde` / `backup`, `restaurer` / `restore`, `telephone` / `phone`, `notify`, `best --notifier`, `pause --notifier`, `gui --session`, `--page`, `--new-session`) |
 
@@ -326,8 +325,8 @@ qui demande l'attention :
 
 - **Menu ☰** : « Nouvelle session… » (`win.new-session`), « Bilan de santé… »
   (`win.doctor`) et « Réglages » (`win.prefs`, Ctrl+virgule ; fenêtre à part depuis la
-  phase 12). Quatre onglets (`home`, `sessions`, `projects`, `analysis`), Ctrl+1 à
-  Ctrl+4 (`win.show-tab`) ; les descriptions d'onglets plus bas datent d'avant la
+  phase 12). Trois onglets (`home`, `sessions`, `analysis`), Ctrl+1 à
+  Ctrl+3 (`win.show-tab`) ; les descriptions d'onglets plus bas datent d'avant la
   phase 12 et valent pour leurs parties (Accueil = Comptes + Planning, Analyse =
   Analyse + Historique, Sessions = Sessions + Terminaux).
 - **En-tête** : « Auto », remplacé pendant une pause par le bouton
@@ -882,16 +881,16 @@ CCS n'envoie jamais pendant un tour.
   recharge un fichier non modifié, propose un choix (garder, prendre le disque,
   voir les différences) sinon, et enregistre de façon atomique.
 - **Feuille de route** : `gui/roadmap_view.RoadmapView` lit et suit `ROADMAP.md`
-  dans un fil ; un clic appelle `roadmap.toggle`. `gui/projects_page.ProjectsPage`
-  calcule `projects.list_projects` et `projects.history` dans un fil, jamais à
-  l'ouverture de la page.
-- **Navigation et style** : `desktop.PAGES` (4 onglets) et `SUBPAGES` ;
+  dans un fil ; un clic appelle `roadmap.toggle`. `follow` suit le `ROADMAP.md` que
+  Claude lit ou modifie (`roadmap.path_in_tool`, signal `tool-used` du chat).
+  La page Projets de la 0.10.0 en préparation a été retirée à l'essai.
+- **Navigation et style** : `desktop.PAGES` (3 onglets) et `SUBPAGES` ;
   `gui/analysis_hub` réunit Analyse et Historique derrière un sélecteur ;
-  `gui/home_page` réunit Comptes et Planning ; `gui/style.install` ajoute les
+  `gui/home_page` réunit Comptes, Derniers événements et Planning, en sections titrées de même largeur (`WIDTH`) ; `gui/style.install` ajoute les
   classes CSS et la couleur des comptes, `style.apply_color_scheme` suit
   `appearance.color_scheme` (`Adw.StyleManager`).
 - **Réglages ajoutés** (`settings.DEFAULTS`) : `chat` (`idle_suspend_min`, `rights`),
-  `files` (`layout`, `show_ignored`), `projects` (`hidden`), `appearance`
+  `files` (`layout`, `show_ignored`), `appearance`
   (`color_scheme`, `account_colors`). Seul `appearance` a des commandes dans la
   fenêtre des Réglages ; les autres se changent dans `settings.json`.
 - **`terminals.json` en version 2** : un onglet `claude` porte `chat` (modèle, effort,

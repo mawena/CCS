@@ -224,11 +224,18 @@ Les fichiers :
 
 Feuille de route et projets :
 - [x] Feuille de route dans l'onglet de session : phases, cases cliquables, case cochée mise en avant
-- [x] Page Projets : cartes des projets, frise des versions, tâches cochées par jour
+- [x] Page Projets : cartes des projets, frise des versions, tâches cochées par jour (retirée à l'essai le 12/11 : sans utilité)
 
 Le design :
-- [x] Navigation en 4 onglets (Accueil, Sessions, Projets, Analyse), Réglages dans le menu, anciens noms de page acceptés
+- [x] Navigation en 3 onglets (Accueil, Sessions, Analyse), Réglages dans le menu, anciens noms de page acceptés
 - [x] Nouveau design : couleur par compte, cartes, écrans vides, clair et sombre
+
+Retours de l'essai de Charles (12/11) :
+- [x] Envoi direct pendant que Claude travaille, « Envoyer maintenant », « Tout autoriser », saisie lisible en sombre, défilement et « Nouveaux messages »
+- [x] Sous-agents en pastilles et leurs autorisations, questions inconnues de la CLI, pas de mise en veille pendant un sous-agent
+- [x] Feuille de route qui suit le projet de la conversation, « Dossier du projet… », conversations reliées à leur projet
+- [x] Fichiers joints, bilan de chaque réponse, bouton Copier, longs messages repliés, actions regroupées dans le fil
+- [x] Bandeau « Relancer » après une mise à jour, Accueil redessiné, page Projets retirée
 
 Documentation et release :
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG, site)
