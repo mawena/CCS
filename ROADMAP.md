@@ -239,4 +239,4 @@ Retours de l'essai de Charles (12/11) :
 
 Documentation et release :
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG, site)
-- [ ] Release mineure 0.10.0, `.deb`, release GitHub et dépôt APT
+- [x] Release mineure 0.10.0, `.deb`, release GitHub et dépôt APT (12/11)
