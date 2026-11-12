@@ -184,7 +184,7 @@ Déjà fait :
 - [x] Conception validée sur maquettes : chat, fichiers, feuille de route, page Projets, navigation
 
 Le chat :
-- [ ] Essai réel du protocole de Claude Code (stream-json, autorisations, `/effort`, ultracode), avec l'accord de Charles
+- [x] Essai réel du protocole de Claude Code (stream-json, autorisations, `/effort`, ultracode), avec l'accord de Charles (12/11, 5 messages Haiku)
 - [ ] Moteur du chat sans GTK et faux `claude` pour les tests
 - [ ] Chat graphique : bulles, Markdown, cartes d'actions, autorisations, liste de tâches, saisie avec `@`, `/` et images
 - [ ] Barre cliquable : modèle, effort, ultracode, droits ; contexte et compte
