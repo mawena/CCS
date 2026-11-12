@@ -5,6 +5,75 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Ajouté
+
+- **Chat graphique.** Une session Claude de CCS est maintenant un chat, plus un
+  terminal : tes messages en bulles, les réponses de Claude en Markdown mis en
+  forme (titres, listes, tableaux, code coloré), qui arrivent au fil de l'eau.
+  Chaque action de Claude (fichier lu ou modifié avec son `+12 −3`, commande,
+  recherche, sous-agent) est une carte repliable, et sa liste de tâches
+  s'affiche en cases à cocher.
+- **Barre cliquable du chat** : modèle, effort (faible à max, les niveaux que le
+  modèle n'accepte pas sont grisés), ultracode et droits (Demander,
+  Modifications acceptées, Plan, Tout autoriser), avec le contexte utilisé et le
+  compte à droite. Les choix sont gardés par onglet.
+- **Autorisations dans le chat** : une demande de Claude devient une carte avec
+  Autoriser, Toujours (la règle exacte est écrite dans le
+  `.claude/settings.local.json` du projet, sans changer les droits de la session)
+  et Refuser (motif facultatif). L'alerte « attend ta réponse » se déclenche.
+- **Saisie du chat** : `@` propose les fichiers du projet, `/` les commandes de
+  Claude Code, une image collée ou glissée s'ajoute au message, un fichier glissé
+  depuis l'arbre insère `@chemin`. Le bouton Arrêter (ou Échap) interrompt Claude.
+  Un message écrit pendant que Claude travaille rejoint la file de messages.
+- **Mise en veille** : un chat resté 30 minutes au repos arrête son processus
+  `claude` pour ménager la mémoire, puis le relance sur la même conversation au
+  message suivant (réglage `chat.idle_suspend_min`, 0 = jamais). Un chat rouvert
+  montre son historique sans lancer `claude`.
+- **Ouvrir cette conversation dans un terminal** (menu de l'onglet) : sortie de
+  secours pour les commandes interactives de Claude Code, avec « Revenir au chat ».
+- **Panneau Fichiers** dans chaque onglet de session : arbre du projet avec les
+  marques git (`M`, `A`, `?`, `D`), fichiers ouverts à côté du chat (coloration,
+  numéros de ligne, recherche Ctrl+F, images), aperçu Markdown, édition et
+  Ctrl+S, diff des modifications de Claude. Un fichier modifié par Claude se
+  recharge ; si tu avais des changements non enregistrés, un bandeau te laisse
+  choisir. Deux dispositions (B par défaut : arbre | chat | fichier ; A : arbre |
+  fichier | chat), séparations réglables, Ctrl+B pour replier l'arbre.
+- **Feuille de route** dans l'onglet de session : le `ROADMAP.md` du projet avec
+  phases, barres de progression et cases cliquables (un clic coche la case dans
+  le fichier, sans le réécrire). Sans `ROADMAP.md`, le bouton « Demander à Claude
+  d'en créer une » écrit au chat.
+- **Page Projets** : tous les projets qui ont une feuille de route, avec leur
+  dernière version, leur dernière activité, leur phase en cours, la frise des
+  versions et les tâches cochées par jour (tirées de l'historique git).
+- **Couleur par compte**, choisie automatiquement et modifiable (Réglages →
+  Apparence), reprise sur les cartes, les jauges, les courbes et la barre du chat ;
+  thème Automatique, Clair ou Sombre.
+- **Bilan de santé** : la ligne « Chat graphique » vérifie `gir1.2-gtksource-5` et
+  `python3-markdown-it`.
+
+### Modifié
+
+- **Navigation en quatre onglets** : Accueil (comptes, file de tâches, derniers
+  événements), Sessions (« Toutes les sessions », puis un onglet par chat et par
+  shell), Projets, Analyse (analyse et historique). Les Réglages sont dans le menu
+  ☰, en fenêtre à part (Ctrl+virgule). Ctrl+1 à Ctrl+4 changent d'onglet. Les
+  anciens noms de `claude-accounts gui --page` (`comptes`, `planning`,
+  `terminaux`, `historique`…) mènent au bon onglet, et `accueil` et `projets`
+  s'ajoutent.
+- « Nouvelle session… », « Reprendre » et les sessions rouvertes au démarrage
+  ouvrent un chat au lieu d'un terminal Claude. Les onglets enregistrés par la 0.9
+  se rouvrent en chat, avec leur historique ; un onglet shell reste un shell.
+- Le fichier `terminals.json` passe en version 2 (options du chat de chaque
+  onglet, largeurs des volets) ; un fichier de la version 1 se lit sans perte.
+- Nouveaux réglages : `chat` (`idle_suspend_min`, `rights`), `files` (`layout`,
+  `show_ignored`), `projects` (`hidden`), `appearance` (`color_scheme`,
+  `account_colors`).
+- Dépendances : le paquet requiert maintenant `gir1.2-gtksource-5` (éditeur et
+  coloration) et `python3-markdown-it` (rendu du Markdown).
+- Documentation : README, guide d'utilisation, architecture (avec le protocole
+  stream-json), pages man et site à jour ; le scénario de bout en bout vérifie
+  les noms acceptés par `gui --page`.
+
 ## [0.9.0] — 2026-11-12
 
 ### Modifié
