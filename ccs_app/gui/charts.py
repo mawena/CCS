@@ -62,7 +62,8 @@ class LineChart(Gtk.DrawingArea):
             pts = series_to_points(series, self.t0, self.t1, w, h)
             if not pts:
                 continue
-            cr.set_source_rgba(*rgb, 0.9)
+            # rgb : (r, g, b) ou (r, g, b, opacité) ; la courbe d'un compte prend sa couleur.
+            cr.set_source_rgba(*rgb[:3], 0.9 * (rgb[3] if len(rgb) > 3 else 1))
             cr.set_line_width(2)
             cr.set_dash([5, 4] if dashed else [])
             cr.move_to(left + pts[0][0], top + pts[0][1])
@@ -79,10 +80,13 @@ class Sparkline(Gtk.DrawingArea):
     def __init__(self):
         super().__init__(content_height=28, hexpand=True)
         self.points, self.t0, self.t1 = [], 0, 0
+        self.rgb = SESSION_RGB
         self.set_draw_func(self._draw)
 
-    def set_data(self, t0, t1, series):
+    def set_data(self, t0, t1, series, rgb=None):
+        """`rgb` : couleur du compte (bleu par défaut)."""
         self.t0, self.t1, self.points = t0, t1, list(series)
+        self.rgb = rgb or SESSION_RGB
         self.queue_draw()
 
     def _draw(self, _area, cr, width, height):
@@ -92,14 +96,14 @@ class Sparkline(Gtk.DrawingArea):
         cr.fill()
         if len(pts) < 2:
             return
-        cr.set_source_rgba(*SESSION_RGB, 0.25)
+        cr.set_source_rgba(*self.rgb, 0.25)
         cr.move_to(pts[0][0], height)
         for x, y in pts:
             cr.line_to(x, y + 1)
         cr.line_to(pts[-1][0], height)
         cr.close_path()
         cr.fill()
-        cr.set_source_rgba(*SESSION_RGB, 1)
+        cr.set_source_rgba(*self.rgb, 1)
         cr.set_line_width(1.5)
         cr.move_to(pts[0][0], pts[0][1] + 1)
         for x, y in pts[1:]:
