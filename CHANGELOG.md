@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [0.9.0] — 2026-11-12
+
 ### Modifié
 
 - L'application s'appelle désormais « CCS » partout (fenêtre, menu des
