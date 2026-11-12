@@ -11,8 +11,8 @@ from datetime import date, datetime, timezone
 
 from gi.repository import Adw, Gdk, GLib, GObject, Gtk
 
-from .. import __version__, advisor, archive, budget, context_alert, core, daemon, quiet, session_memory, \
-    tasks, updates
+from .. import __version__, advisor, archive, budget, chat_options, context_alert, core, daemon, quiet, \
+    session_memory, tasks, updates
 from ..settings import load_settings, save_settings
 from .backup_group import BackupGroup
 from . import style
@@ -78,6 +78,8 @@ class PrefsPage(Adw.PreferencesPage):
         self.window = window
         self.s = load_settings()
         self.groups = []
+        # Remplaçable (essais) : demande de confirmation avant « Tout autoriser ».
+        self.confirm_dangerous = self._ask_dangerous
 
     def save(self):
         save_settings(self.s)
@@ -105,6 +107,8 @@ class PrefsPage(Adw.PreferencesPage):
         self.add_group(BackupGroup(toast=self.window.toast))
         self.add_group(self.archive_group())
         self.add_group(self.sessions_group())
+        self.add_group(self.chat_files_group())
+        self.add_group(self.projects_group())
         self.add_group(self.tasks_group())
         self.add_group(self.budget_group())
         self.add_group(self.warmup_group())
@@ -649,6 +653,104 @@ class PrefsPage(Adw.PreferencesPage):
         g.add(alert)
         g.add(tokens)
         return g
+
+    LAYOUTS = (("A : fichier au centre", "A"), ("B : chat au centre", "B"))
+
+    def chat_files_group(self):
+        """Chat (mise en veille, droits par défaut) et fichiers (fichiers ignorés, disposition)."""
+        chat = self.s["chat"] = self.s.get("chat") if isinstance(self.s.get("chat"), dict) else {}
+        files = self.s["files"] = self.s.get("files") if isinstance(self.s.get("files"), dict) else {}
+        chat.setdefault("idle_suspend_min", 30)
+        chat.setdefault("rights", "manual")
+        files.setdefault("show_ignored", False)
+        files.setdefault("layout", "B")
+        g = Adw.PreferencesGroup(
+            title="Chat et fichiers",
+            description="Valeurs de départ des nouveaux chats et de l'espace de session.")
+        g.add(self.spin_row("Mettre en veille un chat inactif après (min)",
+                            "0 : jamais. Le processus claude est suspendu, la conversation reste ouverte",
+                            "chat", "idle_suspend_min", 0, 1440))
+        rights = list(chat_options.RIGHTS)
+        current = chat["rights"]
+        row = self.combo_row("Droits par défaut des nouveaux chats",
+                             "Réglable ensuite dans la barre de chaque chat",
+                             rights, current, lambda value, r: self._pick_rights(value, r))
+        self._rights_row, self._rights_value = row, current
+        g.add(row)
+        g.add(self.switch_row("Afficher les fichiers ignorés par git",
+                              "Dans l'arbre des fichiers de l'espace de session", "files", "show_ignored"))
+        g.add(self.combo_row("Disposition par défaut", "A : fichier au centre. B : chat au centre",
+                             list(self.LAYOUTS), files["layout"],
+                             lambda value, _r: self._set("files", "layout", value)))
+        return g
+
+    def _set(self, section, key, value):
+        self.s[section][key] = value
+        self.save()
+
+    def _pick_rights(self, value, row):
+        if value == self._rights_value:
+            return
+        if value == "bypassPermissions":
+            self.confirm_dangerous(lambda: self._apply_rights(value), lambda: self._revert_rights())
+        else:
+            self._apply_rights(value)
+
+    def _apply_rights(self, value):
+        self._rights_value = value
+        self._set("chat", "rights", value)
+
+    def _revert_rights(self):
+        values = [v for _l, v in chat_options.RIGHTS]
+        self._rights_row.set_selected(values.index(self._rights_value))
+
+    def _ask_dangerous(self, on_yes, on_no):
+        from .chat_bar import DANGER_TEXT, DANGER_TITLE
+        dialog = Adw.AlertDialog(heading="Tout autoriser ?", body=f"{DANGER_TITLE}. {DANGER_TEXT}")
+        dialog.add_response("cancel", "Annuler")
+        dialog.add_response("allow", "Tout autoriser")
+        dialog.set_response_appearance("allow", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", lambda _d, r: on_yes() if r == "allow" else on_no())
+        dialog.present(self.get_root())
+
+    def projects_group(self):
+        """Projets masqués de la page Projets, avec « Réafficher » pour chacun."""
+        self.s["projects"] = self.s.get("projects") if isinstance(self.s.get("projects"), dict) else {}
+        self.s["projects"].setdefault("hidden", [])
+        g = Adw.PreferencesGroup(title="Projets")
+        self._hidden_row = Adw.ExpanderRow(title="Projets masqués")
+        self._hidden_rows = []
+        self._fill_hidden()
+        g.add(self._hidden_row)
+        return g
+
+    def _fill_hidden(self):
+        for r in self._hidden_rows:
+            self._hidden_row.remove(r)
+        self._hidden_rows = []
+        hidden = list(self.s["projects"]["hidden"])
+        self._hidden_row.set_subtitle(f"{len(hidden)} masqué(s)" if hidden else "Aucun projet masqué")
+        if not hidden:
+            self._hidden_row.set_expanded(False)
+        for path in hidden:
+            row = Adw.ActionRow(title=GLib.markup_escape_text(path.rstrip("/").rsplit("/", 1)[-1] or path),
+                                subtitle=GLib.markup_escape_text(path))
+            button = Gtk.Button(label="Réafficher", valign=Gtk.Align.CENTER)
+            button.connect("clicked", lambda _b, p=path: self.unhide_project(p))
+            row.add_suffix(button)
+            self._hidden_row.add_row(row)
+            self._hidden_rows.append(row)
+
+    def unhide_project(self, path):
+        hidden = [p for p in load_settings().get("projects", {}).get("hidden", []) if p != path]
+        self.s["projects"]["hidden"] = hidden
+        self.save()
+        self._fill_hidden()
+        page = getattr(self.window, "projects", None)
+        if page is not None:
+            page.refresh()
 
     def tasks_group(self):
         night = self.s["tasks"]["night"]

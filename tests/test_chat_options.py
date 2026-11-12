@@ -7,6 +7,23 @@ from ccs_app import chat_protocol as cp
 from ccs_app import launch_options
 
 
+class DefaultRightsTest(unittest.TestCase):
+    def test_default_rights_from_settings(self):
+        self.assertEqual(co.default_rights({"chat": {"rights": "plan"}}), "plan")
+        self.assertEqual(co.default_rights({}), "manual")
+        self.assertEqual(co.default_rights({"chat": {"rights": "n'importe quoi"}}), "manual")
+
+    def test_explicit_permission_mode_wins(self):
+        settings = {"chat": {"rights": "plan"}}
+        base = co.from_args(())
+        self.assertEqual(co.with_default_rights(base, (), settings).rights, "plan")
+        explicit = co.from_args(("--permission-mode", "acceptEdits"))
+        self.assertEqual(co.with_default_rights(explicit, ("--permission-mode", "acceptEdits"),
+                                                settings).rights, "acceptEdits")
+        self.assertEqual(co.with_default_rights(co.from_args(("--model", "opus")), ("--model", "opus"),
+                                                settings).rights, "plan")
+
+
 class OptionsTest(unittest.TestCase):
     def test_defaults(self):
         self.assertEqual(co.ChatOptions(), co.ChatOptions(None, None, False, "manual"))

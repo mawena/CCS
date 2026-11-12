@@ -7,7 +7,7 @@ Les listes et l'historique (git) sont calculés dans un fil, jamais à l'ouvertu
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import Adw, Gio, GLib, Gtk
 
 from .. import account_colors, conversations, projects, settings
 from .common import clear, in_thread
@@ -154,7 +154,32 @@ class ProjectsPage(Gtk.Box):
                                  xalign=0, css_classes=["dim-label"]))
         button = Gtk.Button(child=box, css_classes=["flat"])
         button.connect("clicked", lambda _b, p=project.path: self.show_project(p))
-        return button
+        menu = Gio.Menu()
+        menu.append("Masquer ce projet", "card.hide")
+        more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=menu, valign=Gtk.Align.START,
+                              halign=Gtk.Align.END, css_classes=["flat", "circular"],
+                              tooltip_text="Menu du projet", margin_top=6, margin_end=6)
+        group = Gio.SimpleActionGroup()
+        action = Gio.SimpleAction.new("hide", None)
+        action.connect("activate", lambda *_a, p=project.path: self.hide_project(p))
+        group.add_action(action)
+        overlay = Gtk.Overlay(child=button)
+        overlay.add_overlay(more)
+        overlay.insert_action_group("card", group)
+        overlay.hide_action = action
+        overlay.menu_button = more
+        return overlay
+
+    def hide_project(self, path):
+        """Retire le projet de la page (`projects.hidden`) ; « Réglages → Projets masqués » le
+        réaffiche."""
+        current = settings.load_settings()
+        hidden = [str(h) for h in current.get("projects", {}).get("hidden", [])]
+        key = str(path).rstrip("/")
+        if key not in [h.rstrip("/") for h in hidden]:
+            current.setdefault("projects", {})["hidden"] = hidden + [key]
+            settings.save_settings(current)
+        self.refresh()
 
     # ---- détail ---------------------------------------------------------------------
 

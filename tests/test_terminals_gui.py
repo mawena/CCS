@@ -189,7 +189,16 @@ class SessionsPageTest(HomeTestCase):
         self.page.notifier = lambda alert: self.notified.append(alert)
         self.page.phoner = lambda alert, cfg, now, project=None: self.phoned.append((alert, project))
         self.addCleanup(self.page.view_cleanup) if hasattr(self.page, "view_cleanup") else None
+        self.addCleanup(self.stop_saving)
         spin(lambda: False, 0.1)
+
+    def stop_saving(self):
+        """Une sauvegarde différée d'une page oubliée écrirait `terminals.json` dans le HOME du
+        test suivant, que la `startup` de sa page lirait comme « onglets à rouvrir »."""
+        self.page.closed = True
+        if self.page.save_source is not None:
+            GLib.source_remove(self.page.save_source)
+            self.page.save_source = None
 
     def chat(self, resume=None, **kw):
         tab = self.page.open_claude(self.cwd, resume, kw.pop("title", "Projet"), kw.pop("extra_args", ()))
@@ -207,6 +216,13 @@ class SessionsPageTest(HomeTestCase):
         self.assertIsInstance(tab.panel, SessionWorkspace)
         self.assertIs(tab.panel.get_parent(), tab)
         self.assertEqual(self.page.tabs(), [tab])
+
+    def test_open_claude_uses_default_rights_setting(self):
+        from ccs_app import settings
+        current = settings.load_settings()
+        current["chat"]["rights"] = "plan"
+        settings.save_settings(current)
+        self.assertEqual(self.page.open_claude(self.cwd).options.rights, "plan")
 
     def test_open_claude_with_resume_gives_the_journal_to_the_chat(self):
         journal = sessions.transcript_path(self.cwd, "s-1")
