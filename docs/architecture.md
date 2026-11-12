@@ -69,10 +69,18 @@ raccourcis clavier.
 | `terminal_store` | `terminals.json` : interrupteurs de la page Terminaux, onglets à rouvrir (écriture atomique, fichier illisible ignoré) |
 | `limit_events` | Marqueurs « limite atteinte » par conversation (`limits/<session_id>.json`) : écrits par le hook, lus puis consommés par le terminal intégré |
 | `integration` | `ccs integrate` (fusion prudente de `~/.claude/settings.json`), ligne d'état (⏸ en pause, « → sonnet ? » près des limites avec un modèle cher), hook `StopFailure` (bascule, sauf en pause ; marqueur de limite) ; `read_stdin_json(timeout)` : contexte JSON de Claude Code, jamais lu sur un terminal, 2 s d'attente au plus |
-| `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` (revérifié toutes les 5 s, `WATCH_S` : installé quand le dossier apparaît, réinstallé s'il est supprimé ou remplacé) ; `show_session` : ouvrir l'application sur une session ; onglets acceptés par `gui --page` (`PAGES`, `page_name`) |
+| `desktop` | Boucle GLib du service : clics sur les notifications (ActionInvoked, ActivationToken), moniteur de `~/.claude/sessions` (revérifié toutes les 5 s, `WATCH_S` : installé quand le dossier apparaît, réinstallé s'il est supprimé ou remplacé) ; `show_session` : ouvrir l'application sur une session ; pages acceptées par `gui --page` : les quatre onglets `PAGES` (`home`, `sessions`, `projects`, `analysis`) et, par `SUBPAGES`, les anciens noms ramenés à (onglet, sous-partie) ; `canonical_page` normalise (accents, casse), `page_name` renvoie le couple |
 | `attention` | Ce qui demande l'attention dans la fenêtre (pur) : libellé de pause de l'en-tête, bandeaux nouvelle version et bilan, badge des sessions en attente, référence de session (`<pid>:<id>`) et cible d'un clic sur une notification |
 | `doctor` | Bilan de santé (`ccs doctor`) : vérifications `Check(nom, statut, detail, commande)`, sondes injectables (`Probes`), texte et code de sortie ; ligne « Réglages » en avertissement quand des clés de `settings.json` sont ignorées |
-| `gui/` | Application GTK 4 / libadwaita (onglets) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets du terminal intégré (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages ; `gui/update_dialog` : dialogue de mise à jour en un clic ; `gui/tasks_view` : tâches de l'onglet Planning ; `gui/budget_view` : budgets de l'onglet Analyse ; `gui/phone_group`, `gui/backup_group` : groupes « Téléphone » et « Sauvegarde » des Réglages ; `gui/fiche_view` : fiche de l'aperçu ; carte « Meilleur moment » (`gui/planning`) et carte « Rapport mensuel » (`gui/advisor_cards`) |
+| `chat_protocol` | Protocole stream-json de Claude Code, sans GTK : `parse_line` transforme une ligne de stdout en événements (dataclasses gelées : `Init`, `Hello`, `TextDelta`, `AssistantText`, `ToolUse`, `ToolResult`, `Todos`, `PermissionRequest`, `ControlReply`, `TurnResult`…, `Unknown` pour tout le reste) et ne lève jamais ; `user_message`, `control`, `allow`, `allow_always`, `deny` fabriquent les lignes de stdin (JSON ASCII pur) |
+| `chat_engine` | `ChatSession` : un processus `claude -p` par chat, vivant entre les messages ; états `stopped`, `starting`, `idle`, `busy`, `permission`, `suspended` ; lecture de stdout et de stderr dans des fils, `send`, `interrupt`, `answer`, `set_options`, `request_context`, `suspend_if_idle`, `stop` ; sans GTK, testé avec un faux `claude` |
+| `chat_options` | `ChatOptions` (modèle, effort, ultracode, droits), niveaux d'effort acceptés par modèle (`efforts_for`, `ultracode_possible`), arguments de lancement, modèles annoncés par `initialize` (`merge_hello`) |
+| `markdown_render` | Markdown (markdown-it) en blocs simples (`Heading`, `Paragraph`, `ListBlock`, `Code`, `Table`, `Quote`, `Rule`, `Image`) et balisage Pango échappé ; sert au chat et à l'aperçu des fichiers |
+| `file_tree` | Sans GTK : marques git (`git status --porcelain`, sans verrou), fichiers ignorés, type d'un fichier (texte, image, binaire, trop gros), lecture sûre, empreinte, enregistrement atomique qui garde les droits |
+| `roadmap` | `ROADMAP.md` : `parse` (phases `##`, tâches `- [ ]`, version des parenthèses), `toggle` (change un seul caractère, relit si le fichier a changé), `newly_done` (cases cochées depuis la lecture précédente) |
+| `projects` | Projets (conversations avec un `ROADMAP.md`), versions (tags `v*`), cases cochées par jour tirées de l'historique git de `ROADMAP.md` ; calcul mis en cache dans `projects-cache.json` par (dossier, dernier commit) ; n'écrit jamais dans les dépôts |
+| `account_colors` | Couleur de chaque compte : palette attribuée dans l'ordre alphabétique des profils, remplacée par le choix de `appearance.account_colors` |
+| `gui/` | Application GTK 4 / libadwaita (quatre onglets : `gui/home_page`, `gui/sessions_page` + `gui/terminals`, `gui/projects_page`, `gui/analysis_hub`) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets de session, chats et shells (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages ; `gui/update_dialog` : dialogue de mise à jour en un clic ; `gui/tasks_view` : tâches de l'onglet Planning ; `gui/budget_view` : budgets de l'onglet Analyse ; `gui/phone_group`, `gui/backup_group` : groupes « Téléphone » et « Sauvegarde » des Réglages ; `gui/fiche_view` : fiche de l'aperçu ; chat : `gui/chat_tab`, `gui/chat_messages`, `gui/chat_composer`, `gui/chat_bar`, `gui/markdown_view` ; espace de session : `gui/session_workspace`, `gui/file_panel`, `gui/file_editor`, `gui/roadmap_view` ; `gui/prefs_dialog` (Réglages en `Adw.PreferencesDialog`), `gui/style` (CSS commun, couleurs des comptes, thème) ; carte « Meilleur moment » (`gui/planning`) et carte « Rapport mensuel » (`gui/advisor_cards`) |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version (« Installer CCS x.y.z… ») ; sous-menu Sessions (une entrée par session, en attente d'abord ; un clic ouvre la session par la même route que les notifications ; « · 💬 n » dans le libellé) ; entrée « Ne pas déranger » du menu principal (sous-menu 1 heure, 4 heures, Jusqu'à demain 08:00, Reprendre les notifications ; 🔕 dans le libellé pendant un silence) ; `APP_ENTRIES` (« Journal des bascules » → `gui --page historique`, « Bilan de la semaine » → `gui --page analyse`, « Ouvrir CCS ») ; `switch_to` (bascule notée « icone ») ; se relance seul quand le code installé change |
 | `cli` | Point d'entrée `claude-accounts` (dont `doctor`, `pause`, `preview` / `apercu`, `export`, `formule` / `conseil`, `semaine`, `mois`, `moment`, `silence` / `quiet`, `mise-a-jour` / `maj`, `journal`, `projet`, `raccourcis` / `shortcuts`, `tache` / `taches` / `tasks`, `budget`, `fiche`, `sauvegarde` / `backup`, `restaurer` / `restore`, `telephone` / `phone`, `notify`, `best --notifier`, `pause --notifier`, `gui --session`, `--page`, `--new-session`) |
 
@@ -316,8 +324,12 @@ construit l'affichage par paquets de 150 pour ne pas figer la fenêtre.
 `gui/app.py` (`App`, instance unique, et `Window`) assemble les onglets et ce
 qui demande l'attention :
 
-- **Menu ☰** : « Nouvelle session… » (`win.new-session`) et « Bilan de santé… »
-  (`win.doctor`).
+- **Menu ☰** : « Nouvelle session… » (`win.new-session`), « Bilan de santé… »
+  (`win.doctor`) et « Réglages » (`win.prefs`, Ctrl+virgule ; fenêtre à part depuis la
+  phase 12). Quatre onglets (`home`, `sessions`, `projects`, `analysis`), Ctrl+1 à
+  Ctrl+4 (`win.show-tab`) ; les descriptions d'onglets plus bas datent d'avant la
+  phase 12 et valent pour leurs parties (Accueil = Comptes + Planning, Analyse =
+  Analyse + Historique, Sessions = Sessions + Terminaux).
 - **En-tête** : « Auto », remplacé pendant une pause par le bouton
   `attention.pause_header` (popover « Reprendre maintenant ») ; l'en-tête
   s'élargit, le seuil de la fenêtre étroite (onglets en bas) en tient compte :
@@ -741,6 +753,152 @@ Règles : le téléphone n'envoie que le nom du projet et l'état ; la sauvegard
 jamais la phrase de passe à gpg autrement que par pinentry ; rien n'est fermé
 automatiquement ; le budget ne bloque rien. Dépendances du paquet : `gnupg` ;
 recommandés `python3-qrcode`, `gpg-agent`, `pinentry-gnome3`.
+
+## Phase 12 : chat graphique, fichiers, feuille de route
+
+### Le schéma du chat
+
+```
+ claude -p --input-format stream-json --output-format stream-json …   (processus enfant)
+        │ stdout (une ligne JSON par événement)        ▲ stdin (une ligne JSON par message)
+        ▼                                              │
+  chat_protocol ── parse_line → événements ──┐   user_message / control / allow / deny
+                                             ▼                       ▲
+                                        chat_engine  (ChatSession, sans GTK, fils de lecture)
+                                             │ on_event(ev)  →  GLib.idle_add
+                                             ▼
+                                       gui/chat_tab  (ChatTab : messages, saisie, barre)
+                                             │ signaux open-file, show-diff
+                                             ▼
+                                   gui/session_workspace  (arbre | chat | fichier)
+                                             │ le chat s'y présente comme un onglet
+                                             ▼
+                                       gui/terminals  (page Sessions : onglets, file de
+                                                       messages, alertes, réouverture)
+```
+
+- `chat_protocol` ne connaît ni GTK ni le processus : il lit des lignes et fabrique
+  des lignes. Tout événement inconnu devient `Unknown` (versions futures de Claude
+  Code), une ligne illisible est ignorée.
+- `chat_engine.ChatSession` lance `claude`, lit stdout et stderr dans deux fils
+  (aucune limite de longueur de ligne : un résultat d'outil peut dépasser 1 Mo),
+  tient l'état et appelle `on_event` ; l'interface enveloppe l'appel dans
+  `GLib.idle_add`. Il n'a pas de file de messages : celle de l'onglet
+  (`terminal.TabState.queue`) attend que l'état redevienne `idle`, et `send` refuse
+  pendant `busy` ou `permission`.
+- `gui/chat_tab.ChatTab` se présente à `gui/terminals` comme un `TerminalTab`
+  (mêmes méthodes : `state`, `panel`, `page`, `hang_up`, `send_auto`, `refresh_queue`…)
+  et tient à jour un `terminal.TabState` : la file de messages, la reprise après
+  une limite, les alertes et la confirmation de fermeture marchent sans changement.
+  Le code des onglets VTE reste ; il sert aux shells et à « Ouvrir dans un
+  terminal » (`TerminalsPage.open_in_terminal`, puis `back_to_chat`).
+- `gui/session_workspace.SessionWorkspace` enveloppe le chat : deux `Gtk.Paned`
+  imbriqués, dont les widgets ne sont jamais recréés quand la disposition change
+  (B : gauche | chat | fichier ; A : gauche | fichier | chat), une pile « Fichiers »
+  (`FileTree`) / « Feuille de route » (`RoadmapView`), et l'éditeur (`FileEditor`).
+  Les largeurs vont dans `terminals.json` (`terminal_store.save_panes`, par
+  disposition).
+- Un chat rouvert lit son historique dans le journal de la conversation
+  (`sessions.transcript_path`) sans lancer `claude` : le processus ne démarre qu'au
+  premier message. Un chat dont la conversation tourne ailleurs est en lecture seule.
+
+### Lancement et vie d'un processus
+
+`claude -p --input-format stream-json --output-format stream-json --verbose
+--include-partial-messages --permission-prompt-tool stdio [--model …] [--effort
+<niveau>|ultracode] --permission-mode <droits> [--resume <id>]`, dans le dossier
+de la session, avec l'environnement du compte (comme `terminal.claude_launch`,
+sans les variables `SESSION_VARS` héritées). Pas de `--bare` (il coupe la
+connexion par abonnement).
+
+- **Mise en veille** : `ChatTab` vérifie à intervalle régulier (`SUSPEND_CHECK_S`) `chat.idle_suspend_min`
+  (30 par défaut, 0 = jamais) ; `ChatSession.suspend_if_idle` arrête le processus
+  (fermer stdin, 5 s, SIGTERM, 5 s, SIGKILL) quand l'état est `idle`, sans
+  autorisation en attente ni outil lancé sans résultat. L'état passe à
+  `suspended` ; le message suivant relance `claude --resume`. L'arrêt est marqué
+  `requested` : ce n'est pas une erreur.
+- **Options** : le modèle (`set_model`) et les droits (`set_permission_mode`)
+  passent en direct ; l'effort et l'ultracode sont des messages `/effort …`, envoyés
+  avant le message suivant. Le moteur retient l'effort lui-même, puisque la CLI ne
+  l'annonce jamais.
+- **Contexte** : `get_context_usage` (réponse de 43 Ko environ, avec les
+  catégories) fournit `ContextUsage`, pour la jauge de la barre.
+
+### Le protocole stream-json en bref
+
+Résumé de l'annexe « Protocole » de la conception
+(`docs/superpowers/specs/2026-11-12-phase-12-design.md`), tiré de la documentation
+et du code public du SDK, puis **corrigé par l'essai réel du 12/11/2026** (Claude
+Code 2.1.322, 5 messages Haiku), qui prime.
+
+**Entrée** (stdin, une ligne JSON par message) :
+`{"type":"user","message":{"role":"user","content":[{"type":"text","text":"…"}, {"type":"image","source":{"type":"base64",…}}]},"parent_tool_use_id":null}`.
+Une commande (`/compact`, `/clear`, `/effort high`, commandes des plugins) s'envoie
+comme un message texte.
+
+**Sortie** (stdout, une ligne JSON par événement) : `system/init` (identifiant de
+session, modèle, dossier, mode, commandes `/`) ; `stream_event` (événements bruts de
+l'API, `text_delta` pour le texte au fil de l'eau) ; `assistant` (texte,
+`tool_use`) et `user` (`tool_result`), avec `parent_tool_use_id` non nul pour un
+sous-agent ; `system/compact_boundary`, `system/api_retry`, `system/permission_denied` ;
+`rate_limit_event` (limites) ; `result`, un par tour (`subtype` `success` ou
+`error_*`, `total_cost_usd` et `modelUsage`, cumulés sur la session).
+
+**Contrôle** : le client envoie `{"type":"control_request","request_id":…,"request":{"subtype":…}}`
+et reçoit une `control_response` (`success` ou `error`).
+
+| Sous-type | Usage dans CCS | Résultat de l'essai |
+|---|---|---|
+| `initialize` | au démarrage du processus | répond `commands`, `models` (14), `account`, `current_permission_mode`, `capabilities` ; `system/init`, lui, n'arrive **pas** au démarrage mais à chaque message |
+| `interrupt` | bouton « Arrêter » | répond `{"still_queued": []}` ; le tour finit en `error_during_execution` (`aborted_streaming`) et le **processus s'arrête** (code 1) : un arrêt voulu, le message suivant relance par `--resume` |
+| `set_model` | menu Modèle | répond le nom complet du modèle |
+| `set_permission_mode` | menu Droits | répond `{"mode": …}` et émet un `system/status` ; `manual` est un alias de `default` |
+| `get_context_usage` | jauge de contexte | `percentage`, `totalTokens`, `maxTokens` |
+| *(aucun pour l'effort)* | `/effort <niveau>`, `/effort ultracode [off]` | commandes **locales** : pas de tour de modèle, un texte de confirmation dans le `result` ; `set_effort` est refusé ; `--effort ultracode` est accepté au lancement |
+
+**Autorisations** : avec `--permission-prompt-tool stdio`, la CLI envoie une
+`control_request` `can_use_tool` (`tool_name`, `display_name`, `input`,
+`description`, `permission_suggestions`, `blocked_path`, `tool_use_id` ; **pas de
+`title`**). CCS répond `{"behavior":"allow","updatedInput":<input>}` (Autoriser) ;
+pour **Toujours**, la même chose avec `updatedPermissions` n'ayant que les
+suggestions `addRules` (règle exacte `Bash(<commande>)` écrite dans
+`<projet>/.claude/settings.local.json`) — jamais `setMode acceptEdits`, que
+contiennent aussi les suggestions complètes et qui changerait les droits de toute
+la session ; `{"behavior":"deny","message":"…"}` (Refuser). Les commandes en lecture
+seule ne demandent rien.
+
+**Reprise** : `--resume <id>` garde le même identifiant et tout le contexte ; les
+règles de `settings.local.json` restent, le mode de la session non (CCS repasse ses
+droits au lancement). Un message envoyé pendant un tour n'a pas pu être observé :
+CCS n'envoie jamais pendant un tour.
+
+### Le reste de la phase
+
+- **Rendu** : `markdown_render.parse` (markdown-it) → blocs → `gui/markdown_view`
+  (widgets GTK natifs, sans WebKit) ; sert au chat comme à l'aperçu. Les images
+  distantes ne sont jamais chargées. Le code est coloré par GtkSourceView 5.
+- **Fichiers** : toute lecture, écriture et commande git de `file_tree` part dans un
+  fil ; `Gio.FileMonitor` regroupe les changements. `gui/file_editor.FileEditor`
+  recharge un fichier non modifié, propose un choix (garder, prendre le disque,
+  voir les différences) sinon, et enregistre de façon atomique.
+- **Feuille de route** : `gui/roadmap_view.RoadmapView` lit et suit `ROADMAP.md`
+  dans un fil ; un clic appelle `roadmap.toggle`. `gui/projects_page.ProjectsPage`
+  calcule `projects.list_projects` et `projects.history` dans un fil, jamais à
+  l'ouverture de la page.
+- **Navigation et style** : `desktop.PAGES` (4 onglets) et `SUBPAGES` ;
+  `gui/analysis_hub` réunit Analyse et Historique derrière un sélecteur ;
+  `gui/home_page` réunit Comptes et Planning ; `gui/style.install` ajoute les
+  classes CSS et la couleur des comptes, `style.apply_color_scheme` suit
+  `appearance.color_scheme` (`Adw.StyleManager`).
+- **Réglages ajoutés** (`settings.DEFAULTS`) : `chat` (`idle_suspend_min`, `rights`),
+  `files` (`layout`, `show_ignored`), `projects` (`hidden`), `appearance`
+  (`color_scheme`, `account_colors`). Seul `appearance` a des commandes dans la
+  fenêtre des Réglages ; les autres se changent dans `settings.json`.
+- **`terminals.json` en version 2** : un onglet `claude` porte `chat` (modèle, effort,
+  ultracode, droits) ; le fichier porte `panes` (largeurs, arbre visible, page de
+  gauche). Un fichier de version 1 se lit sans perte.
+- **Dépendances** : `gir1.2-gtksource-5` et `python3-markdown-it` (`Depends`, et
+  vérifiées par la ligne « Chat graphique » de `ccs doctor`).
 
 ## Règles de sécurité des jetons
 
