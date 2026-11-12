@@ -13,29 +13,39 @@ from .. import (attention, conversations, daemon, desktop, doctor, installer, la
                sessions, switch_log, terminal)
 from ..settings import load_settings, save_settings  # noqa: E402
 from ..store import Store  # noqa: E402
-from .accounts import AccountsPage, add_account, set_pause  # noqa: E402
-from .analysis import AnalysisPage  # noqa: E402
+import importlib.util  # noqa: E402
+
+from .accounts import add_account, set_pause  # noqa: E402
+from .analysis_hub import AnalysisHub  # noqa: E402
 from .common import (ask_name, ask_title, cap, error_text, in_thread, install_css, load_state,  # noqa: E402
                      now_utc, refresh_data, run_ccs_async)
 from .doctor_dialog import show_doctor  # noqa: E402
-from .history import HistoryPage  # noqa: E402
+from .home_page import HomePage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
-from .planning import PlanningPage  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
+from .prefs_dialog import PrefsDialog  # noqa: E402
 from .sessions_page import SessionsPage  # noqa: E402
 from .update_dialog import show_update  # noqa: E402
-from .prefs import PrefsPage  # noqa: E402
 from .terminals import TerminalsPage  # noqa: E402
 
 APP_ID = desktop.APP_ID
 STALE_S = 600
 DOCTOR_DELAY_S = 4   # bilan de santé du démarrage : après le premier affichage
 # Sous cette largeur, les onglets passent dans la barre du bas : 6 onglets de même largeur
-# tiennent en 1080 px, 7 (avec « Terminaux ») en 1202 px (mesuré), plus une marge.
-NARROW_SP = {False: 1100, True: 1220}
+# tenaient en 1080 px, 7 en 1202 px (mesuré : environ 100 px par onglet) ; 4 onglets, plus une marge.
+NARROW_SP = 900
 # Pendant une pause, « Auto ⏸ jusqu'à 14:00 » remplace « Auto » : le seuil monte de la
 # différence de largeur (mesurée), plus cette marge.
 PAUSE_MARGIN_SP = 16
+
+
+def projects_page(window):
+    """Page Projets (tâche 8) ; un écran provisoire tant que son module n'est pas là."""
+    if importlib.util.find_spec(__package__ + ".projects_page") is not None:
+        from .projects_page import ProjectsPage
+        return ProjectsPage(window)
+    return Adw.StatusPage(title="Projets", icon_name="folder-symbolic",
+                          description="Les feuilles de route de vos projets s'afficheront ici.")
 
 
 class Window(Adw.ApplicationWindow):
@@ -57,6 +67,7 @@ class Window(Adw.ApplicationWindow):
         menu = Gio.Menu()
         menu.append("Nouvelle session…", "win.new-session")
         menu.append("Bilan de santé…", "win.doctor")
+        menu.append("Réglages", "win.prefs")
         header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, primary=True,
                                        tooltip_text="Menu principal"))
         refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Actualiser (F5)")
@@ -79,30 +90,41 @@ class Window(Adw.ApplicationWindow):
         self.auto_box.append(self.auto)
         header.pack_end(self.auto_box)
         for name, handler in (("new-session", lambda *_: self.new_session()),
-                              ("doctor", lambda *_: self.show_doctor())):
+                              ("doctor", lambda *_: self.show_doctor()),
+                              ("prefs", lambda *_: self.show_prefs())):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", handler)
             self.add_action(action)
+        tab_action = Gio.SimpleAction.new("show-tab", GLib.VariantType.new("s"))
+        tab_action.connect("activate", lambda _a, v: self.show_page(v.get_string()))
+        self.add_action(tab_action)
 
         self.stack = Adw.ViewStack()
-        self.accounts = AccountsPage(self)
-        self.planning = PlanningPage(self)
+        self.home = HomePage(self)
+        self.accounts, self.planning = self.home.accounts, self.home.planning
         self.sessions = SessionsPage(self)
+        # Onglet Sessions : la vue d'ensemble et les terminaux ouverts, l'un à côté de l'autre.
+        # TODO tâche 9 : overview épinglé. TerminalsPage(self, overview=self.sessions) fera de la
+        # vue d'ensemble sa première page épinglée ; `sessions_stack` disparaît alors.
         self.terminals = TerminalsPage(self)
-        self.history = HistoryPage(self)
-        self.analysis = AnalysisPage(self)
-        self.prefs = PrefsPage(self)
+        self.sessions_stack = Adw.ViewStack(vexpand=True)
+        self.sessions_stack.add_titled(self.sessions, "overview", "Toutes les sessions")
+        self.sessions_stack.add_titled(self.terminals, "terminals", "Terminaux")
+        self.terminals_page = self.sessions_stack.get_page(self.terminals)
+        sessions_tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        sessions_tab.append(Adw.ViewSwitcher(stack=self.sessions_stack, policy=Adw.ViewSwitcherPolicy.WIDE,
+                                             halign=Gtk.Align.CENTER, margin_top=6, margin_bottom=2))
+        sessions_tab.append(self.sessions_stack)
+        self.projects = projects_page(self)
+        self.analysis_hub = AnalysisHub(self)
+        self.history, self.analysis = self.analysis_hub.history, self.analysis_hub.analysis
         for page, name, title, icon in (
-                (self.accounts, "accounts", "Comptes", "system-users-symbolic"),
-                (self.planning, "planning", "Planning", "x-office-calendar-symbolic"),
-                (self.sessions, "sessions", "Sessions", "utilities-terminal-symbolic"),
-                (self.terminals, "terminals", "Terminaux", "tab-new-symbolic"),
-                (self.history, "history", "Historique", "document-open-recent-symbolic"),
-                (self.analysis, "analysis", "Analyse", "edit-find-symbolic"),
-                (self.prefs, "prefs", "Réglages", "emblem-system-symbolic")):
+                (self.home, "home", "Accueil", "go-home-symbolic"),
+                (sessions_tab, "sessions", "Sessions", "utilities-terminal-symbolic"),
+                (self.projects, "projects", "Projets", "folder-symbolic"),
+                (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
-        self.terminals_page = self.stack.get_page(self.terminals)
-        self.terminals_page.set_visible(False)  # visible tant qu'un onglet est ouvert
+        self.sessions_stack.connect("notify::visible-child-name", self.on_page)
         self.stack.connect("notify::visible-child-name", self.on_page)
         top_switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
         header.set_title_widget(top_switcher)
@@ -143,7 +165,9 @@ class Window(Adw.ApplicationWindow):
         if time.time() - (state.get("updated_at") or 0) > STALE_S and not daemon.running_pid():
             self.refresh()
         self.sessions.count_waiting()
-        self.terminals.connect("tab-state-changed", lambda *_: self.sessions.count_waiting())
+        self.update_badge()
+        self.terminals.connect("tab-state-changed", lambda *_: (self.sessions.count_waiting(),
+                                                                self.update_badge()))
         GLib.timeout_add_seconds(DOCTOR_DELAY_S, self.check_health)
 
     # ---- données -----------------------------------------------------------------
@@ -162,16 +186,11 @@ class Window(Adw.ApplicationWindow):
 
     def reload(self):
         state = load_state()
-        self.accounts.render(state, self.store)
-        self.planning.render(state)
-        if self.stack.get_visible_child_name() == "analysis":
-            self.analysis.budgets.refresh()
-        if self.stack.get_visible_child_name() == "history":
-            self.history.render(state, self.store)
-        else:
-            self.history.last = (state, self.store)
+        self.home.render(state, self.store)
+        self.analysis_hub.reload(state, self.store, self.stack.get_visible_child_name() == "analysis")
         self.show_pause()
         self.show_update(state)
+        self.update_badge()
 
     # ---- en-tête et bandeaux ---------------------------------------------------------
 
@@ -273,46 +292,54 @@ class Window(Adw.ApplicationWindow):
 
     def on_page(self, *_):
         name = self.stack.get_visible_child_name()
-        if name == "terminals":
+        on_terminals = name == "sessions" and self.sessions_stack.get_visible_child_name() == "terminals"
+        if on_terminals:
             self.terminals.focus_selected()
         else:
-            self.back_to = name
             self.terminals.update_badge()
-        self.sessions.visible_page = name == "sessions"
-        if name == "sessions":
+        if name != "sessions":
+            self.back_to = name
+        self.sessions.visible_page = name == "sessions" and not on_terminals
+        if self.sessions.visible_page:
             self.sessions.load()
-        if name == "history":
-            self.history.render(load_state(), self.store)
-        elif name == "analysis":
-            self.analysis.ensure_loaded()
-        elif name == "prefs":
-            self.prefs.render()
+        if name == "analysis":
+            self.analysis_hub.on_shown()
+        elif name == "projects" and hasattr(self.projects, "refresh"):
+            self.projects.refresh()
+        self.update_badge()
+
+    def update_badge(self):
+        """Badge de l'onglet Sessions : nombre de sessions (chats compris) qui attendent une
+        réponse ou une autorisation ; point d'attention si un onglet demande de l'attention."""
+        def work():
+            try:
+                return attention.waiting_count(sessions.list_sessions())
+            except Exception:  # noqa: BLE001 — pas de badge plutôt qu'une erreur
+                return 0
+
+        def done(n):
+            page = self.stack.get_page(self.stack.get_child_by_name("sessions"))
+            page.set_badge_number(n)
+            page.set_needs_attention(
+                self.stack.get_visible_child_name() != "sessions"
+                and (n > 0 or self.terminals_page.get_needs_attention()))
+        in_thread(work, done)
 
     # ---- terminal intégré ----------------------------------------------------------
 
     def narrow_condition(self):
-        width = NARROW_SP[self.terminals_page.get_visible()]
-        width += self.pause_extra
-        return Adw.BreakpointCondition.parse(f"max-width: {width}sp")
+        return Adw.BreakpointCondition.parse(f"max-width: {NARROW_SP + self.pause_extra}sp")
 
     def reveal_terminals(self):
-        """Onglet « Terminaux » visible dans la barre de la fenêtre, sans l'afficher."""
-        if not self.terminals_page.get_visible():
-            self.terminals_page.set_visible(True)
-            self.narrow.set_condition(self.narrow_condition())
+        """Les terminaux sont toujours accessibles dans l'onglet Sessions."""
 
     def show_terminals(self):
-        self.reveal_terminals()
-        if self.stack.get_visible_child_name() != "terminals":
-            self.stack.set_visible_child_name("terminals")
+        self.stack.set_visible_child_name("sessions")
+        self.sessions_stack.set_visible_child_name("terminals")
 
     def hide_terminals(self):
-        shown = self.stack.get_visible_child_name() == "terminals"
-        back = self.back_to or "sessions"  # cacher la page visible fait afficher la première
-        self.terminals_page.set_visible(False)
-        self.narrow.set_condition(self.narrow_condition())
-        if shown:
-            self.stack.set_visible_child_name(back)
+        """Plus de terminal ouvert : retour à la vue d'ensemble des sessions."""
+        self.sessions_stack.set_visible_child_name("overview")
 
     def open_claude(self, cwd, resume=None, title=None, external=False):
         """Claude Code dans `cwd` (reprise de la conversation `resume`) : dans un onglet de
@@ -372,16 +399,29 @@ class Window(Adw.ApplicationWindow):
             GLib.timeout_add(delay, lambda: (self.sessions.visible_page and self.sessions.load(), False)[1])
 
     def show_page(self, name):
-        """Affiche l'onglet `name` (nom du ViewStack, cf. desktop.page_name). Terminaux sans
-        onglet ouvert : l'onglet Sessions, avec un message."""
-        name = desktop.page_name(name)
-        if name is None:
+        """Affiche la page `name` (ancien ou nouveau nom, cf. desktop.page_name) : l'onglet et
+        sa sous-partie. « prefs » ouvre la fenêtre des réglages. Renvoie le nom de l'onglet
+        (ou « prefs »), None si le nom est inconnu."""
+        found = desktop.page_name(name)
+        if found is None:
             return None
-        if name == "terminals" and not self.terminals_page.get_visible():
-            self.toast("Aucun terminal ouvert dans l'application")
-            name = "sessions"
-        self.stack.set_visible_child_name(name)
-        return name
+        page, sub = found
+        if page == "prefs":
+            self.show_prefs()
+            return page
+        self.stack.set_visible_child_name(page)
+        if page == "home":
+            self.home.show(sub)
+        elif page == "analysis":
+            self.analysis_hub.show(sub)
+        return page
+
+    def show_prefs(self):
+        PrefsDialog(self).present(self)
+
+    def open_session(self, cwd):
+        """Ouvre une session Claude dans `cwd` (bouton de la page Projets)."""
+        return self.open_claude(cwd)
 
     def show_session(self, ref):
         """Session désignée par une notification : son onglet s'il y en a un, sinon sa carte
@@ -396,14 +436,15 @@ class Window(Adw.ApplicationWindow):
                 return "onglet"
             target = ("sessions", target[1].pid, target[1].session_id)
         self.stack.set_visible_child_name("sessions")
+        self.sessions_stack.set_visible_child_name("overview")
         self.sessions.highlight(target[1], target[2])
         return "sessions"
 
     def show_task(self, task_id):
-        """Tâche désignée par la notification de fin : onglet Planning, journal de la tâche
-        ouvert. Renvoie « planning » (la tâche est affichée) ou None (identifiant inconnu : on
-        n'affiche alors que l'onglet)."""
-        self.stack.set_visible_child_name("planning")
+        """Tâche désignée par la notification de fin : Accueil, partie Planning, journal de la
+        tâche ouvert. Renvoie « planning » (la tâche est affichée) ou None (identifiant inconnu :
+        on n'affiche alors que l'onglet)."""
+        self.show_page("planning")
         return "planning" if self.planning.tasks_view.show_task(task_id) else None
 
     def preview(self, conv):
@@ -414,6 +455,7 @@ class Window(Adw.ApplicationWindow):
         « Afficher » de l'onglet Sessions suivent."""
         if self.sessions.visible_page:
             self.sessions.rerender()
+        self.update_badge()
 
     def on_close_request(self, *_):
         if self.closing:
@@ -544,6 +586,9 @@ class App(Adw.Application):
             refresh.connect("activate", lambda *_: win.refresh())
             win.add_action(refresh)
             self.set_accels_for_action("win.refresh", ["F5", "<Control>r"])
+            self.set_accels_for_action("win.prefs", ["<Control>comma"])
+            for key, tab in enumerate(desktop.PAGES, 1):
+                self.set_accels_for_action(f"win.show-tab('{tab}')", [f"<Control>{key}"])
         return win
 
     def do_activate(self):
