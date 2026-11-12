@@ -387,7 +387,8 @@ class FileEditor(Gtk.Box):
         ok, it = d.buffer.get_iter_at_line(max(int(line) - 1, 0))
         d.buffer.place_cursor(it)
         if d.view is not None:
-            GLib.idle_add(lambda: (d.view.scroll_to_iter(it, 0.2, True, 0, 0.3), False)[1])
+            GLib.idle_add(lambda: (d.view is not None and d.view.scroll_to_iter(it, 0.2, True, 0, 0.3),
+                                   False)[1])   # le fichier a pu être fermé entre-temps
 
     # ---- aperçu Markdown ------------------------------------------------------------
 

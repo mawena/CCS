@@ -424,6 +424,14 @@ class MessageList(Gtk.ScrolledWindow):
         self.busy_row.append(self.busy_label)
         self.box.append(self.busy_row)
         self.set_child(Adw.Clamp(child=self.box, maximum_size=MAX_WIDTH, tightening_threshold=MAX_WIDTH - 200))
+        # « ↓ Nouveaux messages » : posé en surimpression par l'onglet (Gtk.Overlay), visible
+        # quand du contenu arrive alors qu'on lit plus haut.
+        self.new_button = Gtk.Button(label="↓ Nouveaux messages", visible=False, halign=Gtk.Align.CENTER,
+                                     valign=Gtk.Align.END, margin_bottom=12,
+                                     css_classes=["pill", "suggested-action"])
+        self.new_button.connect("clicked", lambda *_: self.follow())
+        self._scroll_pending = False
+        self._history_loading = False
         adj = self.get_vadjustment()
         adj.connect("value-changed", self._on_value)
         adj.connect("notify::upper", self._on_upper)
@@ -434,18 +442,50 @@ class MessageList(Gtk.ScrolledWindow):
         if self._moving:
             return
         self._stick = adj.get_upper() - adj.get_page_size() - adj.get_value() < STICK_PX
+        if self._stick:
+            self.new_button.set_visible(False)
         if adj.get_value() < 80 and self._hist_pos > 0:
             self._load_more()
 
     def _on_upper(self, adj, _p):
+        if self._history_loading:
+            return  # l'historique s'ajoute en haut : _load_more garde la position
+        if self._stick:
+            self._queue_scroll_end()
+
+    def _queue_scroll_end(self):
+        """Ramène en bas APRÈS la mise en page. Changer l'ajustement pendant l'allocation
+        (dans `notify::upper`) est ignoré par GTK : le contenu ajouté restait hors de la vue
+        tant qu'on ne faisait pas défiler."""
+        if not self._scroll_pending:
+            self._scroll_pending = True
+            GLib.idle_add(self._scroll_end_idle)
+
+    def _scroll_end_idle(self):
+        self._scroll_pending = False
         if self._stick:
             self.scroll_end()
+        return False
+
+    def _content_added(self):
+        """Du nouveau en bas du fil : on suit si l'on est en bas, sinon le bouton apparaît."""
+        if self._stick:
+            self._queue_scroll_end()
+        else:
+            self.new_button.set_visible(True)
+
+    def follow(self):
+        """Retour en bas (bouton « Nouveaux messages ») ; la vue suit de nouveau."""
+        self._stick = True
+        self.scroll_end()
+        self._queue_scroll_end()
 
     def scroll_end(self):
         adj = self.get_vadjustment()
         self._moving = True
         adj.set_value(max(0.0, adj.get_upper() - adj.get_page_size()))
         self._moving = False
+        self.new_button.set_visible(False)
 
     # -- ajout --
 
@@ -454,6 +494,7 @@ class MessageList(Gtk.ScrolledWindow):
         self.box.insert_child_after(widget, self._last)
         self._last = widget
         self._built += 1
+        self._content_added()
         return widget
 
     def _bubble_widget(self, role_class, child, halign):
@@ -604,8 +645,7 @@ class MessageList(Gtk.ScrolledWindow):
             self.scroll_end_if_stuck()
 
     def scroll_end_if_stuck(self):
-        if self._stick:
-            GLib.idle_add(lambda: (self.scroll_end(), False)[1])
+        self._content_added()
 
     def set_dark(self, dark):
         self._dark = bool(dark)
@@ -666,10 +706,12 @@ class MessageList(Gtk.ScrolledWindow):
         elif prev is not None:
             # garde à l'écran ce que l'on regardait : le contenu ajouté pousse tout vers le bas
             handler = []
+            self._history_loading = True
 
             def keep(a, _p):
                 a.disconnect(handler[0])
                 self._moving = True
                 a.set_value(old_value + a.get_upper() - old_upper)
                 self._moving = False
+                self._history_loading = False
             handler.append(adj.connect("notify::upper", keep))

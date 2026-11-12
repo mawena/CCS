@@ -158,5 +158,139 @@ class MessageListTest(unittest.TestCase):
         self.assertLess(texts.index("fait"), texts.index("merci"))
 
 
+def shown(ml, width=640, height=360):
+    win = Gtk.Window(default_width=width, default_height=height)
+    win.set_child(ml)
+    win.present()
+    pump(150)
+    return win
+
+
+def at_bottom(ml, tolerance=4):
+    adj = ml.get_vadjustment()
+    return adj.get_upper() - adj.get_page_size() - adj.get_value() <= tolerance
+
+
+def fill(ml, n, prefix="ligne"):
+    for i in range(n):
+        ml.add_user(f"{prefix} {i}", ())
+
+
+def widget_visible_in_view(ml, widget):
+    """Le widget est alloué et sa fin est dans la zone visible (un widget plus haut que la
+    vue ne peut pas y tenir en entier : on regarde son bas, là où arrive le nouveau texte)."""
+    if widget.get_height() <= 0:
+        return False
+    ok, rect = widget.compute_bounds(ml)
+    if not ok:
+        return False
+    top, bottom = rect.get_y(), rect.get_y() + rect.get_height()
+    if rect.get_height() > ml.get_height():
+        return 0 < bottom <= ml.get_height() + 1
+    return top >= -1 and bottom <= ml.get_height() + 1
+
+
+@unittest.skipUnless(GTK, "tests graphiques : CCS_GUI_TESTS=1 avec xvfb-run")
+class MessageListScrollTest(unittest.TestCase):
+    def test_content_added_at_bottom_is_followed_and_allocated(self):
+        ml = MessageList()
+        win = shown(ml)
+        fill(ml, 30)
+        pump(200)
+        self.assertGreater(ml.get_vadjustment().get_upper(), ml.get_height())
+        self.assertTrue(at_bottom(ml))
+        for kind in range(4):
+            ml.add_tool(proto.ToolUse(f"t{kind}", "Bash", {"command": "ls"}))
+            ml.add_user("nouveau", ())
+            ml.add_notice("info")
+            pump(200)
+            self.assertTrue(at_bottom(ml), f"tour {kind}")
+            self.assertTrue(widget_visible_in_view(ml, ml._last), f"tour {kind}")
+        win.destroy()
+
+    def test_streamed_text_keeps_following(self):
+        ml = MessageList()
+        win = shown(ml)
+        fill(ml, 20)
+        pump(200)
+        ml.start_assistant("m1")
+        for i in range(40):
+            ml.append_delta("m1", f"Paragraphe {i} avec un peu de texte pour grandir.\n\n")
+            pump(120)
+            self.assertTrue(at_bottom(ml), f"delta {i}")
+        pump(200)   # le dernier rendu (toutes les 90 ms) se place une image plus tard
+        self.assertTrue(widget_visible_in_view(ml, ml._last))
+        ml.finish_assistant("m1", "Fin")
+        pump(200)
+        self.assertTrue(at_bottom(ml))
+        win.destroy()
+
+    def test_scrolled_up_user_is_not_moved_and_gets_a_button(self):
+        ml = MessageList()
+        win = shown(ml)
+        fill(ml, 40)
+        pump(200)
+        adj = ml.get_vadjustment()
+        adj.set_value(adj.get_upper() - adj.get_page_size() - 600)
+        pump(100)
+        value = adj.get_value()
+        self.assertFalse(ml.new_button.get_visible())
+        ml.add_user("nouveau message", ())
+        ml.add_tool(proto.ToolUse("t1", "Bash", {"command": "ls"}))
+        pump(300)
+        self.assertAlmostEqual(adj.get_value(), value, delta=1)
+        self.assertTrue(ml.new_button.get_visible())
+        ml.new_button.emit("clicked")
+        pump(300)
+        self.assertTrue(at_bottom(ml))
+        self.assertFalse(ml.new_button.get_visible())
+        win.destroy()
+
+    def test_button_disappears_when_user_scrolls_back_down(self):
+        ml = MessageList()
+        win = shown(ml)
+        fill(ml, 40)
+        pump(200)
+        adj = ml.get_vadjustment()
+        adj.set_value(100)
+        pump(100)
+        ml.add_user("x", ())
+        pump(200)
+        self.assertTrue(ml.new_button.get_visible())
+        adj.set_value(adj.get_upper() - adj.get_page_size())
+        pump(100)
+        self.assertFalse(ml.new_button.get_visible())
+        win.destroy()
+
+    def test_history_paging_keeps_position(self):
+        history = []
+        for i in range(300):
+            history.append(preview.Message(preview.USER, f"question {i}"))
+            history.append(preview.Message(preview.ASSISTANT, f"réponse {i}"))
+        ml = MessageList()
+        win = shown(ml)
+        ml.load_history(history)
+        pump(300)
+        self.assertTrue(at_bottom(ml))
+        adj = ml.get_vadjustment()
+        # on remonte jusqu'en haut : un paquet se charge, le texte regardé ne bouge pas
+        adj.set_value(adj.get_upper() - adj.get_page_size() - 400)
+        pump(100)
+        # première ligne visible = point de repère
+        def first_visible():
+            for w in ml.box:
+                ok, r = w.compute_bounds(ml)
+                if ok and r.get_y() + r.get_height() > 0 and w is not ml.busy_row:
+                    return w, r.get_y()
+        before_total = ml.built_count
+        adj.set_value(0)
+        pump(400)
+        self.assertGreater(ml.built_count, before_total)
+        # l'ancienne première ligne chargée n'a pas sauté : la valeur n'est pas revenue à 0
+        self.assertGreater(adj.get_value(), 100)
+        self.assertFalse(ml.new_button.get_visible())
+        win.destroy()
+
+
 if __name__ == "__main__":
     unittest.main()

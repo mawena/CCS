@@ -90,7 +90,9 @@ class ChatTab(Gtk.Box):
         self.composer = Composer(base_dir=launch.cwd)
         self.bar = ChatBar()
         self.bar.set_options(self.options)
-        for w in (self.messages, self.composer, self.bar):
+        self.messages_overlay = Gtk.Overlay(child=self.messages, vexpand=True)
+        self.messages_overlay.add_overlay(self.messages.new_button)   # « ↓ Nouveaux messages »
+        for w in (self.messages_overlay, self.composer, self.bar):
             self.panel.append(w)
         self.append(self.panel)
 

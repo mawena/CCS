@@ -14,7 +14,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   forme (titres, listes, tableaux, code coloré), qui arrivent au fil de l'eau.
   Chaque action de Claude (fichier lu ou modifié avec son `+12 −3`, commande,
   recherche, sous-agent) est une carte repliable, et sa liste de tâches
-  s'affiche en cases à cocher.
+  s'affiche en cases à cocher. Le fil suit ce qui arrive tant que tu es en bas ; si tu
+  lis plus haut, il ne bouge pas et un bouton « ↓ Nouveaux messages » te ramène en bas.
 - **Barre cliquable du chat** : modèle, effort (faible à max, les niveaux que le
   modèle n'accepte pas sont grisés), ultracode et droits (Demander,
   Modifications acceptées, Plan, Tout autoriser), avec le contexte utilisé et le
