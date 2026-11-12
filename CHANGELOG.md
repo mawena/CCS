@@ -16,6 +16,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   recherche, sous-agent) est une carte repliable, et sa liste de tâches
   s'affiche en cases à cocher. Le fil suit ce qui arrive tant que tu es en bas ; si tu
   lis plus haut, il ne bouge pas et un bouton « ↓ Nouveaux messages » te ramène en bas.
+- **Sous-agents visibles**, comme dans VS Code : quand Claude lance des sous-agents, une
+  pastille par sous-agent apparaît en haut du chat (roue tant qu'il travaille, coche à la
+  fin) ; un clic montre sa conversation (actions, résultats, texte), « Conversation
+  principale » ramène au fil. La carte Sous-agent du fil a un bouton « Voir le sous-agent ».
 - **Barre cliquable du chat** : modèle, effort (faible à max, les niveaux que le
   modèle n'accepte pas sont grisés), ultracode et droits (Demander,
   Modifications acceptées, Plan, Tout autoriser), avec le contexte utilisé et le

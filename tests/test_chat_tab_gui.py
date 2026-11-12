@@ -45,6 +45,21 @@ def texts(tab):
     return [w.get_label() or "" for w in descendants(tab.messages.box) if isinstance(w, Gtk.Label)]
 
 
+
+def labels_in(widget):
+    """Texte de tous les Gtk.Label sous `widget` (même dans une page de pile cachée)."""
+    out, stack = [], [widget]
+    while stack:
+        w = stack.pop()
+        if isinstance(w, Gtk.Label):
+            out.append(w.get_text())
+        child = w.get_first_child()
+        while child is not None:
+            stack.append(child)
+            child = child.get_next_sibling()
+    return " ".join(out)
+
+
 class FakeOwner:
     """Ce que la page Terminaux fournit à un onglet."""
 
@@ -221,6 +236,28 @@ class ChatTabTest(HomeTestCase):
         tab, _owner = self.make()
         tab._dispatch(proto.PermissionRequest("r1", "Bash", "Bash", {"command": "ls"}, agent_id="agent-1"))
         self.assertTrue(any("sous-agent" in t for t in texts(tab)))
+
+    def test_subagent_has_its_own_view_and_pill(self):
+        tab, _owner = self.make()
+        self.assertFalse(tab.agent_bar.get_visible())
+        tab._dispatch(proto.ToolUse("toolu_A", "Task", {"description": "Explorer le code", "prompt": "…"}, None))
+        self.assertIn("toolu_A", tab.agents)
+        self.assertTrue(tab.agent_bar.get_visible())
+        self.assertIn("Explorer le code", labels_in(tab.agent_bar))
+        tab._dispatch(proto.ToolUse("toolu_x", "Bash", {"command": "ls"}, "toolu_A"))
+        tab._dispatch(proto.AssistantText("m-sub", "trouvé trois fichiers", "toolu_A"))
+        self.assertNotIn("trouvé trois fichiers", labels_in(tab.messages))   # pas dans le fil principal
+        agent = tab.agents["toolu_A"]
+        tab.show_agent("toolu_A")
+        self.assertIs(tab.view_stack.get_visible_child(), agent.view)
+        self.assertTrue(pump_until(lambda: "trouvé trois fichiers" in labels_in(agent.messages)))
+        self.assertFalse(agent.done)
+        tab._dispatch(proto.ToolResult("toolu_A", "fini", False, None))
+        self.assertTrue(agent.done)
+        tab.show_agent(None)                                       # « ← Principale »
+        self.assertIs(tab.view_stack.get_visible_child(), tab.messages_overlay)
+        self.say(tab, "message")                                   # la saisie reste pour la principale
+        self.assertIn("message", labels_in(tab.messages))
 
     def test_start_failure_shows_notice(self):
         tab, owner = self.make(env={"FAKE_CLAUDE_EXIT": "1"})

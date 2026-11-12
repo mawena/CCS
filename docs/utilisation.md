@@ -921,6 +921,11 @@ téléphone).
 - **Arrêter** : pendant que Claude travaille, le bouton d'envoi devient
   « Arrêter » (Échap fait de même). Claude s'interrompt ; c'est un arrêt voulu,
   pas une erreur, et le message suivant reprend la conversation.
+- **Sous-agents** : quand Claude lance des sous-agents (outil Task/Agent), une pastille
+  par sous-agent s'affiche au-dessus du fil, avec une roue tant qu'il travaille et une
+  coche quand il a fini. Un clic montre sa conversation, en lecture seule ; « Conversation
+  principale » ramène au fil, où ta saisie part toujours. Une demande d'autorisation
+  venue d'un sous-agent le dit dans sa carte.
 - **Écrire pendant que Claude travaille** : Entrée envoie tout de suite, images
   comprises, comme dans le terminal de Claude Code. La bulle porte la mention
   « envoyé pendant que Claude travaille » ; Claude le lit en cours de route ou juste

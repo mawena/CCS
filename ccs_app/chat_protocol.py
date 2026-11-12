@@ -72,6 +72,7 @@ class TextDelta:
 class AssistantText:
     msg_id: str
     text: str
+    parent_id: str | None = None     # texte d'un sous-agent (outil Task/Agent qui l'a lancé)
 
 
 @dataclass(frozen=True)
@@ -282,13 +283,13 @@ def _assistant(ev):
     out = []
     content = message.get("content")
     if isinstance(content, str):
-        return [AssistantText(msg_id, content)] if content else []
+        return [AssistantText(msg_id, content, parent)] if content else []
     for block in content if isinstance(content, list) else ():
         if not isinstance(block, dict):
             continue
         kind = block.get("type")
         if kind == "text" and isinstance(block.get("text"), str):
-            out.append(AssistantText(msg_id, block["text"]))
+            out.append(AssistantText(msg_id, block["text"], parent))
         elif kind == "thinking":
             out.append(Thinking(msg_id))
         elif kind == "tool_use":

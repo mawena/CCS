@@ -20,7 +20,7 @@ import gi
 
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, GLib, GObject, Gtk  # noqa: E402
+from gi.repository import Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, preview, sessions, settings  # noqa: E402
 from .. import terminal  # noqa: E402
@@ -55,6 +55,19 @@ class _NoTerm:
 
     def set_font(self, _font):
         pass
+
+
+AGENT_TOOLS = ("Task", "Agent")   # outils qui lancent un sous-agent
+
+
+class _Agent:
+    """Un sous-agent lancé par Claude dans ce chat : sa pastille et sa vue."""
+
+    def __init__(self, name, messages, view, pill, spinner, icon, background=False):
+        self.name, self.messages, self.view, self.pill = name, messages, view, pill
+        self.spinner, self.icon = spinner, icon
+        self.background = background
+        self.done = False
 
 
 class ChatTab(Gtk.Box):
@@ -92,7 +105,19 @@ class ChatTab(Gtk.Box):
         self.bar.set_options(self.options)
         self.messages_overlay = Gtk.Overlay(child=self.messages, vexpand=True)
         self.messages_overlay.add_overlay(self.messages.new_button)   # « ↓ Nouveaux messages »
-        for w in (self.messages_overlay, self.composer, self.bar):
+        # Sous-agents : une pastille par sous-agent au-dessus du fil, chacun sa vue (comme VS Code).
+        self.agents = {}                                              # tool_use_id -> _Agent
+        self.view_stack = Gtk.Stack(vexpand=True, transition_type=Gtk.StackTransitionType.CROSSFADE)
+        self.view_stack.add_named(self.messages_overlay, "principale")
+        self.agent_pills = Gtk.Box(spacing=6)
+        self.main_pill = Gtk.ToggleButton(label="Conversation principale", active=True,
+                                          css_classes=["pill", "small"])
+        self.main_pill.connect("toggled", lambda b: b.get_active() and self.show_agent(None))
+        self.agent_pills.append(self.main_pill)
+        self.agent_bar = Gtk.ScrolledWindow(child=self.agent_pills, visible=False, margin_start=12,
+                                            margin_end=12, margin_top=6, vscrollbar_policy=Gtk.PolicyType.NEVER,
+                                            propagate_natural_height=True)
+        for w in (self.agent_bar, self.view_stack, self.composer, self.bar):
             self.panel.append(w)
         self.append(self.panel)
 
@@ -327,6 +352,12 @@ class ChatTab(Gtk.Box):
 
     def _dispatch(self, ev):
         """Un événement du moteur (déjà ramené dans la boucle GTK)."""
+        parent = getattr(ev, "parent_id", None)
+        if parent and parent in getattr(self, "agents", {}):
+            self._agent_event(self.agents[parent], ev)
+            return False
+        if isinstance(ev, proto.ToolResult) and ev.tool_id in getattr(self, "agents", {}):
+            self._agent_done(ev.tool_id)
         if self._closed and not isinstance(ev, (chat_engine.StateChanged, chat_engine.ProcessExited)):
             return False
         handler = {
@@ -426,8 +457,72 @@ class ChatTab(Gtk.Box):
     def _on_tool(self, ev):
         if ev.name in proto.TODO_TOOLS:
             return  # la liste de tâches a sa propre carte (événement Todos)
-        self.messages.add_tool(ev)
+        card = self.messages.add_tool(ev)
         self.messages.set_busy(True, f"{tool_label(ev.name)}…")
+        if ev.name in AGENT_TOOLS and not ev.parent_id:
+            self._new_agent(ev, card)
+
+    # ---- sous-agents ----------------------------------------------------------------------
+
+    def _new_agent(self, ev, card):
+        """Un sous-agent démarre : sa pastille, sa vue (fil en lecture seule), et « Voir » sur sa carte."""
+        data = ev.input or {}
+        name = str(data.get("description") or data.get("subagent_type") or "Sous-agent")[:60]
+        messages = MessageList(on_diff=lambda p, o, n: self.emit("show-diff", p, o, n),
+                               on_open=lambda p, line: self.emit("open-file", p, line),
+                               on_link=self.open_link, base_dir=self.launch.cwd)
+        view = Gtk.Overlay(child=messages, vexpand=True)
+        view.add_overlay(messages.new_button)
+        pill_box = Gtk.Box(spacing=6)
+        spinner = Gtk.Spinner(spinning=True)
+        icon = Gtk.Image(icon_name="emblem-ok-symbolic", visible=False)
+        pill_box.append(spinner)
+        pill_box.append(icon)
+        pill_box.append(Gtk.Label(label=name, ellipsize=Pango.EllipsizeMode.END, max_width_chars=28))
+        pill = Gtk.ToggleButton(child=pill_box, group=self.main_pill, css_classes=["pill", "small"],
+                                tooltip_text=f"Sous-agent : {name}")
+        agent = _Agent(name, messages, view, pill, spinner, icon,
+                       background=bool(data.get("run_in_background")))
+        self.agents[ev.tool_id] = agent
+        self.view_stack.add_named(view, ev.tool_id)
+        pill.connect("toggled", lambda b, tid=ev.tool_id: b.get_active() and self.show_agent(tid))
+        self.agent_pills.append(pill)
+        self.agent_bar.set_visible(True)
+        if card is not None:
+            see = Gtk.Button(label="Voir le sous-agent", halign=Gtk.Align.START, css_classes=["flat"])
+            see.connect("clicked", lambda *_b, tid=ev.tool_id: self.show_agent(tid))
+            card.append(see)
+
+    def show_agent(self, tool_id):
+        """Affiche la vue d'un sous-agent, ou la conversation principale (`None`)."""
+        agent = self.agents.get(tool_id) if tool_id else None
+        if agent is None:
+            self.view_stack.set_visible_child(self.messages_overlay)
+            if not self.main_pill.get_active():
+                self.main_pill.set_active(True)
+            return
+        self.view_stack.set_visible_child(agent.view)
+        if not agent.pill.get_active():
+            agent.pill.set_active(True)
+
+    def _agent_event(self, agent, ev):
+        """Événement émis par un sous-agent : dans sa vue, pas dans le fil principal."""
+        if isinstance(ev, proto.ToolUse):
+            if ev.name not in proto.TODO_TOOLS:
+                agent.messages.add_tool(ev)
+        elif isinstance(ev, proto.ToolResult):
+            agent.messages.set_tool_result(ev)
+        elif isinstance(ev, proto.AssistantText):
+            agent.messages.finish_assistant(ev.msg_id, ev.text)
+
+    def _agent_done(self, tool_id):
+        agent = self.agents.get(tool_id)
+        if agent is None or agent.background:   # un sous-agent de fond rend la main tout de suite
+            return
+        agent.done = True
+        agent.spinner.set_spinning(False)
+        agent.spinner.set_visible(False)
+        agent.icon.set_visible(True)
 
     def _on_permission(self, ev):
         self.messages.add_permission(ev, self._answer)
