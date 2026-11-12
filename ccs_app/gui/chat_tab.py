@@ -249,6 +249,7 @@ class ChatTab(Gtk.Box):
         self._pending = (text, list(images))
         self._turn_done = False
         self.messages.add_user(text, images)
+        self._on_state(chat_engine.StateChanged("busy"))   # tout de suite : la page lit cet état
         return True
 
     def send_auto(self, text):

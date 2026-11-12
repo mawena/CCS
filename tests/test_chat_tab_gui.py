@@ -107,13 +107,15 @@ class ChatTabTest(HomeTestCase):
         tab.composer.submit()
 
     def test_send_shows_bubble_and_streams_answer(self):
-        tab, _owner = self.make()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
         self.assertIsNone(tab.engine.pid)                          # pas de processus avant l'envoi
-        self.say(tab, "Bonjour Claude")
-        self.assertIn("Bonjour Claude", texts(tab))
-        self.assertTrue(pump_until(lambda: any("fin du scénario" in t for t in texts(tab)) or
-                                   any(t for t in texts(tab) if "Effort" in t or "effort" in t)))
-        self.assertTrue(pump_until(lambda: tab.state.state == "waiting"))
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertIn("Lance la commande `touch essai1.txt` puis dis juste OK.", texts(tab))
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        next(iter(tab.messages._perms.values())).allow.emit("clicked")
+        self.assertTrue(pump_until(lambda: tab.state.waiting_for == "input"))
+        self.assertTrue(any(t.strip() == "OK" for t in texts(tab)))   # la réponse de Claude
+        self.assertEqual(tab.state.state, "waiting")
 
     def test_state_busy_then_waiting(self):
         tab, owner = self.make("permissions-allow-toujours.jsonl")
@@ -135,7 +137,8 @@ class ChatTabTest(HomeTestCase):
         self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
         self.assertTrue(pump_until(lambda: tab.messages._perms))
         card = next(iter(tab.messages._perms.values()))
-        self.assertIn("touch essai1.txt", [w.get_label() for w in descendants(card) if isinstance(w, Gtk.Label)])
+        self.assertTrue(any("touch essai1.txt" in (w.get_label() or "")
+                            for w in descendants(card) if isinstance(w, Gtk.Label)))
         card.allow.emit("clicked")
         self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
         self.assertTrue(card.answered)
@@ -188,11 +191,16 @@ class ChatTabTest(HomeTestCase):
     def test_stop_button_interrupts(self):
         tab, _owner = self.make("refus-et-interruption.jsonl")
         self.say(tab, "Lance la commande `touch essai4.txt`. Si elle est refusée, écris alors les nombres.")
-        self.assertTrue(pump_until(lambda: tab.engine.state == "permission"))
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        next(iter(tab.messages._perms.values())).deny.emit("clicked")
+        self.assertTrue(pump_until(lambda: tab.state.waiting_for == "input"))
+        self.say(tab, "Réponds juste OK.")
+        self.assertEqual(tab.state.state, "busy")
         self.assertTrue(tab.composer.stop_button.get_visible())
         tab.composer.stop_button.emit("clicked")
-        self.assertTrue(pump_until(lambda: tab.engine.state in ("stopped", "idle")))
-        self.assertTrue(pump_until(lambda: not tab.composer.stop_button.get_visible()))
+        self.assertTrue(pump_until(lambda: any(t == "Arrêté." for t in texts(tab))))
+        self.assertTrue(pump_until(lambda: tab.engine.state == "stopped"))
+        self.assertFalse(tab.composer.stop_button.get_visible())
         self.assertTrue(tab.state.running)                          # arrêt voulu : pas d'erreur
         self.assertIsNone(tab._error_notice)
 
