@@ -149,9 +149,9 @@ if GTK:
         def __init__(self):
             super().__init__()
             self.stack = mock.MagicMock()
-            self.stack.get_visible_child_name.return_value = "terminals"
-            self.terminals_page = mock.MagicMock()
-            self.terminals_page.get_visible.return_value = True
+            self.stack.get_visible_child_name.return_value = "sessions"
+            self.update_badge = mock.MagicMock()
+            self.on_page = mock.MagicMock()
             self.toast = mock.MagicMock()
             self.show_terminals = mock.MagicMock()
             self.hide_terminals = mock.MagicMock()

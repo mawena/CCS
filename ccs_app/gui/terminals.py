@@ -559,6 +559,7 @@ class TerminalsPage(Gtk.Box):
         self.window = window
         self.overview = overview
         self.overview_page = None
+        self.wants_attention = False
         self.seen = {}             # chats : dernier (état, depuis) vu, pour les alertes
         self.notifier = notify.send
         self.phoner = phone.send
@@ -574,6 +575,8 @@ class TerminalsPage(Gtk.Box):
         self.pending, self.pending_selected, self.offering = None, None, False
         self.save_source, self.last_saved, self.closed = None, None, False
         if not self.available:
+            if overview is not None:   # sans VTE : seulement la vue d'ensemble
+                self.append(overview)
             return
         install_css()
 
@@ -826,7 +829,8 @@ class TerminalsPage(Gtk.Box):
         tab.focus()
 
     def on_screen(self):
-        return self.window.stack.get_visible_child_name() == "terminals" and self.window.is_active()
+        return (self.window.stack.get_visible_child_name() == "sessions"
+                and not self.overview_shown() and self.window.is_active())
 
     def on_selected(self, *_):
         page = self.view.get_selected_page()
@@ -840,6 +844,9 @@ class TerminalsPage(Gtk.Box):
             page.get_child().focus()
         self.update_badge()
         self.schedule_save()
+        on_page = getattr(self.window, "on_page", None)
+        if on_page is not None:
+            on_page()
 
     def focus_selected(self):
         page = self.view.get_selected_page() if self.available else None
@@ -868,11 +875,25 @@ class TerminalsPage(Gtk.Box):
             getattr(t, "elsewhere_pid", None) for t in self.tabs())
 
     def update_badge(self):
-        page = self.window.terminals_page
-        tabs = self.tabs()
-        page.set_badge_number(len(tabs))
-        wanted = self.offering or any(t.page.get_needs_attention() for t in tabs if t.page)
-        page.set_needs_attention(wanted and self.window.stack.get_visible_child_name() != "terminals")
+        """Le badge est celui de l'onglet Sessions de la fenêtre (`window.update_badge`) ;
+        ici seulement : un onglet ou la proposition de réouverture demande-t-il de l'attention ?"""
+        self.wants_attention = bool(self.offering or any(
+            t.page.get_needs_attention() for t in self.tabs() if t.page))
+        update = getattr(self.window, "update_badge", None)
+        if update is not None:
+            update()
+
+    def overview_shown(self):
+        """La page « Toutes les sessions » est la page affichée de la barre d'onglets."""
+        if self.overview is not None and not self.available:
+            return True
+        if self.overview_page is None:
+            return False
+        return self.view.get_selected_page() is self.overview_page
+
+    def show_overview(self):
+        if self.overview_page is not None:
+            self.view.set_selected_page(self.overview_page)
 
     def update_content(self):
         if self.available:
@@ -939,13 +960,7 @@ class TerminalsPage(Gtk.Box):
         self.split_view.set_active(tab)
 
     def reveal_page(self):
-        """Onglet « Terminaux » visible dans la barre de la fenêtre, sans l'afficher."""
-        page = self.window.terminals_page
-        if not page.get_visible():
-            page.set_visible(True)
-            narrow = getattr(self.window, "narrow", None)
-            if narrow is not None and hasattr(self.window, "narrow_condition"):
-                narrow.set_condition(self.window.narrow_condition())
+        """L'onglet Sessions est toujours visible : seul le badge est remis à jour."""
         self.update_badge()
 
     def on_detached(self, _view, page, _position):

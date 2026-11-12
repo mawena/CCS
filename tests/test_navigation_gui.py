@@ -137,9 +137,13 @@ class NavigationTest(HomeTestCase):
         from ccs_app.gui.projects_page import ProjectsPage
         self.assertIsInstance(self.win.projects, ProjectsPage)
 
-    @unittest.skip("tâche 9 : l'aperçu épinglé n'existe pas encore")
     def test_overview_pinned_in_sessions(self):
-        pass
+        tab = self.win.stack.get_child_by_name("sessions")
+        self.assertIs(tab, self.win.terminals)
+        first = self.win.terminals.view.get_nth_page(0)
+        self.assertIs(first.get_child(), self.win.sessions)
+        self.assertTrue(first.get_pinned())
+        self.assertEqual(first.get_title(), "Toutes les sessions")
 
 
 @unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
