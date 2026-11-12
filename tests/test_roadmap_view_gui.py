@@ -86,8 +86,24 @@ class RoadmapViewTest(unittest.TestCase):
         self.assertTrue(pump(lambda: v.task_rows[10].has_css_class("ccs-just-done")))
         self.assertFalse(v.task_rows[9].has_css_class("ccs-just-done"))
 
+    def test_outside_a_project_no_ask_but_choose(self):
+        self.file.unlink()                              # ~ ou le Bureau : pas de dépôt git
+        v = self.view(on_ask_create=lambda: None)
+        self.assertIsNone(v.ask_button)
+        self.assertIsNotNone(v.choose_button)
+
+    def test_follow_another_roadmap(self):
+        other = self.tmp / "Work" / "App"
+        other.mkdir(parents=True)
+        (other / "ROADMAP.md").write_text(TEXT.replace("# ", "# Autre ", 1))
+        v = self.view()
+        v.follow(other / "ROADMAP.md")
+        self.assertTrue(pump(lambda: v.path == other / "ROADMAP.md"))
+        self.assertIsNotNone(v.roadmap)
+
     def test_no_roadmap_status_page(self):
         self.file.unlink()
+        (self.tmp / ".git").mkdir()                     # un vrai projet : on peut demander à Claude
         asked = []
         v = self.view(on_ask_create=lambda: asked.append(1))
         self.assertIsNone(v.roadmap)

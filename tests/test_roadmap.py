@@ -183,3 +183,40 @@ class FindTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FollowTest(unittest.TestCase):
+    """Le ROADMAP.md que touche une action de Claude, et ce qu'est un vrai projet."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = Path(self.tmp.name)
+        self.proj = self.home / "Work" / "App"
+        (self.proj / ".git").mkdir(parents=True)
+        (self.proj / "ROADMAP.md").write_text("# App\n## Phase 1\n- [ ] a\n")
+        self.cwd = str(self.home)
+
+    def test_edit_read_write_with_absolute_or_relative_path(self):
+        target = self.proj / "ROADMAP.md"
+        for name in ("Read", "Edit", "Write", "MultiEdit"):
+            self.assertEqual(roadmap.path_in_tool(name, {"file_path": str(target)}, self.cwd), target, name)
+        self.assertEqual(roadmap.path_in_tool("Read", {"file_path": "Work/App/ROADMAP.md"}, self.cwd), target)
+
+    def test_bash_with_path_or_cd(self):
+        target = self.proj / "ROADMAP.md"
+        cmd = f"sed -n 1,20p {target}"
+        self.assertEqual(roadmap.path_in_tool("Bash", {"command": cmd}, self.cwd), target)
+        cmd = f"cd {self.proj} && grep -n Phase ROADMAP.md"
+        self.assertEqual(roadmap.path_in_tool("Bash", {"command": cmd}, self.cwd), target)
+
+    def test_unrelated_actions(self):
+        self.assertIsNone(roadmap.path_in_tool("Read", {"file_path": str(self.proj / "README.md")}, self.cwd))
+        self.assertIsNone(roadmap.path_in_tool("Bash", {"command": "ls -la"}, self.cwd))
+        self.assertIsNone(roadmap.path_in_tool("Grep", {"pattern": "ROADMAP.md"}, self.cwd))
+        self.assertIsNone(roadmap.path_in_tool("Bash", {"command": "cat /nulle/part/ROADMAP.md"}, self.cwd))
+
+    def test_is_project(self):
+        self.assertTrue(roadmap.is_project(self.proj))
+        self.assertTrue(roadmap.is_project(self.proj / "sous-dossier"))   # dans le dépôt
+        self.assertFalse(roadmap.is_project(self.home))                   # dossier personnel, Bureau…

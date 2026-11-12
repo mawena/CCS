@@ -15,7 +15,7 @@ import os
 
 from gi.repository import Adw, GLib, GObject, Gtk
 
-from .. import settings, terminal_store
+from .. import roadmap, settings, terminal_store
 from .file_editor import FileEditor
 from .file_panel import FileTree
 from .roadmap_view import RoadmapView
@@ -65,7 +65,9 @@ class SessionWorkspace(Gtk.Box):
         self.tree.connect("insert-reference", self._on_insert_reference)
         self.roadmap = RoadmapView(self.cwd, on_ask_create=self.ask_create)
         self.left_stack = Gtk.Stack(vexpand=True, hexpand=True)
-        self.left_stack.add_titled(self.tree, "fichiers", "Fichiers")
+        self.tree_holder = Gtk.Box(vexpand=True, hexpand=True)   # l'arbre change avec le dossier du projet
+        self.tree_holder.append(self.tree)
+        self.left_stack.add_titled(self.tree_holder, "fichiers", "Fichiers")
         self.left_stack.add_titled(self.roadmap, "feuille", "Feuille de route")
         self.left_stack.set_visible_child_name(self._panes["left"])
         self.left_stack.connect("notify::visible-child-name", self._on_left_changed)
@@ -238,6 +240,37 @@ class SessionWorkspace(Gtk.Box):
         if name in ("fichiers", "feuille") and name != self._panes["left"]:
             self._panes["left"] = name
             self.persist()
+
+    # ---- projet de la conversation ----------------------------------------------------
+
+    @property
+    def project_root(self):
+        return self.tree.root
+
+    @property
+    def followed_roadmap(self):
+        followed = self.roadmap.followed
+        return str(followed) if followed is not None else None
+
+    def follow_tool(self, name, data):
+        """Une action de Claude : si elle lit ou modifie un ROADMAP.md, le panneau le suit (une
+        conversation lancée depuis ~ ou le Bureau montre ainsi la feuille de route du projet)."""
+        found = roadmap.path_in_tool(name, data, self.cwd)
+        if found is not None:
+            self.roadmap.follow(found)
+
+    def set_project_root(self, folder):
+        """« Dossier du projet… » : l'arbre et la feuille de route partent de ce dossier
+        (le processus de la conversation n'est pas touché)."""
+        folder = os.path.abspath(os.fspath(folder))
+        if folder == self.tree.root:
+            return
+        old = self.tree
+        self.tree = FileTree(folder, self.open_file, show_ignored=_show_ignored())
+        self.tree.connect("insert-reference", self._on_insert_reference)
+        self.tree_holder.remove(old)
+        self.tree_holder.append(self.tree)
+        self.roadmap.set_root(folder)
 
     def ask_create(self):
         """« Demander à Claude d'en créer une » : un message pour le chat."""

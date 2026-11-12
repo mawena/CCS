@@ -131,6 +131,53 @@ def find(cwd):
     return None
 
 
+FILE_TOOLS = ("Read", "Write", "Edit", "MultiEdit")
+_DIRECT_RE = re.compile(r"((?:~/|/)[^\s'\"`;|&()<>]*ROADMAP\.md)\b")
+_CD_RE = re.compile(r"\bcd\s+([\"']?)([^\s\"';&|()]+)\1")
+
+
+def _expand(path, cwd):
+    p = Path(os.path.expanduser(path))
+    return p if p.is_absolute() else Path(cwd) / p
+
+
+def path_in_tool(name, data, cwd):
+    """Le `ROADMAP.md` qu'une action de Claude lit ou modifie (outils de fichiers, ou commande
+    shell qui le cite, éventuellement après un `cd`), s'il existe ; sinon None. Sert au panneau
+    pour suivre le projet de la conversation même lancée depuis ~ ou le Bureau."""
+    data = data if isinstance(data, dict) else {}
+    found = None
+    if name in FILE_TOOLS:
+        fp = data.get("file_path")
+        if isinstance(fp, str) and Path(fp).name == FILENAME:
+            found = _expand(fp, cwd)
+    elif name == "Bash":
+        cmd = data.get("command")
+        if isinstance(cmd, str) and FILENAME in cmd:
+            direct = _DIRECT_RE.search(cmd)
+            if direct:
+                found = _expand(direct.group(1), cwd)
+            else:
+                cd = _CD_RE.search(cmd)
+                if cd:
+                    found = _expand(cd.group(2), cwd) / FILENAME
+    if found is None:
+        return None
+    try:
+        return found if found.is_file() else None
+    except OSError:
+        return None
+
+
+def is_project(path):
+    """Vrai si `path` est dans un dépôt git : un vrai projet (pas ~ ni le Bureau)."""
+    try:
+        start = Path(path).resolve()
+    except (OSError, RuntimeError, TypeError):
+        return False
+    return any((d / ".git").exists() for d in (start, *start.parents))
+
+
 def toggle(path, line, expected_text):
     """Coche ou décoche la case de la ligne `line` (à partir de 1) si c'est bien une case de
     texte `expected_text` dans le fichier tel qu'il est maintenant. Ne change que le

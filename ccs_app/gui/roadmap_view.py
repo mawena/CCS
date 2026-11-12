@@ -47,6 +47,8 @@ class RoadmapView(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, vexpand=True, hexpand=True)
         self.cwd = str(cwd)
         self.on_ask_create = on_ask_create
+        self.followed = None             # ROADMAP.md choisi ou suivi (prime sur celui de cwd)
+        self.choose_button = None
         self.path = None                 # ROADMAP.md trouvé, ou None
         self.roadmap = None              # dernière feuille lue, ou None
         self.loaded = False
@@ -76,8 +78,10 @@ class RoadmapView(Gtk.Box):
             return
         self._loading = True
 
+        followed = self.followed
+
         def work():
-            path = roadmap.find(self.cwd)
+            path = followed if followed is not None and followed.is_file() else roadmap.find(self.cwd)
             rm = None
             if path is not None:
                 try:
@@ -87,6 +91,38 @@ class RoadmapView(Gtk.Box):
             return path, rm
 
         in_thread(work, self._loaded)
+
+    def follow(self, path):
+        """Suit ce ROADMAP.md (celui que Claude lit ou modifie, ou choisi à la main)."""
+        path = Path(path)
+        if path == self.followed:
+            return
+        self.followed = path
+        self.reload()
+
+    def set_root(self, cwd):
+        """Nouveau dossier de projet : la feuille de route est cherchée depuis là."""
+        self.cwd, self.followed = str(cwd), None
+        self.reload()
+
+    def choose(self, *_):
+        """« Choisir une feuille de route… » : un ROADMAP.md (ou un autre .md) sur le disque."""
+        dialog = Gtk.FileDialog(title="Choisir une feuille de route")
+        md = Gtk.FileFilter(name="Feuilles de route (*.md)")
+        md.add_pattern("*.md")
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(md)
+        dialog.set_filters(filters)
+        dialog.set_initial_folder(Gio.File.new_for_path(self.cwd))
+
+        def done(d, res):
+            try:
+                f = d.open_finish(res)
+            except GLib.Error:
+                return   # annulé
+            if f is not None and f.get_path():
+                self.follow(f.get_path())
+        dialog.open(self.get_root() if isinstance(self.get_root(), Gtk.Window) else None, None, done)
 
     def _loaded(self, result):
         self._loading = False
@@ -176,15 +212,22 @@ class RoadmapView(Gtk.Box):
         self.toasts.set_child(self._empty() if self.roadmap is None else self._content())
 
     def _empty(self):
-        page = Adw.StatusPage(icon_name="view-list-symbolic", vexpand=True,
-                              title="Pas de feuille de route",
-                              description="Ce dossier n'a pas de ROADMAP.md.")
-        if self.on_ask_create is not None:
-            button = Gtk.Button(label="Demander à Claude d'en créer une", halign=Gtk.Align.CENTER,
-                                css_classes=["suggested-action", "pill"])
+        project = roadmap.is_project(self.cwd)
+        page = Adw.StatusPage(
+            icon_name="view-list-symbolic", vexpand=True, title="Pas de feuille de route",
+            description=("Ce projet n'a pas de ROADMAP.md." if project else
+                         "Ce dossier n'est pas un projet (pas de dépôt git). La feuille de route "
+                         "du projet s'affichera dès que Claude en lira une, ou choisis-la."))
+        buttons = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, halign=Gtk.Align.CENTER)
+        if self.on_ask_create is not None and project:
+            button = Gtk.Button(label="Demander à Claude d'en créer une", css_classes=["suggested-action", "pill"])
             button.connect("clicked", lambda _b: self.on_ask_create())
-            page.set_child(button)
+            buttons.append(button)
             self.ask_button = button
+        self.choose_button = Gtk.Button(label="Choisir une feuille de route…", css_classes=["pill"])
+        self.choose_button.connect("clicked", self.choose)
+        buttons.append(self.choose_button)
+        page.set_child(buttons)
         return page
 
     def _content(self):

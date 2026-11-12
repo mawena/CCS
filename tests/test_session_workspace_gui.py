@@ -143,6 +143,26 @@ class SessionWorkspaceGuiTest(HomeTestCase):
         self.assertEqual(got, ["a.py"])
         self.assertEqual(self.chat.refs, ["a.py"])
 
+    def test_follow_tool_switches_the_roadmap(self):
+        other = Path(self.tmp) / "Work" / "App"
+        (other / ".git").mkdir(parents=True)
+        (other / "ROADMAP.md").write_text("# App\n## Phase 1\n- [ ] a\n")
+        self.ws.follow_tool("Edit", {"file_path": str(other / "ROADMAP.md")})
+        self.assertTrue(spin(lambda: self.ws.roadmap.path == other / "ROADMAP.md"))
+        self.assertEqual(self.ws.followed_roadmap, str(other / "ROADMAP.md"))
+        self.ws.follow_tool("Bash", {"command": "ls"})     # rien à voir : on garde le suivi
+        self.assertEqual(self.ws.followed_roadmap, str(other / "ROADMAP.md"))
+
+    def test_project_root_changes_tree_and_roadmap(self):
+        other = Path(self.tmp) / "Work" / "App"
+        (other / ".git").mkdir(parents=True)
+        (other / "ROADMAP.md").write_text("# App\n## Phase 1\n- [ ] a\n")
+        (other / "main.py").write_text("x = 1\n")
+        self.ws.set_project_root(other)
+        self.assertEqual(self.ws.project_root, str(other))
+        self.assertEqual(self.ws.tree.root, str(other))
+        self.assertTrue(spin(lambda: self.ws.roadmap.path == other / "ROADMAP.md"))
+
     def test_ask_create_sends_to_chat(self):
         self.ws.ask_create()
         self.assertEqual(len(self.chat.sent), 1)
