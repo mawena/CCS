@@ -458,11 +458,38 @@ la même chose avec `"updatedPermissions": <permission_suggestions>` (Toujours),
 fil (sinon la CLI peut bloquer). Une ligne de stdout peut dépasser 1 Mo (gros
 résultat d'outil) : pas de limite de longueur trop basse.
 
-**À vérifier par un essai réel** (une seule session courte, avec l'accord de
-Charles, puisque cela consomme un peu de quota ; message de test écrit pour
-l'occasion, jamais une vraie conversation de Charles) : forme réelle de
-`can_use_tool` et de `--permission-prompt-tool stdio` ; `/effort` et
-`/effort ultracode` envoyés en stream-json ; `default` ou `manual` pour le mode de
-permission ; forme exacte de `updatedPermissions` pour « Toujours » ; compte choisi
-par l'environnement ; détection de limite. Le constructeur enregistre ce flux
-(identifiants et chemins anonymisés) comme jeu d'essai du faux `claude`.
+**Résultats de l'essai réel du 12/11/2026** (CLI 2.1.322, 5 messages Haiku ; ils
+priment sur ce qui précède) :
+
+- Lancement retenu : `--permission-prompt-tool stdio --permission-mode default`
+  (`manual` est un alias de `default`). Les demandes arrivent en `can_use_tool` avec
+  `tool_name`, `display_name`, `input`, `description`, `permission_suggestions`,
+  `blocked_path`, `tool_use_id` ; **pas de `title`**. Les commandes en lecture seule
+  (`ls`, `cat`) ne demandent rien.
+- « Toujours » : n'envoyer dans `updatedPermissions` **que** les suggestions
+  `addRules` (règle exacte `Bash(<commande>)` écrite dans
+  `<projet>/.claude/settings.local.json`) ; les suggestions complètes contiennent
+  aussi `setMode acceptEdits`, qui changerait les droits de toute la session.
+- `initialize` se fait avant le premier message ; sa réponse donne `commands`,
+  `models` (14), `account`, `current_permission_mode`, `capabilities`. `system/init`
+  n'arrive **pas** au démarrage mais à chaque message envoyé (commande locale
+  comprise), et sans champ `effort`.
+- `/effort <niveau>`, `/effort ultracode`, `/effort ultracode off` (et `/effort auto`)
+  sont des commandes locales : aucun tour de modèle, un texte de confirmation dans le
+  `result`. Aucune requête de contrôle pour l'effort (`set_effort` refusé) : CCS retient
+  lui-même l'effort choisi. `--effort ultracode` est accepté au lancement.
+- `set_model` répond `{"model": "<nom complet>"}` ; `set_permission_mode` répond
+  `{"mode": …}` et émet un `system/status` ; `get_context_usage` donne `percentage`
+  (entier), `totalTokens`, `maxTokens`, `categories` (ligne d'environ 43 Ko).
+- `interrupt` répond `{"still_queued": []}` ; le tour finit en `result`
+  `error_during_execution` (`terminal_reason: "aborted_streaming"`) et le processus
+  s'arrête (code 1) : c'est un arrêt demandé, pas une erreur ; le message suivant
+  relance par `--resume`.
+- Un message envoyé pendant un tour n'a pas pu être observé : CCS n'envoie jamais
+  pendant un tour (la file de messages de l'onglet attend la fin).
+- `--resume <id>` garde le même identifiant et tout le contexte ; les règles de
+  `settings.local.json` restent, le mode de la session non (CCS repasse ses droits au
+  lancement).
+- `result` : `total_cost_usd` et `modelUsage` sont cumulés sur la session ;
+  `model_usage_since_last_result` donne le tour ; `contextWindow` 1 000 000 (Haiku 5.5).
+  Les limites se voient aussi dans `rate_limit_event` (`status`, `unifiedWindows`).
