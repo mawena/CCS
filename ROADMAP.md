@@ -175,6 +175,37 @@ Raccordement, documentation et release :
 - [x] Release mineure 0.8.0 (recommandée : nouvelles fonctions compatibles), `main`, `develop` et le tag poussés
 - [x] Paquet `.deb`, release GitHub v0.8.0 et publication dans le dépôt APT (vérifiée par `apt-get update`)
 
+## Phase 12 — CCS façon VS Code : chat, fichiers, feuille de route, nouveau design (0.10.0)
+
+Conception : `docs/superpowers/specs/2026-11-12-phase-12-design.md`.
+
+Déjà fait :
+- [x] L'application s'appelle « CCS » partout au lieu de « Comptes Claude » (publié en 0.9.0)
+- [x] Conception validée sur maquettes : chat, fichiers, feuille de route, page Projets, navigation
+
+Le chat :
+- [ ] Essai réel du protocole de Claude Code (stream-json, autorisations, `/effort`, ultracode), avec l'accord de Charles
+- [ ] Moteur du chat sans GTK et faux `claude` pour les tests
+- [ ] Chat graphique : bulles, Markdown, cartes d'actions, autorisations, liste de tâches, saisie avec `@`, `/` et images
+- [ ] Barre cliquable : modèle, effort, ultracode, droits ; contexte et compte
+- [ ] Fonctions des terminaux reprises : file de messages, vue partagée, réouverture, bascule sur limite, alertes, « Ouvrir dans un terminal »
+
+Les fichiers :
+- [ ] Panneau Fichiers : arbre avec marques git, dispositions B (par défaut) et A, panneaux redimensionnables
+- [ ] Fichier ouvert : coloration, aperçu Markdown, édition, diff des modifications de Claude
+
+Feuille de route et projets :
+- [ ] Feuille de route dans l'onglet de session : phases, cases cliquables, case cochée mise en avant
+- [ ] Page Projets : cartes des projets, frise des versions, tâches cochées par jour
+
+Le design :
+- [ ] Navigation en 4 onglets (Accueil, Sessions, Projets, Analyse), Réglages dans le menu, anciens noms de page acceptés
+- [ ] Nouveau design : couleur par compte, cartes, écrans vides, clair et sombre
+
+Documentation et release :
+- [ ] Documentation (README, guide, architecture, pages man, CHANGELOG, site)
+- [ ] Release mineure 0.10.0, `.deb`, release GitHub et dépôt APT
+
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 
 Recommandées :
