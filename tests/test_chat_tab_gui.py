@@ -145,23 +145,35 @@ class ChatTabTest(HomeTestCase):
         self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
         self.assertTrue(card.answered)
 
-    def test_queue_while_busy(self):
+    def test_message_while_busy_is_sent_now(self):
         tab, owner = self.make("permissions-allow-toujours.jsonl")
         self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
         self.assertTrue(pump_until(lambda: tab.engine.state == "permission"))
         self.say(tab, "et ensuite ceci")
-        self.assertEqual(tab.state.queue, ["et ensuite ceci"])     # en file, pas envoyé
-        self.assertIsNotNone(tab.state.queued_at)
-        self.assertIn("queue", owner.events)
-        self.assertEqual(tab.composer._queue_shown, ["et ensuite ceci"])
-        card = next(iter(tab.messages._perms.values()))
-        card.allow.emit("clicked")
-        self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
-        # la page enverrait maintenant : la décision est celle des terminaux
-        decision = terminal.queue_next(tab.state, time.time() + 5)
-        self.assertEqual(decision.text, "et ensuite ceci")
-        self.assertTrue(tab.send_auto(decision.text))
-        self.assertIsNotNone(tab.state.sent_at)
+        self.assertEqual(tab.state.queue, [])                      # plus de mise en file
+        self.assertIn("et ensuite ceci", texts(tab))               # la bulle part tout de suite
+        self.assertTrue(any("pendant que Claude travaille" in t for t in texts(tab)))
+        self.assertEqual(tab.composer.text, "")
+
+    def test_image_while_busy_is_sent_now(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.engine.state == "permission"))
+        png = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00"
+               b"\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa7"
+               b"5\x81\x84\x00\x00\x00\x00IEND\xaeB`\x82")
+        tab._on_send(tab.composer, "regarde", [("image/png", png)])
+        self.assertIn("regarde", texts(tab))
+        self.assertFalse(any("ne peuvent pas attendre" in t for t in texts(tab)))
+
+    def test_send_now_during_a_turn(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.engine.state == "permission"))
+        tab.state.queue[:] = ["déjà en file"]
+        tab.send_message_now(0)
+        self.assertEqual(tab.state.queue, [])
+        self.assertIn("déjà en file", texts(tab))
 
     def test_send_now_from_a_chat_opened_without_spawn(self):
         # Comme un chat ouvert ou rouvert par la page Sessions : pas de spawn(), pas de processus.

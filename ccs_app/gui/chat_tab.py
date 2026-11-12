@@ -227,32 +227,27 @@ class ChatTab(Gtk.Box):
         return self.engine.state in ("busy", "permission", "starting")
 
     def _on_send(self, _composer, text, images):
-        """Entrée dans la zone de saisie : envoi, ou file de messages si Claude travaille."""
-        if self._engine_busy():
-            if images:
-                self.composer.restore(text, images)
-                self.messages.add_notice("Les images ne peuvent pas attendre : envoie-les quand "
-                                         "Claude aura fini.", "warning")
-                return
-            queue = terminal.queue_add(self.state.queue, text)
-            if len(queue) > len(self.state.queue):
-                self.set_queue(queue, added=True)
-            return
+        """Entrée dans la zone de saisie : envoi tout de suite, même pendant que Claude travaille
+        (la CLI le lit en cours de route ou juste après ; la page n'a rien à mettre en file)."""
         self.state.typed_at = time.time()
         if not self._send(text, images):
             self.composer.restore(text, images)
 
     def _send(self, text, images=()):
-        """Envoie au moteur et montre la bulle ; faux si Claude est occupé ou ne démarre pas."""
-        if not self.state.running:
+        """Envoie au moteur et montre la bulle ; faux si Claude ne démarre pas. Pendant un tour,
+        le message part aussi tout de suite (bulle marquée « envoyé pendant que Claude travaille »)."""
+        during = self._engine_busy()
+        if not during and not self.state.running:
             self.spawn()
         if not self.engine.send(text, images):
             if not self._engine_busy():
                 self._start_failed("Claude Code n'a pas pu démarrer.")
             return False
+        self.messages.add_user(text, images, during=during)
+        if during:
+            return True
         self._pending = (text, list(images))
         self._turn_done = False
-        self.messages.add_user(text, images)
         self._on_state(chat_engine.StateChanged("busy"))   # tout de suite : la page lit cet état
         return True
 
@@ -320,11 +315,7 @@ class ChatTab(Gtk.Box):
         st = self.state
         if not 0 <= index < len(st.queue):
             return
-        if self._engine_busy():
-            self.queue_reason = "Claude travaille : envoi à la fin du tour."
-            self.refresh_queue()
-            return
-        if self.send_auto(st.queue[index]):
+        if self.send_auto(st.queue[index]):   # même pendant un tour : la CLI le lit
             self.set_queue(terminal.queue_remove(st.queue, index))
         else:   # jamais en silence : le bandeau de la file dit pourquoi rien n'est parti
             self.queue_reason = ("Conversation ouverte ailleurs : rien n'est envoyé."

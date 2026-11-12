@@ -508,7 +508,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._views.append(view)
         return view
 
-    def _user_widget(self, text, images=()):
+    def _user_widget(self, text, images=(), during=False):
         col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         for media_type, data in images or ():
             try:
@@ -522,8 +522,11 @@ class MessageList(Gtk.ScrolledWindow):
         if text:
             col.append(Gtk.Label(label=text, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
                                  selectable=True, max_width_chars=80))
-        outer = Gtk.Box(halign=Gtk.Align.END, margin_start=60)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.END, margin_start=60, spacing=2)
         outer.append(self._bubble_widget("ccs-bubble-user", col, Gtk.Align.END))
+        if during:
+            outer.append(Gtk.Label(label="envoyé pendant que Claude travaille", xalign=1,
+                                   css_classes=["ccs-subtle", "caption"]))
         return outer
 
     def _assistant_widget(self, text=""):
@@ -550,8 +553,8 @@ class MessageList(Gtk.ScrolledWindow):
             row.append(button)
         return row
 
-    def add_user(self, text, images=()):
-        self._append(self._user_widget(text, images))
+    def add_user(self, text, images=(), during=False):
+        self._append(self._user_widget(text, images, during))
         self.scroll_end_if_stuck()
 
     def _segment(self, msg_id, create=True):

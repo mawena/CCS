@@ -31,7 +31,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - **Saisie du chat** : `@` propose les fichiers du projet, `/` les commandes de
   Claude Code, une image collée ou glissée s'ajoute au message, un fichier glissé
   depuis l'arbre insère `@chemin`. Le bouton Arrêter (ou Échap) interrompt Claude.
-  Un message écrit pendant que Claude travaille rejoint la file de messages.
+  Un message écrit pendant que Claude travaille part tout de suite (images comprises),
+  marqué « envoyé pendant que Claude travaille » ; le chat ne reste jamais bloqué sur
+  « Claude travaille », que la CLI le lise en cours de route ou juste après.
 - **Mise en veille** : un chat resté 30 minutes au repos arrête son processus
   `claude` pour ménager la mémoire, puis le relance sur la même conversation au
   message suivant (réglage `chat.idle_suspend_min`, 0 = jamais). Un chat rouvert

@@ -27,7 +27,7 @@ FILE_TOKEN = re.compile(r"(?:^|\s)@([^\s@]*)$")
 COMMAND_TOKEN = re.compile(r"^/([^\s/]*)$")
 
 HINT_IDLE = "Entrée envoie · Maj+Entrée : nouvelle ligne · @ fichiers · / commandes"
-HINT_BUSY = "Claude travaille · Entrée met le message en file · Échap arrête"
+HINT_BUSY = "Claude travaille · Entrée envoie quand même · Échap arrête"
 
 
 def _command(item):
@@ -133,7 +133,7 @@ class Composer(Gtk.Box):
         self.queue_strip = Gtk.Revealer(child=strip)
 
         head = Gtk.Box(spacing=8)
-        head.append(Gtk.Label(label="Envoyer quand Claude sera libre", xalign=0, css_classes=["heading"]))
+        head.append(Gtk.Label(label="Messages en attente", xalign=0, css_classes=["heading"]))
         self.queue_status = Gtk.Label(xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
                                       css_classes=["dim-label", "caption"])
         head.append(self.queue_status)
@@ -208,7 +208,8 @@ class Composer(Gtk.Box):
         self.busy = bool(busy)
         self.stop_button.set_visible(self.busy)
         self.hint.set_label(HINT_BUSY if self.busy else HINT_IDLE)
-        self.send_button.set_tooltip_text("Mettre en file (Entrée)" if self.busy else "Envoyer (Entrée)")
+        self.send_button.set_tooltip_text("Envoyer (Entrée), même pendant que Claude travaille" if self.busy
+                                          else "Envoyer (Entrée)")
 
     def set_enabled(self, enabled):
         self.view.set_editable(bool(enabled))

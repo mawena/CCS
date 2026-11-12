@@ -921,11 +921,12 @@ téléphone).
 - **Arrêter** : pendant que Claude travaille, le bouton d'envoi devient
   « Arrêter » (Échap fait de même). Claude s'interrompt ; c'est un arrêt voulu,
   pas une erreur, et le message suivant reprend la conversation.
-- **File de messages** : un message écrit pendant que Claude travaille rejoint la
-  file, comme dans les terminaux (voir [Messages en attente](#messages-en-attente)) :
-  bulles modifiables d'un clic, déplaçables, supprimables, « envoyer
-  maintenant » ; chaque message part quand Claude a fini son tour. Une image ne
-  peut pas attendre : envoie-la quand Claude est libre.
+- **Écrire pendant que Claude travaille** : Entrée envoie tout de suite, images
+  comprises, comme dans le terminal de Claude Code. La bulle porte la mention
+  « envoyé pendant que Claude travaille » ; Claude le lit en cours de route ou juste
+  après sa réponse. La file de messages (voir [Messages en attente](#messages-en-attente))
+  ne sert plus qu'à ce que CCS y met lui-même (reprise après une limite, onglets
+  rouverts) ; « envoyer maintenant » y marche même pendant un tour.
 
 ### Mise en veille après 30 minutes
 
