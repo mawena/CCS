@@ -196,11 +196,11 @@ Les fichiers :
 
 Feuille de route et projets :
 - [ ] Feuille de route dans l'onglet de session : phases, cases cliquables, case cochée mise en avant
-- [ ] Page Projets : cartes des projets, frise des versions, tâches cochées par jour
+- [x] Page Projets : cartes des projets, frise des versions, tâches cochées par jour
 
 Le design :
-- [ ] Navigation en 4 onglets (Accueil, Sessions, Projets, Analyse), Réglages dans le menu, anciens noms de page acceptés
-- [ ] Nouveau design : couleur par compte, cartes, écrans vides, clair et sombre
+- [x] Navigation en 4 onglets (Accueil, Sessions, Projets, Analyse), Réglages dans le menu, anciens noms de page acceptés
+- [x] Nouveau design : couleur par compte, cartes, écrans vides, clair et sombre
 
 Documentation et release :
 - [ ] Documentation (README, guide, architecture, pages man, CHANGELOG, site)

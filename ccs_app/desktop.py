@@ -14,8 +14,10 @@ Afficher une tâche (`show_task`) : même mécanisme avec l'action « show-task 
 identifiant de la tâche) ; l'application fermée est lancée sur l'onglet Planning
 (`gui --page planning`).
 
-Onglets de la fenêtre (`page_name`) : `gui --page <onglet>` accepte le nom d'un onglet
-du ViewStack ou son titre en français ; l'application reçoit la demande par ses actions
+Onglets de la fenêtre (`page_name`) : quatre onglets (accueil, sessions, projets, analyse)
+et les réglages, une fenêtre à part. `gui --page <nom>` accepte aussi les anciens noms
+(comptes, planning, terminaux, historique) : `page_name` les ramène à (onglet, sous-partie).
+`gui --page <onglet>` accepte le nom d'un onglet ou son titre en français ; l'application reçoit la demande par ses actions
 « show-page » (paramètre : nom de l'onglet) et « new-session » (sans paramètre), y
 compris quand elle tourne déjà.
 """
@@ -43,10 +45,18 @@ SHOW_PAGE_ACTION = "show-page"
 NEW_SESSION_ACTION = "new-session"
 
 # Onglets de la fenêtre (noms du ViewStack, dans l'ordre) et titres acceptés par « gui --page ».
-PAGES = ("accounts", "planning", "sessions", "terminals", "history", "analysis", "prefs")
-PAGE_CHOICES = ("sessions", "comptes", "planning", "historique", "analyse", "terminaux", "reglages")
-PAGE_ALIASES = {"comptes": "accounts", "terminaux": "terminals", "historique": "history",
-                "analyse": "analysis", "reglages": "prefs",
+PAGES = ("home", "sessions", "projects", "analysis")
+# Nom de page (ancien ou nouveau) -> (onglet, sous-partie). « prefs » n'est pas un onglet : il
+# ouvre la fenêtre des réglages.
+SUBPAGES = {"accounts": ("home", "accounts"), "planning": ("home", "planning"),
+            "terminals": ("sessions", None), "history": ("analysis", "history"),
+            "analysis": ("analysis", "analysis"), "prefs": ("prefs", None),
+            "projects": ("projects", None), "home": ("home", None), "sessions": ("sessions", None)}
+PAGE_CHOICES = ("accueil", "sessions", "projets", "analyse", "comptes", "planning", "historique",
+                "terminaux", "reglages")
+PAGE_ALIASES = {"accueil": "home", "projets": "projects", "comptes": "accounts",
+                "terminaux": "terminals", "historique": "history", "analyse": "analysis",
+                "reglages": "prefs",
                 "conversations": "sessions"}   # ancien onglet, réuni à l'onglet Sessions
 
 
@@ -55,15 +65,23 @@ def app_id():
     return os.environ.get("CCS_APP_ID") or APP_ID
 
 
-def page_name(text):
-    """Onglet (nom du ViewStack) désigné par `text` : nom réel ou titre en français, sans
-    tenir compte des accents ni de la casse ; None s'il n'existe pas."""
+def canonical_page(text):
+    """Nom de page désigné par `text` (clé de SUBPAGES), sans tenir compte des accents ni de
+    la casse ; None s'il n'existe pas. Anciens et nouveaux noms, français ou anglais."""
     if not isinstance(text, str):
         return None
     text = unicodedata.normalize("NFKD", text.strip()).casefold()
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
     name = PAGE_ALIASES.get(text, text)
-    return name if name in PAGES else None
+    return name if name in SUBPAGES else None
+
+
+def page_name(text):
+    """(onglet, sous-partie) désignés par `text` ; None s'il n'existe pas. Onglet : un des
+    PAGES, ou « prefs » (fenêtre des réglages). Sous-partie : None ou ce qu'attend l'onglet
+    (« planning », « history »…)."""
+    name = canonical_page(text)
+    return SUBPAGES[name] if name else None
 
 
 def _remember(table, key, value):

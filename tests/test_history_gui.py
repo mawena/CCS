@@ -90,11 +90,25 @@ class HistoryWidthTest(HomeTestCase):
         probe = Gtk.Label(label="┅ rythme idéal de la semaine")
         self.assertGreaterEqual(narrow, min_width(probe))
 
-    def test_legend_colors_follow_the_curves(self):
-        from ccs_app.gui.charts import SESSION_RGB, WEEKLY_RGB
-        self.assertIn(self.mod.hex_color(SESSION_RGB), self.mod.LEGEND)
-        self.assertIn(self.mod.hex_color(WEEKLY_RGB), self.mod.LEGEND)
+    def test_legend_describes_the_strokes(self):
+        # Les courbes prennent la couleur du compte : la légende ne parle que du trait.
+        self.assertIn("session", self.mod.LEGEND)
+        self.assertIn("semaine", self.mod.LEGEND)
+        self.assertIn("rythme".replace(" ", self.mod.NBSP), self.mod.LEGEND)
         self.assertEqual(self.mod.hex_color((1.0, 0.5, 0.0)), "#ff8000")
+
+    def test_chart_series_use_account_colors(self):
+        from ccs_app import account_colors
+        from ccs_app.gui.charts import LineChart
+        page = self.page()
+        charts = [w for w in walk(page.list) if isinstance(w, LineChart)]
+        self.assertEqual(len(charts), 2)
+        wanted = [account_colors.rgb(account_colors.color_for(n, ["perso", "pro"], {}))
+                  for n in ("perso", "pro")]
+        self.assertNotEqual(wanted[0], wanted[1])
+        for chart, rgb in zip(charts, wanted):
+            self.assertEqual(tuple(chart.series[0][1]), rgb)          # session : la couleur du compte
+            self.assertEqual(tuple(chart.series[1][1][:3]), rgb)      # semaine : la même, plus claire
 
     def test_journal_head_wraps(self):
         head = self.page().journal_head

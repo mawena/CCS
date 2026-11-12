@@ -7,9 +7,10 @@ from gi.repository import Adw, Gtk
 
 from .. import best_time, daemon
 from ..settings import load_settings, save_settings
-from .charts import PALETTE, _fg
+from .charts import _fg
 from .accounts import pause_box
-from .common import caption, clear, now_utc, parse_ts
+from .common import (account_rgb, caption, card_box, clear, empty_state, now_utc, parse_ts,
+                     sync_accounts, tag_account)
 from .geometry import span_to_x
 from .tasks_view import TasksView
 
@@ -50,7 +51,7 @@ class Timeline(Gtk.DrawingArea):
                 cr.show_text(f"{hour} h")
         for i, (name, windows, reserve) in enumerate(self.rows):
             y = 24 + i * ROW_H
-            rgb = PALETTE[i % len(PALETTE)]
+            rgb = account_rgb(name)
             cr.set_source_rgba(*fg, 0.9)
             cr.set_font_size(12)
             cr.move_to(4, y + ROW_H / 2 + 4)
@@ -184,7 +185,7 @@ class PlanningPage(Gtk.ScrolledWindow):
 
     def moment_card(self, state):
         """Carte « Meilleur moment pour une grosse tâche » : durée, conseil, frise des 24 h."""
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["card", "profile-card"])
+        card = card_box(8)
         card.append(Gtk.Label(label="Meilleur moment pour une grosse tâche", xalign=0,
                               css_classes=["heading"]))
         choices = Gtk.Box(spacing=0, css_classes=["linked"], halign=Gtk.Align.START)
@@ -203,7 +204,7 @@ class PlanningPage(Gtk.ScrolledWindow):
         else:
             lead = ("Lance-la maintenant" if res.now_is_best
                     else f"Meilleur départ : {best_time.label(res.best, res.now)}")
-            card.append(Gtk.Label(label=lead, xalign=0, wrap=True, css_classes=["title-4"]))
+            card.append(Gtk.Label(label=lead, xalign=0, wrap=True, css_classes=["ccs-big-number", "small"]))
             card.append(caption(res.best.text))
             frieze = Frieze()
             frieze.set_data(res.curve, res.best, best_time.STEP.total_seconds())
@@ -223,7 +224,7 @@ class PlanningPage(Gtk.ScrolledWindow):
         s = load_settings()["orchestrator"]
         o = state.get("orchestrator") or {}
 
-        head = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, css_classes=["card", "best-card"])
+        head = card_box(6)
         row = Gtk.Box(spacing=12)
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
         text.append(Gtk.Label(label="Orchestrateur", xalign=0, css_classes=["heading"]))
@@ -249,9 +250,11 @@ class PlanningPage(Gtk.ScrolledWindow):
 
         plan = o.get("plan") or []
         accounts = state.get("accounts") or []
+        sync_accounts(a["name"] for a in accounts)
         if not accounts:
-            self.box.append(Adw.StatusPage(icon_name="x-office-calendar-symbolic",
-                                           title="Pas encore de données"))
+            self.box.append(empty_state("x-office-calendar-symbolic", "Pas encore de données",
+                                        "Le planning apparaît dès que le service a relevé un compte.",
+                                        "Actualiser", getattr(self.window, "refresh", None)))
             return
         used = {a["name"]: next((l["percent"] for l in a.get("limits") or []
                                  if l["kind"] == "session"), 0) for a in accounts}
@@ -264,7 +267,7 @@ class PlanningPage(Gtk.ScrolledWindow):
             wins = [(parse_ts(w["start"]).timestamp(), parse_ts(w["end"]).timestamp(), w["kind"],
                      used.get(a["name"], 0)) for w in plan if w["name"] == a["name"]]
             rows.append((a["name"], wins, a["name"] in reserve))
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["card", "profile-card"])
+        card = card_box(8)
         timeline = Timeline()
         timeline.set_data(t0, t1, rows)
         card.append(timeline)
@@ -274,12 +277,13 @@ class PlanningPage(Gtk.ScrolledWindow):
         self.box.append(card)
 
         ends = sorted((parse_ts(w["end"]), w["name"]) for w in plan if parse_ts(w["end"]).timestamp() > now)
-        recharge = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, css_classes=["card", "profile-card"])
+        recharge = card_box(6)
         recharge.append(Gtk.Label(label="Recharges à venir", xalign=0, css_classes=["heading"]))
         if not ends:
-            recharge.append(caption("Aucune fenêtre en cours ni prévue."))
+            recharge.append(empty_state("alarm-symbolic", "Aucune fenêtre en cours ni prévue", compact=True))
         for end_dt, name in ends[:10]:
-            line = Gtk.Box()
+            line = Gtk.Box(spacing=8)
+            line.append(tag_account(Gtk.Box(css_classes=["ccs-account-dot", "ccs-dot"], valign=Gtk.Align.CENTER), name))
             line.append(Gtk.Label(label=f"{end_dt.astimezone():%H:%M}", css_classes=["pct"], width_chars=6, xalign=0))
             line.append(Gtk.Label(label=f"{name} retrouve 100 % de sa session", xalign=0))
             recharge.append(line)
