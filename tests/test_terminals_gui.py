@@ -63,6 +63,7 @@ if GTK:
     from ccs_app import limit_events, sessions, settings, terminal, terminal_store
     from ccs_app.gui import terminals
     from ccs_app.gui.session_workspace import SessionWorkspace
+    from ccs_app.gui.terminal_split import Half
     from tests.helpers import HomeTestCase
 
     @dataclasses.dataclass(frozen=True)
@@ -336,11 +337,10 @@ class SessionsPageTest(HomeTestCase):
         tab = self.chat("s-1", running=False, pid=None)
         tab.state.session_id = "s-1"
         self.page.check_elsewhere(tab, self.live)
-        self.assertEqual(tab.elsewhere_pid, 4242)       # pid inconnu de nos onglets : ailleurs
-        mine.state.pid = 4242
-        tab.elsewhere_pid = None
+        self.assertIsNone(tab.elsewhere_pid)            # 4242 est l'un de nos onglets
+        mine.state.pid = 31337
         self.page.check_elsewhere(tab, self.live)
-        self.assertIsNone(tab.elsewhere_pid)
+        self.assertEqual(tab.elsewhere_pid, 4242)       # pid inconnu de nos onglets : ailleurs
 
     def test_limit_resume_sends_continue_to_chat(self):
         now = time.time()
@@ -378,7 +378,7 @@ class SessionsPageTest(HomeTestCase):
         self.assertTrue(self.page.is_split())
         self.assertTrue(self.page.split_view.contains(one))
         self.assertTrue(self.page.split_view.contains(two))
-        self.assertIsInstance(one.panel.get_parent().get_parent(), Gtk.Box)
+        self.assertIsInstance(one.panel.get_parent(), Half)
         self.assertIsNot(one.panel.get_parent(), one)
         self.page.unsplit()
         self.assertFalse(self.page.is_split())

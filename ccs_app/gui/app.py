@@ -273,6 +273,8 @@ class Window(Adw.ApplicationWindow):
         refresh_data(self.reload)
 
     def on_page(self, *_):
+        if getattr(self, "terminals", None) is None:
+            return  # la page Sessions se construit encore
         name = self.stack.get_visible_child_name()
         on_terminals = name == "sessions" and not self.terminals.overview_shown()
         if on_terminals:

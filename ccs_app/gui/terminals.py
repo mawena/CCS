@@ -1143,7 +1143,8 @@ class TerminalsPage(Gtk.Box):
                 and isinstance(tab.panel, SessionWorkspace) and tab.panel.has_unsaved():
             question = (f"Fermer « {tab.state.title} » ?", "Des fichiers modifiés ne sont pas enregistrés.")
         if question is None:
-            tab.hang_up()
+            if not forced:
+                tab.hang_up()
             view.close_page_finish(page, True)
             return True
         d = Adw.AlertDialog(heading=question[0], body=question[1])
