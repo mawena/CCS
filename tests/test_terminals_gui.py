@@ -208,6 +208,13 @@ class SessionsPageTest(HomeTestCase):
         self.assertIs(tab.panel.get_parent(), tab)
         self.assertEqual(self.page.tabs(), [tab])
 
+    def test_open_claude_uses_default_rights_setting(self):
+        from ccs_app import settings
+        current = settings.load_settings()
+        current["chat"]["rights"] = "plan"
+        settings.save_settings(current)
+        self.assertEqual(self.page.open_claude(self.cwd).options.rights, "plan")
+
     def test_open_claude_with_resume_gives_the_journal_to_the_chat(self):
         journal = sessions.transcript_path(self.cwd, "s-1")
         journal.parent.mkdir(parents=True)

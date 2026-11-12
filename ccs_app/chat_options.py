@@ -6,7 +6,7 @@ donc toujours de `ChatOptions`.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from . import launch_options
 
@@ -104,3 +104,20 @@ def from_args(extra_args):
     ultracode = effort == "ultracode"
     return ChatOptions(model=model, effort=effort if effort in EFFORTS else None,
                        ultracode=ultracode, rights=rights)
+
+
+def default_rights(settings):
+    """Droits par défaut des nouveaux chats (`chat.rights`) ; « manual » si absent ou inconnu."""
+    try:
+        value = settings.get("chat", {}).get("rights", "manual")
+    except AttributeError:
+        return "manual"
+    return value if value in RIGHT_VALUES else "manual"
+
+
+def with_default_rights(options, extra_args, settings):
+    """`options` complétées des droits par défaut, sauf si `extra_args` fixe `--permission-mode`."""
+    args = [a for a in (extra_args or ()) if isinstance(a, str)]
+    if any(a == "--permission-mode" or a.startswith("--permission-mode=") for a in args):
+        return options
+    return replace(options, rights=default_rights(settings))

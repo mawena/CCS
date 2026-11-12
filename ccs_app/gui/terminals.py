@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import gi
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
-from .. import alerts, conversations, limit_events, notify, phone, sessions, settings, terminal, terminal_store
+from .. import alerts, chat_options as chat_options_module, conversations, limit_events, notify, phone, sessions, settings, terminal, terminal_store
 from .common import in_thread
 from .session_workspace import ASK_CREATE_TEXT, SessionWorkspace
 from .terminal_split import SplitView
@@ -727,8 +727,10 @@ class TerminalsPage(Gtk.Box):
         `extra_args` : arguments de la nouvelle session avancée, traduits en options du chat
         par `chat_options.from_args`). Le processus ne démarre qu'au premier message."""
         _cls, chat_options = _chat_classes()
-        return self.open_chat(cwd, resume, title, chat_options.from_args(tuple(extra_args or ())),
-                              extra_args)
+        options = chat_options.from_args(tuple(extra_args or ()))
+        # Sans droits explicites : ceux des réglages (`chat.rights`).
+        options = chat_options_module.with_default_rights(options, extra_args, settings.load_settings())
+        return self.open_chat(cwd, resume, title, options, extra_args)
 
     def open_chat(self, cwd, resume=None, title=None, options=None, extra_args=(), present=True):
         """Onglet de chat (sans processus) dans un espace de session ; l'historique de la

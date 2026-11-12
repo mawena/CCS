@@ -55,6 +55,22 @@ class ProjectsPageTest(HomeTestCase):
         self.assertEqual(list(self.page.cards), [str(self.proj)])
         self.assertEqual(self.page.stack.get_visible_child_name(), "cards")
 
+    def test_hide_then_show_again(self):
+        import json
+        from ccs_app import settings
+        card = self.page.cards[str(self.proj)]
+        self.assertTrue(card.menu_button.get_menu_model().get_item_attribute_value(
+            0, "label", None).get_string() == "Masquer ce projet")
+        card.hide_action.activate(None)
+        self.assertEqual(settings.load_settings()["projects"]["hidden"], [str(self.proj)])
+        self.assertTrue(pump(lambda: not self.page.cards))
+        self.assertEqual(self.page.stack.get_visible_child_name(), "empty")
+        current = settings.load_settings()
+        current["projects"]["hidden"] = []        # « Réafficher » des Réglages
+        settings.save_settings(current)
+        self.page.refresh()
+        self.assertTrue(pump(lambda: list(self.page.cards) == [str(self.proj)]))
+
     def test_detail_shows_versions_and_chart(self):
         self.page.show_project(self.proj)
         self.assertTrue(pump(lambda: hasattr(self.page, "history")))

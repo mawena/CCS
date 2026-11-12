@@ -452,6 +452,57 @@ class PrefsPageTest(HomeTestCase):
         self.assertTrue(shown)
         self.assertTrue(all(w.get_ellipsize() == Pango.EllipsizeMode.NONE for w in shown))
 
+    # ---- Chat et fichiers, projets masqués ----------------------------------------------
+
+    def test_chat_files_settings_saved(self):
+        page = self.page()
+        rows = self.rows(page)
+        spin = rows["Mettre en veille un chat inactif après (min)"]
+        spin.set_value(45)
+        self.assertEqual(self.saved()["chat"]["idle_suspend_min"], 45)
+        spin.set_value(0)
+        self.assertEqual(self.saved()["chat"]["idle_suspend_min"], 0)
+        rows["Afficher les fichiers ignorés par git"].set_active(True)
+        self.assertTrue(self.saved()["files"]["show_ignored"])
+        rows["Disposition par défaut"].set_selected(0)
+        self.assertEqual(self.saved()["files"]["layout"], "A")
+        rows["Disposition par défaut"].set_selected(1)
+        self.assertEqual(self.saved()["files"]["layout"], "B")
+        rights = rows["Droits par défaut des nouveaux chats"]
+        rights.set_selected(2)                    # Plan
+        self.assertEqual(self.saved()["chat"]["rights"], "plan")
+
+    def test_rights_everything_asks_confirmation(self):
+        page = self.page()
+        asked = []
+        page.confirm_dangerous = lambda yes, no: asked.append((yes, no))
+        rights = self.rows(page)["Droits par défaut des nouveaux chats"]
+        rights.set_selected(3)                    # Tout autoriser
+        self.assertEqual(len(asked), 1)
+        self.assertEqual(page.s["chat"]["rights"], "manual")
+        asked[0][1]()                             # refus : retour au choix précédent
+        self.assertEqual(rights.get_selected(), 0)
+        self.assertFalse(self.store.joinpath("settings.json").exists())
+        rights.set_selected(3)
+        asked[1][0]()                             # accepté
+        self.assertEqual(self.saved()["chat"]["rights"], "bypassPermissions")
+
+    def test_hidden_projects_listed_and_shown_again(self):
+        window = FakeWindow()
+        window.projects = mock.Mock()
+        self.window = window
+        page = self.page({"projects": {"hidden": ["/p/Alpha", "/p/Beta"]}})
+        buttons = [b for b in walk(page) if isinstance(b, Gtk.Button) and b.get_label() == "Réafficher"]
+        self.assertEqual(len(buttons), 2)
+        buttons[0].emit("clicked")
+        self.assertEqual(self.saved()["projects"]["hidden"], ["/p/Beta"])
+        window.projects.refresh.assert_called()
+        buttons = [b for b in walk(page) if isinstance(b, Gtk.Button) and b.get_label() == "Réafficher"]
+        self.assertEqual(len(buttons), 1)
+        buttons[0].emit("clicked")
+        self.assertEqual(self.saved()["projects"]["hidden"], [])
+
+
     def test_groups_fit_the_narrow_window(self):
         """360 px moins les marges de la page (2 × 12 px). Le groupe des raccourcis clavier
         (shortcuts_group.py) n'est pas mesuré ici."""
