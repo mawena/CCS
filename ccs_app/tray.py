@@ -299,7 +299,7 @@ def tasks_now():
 APP_ENTRIES = (
     ("Journal des bascules", ("gui", "--page", "historique")),
     ("Bilan de la semaine", ("gui", "--page", "analyse")),
-    ("Ouvrir Comptes Claude", ("gui",)),
+    ("Ouvrir CCS", ("gui",)),
 )
 
 
@@ -359,7 +359,7 @@ def run():
                                      AppIndicator.IndicatorCategory.APPLICATION_STATUS)
     ind.set_icon_theme_path(str(icon_dir()))
     ind.set_status(AppIndicator.IndicatorStatus.ACTIVE)
-    ind.set_title("Comptes Claude")
+    ind.set_title("CCS")
 
     def launch_gui(_item, args):
         subprocess.Popen(gui_argv(args), start_new_session=True)

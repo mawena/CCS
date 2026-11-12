@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Comptes Claude (indicateur)
+Name=CCS (indicateur)
 Comment=Usage du compte Claude Code actif dans la barre du haut
 Exec=/usr/bin/claude-accounts tray
 Icon=io.ccs.ClaudeAccounts

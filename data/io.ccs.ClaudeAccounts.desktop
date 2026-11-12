@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Comptes Claude
+Name=CCS
 GenericName=Gestionnaire de comptes Claude Code
 Comment=Usage, prévisions et bascule entre les comptes Claude Code
 Exec=/usr/bin/claude-accounts gui

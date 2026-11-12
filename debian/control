@@ -39,5 +39,5 @@ Description: multi-account switcher and usage assistant for Claude Code
  Claude Code sessions can be resumed or started inside the application, in
  tabs of an embedded terminal, and conversations can be renamed.
  .
- Includes the `ccs` command, the "Comptes Claude" GTK application, a top bar
+ Includes the `ccs` command, the "CCS" GTK application, a top bar
  indicator and a systemd user service.

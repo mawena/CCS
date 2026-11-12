@@ -281,7 +281,7 @@ class InstallTest(SafetyMixin, unittest.TestCase):
         path = DIR + "ccs-ouvrir/"
         self.assertEqual(custom_list(self.b), FOREIGN + [path])
         self.assertEqual(custom(self.b, path), {
-            "name": "CCS : Ouvrir Comptes Claude", "command": "/usr/bin/claude-accounts gui",
+            "name": "CCS : Ouvrir CCS", "command": "/usr/bin/claude-accounts gui",
             "binding": "<Super><Alt>c"})
         self.assertTrue(item.installed)
         self.assertEqual(item.binding, "<Super><Alt>c")
@@ -407,6 +407,30 @@ class InstallTest(SafetyMixin, unittest.TestCase):
         self.assertEqual(custom(self.b, DIR + "ccs-suivant/")["command"], "/usr/bin/ccs next --notifier")
         self.assertEqual(sc.update_commands(backend=self.b), [])
 
+    def test_shortcut_installed_under_the_old_name_is_still_ours(self):
+        """Avant le renommage en « CCS », le raccourci s'appelait « CCS : Ouvrir Comptes
+        Claude » : reconnu par son chemin, ni étranger ni en double, renommé à la mise à jour."""
+        path = DIR + "ccs-ouvrir/"
+        sc.install("ouvrir", backend=self.b)
+        self.b.set(sc.CUSTOM_SCHEMA, {"name": "CCS : Ouvrir Comptes Claude"}, path)
+        self.b.log.clear()
+        st = sc.status(backend=self.b)
+        item = st.item("ouvrir")
+        self.assertTrue(item.installed)
+        self.assertTrue(item.outdated)
+        self.assertEqual(item.conflicts, [])
+        self.assertTrue(sc.is_ours(path))
+        found = sc.conflicts("<Super><Alt>c", backend=self.b)
+        self.assertEqual([(c.kind, c.name) for c in found], [("ccs", "Ouvrir CCS")])
+        self.assertEqual(custom_list(self.b).count(path), 1)
+        self.assertEqual(sc.update_commands(backend=self.b), ["ouvrir"])
+        self.assertEqual(custom(self.b, path)["name"], "CCS : Ouvrir CCS")
+        self.assertEqual(custom(self.b, path)["binding"], "<Super><Alt>c")
+        self.assertEqual(custom_list(self.b).count(path), 1)
+        self.assertFalse(sc.status(backend=self.b).item("ouvrir").outdated)
+        sc.install("ouvrir", backend=self.b)
+        self.assertEqual(custom_list(self.b).count(path), 1)
+
     def test_shortcuts_installed_without_notifier_are_outdated(self):
         """Raccourcis de la 0.6 de développement (sans --notifier) : à mettre à jour, raccourci
         gardé ; les commandes de l'application, elles, n'ont pas changé."""
@@ -471,7 +495,7 @@ class ConflictsTest(SafetyMixin, unittest.TestCase):
         with mock.patch.object(sc, "command_for", side_effect=lambda a: a.display):
             sc.install("ouvrir", backend=self.b)
         found = sc.conflicts("<Super><Alt>c", backend=self.b)
-        self.assertEqual([(c.kind, c.name) for c in found], [("ccs", "Ouvrir Comptes Claude")])
+        self.assertEqual([(c.kind, c.name) for c in found], [("ccs", "Ouvrir CCS")])
         self.assertEqual(sc.conflicts("<Super><Alt>c", exclude="ouvrir", backend=self.b), [])
 
     def test_no_conflict_and_invalid(self):
@@ -557,7 +581,7 @@ class StatusTest(SafetyMixin, unittest.TestCase):
         sc.install("sessions", "<Super><Alt>s", backend=self.b)
         text = sc.format_text(sc.status(backend=self.b))
         self.assertIn("Raccourcis clavier", text)
-        self.assertRegex(text, r"✔ Ouvrir Comptes Claude\s+Super\+Alt\+C")
+        self.assertRegex(text, r"✔ Ouvrir CCS\s+Super\+Alt\+C")
         self.assertRegex(text, r"⚠ Afficher les sessions\s+Super\+Alt\+S")
         self.assertIn("Lecteur d'écran", text)
         self.assertRegex(text, r"· Pause 1 h\s+Super\+Alt\+P\s+\(désactivé\)")

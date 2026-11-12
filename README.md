@@ -357,7 +357,7 @@ désactivés au départ : **Réglages → Raccourcis clavier**, ou
 
 | Action | Raccourci | Commande |
 |---|---|---|
-| Ouvrir Comptes Claude | Super+Alt+C | `claude-accounts gui` |
+| Ouvrir CCS | Super+Alt+C | `claude-accounts gui` |
 | Afficher les sessions | Super+Alt+V | `claude-accounts gui --page sessions` |
 | Nouvelle session | Super+Alt+N | `claude-accounts gui --new-session` |
 | Basculer sur le compte suivant | Super+Alt+B | `ccs next --notifier` |
@@ -423,7 +423,7 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Alerte de contexte lourd** | Une notification par session quand son contexte dépasse 150 000 tokens (réglable), avec le coût d'un message ; badge dans l'onglet Sessions et la ligne d'état. |
 | **Budget par projet** | Un budget hebdomadaire en équivalent dollars par projet, alertes à 80 % et 100 % ; ne bloque jamais rien (onglet Analyse, `ccs budget`). |
 | **Bilan de santé** | `ccs doctor` : service, versions, barre du haut, intégration, comptes, Claude Code, terminal ; une commande à copier par problème. |
-| **Application** | « Comptes Claude » (GTK 4) : Comptes, Planning, Sessions, Terminaux, Historique, Analyse, Réglages. |
+| **Application** | « CCS » (GTK 4) : Comptes, Planning, Sessions, Terminaux, Historique, Analyse, Réglages. |
 | **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge, ⏸ en pause) ; au clic : comptes, recharges, prévisions, sessions, interrupteurs, pause, nouvelle version, journal des bascules, bilan de la semaine. |
 | **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre ; nouvelle version cherchée une fois par jour. |
 
@@ -488,7 +488,7 @@ Réglages).
 - **À la main** : installe le nouveau `.deb` avec `sudo apt install ./ccs_*_all.deb`.
 
 Le service se relance seul avec la nouvelle version (dans les 5 min), l'icône
-aussi (dans les 10 s) ; ferme et rouvre la fenêtre « Comptes Claude ». En
+aussi (dans les 10 s) ; ferme et rouvre la fenêtre « CCS ». En
 venant de la 0.4.0 ou d'avant, l'icône ne sait pas encore le faire : relance-la
 une fois (`pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`) ;
 en venant d'une version antérieure à 0.2.1, lance aussi une fois
@@ -510,7 +510,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
    navigateur ; choisis bien un *autre* compte (`--email` pré-remplit).
 3. **Démarre le service** : `systemctl --user enable --now ccs-daemon`
 4. **Active l'orchestrateur** : `ccs orch on`, puis règle ta plage horaire dans
-   l'application (« Comptes Claude » dans le menu, ou `ccs gui`).
+   l'application (« CCS » dans le menu, ou `ccs gui`).
 
 ## Commandes
 
@@ -645,7 +645,7 @@ problème trouvé.
 | Pas de bascule / pas de démarrage | `ccs status` : service en marche ? orchestrateur activé ? dans la plage horaire ? en pause (`ccs pause off`) ? |
 | L'icône garde l'ancienne version après une mise à jour | Mise à jour en venant de la 0.4.0 ou d'avant : `pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`. |
 | L'ancienne version s'ouvre | Supprime `~/.local/bin/ccs`, `~/.local/bin/claude-accounts` et `~/.local/share/applications/io.ccs.ClaudeAccounts.desktop`. |
-| « Comptes Claude » introuvable dans le menu | Alt+F2 puis `r` (X11), ou reconnecte-toi. |
+| « CCS » introuvable dans le menu | Alt+F2 puis `r` (X11), ou reconnecte-toi. |
 | Icône absente de la barre du haut | Extension « Ubuntu AppIndicators » (voir Installation), puis `claude-accounts tray &`. |
 | Pas de ligne d'état dans Claude Code | `ccs integrate status`, puis relance la session. |
 | Les sessions s'ouvrent dans un terminal externe | Terminal intégré indisponible : `sudo apt install gir1.2-vte-3.91`, puis rouvre l'application. |

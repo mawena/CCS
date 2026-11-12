@@ -221,11 +221,11 @@ class AppEntriesTest(unittest.TestCase):
         from ccs_app.desktop import page_name
         from ccs_app.tray import APP_ENTRIES, gui_argv
         labels = [label for label, _ in APP_ENTRIES]
-        self.assertEqual(labels, ["Journal des bascules", "Bilan de la semaine", "Ouvrir Comptes Claude"])
+        self.assertEqual(labels, ["Journal des bascules", "Bilan de la semaine", "Ouvrir CCS"])
         pages = {label: args for label, args in APP_ENTRIES}
         self.assertEqual(page_name(pages["Journal des bascules"][-1]), "history")
         self.assertEqual(page_name(pages["Bilan de la semaine"][-1]), "analysis")
-        self.assertEqual(pages["Ouvrir Comptes Claude"], ("gui",))
+        self.assertEqual(pages["Ouvrir CCS"], ("gui",))
         with mock.patch.object(sys, "argv", ["/usr/bin/claude-accounts", "tray"]):
             self.assertEqual(gui_argv(("gui", "--page", "historique")),
                              [sys.executable, "/usr/bin/claude-accounts", "gui", "--page", "historique"])

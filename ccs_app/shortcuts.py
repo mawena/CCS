@@ -94,7 +94,7 @@ class Action:
 # `update_commands`).
 NOTIFIER = "--notifier"
 ACTIONS = (
-    Action("ouvrir", "Ouvrir Comptes Claude", "claude-accounts", ("gui",), "<Super><Alt>c"),
+    Action("ouvrir", "Ouvrir CCS", "claude-accounts", ("gui",), "<Super><Alt>c"),
     Action("sessions", "Afficher les sessions", "claude-accounts", ("gui", "--page", "sessions"),
            "<Super><Alt>v"),
     Action("nouvelle-session", "Nouvelle session", "claude-accounts", ("gui", "--new-session"),
@@ -693,6 +693,7 @@ class Item:
     command: str                    # commande attendue (chemins absolus)
     installed_command: str = None   # commande en place
     conflicts: list = field(default_factory=list)
+    installed_name: str = None      # nom en place (None : inconnu)
 
     @property
     def id(self):
@@ -709,7 +710,10 @@ class Item:
     @property
     def outdated(self):
         """Installé avec une autre commande (dépôt déplacé, paquet installé depuis…)."""
-        return self.installed and self.installed_command != self.command
+        if not self.installed:
+            return False
+        renamed = self.installed_name is not None and self.installed_name != self.action.title
+        return self.installed_command != self.command or renamed
 
 
 @dataclass
@@ -731,10 +735,12 @@ def _item(b, act, paths=None, entries=None):
     if installed:
         binding = b.get(CUSTOM_SCHEMA, "binding", act.path) or ""
         cmd = b.get(CUSTOM_SCHEMA, "command", act.path)
+        name = b.get(CUSTOM_SCHEMA, "name", act.path)
     else:
-        binding, cmd = act.default, None
+        binding, cmd, name = act.default, None, None
     entries = _entries(b) if entries is None else entries
-    return Item(act, installed, binding, command_for(act), cmd, _match(b, entries, binding, act.path))
+    return Item(act, installed, binding, command_for(act), cmd,
+                _match(b, entries, binding, act.path), name)
 
 
 def status(backend=None):
@@ -809,15 +815,22 @@ def set_binding(action_id, binding, backend=None):
 
 
 def update_commands(backend=None):
-    """Réécrit la commande des raccourcis installés qui ne pointent plus au bon endroit
-    (paquet installé depuis, dépôt déplacé) ; renvoie les actions mises à jour."""
+    """Réécrit la commande et le nom des raccourcis installés qui ne sont plus à jour
+    (paquet installé depuis, dépôt déplacé, application renommée « CCS ») ; renvoie les
+    actions mises à jour. Les raccourcis sont reconnus par leur chemin (`ccs-<action>`),
+    jamais par leur nom : un raccourci installé sous un ancien nom reste le nôtre."""
     b = _ready(backend)
     paths, done = _list(b), []
     for act in ACTIONS:
         if act.path in paths:
             expected = command_for(act)
+            wanted = {}
             if b.get(CUSTOM_SCHEMA, "command", act.path) != expected:
-                b.set(CUSTOM_SCHEMA, {"command": expected}, act.path)
+                wanted["command"] = expected
+            if b.get(CUSTOM_SCHEMA, "name", act.path) != act.title:
+                wanted["name"] = act.title
+            if wanted:
+                b.set(CUSTOM_SCHEMA, wanted, act.path)
                 done.append(act.id)
     return done
 
