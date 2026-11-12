@@ -11,9 +11,10 @@ from dataclasses import replace
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
-from .. import conversations, costs, sessions, terminal
+from .. import conversations, costs, project_accounts, sessions, terminal
 from .. import session_hub as hub
-from .common import cap, caption, clear, error_text, existing_parent, in_thread, short_path
+from .common import (cap, caption, clear, empty_state, error_text, existing_parent, in_thread, short_path,
+                     tag_account)
 from .project_account_dialog import confirm_switch
 
 PAGE_SIZE = 60
@@ -93,8 +94,8 @@ class ConversationList(Gtk.Box):
     def show_error(self, text):
         self.signature = None
         clear(self.results)
-        self.results.append(Adw.StatusPage(icon_name="dialog-error-symbolic", title="Lecture impossible",
-                                           description=text))
+        self.results.append(empty_state("dialog-error-symbolic", "Lecture impossible", text,
+                                        "Réessayer", self.page.load_history))
 
     # ---- rendu ---------------------------------------------------------------------
 
@@ -121,16 +122,17 @@ class ConversationList(Gtk.Box):
         self.count.set_label(hub.count_text(len(convs), total) if total else "")
         if not convs:
             if empty_all:
-                page = Adw.StatusPage(icon_name="utilities-terminal-symbolic", title="Aucune conversation",
-                                      description="Les sessions et les conversations Claude Code de ce PC "
-                                                  "apparaîtront ici.")
+                page = empty_state("utilities-terminal-symbolic", "Aucune conversation",
+                                   "Les sessions et les conversations Claude Code de ce PC apparaîtront ici.",
+                                   "Nouvelle session…", self.window.new_session, compact=True)
             elif filtering:
-                page = Adw.StatusPage(icon_name="edit-find-symbolic", title="Aucun résultat",
-                                      description="Essaie d'autres mots ou retire le filtre d'origine.")
+                page = empty_state("edit-find-symbolic", "Aucun résultat",
+                                   "Essaie d'autres mots ou retire le filtre d'origine.",
+                                   "Effacer le filtre", self.page.clear_filters, compact=True)
             else:
-                page = Adw.StatusPage(icon_name="chat-message-new-symbolic", title="Aucune conversation",
-                                      description="Pas encore de conversation enregistrée dans ce projet.")
-            page.add_css_class("compact")
+                page = empty_state("chat-message-new-symbolic", "Aucune conversation",
+                                   "Pas encore de conversation enregistrée dans ce projet.",
+                                   "Nouvelle session…", self.window.new_session, compact=True)
             self.results.append(page)
             return
         code = conversations.vscode_bin()
@@ -196,6 +198,12 @@ class ConversationList(Gtk.Box):
         row = Gtk.ListBoxRow(activatable=True, tooltip_text=tooltip(c))
         box = Gtk.Box(spacing=10, margin_top=8, margin_bottom=8, margin_start=12, margin_end=8)
         info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True, valign=Gtk.Align.CENTER)
+        # Liseré à la couleur du compte associé au projet (s'il y en a un).
+        assoc = project_accounts.resolve(c.cwd, getattr(self.page, "assocs", ()))
+        if assoc is not None:
+            info.add_css_class("ccs-account-bar")
+            info.set_margin_start(2)
+            tag_account(info, assoc.profile)
         top = Gtk.Box(spacing=8)
         top.append(Gtk.Label(label=c.title, xalign=0, ellipsize=Pango.EllipsizeMode.END))
         if c.session_id in opened:

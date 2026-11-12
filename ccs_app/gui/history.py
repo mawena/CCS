@@ -7,8 +7,8 @@ from datetime import datetime
 from gi.repository import Adw, Gdk, Gtk
 
 from .. import switch_log
-from .charts import SESSION_RGB, WEEKLY_RGB, LineChart
-from .common import caption, clear
+from .charts import LineChart
+from .common import account_rgb, caption, card_box, clear, empty_state, sync_accounts
 from .geometry import ideal_weekly_series
 
 RANGES = {"24 h": 86400, "7 jours": 7 * 86400}
@@ -32,7 +32,8 @@ def hex_color(rgb):
     return "#" + "".join(f"{round(c * 255):02x}" for c in rgb)
 
 
-# Légende des courbes, aux couleurs des séries : un seul libellé qui se replie. Espaces
+# Légende des courbes : la couleur est celle du compte (titre de chaque carte), la session en
+# trait plein, la semaine en trait plus clair : un seul libellé qui se replie. Espaces
 # insécables dans chaque élément, cadratin entre eux : la ligne ne se coupe qu'entre deux.
 NBSP, EM_SPACE = chr(0x00A0), chr(0x2003)
 
@@ -42,8 +43,8 @@ def _legend_item(text, attrs):
 
 
 LEGEND = EM_SPACE.join((
-    _legend_item("━ session", f"foreground='{hex_color(SESSION_RGB)}' weight='bold'"),
-    _legend_item("━ semaine", f"foreground='{hex_color(WEEKLY_RGB)}' weight='bold'"),
+    _legend_item("━ session", "weight='bold'"),
+    _legend_item("━ semaine", "weight='bold' alpha='55%'"),
     _legend_item("┅ rythme idéal de la semaine", "alpha='55%'")))
 
 
@@ -215,9 +216,13 @@ class HistoryPage(Gtk.ScrolledWindow):
         t1 = time.time()
         t0 = t1 - self.span
         accounts = state.get("accounts") or []
+        sync_accounts(a["name"] for a in accounts)
         if not accounts:
-            self.list.append(Adw.StatusPage(icon_name="document-open-recent-symbolic",
-                                            title="Pas encore d'historique"))
+            refresh = getattr(self.window, "refresh", None)
+            self.list.append(empty_state(
+                "document-open-recent-symbolic", "Pas encore d'historique",
+                "Les courbes apparaissent après les premiers relevés des comptes.",
+                "Actualiser", refresh))
             return
         switches = store.events(t0, type="switch")
         for a in accounts:
@@ -225,8 +230,7 @@ class HistoryPage(Gtk.ScrolledWindow):
             session = [(ts, p) for ts, p, _ in store.samples(name, "session", t0)]
             weekly_raw = store.samples(name, "weekly_all", t0)
             weekly = [(ts, p) for ts, p, _ in weekly_raw]
-            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
-                           css_classes=["card", "profile-card"])
+            card = card_box(8, account=name)
             card.append(Gtk.Label(label=name, xalign=0, css_classes=["title-4"]))
             if not session and not weekly:
                 card.append(caption("Aucun relevé sur cette période."))
@@ -235,10 +239,12 @@ class HistoryPage(Gtk.ScrolledWindow):
             chart = LineChart()
             markers = [(e.ts, f"→ {name}") for e in switches
                        if e.profile == name and e.detail.get("mode") in CHART_MODES]
+            color = account_rgb(name)
+            light = (*color, 0.55)     # la semaine : même couleur, plus claire
             chart.set_data(t0, t1, [
-                (session, SESSION_RGB, False, "session"),
-                (weekly, WEEKLY_RGB, False, "semaine"),
-                (ideal_weekly_series(weekly_raw), WEEKLY_RGB, True, "idéal"),
+                (session, color, False, "session"),
+                (weekly, light, False, "semaine"),
+                (ideal_weekly_series(weekly_raw), light, True, "idéal"),
             ], markers)
             card.append(chart)
             self.list.append(card)
@@ -254,7 +260,8 @@ class HistoryPage(Gtk.ScrolledWindow):
             self.journal.append(caption(f"Journal illisible : {e}", error=True))
             return
         if not entries:
-            self.journal.append(caption("Aucune bascule sur cette période."))
+            self.journal.append(empty_state("emblem-synchronizing-symbolic",
+                                            "Aucune bascule sur cette période", compact=True))
             return
         shown = entries[:self.journal_limit]
         for label, group in switch_log.group_by_day(shown, now):

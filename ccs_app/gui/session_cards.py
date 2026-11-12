@@ -19,7 +19,7 @@ from gi.repository import Adw, GLib, Gtk, Pango
 
 from .. import context_alert, core, costs, session_memory, sessions, transcripts
 from ..session_hub import plural
-from .common import caption, clear, menu_button
+from .common import caption, card_box, clear, menu_button, sync_accounts
 
 STATE_CLASSES = {"busy": "warning", "waiting": "accent", "idle": "dim-label"}
 
@@ -48,6 +48,7 @@ class SessionCards(Gtk.Box):
         self.window = window
         self.on_changed = on_changed     # relecture des sessions (après « Terminer »)
         self.menus = []
+        self.active_name = None
         self.memory, self.contexts, self.on_close = {}, {}, None
         self.heavy_tokens = context_alert.DEFAULTS["threshold_tokens"]
         self.cost_loader = costs.Loader()
@@ -86,7 +87,10 @@ class SessionCards(Gtk.Box):
         banner = session_memory.banner_text(total) if total else None
         if banner:
             self.append(Adw.Banner(title=banner, revealed=True))
-        active = core.active_profile_name() or "compte non enregistré"
+        profiles = core.list_profiles()
+        sync_accounts(p.name for p in profiles)
+        self.active_name = next((p.name for p in profiles if p.active), None)
+        active = self.active_name or "compte non enregistré"
         self.append(caption(f"Toutes utilisent le compte actif ({active}) ; une bascule s'applique à "
                             "chacune à sa prochaine requête."))
         target_card = None
@@ -132,7 +136,8 @@ class SessionCards(Gtk.Box):
 
     def card(self, s, u, titles, show_project, compact):
         tab = self.window.terminals.find(pid=s.pid)
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["card", "profile-card"])
+        # Toutes les sessions utilisent le compte actif : sa couleur borde la carte.
+        card = card_box(8, account=self.active_name)
         top = Gtk.Box(spacing=10)
         info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
         title = Gtk.Box(spacing=8)
