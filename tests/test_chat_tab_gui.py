@@ -259,6 +259,19 @@ class ChatTabTest(HomeTestCase):
         self.say(tab, "message")                                   # la saisie reste pour la principale
         self.assertIn("message", labels_in(tab.messages))
 
+    def test_composer_has_no_hint_line(self):
+        # Pas de ligne d'indications sous la saisie : les boutons sont à droite du texte, les
+        # indications dans le texte gris de la zone vide et dans l'info-bulle d'Envoyer.
+        tab, _owner = self.make()
+        c = tab.composer
+        self.assertFalse(hasattr(c, "hint"))
+        self.assertIs(c.send_button.get_parent(), c.stop_button.get_parent())
+        self.assertIs(c.send_button.get_parent().get_parent(), c.input_row)
+        self.assertIn("@", c.placeholder.get_label())
+        c.set_busy(True)
+        self.assertIn("Échap", c.placeholder.get_label())
+        self.assertIn("Maj+Entrée", c.send_button.get_tooltip_text())
+
     def test_start_failure_shows_notice(self):
         tab, owner = self.make(env={"FAKE_CLAUDE_EXIT": "1"})
         self.say(tab, "Bonjour")

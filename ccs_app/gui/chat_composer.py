@@ -26,8 +26,10 @@ MAX_CHOICES = 12
 FILE_TOKEN = re.compile(r"(?:^|\s)@([^\s@]*)$")
 COMMAND_TOKEN = re.compile(r"^/([^\s/]*)$")
 
-HINT_IDLE = "Entrée envoie · Maj+Entrée : nouvelle ligne · @ fichiers · / commandes"
-HINT_BUSY = "Claude travaille · Entrée envoie quand même · Échap arrête"
+# Indications dans le texte gris de la zone vide (plus de ligne à part sous la saisie).
+HINT_IDLE = "Écris à Claude…  (@ fichiers · / commandes)"
+HINT_BUSY = "Claude travaille — écris quand même, Entrée envoie · Échap arrête"
+SEND_TIP = "Envoyer (Entrée) · Maj+Entrée : nouvelle ligne"
 
 
 def _command(item):
@@ -81,28 +83,29 @@ class Composer(Gtk.Box):
         style = Adw.StyleManager.get_default()
         self.set_dark(style.get_dark())
         style.connect("notify::dark", lambda sm, _p: self.set_dark(sm.get_dark()))
-        overlay = Gtk.Overlay(child=Gtk.ScrolledWindow(
+        overlay = Gtk.Overlay(hexpand=True, child=Gtk.ScrolledWindow(
             child=self.view, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True,
             min_content_height=40, max_content_height=220))
-        self.placeholder = Gtk.Label(label="Écris à Claude…", xalign=0, halign=Gtk.Align.START,
+        self.placeholder = Gtk.Label(label=HINT_IDLE, xalign=0, halign=Gtk.Align.START,
                                      valign=Gtk.Align.START, margin_start=12, margin_top=12,
-                                     css_classes=["ccs-subtle"], can_target=False)
+                                     ellipsize=Pango.EllipsizeMode.END, css_classes=["ccs-subtle"],
+                                     can_target=False)
         overlay.add_overlay(self.placeholder)
-        card.append(overlay)
 
-        self.hint = Gtk.Label(label=HINT_IDLE, xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
-                              css_classes=["ccs-subtle", "caption"], margin_start=6)
         self.stop_button = Gtk.Button(icon_name="media-playback-stop-symbolic", css_classes=["circular"],
                                       tooltip_text="Arrêter Claude (Échap)", visible=False)
         self.stop_button.connect("clicked", lambda *_: self.emit("stop"))
         self.send_button = Gtk.Button(icon_name="go-up-symbolic", css_classes=["circular", "suggested-action"],
-                                      tooltip_text="Envoyer (Entrée)")
+                                      tooltip_text=SEND_TIP)
         self.send_button.connect("clicked", lambda *_: self.submit())
-        foot = Gtk.Box(spacing=6)
-        foot.append(self.hint)
-        foot.append(self.stop_button)
-        foot.append(self.send_button)
-        card.append(foot)
+        # Boutons à droite du texte, comme dans VS Code : pas de ligne à part sous la saisie.
+        buttons = Gtk.Box(spacing=6, valign=Gtk.Align.END, margin_bottom=4, margin_end=2)
+        buttons.append(self.stop_button)
+        buttons.append(self.send_button)
+        self.input_row = Gtk.Box(spacing=6)
+        self.input_row.append(overlay)
+        self.input_row.append(buttons)
+        card.append(self.input_row)
         self.card = card
         self.append(card)
 
@@ -204,12 +207,11 @@ class Composer(Gtk.Box):
                 return
 
     def set_busy(self, busy):
-        """Pendant que Claude travaille : bouton Arrêter, et Entrée met en file."""
+        """Pendant que Claude travaille : bouton Arrêter ; Entrée envoie quand même."""
         self.busy = bool(busy)
         self.stop_button.set_visible(self.busy)
-        self.hint.set_label(HINT_BUSY if self.busy else HINT_IDLE)
-        self.send_button.set_tooltip_text("Envoyer (Entrée), même pendant que Claude travaille" if self.busy
-                                          else "Envoyer (Entrée)")
+        self.placeholder.set_label(HINT_BUSY if self.busy else HINT_IDLE)
+        self.send_button.set_tooltip_text(SEND_TIP + (" · même pendant que Claude travaille" if self.busy else ""))
 
     def set_enabled(self, enabled):
         self.view.set_editable(bool(enabled))
