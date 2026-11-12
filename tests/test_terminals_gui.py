@@ -387,6 +387,17 @@ class SessionsPageTest(HomeTestCase):
         self.assertIs(one.panel.get_parent(), one)
         self.assertIs(two.panel.get_parent(), two)
 
+    def test_waiting_alert_for_a_permission_says_so(self):
+        tab = self.chat("s-3", running=True, pid=78)
+        other = self.chat("s-4")
+        self.page.view.set_selected_page(other.page)
+        tab.state.state, tab.state.waiting_for, tab.state.state_since = "waiting", "permission", time.time()
+        with mock.patch.object(self.page, "on_screen", return_value=True):
+            self.page.changed(tab)
+        self.assertTrue(spin(lambda: self.notified))
+        self.assertTrue(self.notified[0].title.endswith("Claude attend ton autorisation"))
+        self.assertEqual(self.notified[0].urgency, 1)
+
     def test_waiting_alert_when_hidden(self):
         tab = self.chat("s-1", running=True, pid=77)
         other = self.chat("s-2")                         # l'onglet affiché est un autre
@@ -397,8 +408,9 @@ class SessionsPageTest(HomeTestCase):
             self.page.changed(tab)
         self.assertTrue(spin(lambda: self.notified))
         self.assertEqual(len(self.notified), 1)
-        self.assertTrue(self.notified[0].title.endswith("attend ta réponse"))
-        self.assertTrue(self.notified[0].key.startswith("attente:"))
+        self.assertTrue(self.notified[0].title.endswith("Claude a fini de répondre"))   # pas « attend ta réponse »
+        self.assertEqual(self.notified[0].urgency, 0)
+        self.assertTrue(self.notified[0].key.startswith("fin:"))
         self.assertEqual(self.phoned[0][1], "projet")    # le téléphone aussi, par le même chemin
         with mock.patch.object(self.page, "on_screen", return_value=True):
             self.page.changed(tab)                       # même attente : une seule alerte
@@ -469,6 +481,45 @@ class RealChatTabTest(HomeTestCase):
         self.assertEqual(tab.options.model, "opus")
         records, _sel = self.page.records()
         self.assertEqual(records[0]["chat"]["model"], "opus")
+
+    def test_page_sends_the_queue_of_a_chat_opened_without_process(self):
+        # Les chats de la page n'ont pas de processus avant le premier envoi : la file, l'envoi
+        # immédiat et « créer une feuille de route » doivent le lancer, pas échouer en silence.
+        tests_dir = Path(__file__).resolve().parent
+        fake = str(tests_dir / "fake_claude.py")
+        scenario = str(tests_dir / "fixtures" / "chat" / "reprise-resume.jsonl")
+        with mock.patch.object(sessions, "_claude_bin", return_value=fake), \
+                mock.patch.dict(os.environ, {"FAKE_CLAUDE_SCENARIO": scenario}):
+            tab = self.page.open_claude(self.cwd)
+            self.addCleanup(lambda: tab.engine.stop(grace_s=1))
+            self.assertFalse(tab.state.running)
+            tab.state.queue[:] = ["Réponds juste OK."]
+            tab.state.queued_at = time.time()
+            self.page.send_queue(tab)
+            self.assertEqual(tab.state.queue, [])
+            self.assertEqual(tab.state.state, "busy")
+            deadline = time.time() + 15
+            while tab.engine.state != "idle" and time.time() < deadline:
+                GLib.MainContext.default().iteration(False)
+                time.sleep(0.01)
+            self.assertEqual(tab.engine.state, "idle")
+
+    def test_roadmap_followed_from_claude_actions_and_kept(self):
+        from ccs_app import chat_protocol as proto
+        other = self.project / "Work" / "App"
+        (other / ".git").mkdir(parents=True)
+        (other / "ROADMAP.md").write_text("# App\n## Phase 1\n- [ ] a\n")
+        tab = self.page.open_claude(self.cwd)
+        tab._dispatch(proto.ToolUse("toolu_r", "Read", {"file_path": str(other / "ROADMAP.md")}, None))
+        self.assertTrue(spin(lambda: tab.panel.followed_roadmap == str(other / "ROADMAP.md")))
+        tab.panel.set_project_root(other)
+        records, _sel = self.page.records()
+        self.assertEqual(records[0]["chat"]["root"], str(other))
+        # réouverture : la racine et la feuille de route reviennent
+        item = terminal.Reopen("claude", self.cwd, "Essai", None, (), (), chat=records[0]["chat"])
+        again = self.page.open_chat(item.cwd, None, "Essai", self.page.options_of(item), (), present=False)
+        self.page.apply_kept(again, item.chat)
+        self.assertEqual(again.panel.project_root, str(other))
 
     def test_workspace_install_and_layouts_leave_no_gtk_critical(self):
         # Gtk-CRITICAL (fatal sous G_DEBUG=fatal-criticals) si un widget déjà parenté entre dans un Gtk.Paned.

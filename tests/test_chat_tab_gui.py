@@ -16,7 +16,8 @@ FIXTURES = Path(__file__).parent / "fixtures" / "chat"
 
 if GTK:
     from gi.repository import GLib, Gtk
-    from ccs_app import terminal
+    from ccs_app import chat_engine, terminal
+    from ccs_app import chat_protocol as proto
     from ccs_app.gui.chat_tab import ChatTab
 
 
@@ -42,6 +43,21 @@ def descendants(widget):
 
 def texts(tab):
     return [w.get_label() or "" for w in descendants(tab.messages.box) if isinstance(w, Gtk.Label)]
+
+
+
+def labels_in(widget):
+    """Texte de tous les Gtk.Label sous `widget` (même dans une page de pile cachée)."""
+    out, stack = [], [widget]
+    while stack:
+        w = stack.pop()
+        if isinstance(w, Gtk.Label):
+            out.append(w.get_text())
+        child = w.get_first_child()
+        while child is not None:
+            stack.append(child)
+            child = child.get_next_sibling()
+    return " ".join(out)
 
 
 class FakeOwner:
@@ -92,13 +108,14 @@ class ChatTabTest(HomeTestCase):
             tab.engine.stop(grace_s=1)
         super().tearDown()
 
-    def make(self, scenario="reprise-resume.jsonl", session_id=None, env=None, history_path=None):
+    def make(self, scenario="reprise-resume.jsonl", session_id=None, env=None, history_path=None, spawn=True):
         environ = {"PATH": os.environ["PATH"], "HOME": str(self.home),
                    "FAKE_CLAUDE_SCENARIO": str(FIXTURES / scenario), **(env or {})}
         launch = terminal.claude_launch(str(self.cwd), session_id, "Essai")
         owner = FakeOwner()
         tab = ChatTab(owner, launch, claude=FAKE, environ=environ, history_path=history_path)
-        tab.spawn()
+        if spawn:   # la page Sessions, elle, ouvre ses chats sans spawn() : processus au premier envoi
+            tab.spawn()
         self.tabs.append(tab)
         return tab, owner
 
@@ -143,23 +160,149 @@ class ChatTabTest(HomeTestCase):
         self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
         self.assertTrue(card.answered)
 
-    def test_queue_while_busy(self):
+    def test_message_while_busy_is_sent_now(self):
         tab, owner = self.make("permissions-allow-toujours.jsonl")
         self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
         self.assertTrue(pump_until(lambda: tab.engine.state == "permission"))
         self.say(tab, "et ensuite ceci")
-        self.assertEqual(tab.state.queue, ["et ensuite ceci"])     # en file, pas envoyé
-        self.assertIsNotNone(tab.state.queued_at)
-        self.assertIn("queue", owner.events)
-        self.assertEqual(tab.composer._queue_shown, ["et ensuite ceci"])
-        card = next(iter(tab.messages._perms.values()))
-        card.allow.emit("clicked")
+        self.assertEqual(tab.state.queue, [])                      # plus de mise en file
+        self.assertIn("et ensuite ceci", texts(tab))               # la bulle part tout de suite
+        self.assertTrue(any("pendant que Claude travaille" in t for t in texts(tab)))
+        self.assertEqual(tab.composer.text, "")
+
+    def test_image_while_busy_is_sent_now(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.engine.state == "permission"))
+        png = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00"
+               b"\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa7"
+               b"5\x81\x84\x00\x00\x00\x00IEND\xaeB`\x82")
+        tab._on_send(tab.composer, "regarde", [("image/png", png)])
+        self.assertIn("regarde", texts(tab))
+        self.assertFalse(any("ne peuvent pas attendre" in t for t in texts(tab)))
+
+    def test_send_now_during_a_turn(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.engine.state == "permission"))
+        tab.state.queue[:] = ["déjà en file"]
+        tab.send_message_now(0)
+        self.assertEqual(tab.state.queue, [])
+        self.assertIn("déjà en file", texts(tab))
+
+    def test_send_now_from_a_chat_opened_without_spawn(self):
+        # Comme un chat ouvert ou rouvert par la page Sessions : pas de spawn(), pas de processus.
+        tab, _owner = self.make(spawn=False)
+        self.assertFalse(tab.state.running)
+        tab.state.queue[:] = ["Réponds juste OK."]
+        tab.send_message_now(0)                                    # « Envoyer maintenant »
+        self.assertEqual(tab.state.queue, [])
+        self.assertIn("Réponds juste OK.", texts(tab))
+        self.assertEqual(tab.state.state, "busy")
         self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
-        # la page enverrait maintenant : la décision est celle des terminaux
-        decision = terminal.queue_next(tab.state, time.time() + 5)
-        self.assertEqual(decision.text, "et ensuite ceci")
-        self.assertTrue(tab.send_auto(decision.text))
+
+    def test_send_auto_starts_a_chat_without_process(self):
+        tab, _owner = self.make(spawn=False)
+        self.assertTrue(tab.send_auto("Réponds juste OK."))       # file de messages, reprise, « créer une feuille de route »
         self.assertIsNotNone(tab.state.sent_at)
+        self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
+
+    def test_composer_text_readable_in_dark_mode(self):
+        tab, _owner = self.make()
+        tab.apply_colors(True)
+        self.assertIn("dark", tab.composer.buffer.get_style_scheme().get_id())
+        tab.apply_colors(False)
+        self.assertNotIn("dark", tab.composer.buffer.get_style_scheme().get_id())
+
+    def test_bar_follows_the_mode_confirmed_by_claude(self):
+        tab, _owner = self.make()
+        tab._dispatch(proto.Status("bypassPermissions"))
+        self.assertEqual(tab.options.rights, "bypassPermissions")
+        self.assertEqual(tab.bar.options.rights, "bypassPermissions")
+        tab._dispatch(proto.Status("default"))                    # « default » = Demander
+        self.assertEqual(tab.options.rights, "manual")
+
+    def test_refused_option_is_shown(self):
+        tab, _owner = self.make()
+        tab._dispatch(chat_engine.OptionRefused("set_permission_mode", "Cannot set permission mode"))
+        self.assertTrue(any("refusé" in t for t in texts(tab)))
+
+    def test_unknown_question_is_shown(self):
+        tab, _owner = self.make()
+        tab._dispatch(chat_engine.UnhandledRequest("question_mystere", "question : Activer ?"))
+        self.assertTrue(any("question_mystere" in t and "Activer" in t for t in texts(tab)))
+
+    def test_subagent_permission_says_so(self):
+        tab, _owner = self.make()
+        tab._dispatch(proto.PermissionRequest("r1", "Bash", "Bash", {"command": "ls"}, agent_id="agent-1"))
+        self.assertTrue(any("sous-agent" in t for t in texts(tab)))
+
+    def test_subagent_has_its_own_view_and_pill(self):
+        tab, _owner = self.make()
+        self.assertFalse(tab.agent_bar.get_visible())
+        tab._dispatch(proto.ToolUse("toolu_A", "Task", {"description": "Explorer le code", "prompt": "…"}, None))
+        self.assertIn("toolu_A", tab.agents)
+        self.assertTrue(tab.agent_bar.get_visible())
+        self.assertIn("Explorer le code", labels_in(tab.agent_bar))
+        tab._dispatch(proto.ToolUse("toolu_x", "Bash", {"command": "ls"}, "toolu_A"))
+        tab._dispatch(proto.AssistantText("m-sub", "trouvé trois fichiers", "toolu_A"))
+        self.assertNotIn("trouvé trois fichiers", labels_in(tab.messages))   # pas dans le fil principal
+        agent = tab.agents["toolu_A"]
+        tab.show_agent("toolu_A")
+        self.assertIs(tab.view_stack.get_visible_child(), agent.view)
+        self.assertTrue(pump_until(lambda: "trouvé trois fichiers" in labels_in(agent.messages)))
+        self.assertFalse(agent.done)
+        tab._dispatch(proto.ToolResult("toolu_A", "fini", False, None))
+        self.assertTrue(agent.done)
+        tab.show_agent(None)                                       # « ← Principale »
+        self.assertIs(tab.view_stack.get_visible_child(), tab.messages_overlay)
+        self.say(tab, "message")                                   # la saisie reste pour la principale
+        self.assertIn("message", labels_in(tab.messages))
+
+    def test_composer_has_no_hint_line(self):
+        # Pas de ligne d'indications sous la saisie : les boutons sont à droite du texte, les
+        # indications dans le texte gris de la zone vide et dans l'info-bulle d'Envoyer.
+        tab, _owner = self.make()
+        c = tab.composer
+        self.assertFalse(hasattr(c, "hint"))
+        self.assertIs(c.send_button.get_parent(), c.stop_button.get_parent())
+        self.assertIs(c.send_button.get_parent().get_parent(), c.input_row)
+        self.assertIn("@", c.placeholder.get_label())
+        c.set_busy(True)
+        self.assertIn("Échap", c.placeholder.get_label())
+        self.assertIn("Maj+Entrée", c.send_button.get_tooltip_text())
+
+    def test_attach_files_button_and_chips(self):
+        from ccs_app.gui.chat_composer import Composer
+        doc = Path(self.tmp) / "rapport.pdf"
+        doc.write_bytes(b"%PDF-1.4 faux")
+        note = self.cwd / "notes.txt"
+        note.write_text("x")
+        c = Composer(base_dir=str(self.cwd))
+        sent = []
+        c.connect("send", lambda _c, text, images: sent.append((text, images)))
+        self.assertIn("Joindre", c.attach_button.get_tooltip_text())
+        c.add_path(str(doc))
+        c.add_path(str(note))
+        self.assertEqual(c.files, [str(doc), str(note)])
+        self.assertTrue(c.thumbs.get_visible())
+        self.assertEqual(c.text, "")                       # pas de texte inséré : une étiquette
+        c._remove_file(0)
+        self.assertEqual(c.files, [str(note)])
+        c.add_path(str(doc))
+        self.assertTrue(c.submit())                        # sans texte, les fichiers suffisent
+        text = sent[0][0]
+        self.assertIn(f"@{doc}", text)
+        self.assertIn("@notes.txt", text)                  # relatif au projet
+        self.assertEqual(c.files, [])
+
+    def test_turn_footer_after_an_answer(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        next(iter(tab.messages._perms.values())).allow.emit("clicked")
+        self.assertTrue(pump_until(lambda: tab.messages._last_footer is not None))
+        self.assertIn("Terminé en", tab.messages._last_footer.get_label())
 
     def test_start_failure_shows_notice(self):
         tab, owner = self.make(env={"FAKE_CLAUDE_EXIT": "1"})

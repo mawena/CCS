@@ -28,7 +28,7 @@ Les autres façons d'installer sont dans [Installation](#installation).
 CCS est aussi une **application de bureau** (GTK 4 / libadwaita) : les sessions
 Claude s'y travaillent dans un **chat graphique** (modèle, effort, ultracode et droits
 en un clic), à côté des **fichiers** du projet et de sa **feuille de route**, avec une
-page **Projets** et une couleur par compte. Voir [Chat graphique](#chat-graphique).
+couleur par compte. Voir [Chat graphique](#chat-graphique).
 
 ## Le palier qui manque
 
@@ -297,15 +297,13 @@ replie l'arbre.
 
 La **feuille de route** lit le `ROADMAP.md` du projet : phases avec barre de
 progression, tâches en cases à cocher. Un clic sur une case la coche dans le
-fichier, en ne changeant que ce caractère. La page **Projets** réunit les
-feuilles de route de tous tes projets : version, dernière activité, phase en
-cours, frise des versions et tâches cochées par jour.
+fichier, en ne changeant que ce caractère.
 
 ## Navigation et apparence
 
-Quatre onglets en haut : **Accueil** (comptes, file de tâches, derniers
-événements), **Sessions**, **Projets** et **Analyse** (analyse et historique) ;
-**Réglages** est dans le menu ☰. Raccourcis : Ctrl+1 à Ctrl+4 pour les onglets,
+Trois onglets en haut : **Accueil** (comptes, derniers événements, planning et
+file de tâches), **Sessions** et **Analyse** (analyse et historique) ;
+**Réglages** est dans le menu ☰. Raccourcis : Ctrl+1 à Ctrl+3 pour les onglets,
 Ctrl+virgule pour les réglages. Le thème suit le système (ou clair, sombre au
 choix) et chaque compte a **sa couleur**, reprise sur les cartes, les jauges, les
 courbes et la barre du chat (Réglages → Apparence). Les anciens noms de page
@@ -432,7 +430,7 @@ désactivés au départ : **Réglages → Raccourcis clavier**, ou
 | Reprendre (lever la pause) | Super+Alt+R | `ccs pause off --notifier` |
 | Ne pas déranger 1 h | Super+Alt+D | `ccs silence 1h --notifier` |
 
-Dans la fenêtre : Ctrl+1 à Ctrl+4 (onglets), Ctrl+virgule (réglages), Ctrl+B
+Dans la fenêtre : Ctrl+1 à Ctrl+3 (onglets), Ctrl+virgule (réglages), Ctrl+B
 (replie l'arbre des fichiers), Ctrl+S (enregistre le fichier ouvert), Ctrl+F
 (cherche dans le fichier), Ctrl+Maj+E (côte à côte), Ctrl+Maj+M (messages en attente).
 
@@ -482,7 +480,6 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Chat graphique** | Les sessions Claude dans des chats : réponses en Markdown, cartes d'actions repliables, demandes d'autorisation (Autoriser / Toujours / Refuser), barre modèle / effort / ultracode / droits, `@` fichiers, `/` commandes, images, file de messages, bouton Arrêter, mise en veille après 30 min, « Ouvrir dans un terminal ». |
 | **Panneau Fichiers** | Arbre du projet avec marques git, fichiers ouverts à côté du chat (coloration, aperçu Markdown, édition Ctrl+S, diff des modifications de Claude, conflits signalés), dispositions A et B, volets redimensionnables, Ctrl+B. |
 | **Feuille de route** | Le `ROADMAP.md` du projet dans l'onglet de session : phases, barres de progression, cases cliquables ; la case que Claude coche s'allume. |
-| **Page Projets** | Tous les projets avec une feuille de route : version, dernière activité, phase en cours, frise des versions, tâches cochées par jour. |
 | **Terminal intégré** | Onglets shell (VTE) et sortie de secours des chats ; deux sessions côte à côte, messages en attente, onglets rouverts au redémarrage (chats compris), reprise après une limite, copier/coller, liens, confirmation avant fermeture. |
 | **Conversations** | Historique de toutes les conversations du PC (onglet Sessions), recherche, aperçu, export Markdown, coût, reprise dans l'application, VS Code ou un terminal externe, renommage, projets déplacés. |
 | **Journal des bascules** | Chaque changement de compte avec sa raison en clair, groupé par jour (onglet Historique, `ccs journal`). |
@@ -497,7 +494,7 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Alerte de contexte lourd** | Une notification par session quand son contexte dépasse 150 000 tokens (réglable), avec le coût d'un message ; badge dans l'onglet Sessions et la ligne d'état. |
 | **Budget par projet** | Un budget hebdomadaire en équivalent dollars par projet, alertes à 80 % et 100 % ; ne bloque jamais rien (onglet Analyse, `ccs budget`). |
 | **Bilan de santé** | `ccs doctor` : service, versions, barre du haut, intégration, comptes, Claude Code, terminal ; une commande à copier par problème. |
-| **Application** | « CCS » (GTK 4 / libadwaita) : quatre onglets (Accueil, Sessions, Projets, Analyse), Réglages dans le menu ☰ ; thème clair ou sombre, couleur par compte. |
+| **Application** | « CCS » (GTK 4 / libadwaita) : trois onglets (Accueil, Sessions, Analyse), Réglages dans le menu ☰ ; thème clair ou sombre, couleur par compte. |
 | **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge, ⏸ en pause) ; au clic : comptes, recharges, prévisions, sessions, interrupteurs, pause, nouvelle version, journal des bascules, bilan de la semaine. |
 | **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre ; nouvelle version cherchée une fois par jour. |
 
@@ -759,13 +756,13 @@ bash ; hors bibliothèques GTK, seul `python3-markdown-it` (rendu Markdown) est 
 | `ccs_app/chat_engine.py` | moteur du chat : processus `claude`, états, autorisations, veille, `--resume` (sans GTK) |
 | `ccs_app/chat_options.py` | modèle, effort, ultracode, droits d'un chat (sans GTK) |
 | `ccs_app/markdown_render.py` | Markdown analysé en blocs simples, pour le chat et l'aperçu (sans GTK) |
-| `ccs_app/roadmap.py`, `projects.py` | lecture et cochage de `ROADMAP.md` ; projets, versions, cases cochées par jour (git) |
+| `ccs_app/roadmap.py` | lecture et cochage de `ROADMAP.md` ; feuille de route citée par les outils de Claude (`path_in_tool`) |
 | `ccs_app/file_tree.py` | marques git, type de fichier, lecture et écriture sûres (sans GTK) |
 | `ccs_app/account_colors.py` | couleur de chaque compte (sans GTK) |
 | `ccs_app/gui/` | application GTK 4 / libadwaita et ses dialogues |
 | `ccs_app/gui/chat_tab.py`, `chat_messages.py`, `chat_composer.py`, `chat_bar.py`, `markdown_view.py` | le chat : onglet, messages et cartes, saisie, barre cliquable, rendu Markdown |
 | `ccs_app/gui/session_workspace.py`, `file_panel.py`, `file_editor.py`, `roadmap_view.py` | l'espace de session : arbre des fichiers, fichiers ouverts, feuille de route |
-| `ccs_app/gui/home_page.py`, `projects_page.py`, `analysis_hub.py`, `prefs_dialog.py`, `style.py` | onglets Accueil, Projets, Analyse, fenêtre des Réglages, style commun |
+| `ccs_app/gui/home_page.py`, `analysis_hub.py`, `prefs_dialog.py`, `style.py` | onglets Accueil, Analyse, fenêtre des Réglages, style commun |
 | `data/`, `debian/` | unité systemd, entrées de menu, icône, paquet |
 | `scripts/` | construction du .deb |
 | `docs/` | guide, architecture, pages man |

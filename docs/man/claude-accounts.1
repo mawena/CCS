@@ -1,13 +1,13 @@
-.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.9.0" "Commandes utilisateur"
+.TH CLAUDE-ACCOUNTS 1 "novembre 2026" "ccs 0.10.0" "Commandes utilisateur"
 .SH NOM
 claude-accounts \- application, service et outils d'usage des comptes Claude Code
 .SH SYNOPSIS
 .B claude-accounts
 [\fBgui\fR [\fB\-\-page \fIonglet\fR|\fB\-\-new\-session\fR|\fB\-\-session \fIréf\fR|\fB\-\-task \fIid\fR]|\fBprint\fR|\fBsessions\fR|\fBconversations\fR [\fImots\fR]|\fBresume \fIid\fR|\fBtitle \fIid titre\fR|\fBpreview \fIid\fR|\fBexport \fIid\fR [\fIfichier\fR]|\fBdoctor\fR|\fBpause\fR [\fIchoix\fR] [\fB\-\-notifier\fR]|\fBformule\fR|\fBsemaine\fR [\fB\-\-precedente \fIN\fR]|\fBmois\fR [\fB\-\-precedent \fIN\fR]|\fBmoment\fR [\fB\-\-duree \fIdurée\fR] [\fB\-\-sur \fIhorizon\fR]|\fBsilence\fR [\fIchoix\fR] [\fB\-\-notifier\fR]|\fBmise\-a\-jour\fR [\fB\-\-verifier\fR]|\fBjournal\fR [\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]|\fBprojet\fR [\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]|\fBtache\fR [\fIsous-commande\fR]|\fBbudget\fR [\fIdossier\fR \fImontant\fR|\fBaucun\fR]|\fBfiche \fIid\fR|\fBsauvegarde\fR [\fIfichier\fR]|\fBrestaurer \fIfichier\fR [\fB\-\-oui\fR]|\fBtelephone\fR [\fBessai\fR]|\fBraccourcis\fR [\fIsous-commande\fR]|\fBnotify\fR \fItitre\fR [\fItexte\fR]|\fBstatusline\fR|\fBhook stop-failure\fR|\fBintegrate on\fR|\fBoff\fR|\fBstatus\fR|\fBplan\fR|\fBorch on\fR|\fBoff\fR|\fBstatus\fR|\fBbest\fR [\fB\-\-switch\fR] [\fB\-\-notifier\fR]|\fBauto on\fR|\fBoff\fR|\fBcollect\fR|\fBanalyze\fR [\fB\-\-days \fIN\fR]|\fBdaemon\fR|\fBtray\fR]
 .SH DESCRIPTION
-Sans argument, ouvre l'application graphique « CCS », en quatre onglets : Accueil
-(comptes, prévisions, file de tâches), Sessions (sessions ouvertes, historique des
-conversations, chats et terminaux), Projets (feuilles de route) et Analyse (usage
+Sans argument, ouvre l'application graphique « CCS », en trois onglets : Accueil
+(comptes, derniers événements, planning et file de tâches), Sessions (sessions
+ouvertes, historique des conversations, chats et terminaux) et Analyse (usage
 local, conseils, historique et journal des bascules) ; réglages dans le menu.
 .SH COMMANDES
 .TP
@@ -29,15 +29,15 @@ de permissions ; ouvrir une session d'un projet associé à un autre compte
 propose d'abord de basculer ; « Aperçu… » relit une conversation et l'exporte
 en Markdown ; « Bilan de santé… » est dans le menu principal. Libadwaita 1.5
 ou plus récent.
-\fB\-\-page\fR \fIonglet\fR ouvre la fenêtre sur un onglet : \fBaccueil\fR, \fBsessions\fR,
-\fBprojets\fR ou \fBanalyse\fR, ou sur une de leurs parties :
+\fB\-\-page\fR \fIonglet\fR ouvre la fenêtre sur un onglet : \fBaccueil\fR, \fBsessions\fR
+ou \fBanalyse\fR, ou sur une de leurs parties :
 \fBcomptes\fR et \fBplanning\fR (Accueil), \fBterminaux\fR (Sessions),
 \fBhistorique\fR (Analyse) ; \fBreglages\fR ouvre la fenêtre des réglages
 (accents et majuscules indifférents ; \fBconversations\fR mène à
 \fBsessions\fR). \fB\-\-new\-session\fR ouvre
 directement le dialogue « Nouvelle session ». \fB\-\-task\fR \fIid\fR ouvre
 l'onglet Accueil sur cette tâche de la file (clic sur une notification de
-tâche finie ou échouée). Ctrl+1 à Ctrl+4 changent d'onglet dans la fenêtre. Ces options se combinent entre
+tâche finie ou échouée). Ctrl+1 à Ctrl+3 changent d'onglet dans la fenêtre. Ces options se combinent entre
 elles et avec \fB\-\-session\fR, et marchent aussi quand l'application est
 déjà ouverte : ce sont les commandes des raccourcis clavier.
 \fB\-\-session\fR \fIpid\fR:\fIid\fR (ou l'un des deux) ouvre la fenêtre sur

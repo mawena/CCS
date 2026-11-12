@@ -140,8 +140,7 @@ class PageNameTest(unittest.TestCase):
                     "SESSIONS": ("sessions", None), "terminaux": ("sessions", None),
                     "historique": ("analysis", "history"), "analyse": ("analysis", "analysis"),
                     "réglages": ("prefs", None), "reglages": ("prefs", None),
-                    " sessions ": ("sessions", None), "accueil": ("home", None),
-                    "Projets": ("projects", None)}
+                    " sessions ": ("sessions", None), "accueil": ("home", None)}
         for text, name in expected.items():
             self.assertEqual(desktop.page_name(text), name, text)
 
@@ -150,11 +149,11 @@ class PageNameTest(unittest.TestCase):
         self.assertEqual(desktop.page_name("conversations"), ("sessions", None))
 
     def test_unknown(self):
-        for text in ("", "inconnu", None, "sessions2"):
+        for text in ("", "inconnu", None, "sessions2", "projets"):   # la page Projets a été retirée
             self.assertIsNone(desktop.page_name(text))
 
     def test_names_shown_to_the_user(self):
-        self.assertEqual(desktop.PAGE_CHOICES, ("accueil", "sessions", "projets", "analyse", "comptes",
+        self.assertEqual(desktop.PAGE_CHOICES, ("accueil", "sessions", "analyse", "comptes",
                                                 "planning", "historique", "terminaux", "reglages"))
         for text in desktop.PAGE_CHOICES:
             self.assertIn(desktop.page_name(text)[0], desktop.PAGES + ("prefs",))
@@ -163,10 +162,10 @@ class PageNameTest(unittest.TestCase):
         self.assertEqual(desktop.page_name("historique"), ("analysis", "history"))
         self.assertEqual(desktop.page_name("terminaux"), ("sessions", None))
         self.assertEqual(desktop.page_name("planning"), ("home", "planning"))
-        self.assertEqual(desktop.PAGES, ("home", "sessions", "projects", "analysis"))
+        self.assertEqual(desktop.PAGES, ("home", "sessions", "analysis"))
 
     def test_canonical_names_are_the_subpage_keys(self):
-        for text, key in (("comptes", "accounts"), ("accueil", "home"), ("projets", "projects"),
+        for text, key in (("comptes", "accounts"), ("accueil", "home"),
                           ("historique", "history"), ("Réglages", "prefs")):
             self.assertEqual(desktop.canonical_page(text), key)
             self.assertIn(key, desktop.SUBPAGES)

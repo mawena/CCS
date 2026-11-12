@@ -807,17 +807,16 @@ demande de permission en cours.
 
 ## Navigation et apparence
 
-La fenêtre a **quatre onglets** en haut (une barre en bas quand elle est étroite) :
+La fenêtre a **trois onglets** en haut (une barre en bas quand elle est étroite) :
 
 | Onglet | Contenu |
 |---|---|
-| **Accueil** | cartes des comptes, file de tâches et meilleur moment (l'ancien Planning), fil des derniers événements (bascules, tâches finies) |
+| **Accueil** | cartes des comptes, fil des derniers événements (bascules, tâches finies), puis le planning : orchestrateur, file de tâches et meilleur moment |
 | **Sessions** | l'onglet fixe « Toutes les sessions » (projets, sessions ouvertes, conversations), puis un onglet par chat et par shell ouvert |
-| **Projets** | les feuilles de route de tous tes projets (voir [Page Projets](#page-projets)) |
 | **Analyse** | l'analyse et l'historique (courbes, journal des bascules), choisis par le sélecteur en haut |
 
 **Réglages** est dans le menu ☰, en fenêtre à part. Raccourcis : **Ctrl+1** à
-**Ctrl+4** pour les quatre onglets, **Ctrl+virgule** pour les réglages, F5 ou
+**Ctrl+3** pour les trois onglets, **Ctrl+virgule** pour les réglages, F5 ou
 Ctrl+R pour actualiser. Le badge de l'onglet Sessions compte les chats et les
 terminaux qui attendent ta réponse.
 
@@ -830,7 +829,6 @@ l'icône et par le clic sur une notification :
 | `accueil` | Accueil |
 | `comptes`, `planning` | Accueil (`--page planning --task <id>` affiche la tâche) |
 | `sessions`, `conversations`, `terminaux` | Sessions |
-| `projets` | Projets |
 | `analyse`, `historique` | Analyse (partie Analyse ou partie Historique) |
 | `reglages` | la fenêtre des réglages |
 
@@ -859,6 +857,13 @@ a pas de terminal à regarder.
   [panneau Fichiers](#panneau-fichiers)), commande lancée (la sortie est
   repliée), recherche, sous-agent, outil MCP. Une roue tourne tant que
   l'action est en cours ; une action en échec est marquée.
+- Les actions qui **s'enchaînent** (sans texte de Claude entre elles) sont
+  regroupées en un bloc discret : pendant le travail, l'en-tête montre l'action
+  en cours et le compte ; à la fin, une coche et un résumé (« 5 actions ·
+  3 lectures, 1 modification (+12 −3), 1 commande »), et le bloc se replie. Un
+  clic le déplie et montre les cartes. Une erreur est toujours signalée dans
+  l'en-tête (rouge, « 1 erreur »). Une action seule reste une carte ; les
+  autorisations, la liste de tâches et les sous-agents ne sont jamais regroupés.
 - La **liste de tâches** de Claude s'affiche en cases à cocher qui se mettent à
   jour.
 - Un chat **rouvert** (au démarrage, depuis l'historique, ou migré de l'ancien
@@ -921,11 +926,21 @@ téléphone).
 - **Arrêter** : pendant que Claude travaille, le bouton d'envoi devient
   « Arrêter » (Échap fait de même). Claude s'interrompt ; c'est un arrêt voulu,
   pas une erreur, et le message suivant reprend la conversation.
-- **File de messages** : un message écrit pendant que Claude travaille rejoint la
-  file, comme dans les terminaux (voir [Messages en attente](#messages-en-attente)) :
-  bulles modifiables d'un clic, déplaçables, supprimables, « envoyer
-  maintenant » ; chaque message part quand Claude a fini son tour. Une image ne
-  peut pas attendre : envoie-la quand Claude est libre.
+- **Sous-agents** : quand Claude lance des sous-agents (outil Task/Agent), une pastille
+  par sous-agent s'affiche au-dessus du fil, avec une roue tant qu'il travaille et une
+  coche quand il a fini. Un clic montre sa conversation, en lecture seule ; « Conversation
+  principale » ramène au fil, où ta saisie part toujours. Une demande d'autorisation
+  venue d'un sous-agent le dit dans sa carte.
+- **Joindre des fichiers** : le bouton trombone (à gauche d'Envoyer) ouvre un sélecteur ;
+  tu peux aussi glisser des fichiers sur la zone de saisie. Une image devient une
+  vignette envoyée avec le message ; un autre fichier (PDF, texte, code…) devient une
+  étiquette avec ✕, et part en référence `@chemin` que Claude lit avec ses outils.
+- **Écrire pendant que Claude travaille** : Entrée envoie tout de suite, images
+  comprises, comme dans le terminal de Claude Code. La bulle porte la mention
+  « envoyé pendant que Claude travaille » ; Claude le lit en cours de route ou juste
+  après sa réponse. La file de messages (voir [Messages en attente](#messages-en-attente))
+  ne sert plus qu'à ce que CCS y met lui-même (reprise après une limite, onglets
+  rouverts) ; « envoyer maintenant » y marche même pendant un tour.
 
 ### Mise en veille après 30 minutes
 
@@ -1011,25 +1026,18 @@ Chaque phase a sa barre de progression et son compte `cochées/total` ; les phas
 non finies sont dépliées, les finies repliées. **Un clic sur une case** la coche
 (ou la décoche) dans `ROADMAP.md` en ne changeant que ce caractère ; si le
 fichier a changé depuis sa lecture, il est relu d'abord, et jamais réécrit en
-entier. Quand Claude coche une case, la tâche s'allume brièvement. Sans
-`ROADMAP.md`, la page propose **Demander à Claude d'en créer une**, qui envoie ce
-message au chat de l'onglet.
+entier. Quand Claude coche une case, la tâche s'allume brièvement.
 
-## Page Projets
-
-L'onglet **Projets** liste les projets où tu as déjà ouvert une session Claude et
-qui ont un `ROADMAP.md`. Le réglage `projects.hidden` (liste de dossiers) en
-masque certains. Chaque carte donne le nom, la dernière version (dernier tag git
-`v*`), la dernière activité (dernier commit ou dernière conversation), la phase
-en cours et sa barre.
-
-Un clic sur une carte ouvre le **détail** : la feuille de route complète (cases
-cliquables comme dans l'onglet de session), la **frise des versions** (tags git et
-dates), les **tâches cochées par jour** sur les derniers jours, tirées de
-l'historique git de `ROADMAP.md`, la date de fin de chaque phase finie, et le
-bouton **Ouvrir une session dans ce projet**. Les calculs git se font en arrière-plan
-et ne bloquent pas la fenêtre ; un projet hors git garde sa carte, sans versions
-ni historique. CCS n'écrit jamais dans le dépôt, hors la case que tu cliques.
+**Le projet de la conversation.** Une conversation lancée depuis ton dossier
+personnel ou le Bureau travaille souvent dans un projet ailleurs : dès que Claude lit
+ou modifie un `ROADMAP.md` (fichier ouvert, ou commande qui le cite, même après un
+`cd`), le panneau suit cette feuille de route. **Choisir une feuille de route…** en
+ouvre une autre à la main. Sans `ROADMAP.md`, **Demander à Claude d'en créer une**
+n'est proposé que dans un vrai projet (un dépôt git), jamais pour ton dossier
+personnel. **Dossier du projet…** (clic droit sur l'onglet) fait partir l'arbre des
+fichiers et la feuille de route d'un autre dossier ; si la conversation est arrêtée,
+elle y est aussi reliée, et sa reprise se fait depuis le projet. Ces choix sont
+gardés quand l'onglet est rouvert.
 
 ## Terminal intégré
 

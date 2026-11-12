@@ -9,6 +9,7 @@ sont lus par leurs champs (`ToolUse.name`, `.input`…), les formes sont celles 
 import difflib
 import json
 import os
+import time
 
 import gi
 
@@ -22,6 +23,8 @@ from .markdown_view import MarkdownView  # noqa: E402
 PAGE = 50                   # messages d'historique construits à la fois
 RENDER_MS = 90              # un rendu Markdown au plus toutes les 90 ms pendant le flux
 RESULT_CHARS = 20_000       # résultat d'outil montré (le reste est coupé à l'affichage)
+FOLD_LINES = 14             # un message de l'utilisateur plus long est replié (« Afficher tout »)
+FOLD_CHARS = 1500
 STICK_PX = 48               # à moins de 48 px du bas, la liste suit le texte qui arrive
 MAX_WIDTH = 920
 
@@ -38,6 +41,14 @@ TOOL_ICONS = {"Read": "text-x-generic-symbolic", "Edit": "document-edit-symbolic
               "WebSearch": "web-browser-symbolic", "NotebookEdit": "document-edit-symbolic",
               "LS": "folder-symbolic"}
 EDIT_TOOLS = ("Edit", "MultiEdit", "Write")
+AGENT_TOOLS = ("Task", "Agent")   # leur carte reste seule (pastille et « Voir le sous-agent »)
+# catégories du résumé d'un groupe : (clé, singulier, pluriel), dans cet ordre
+GROUP_KINDS = (("read", "lecture", "lectures"), ("edit", "modification", "modifications"),
+               ("run", "commande", "commandes"), ("search", "recherche", "recherches"),
+               ("web", "page web", "pages web"), ("other", "autre", "autres"))
+KIND_OF = {"Read": "read", "Edit": "edit", "MultiEdit": "edit", "Write": "edit", "NotebookEdit": "edit",
+           "Bash": "run", "Grep": "search", "Glob": "search", "LS": "search",
+           "WebFetch": "web", "WebSearch": "web"}
 FILE_TOOLS = ("Read", "Edit", "MultiEdit", "Write", "NotebookEdit")
 
 CSS = """
@@ -52,6 +63,12 @@ CSS = """
 .ccs-tool-card .ccs-tool-name { font-weight: 700; }
 .ccs-diff-add { color: @success_color; font-weight: 700; font-feature-settings: "tnum"; }
 .ccs-diff-del { color: @error_color; font-weight: 700; font-feature-settings: "tnum"; }
+.ccs-tool-group { background-color: alpha(@window_fg_color, 0.035); border-radius: 10px;
+  padding: 2px 6px; }
+.ccs-tool-group.error { background-color: alpha(@error_bg_color, 0.10); }
+.ccs-tool-group .ccs-group-title { font-size: 0.92em; }
+.ccs-tool-group.error .ccs-group-title, .ccs-tool-group.error .ccs-group-icon { color: @error_color; }
+.ccs-tool-group .ccs-group-count { font-size: 0.85em; }
 .ccs-todo-done label { text-decoration: line-through; opacity: 0.6; }
 .ccs-todo-now label { font-weight: 700; }
 .ccs-busy-row { padding: 4px 6px; }
@@ -59,6 +76,7 @@ CSS = """
   box-shadow: 0 0 0 1px alpha(@window_fg_color, 0.14); padding: 6px 8px; }
 .ccs-composer.drop { box-shadow: 0 0 0 2px @accent_bg_color; }
 .ccs-composer textview, .ccs-composer textview text { background: transparent; }
+.ccs-copy { min-width: 28px; min-height: 28px; margin: 2px; transition: opacity 120ms; }
 .ccs-thumb { border-radius: 8px; }
 .ccs-chat-bar button.ccs-barbtn { padding: 2px 10px; min-height: 0; border-radius: 99px; font-size: 0.92em; }
 .ccs-chat-bar button.ccs-barbtn:checked { background-color: alpha(@warning_bg_color, 0.30);
@@ -87,6 +105,26 @@ def install_css():
 
 
 # ---- lecture des appels d'outils -----------------------------------------------------------
+
+def _duration(seconds):
+    """42 s, 2 min 05 s, 1 h 03 min."""
+    s = int(round(seconds or 0))
+    if s < 60:
+        return f"{s} s"
+    if s < 3600:
+        return f"{s // 60} min {s % 60:02d} s"
+    return f"{s // 3600} h {(s % 3600) // 60:02d} min"
+
+
+def _fold(text):
+    """Les FOLD_LINES premières lignes (et au plus FOLD_CHARS caractères) suivies de « … »,
+    ou le texte tel quel s'il est court."""
+    lines = text.split("\n")
+    short = "\n".join(lines[:FOLD_LINES])
+    if len(short) > FOLD_CHARS:
+        short = short[:FOLD_CHARS].rstrip()
+    return text if short == text else short.rstrip() + " …"
+
 
 def _first_line(text, limit=160):
     for line in str(text).splitlines():
@@ -182,6 +220,7 @@ class ToolCard(Gtk.Box):
         self.on_diff, self.on_open = on_diff, on_open
         self.edit = edit_info(name, self.data)
         self.running = True
+        self.group = None
         self.result_text = None
         if nested:
             self.set_margin_start(24)
@@ -276,6 +315,110 @@ class ToolCard(Gtk.Box):
             self.toggle()
 
 
+class ToolGroup(Gtk.Box):
+    """Des actions de Claude qui s'enchaînent, en un bloc discret.
+
+    En-tête : roue, action en cours et compte tant que ça travaille ; puis coche et résumé
+    (« 5 actions · 3 lectures, 1 modification (+12 −3), 1 commande »). Une erreur est
+    signalée dans l'en-tête (icône et couleur d'erreur, « 1 erreur »). Replié, il se déplie
+    d'un clic et montre les cartes, inchangées ; il se replie seul à la fin du travail, sauf
+    si on l'a ouvert ou fermé à la main."""
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=2, css_classes=["ccs-tool-group"])
+        self.cards = []
+        self.touched = False
+        self.running = True
+
+        self.icon = Gtk.Image(icon_name="object-select-symbolic", css_classes=["ccs-group-icon"])
+        self.spinner = Gtk.Spinner(spinning=True)
+        self.stack = Gtk.Stack()
+        self.stack.add_named(self.icon, "icon")
+        self.stack.add_named(self.spinner, "spin")
+        self.stack.set_visible_child_name("spin")
+        self.title = Gtk.Label(xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
+                               css_classes=["ccs-group-title", "ccs-subtle"])
+        self.count = Gtk.Label(css_classes=["ccs-group-count", "ccs-subtle"])
+        self.chevron = Gtk.Image(icon_name="pan-end-symbolic")
+        self.header = Gtk.Box(spacing=8)
+        for w in (self.stack, self.title, self.count, self.chevron):
+            self.header.append(w)
+        self.main = Gtk.Button(child=self.header, css_classes=["flat", "ccs-tool-head"], hexpand=True)
+        self.main.connect("clicked", self._on_click)
+        self.append(self.main)
+
+        self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, margin_start=6, margin_bottom=4)
+        self.revealer = Gtk.Revealer(child=self.body, reveal_child=False,
+                                     transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+        self.append(self.revealer)
+
+    def add(self, card):
+        self.cards.append(card)
+        card.group = self
+        self.body.append(card)
+        self.refresh()
+
+    def _on_click(self, *_):
+        self.touched = True
+        self.toggle()
+
+    def toggle(self, show=None):
+        show = (not self.revealer.get_reveal_child()) if show is None else show
+        self.revealer.set_reveal_child(show)
+        self.chevron.set_from_icon_name("pan-down-symbolic" if show else "pan-end-symbolic")
+
+    @staticmethod
+    def _noun(n, one, many):
+        return f"{n} {one if n == 1 else many}"
+
+    def summary(self):
+        """« 5 actions · 3 lectures, 1 modification (+12 −3), 1 commande »."""
+        plus = sum(c.edit[3] for c in self.cards if c.edit)
+        minus = sum(c.edit[4] for c in self.cards if c.edit)
+        parts = []
+        for kind, one, many in GROUP_KINDS:
+            n = sum(1 for c in self.cards if KIND_OF.get(c.name, "other") == kind)
+            if n:
+                text = self._noun(n, one, many)
+                if kind == "edit" and any(c.edit for c in self.cards):
+                    text += f" (+{plus} −{minus})"
+                parts.append(text)
+        return f"{len(self.cards)} actions · " + ", ".join(parts)
+
+    def refresh(self):
+        errors = sum(1 for c in self.cards if c.has_css_class("error"))
+        err_text = f" · {self._noun(errors, 'erreur', 'erreurs')}" if errors else ""
+        running = [c for c in self.cards if c.running]
+        was = self.running
+        self.running = bool(running)
+        self.count.set_visible(self.running)
+        if self.running:
+            card = running[-1]
+            verb = tool_label(card.name)
+            if card.name in FILE_TOOLS and card.target:
+                what = f"{verb} de {card.target}"
+            else:
+                what = f"{verb} : {card.target}" if card.target else f"{verb}…"
+            self.title.set_label(what)
+            self.title.set_tooltip_text(what)
+            self.count.set_label(f"{len(self.cards)} actions{err_text}")
+            self.stack.set_visible_child_name("spin")
+            self.spinner.set_spinning(True)
+        else:
+            text = self.summary() + err_text
+            self.title.set_label(text)
+            self.title.set_tooltip_text(text)
+            self.spinner.set_spinning(False)
+            self.stack.set_visible_child_name("icon")
+            self.icon.set_from_icon_name("dialog-error-symbolic" if errors else "object-select-symbolic")
+            if was and not self.touched:
+                self.toggle(False)
+        if errors:
+            self.add_css_class("error")
+        else:
+            self.remove_css_class("error")
+
+
 class PermissionCard(Gtk.Box):
     """Demande d'autorisation : la commande en évidence, puis Autoriser / Toujours / Refuser
     (motif facultatif pour le refus)."""
@@ -286,7 +429,8 @@ class PermissionCard(Gtk.Box):
         name = getattr(req, "display_name", "") or req.tool_name
         head = Gtk.Box(spacing=8)
         head.append(Gtk.Image(icon_name="dialog-password-symbolic"))
-        head.append(Gtk.Label(label=f"Claude demande l'autorisation : {name}", xalign=0, hexpand=True,
+        who = "Un sous-agent de Claude" if getattr(req, "agent_id", None) else "Claude"
+        head.append(Gtk.Label(label=f"{who} demande l'autorisation : {name}", xalign=0, hexpand=True,
                               wrap=True, css_classes=["heading"]))
         self.append(head)
         desc = getattr(req, "description", "") or ""
@@ -305,8 +449,11 @@ class PermissionCard(Gtk.Box):
         self.allow.connect("clicked", lambda *_: self._answer("allow"))
         rules = [s for s in (getattr(req, "suggestions", None) or ())
                  if isinstance(s, dict) and s.get("type") == "addRules"]
-        self.always = Gtk.Button(label="Toujours", tooltip_text="Autoriser cette règle pour la suite, "
-                                 "dans les réglages du projet", visible=bool(rules))
+        self.always = Gtk.Button(label="Toujours pour cette commande",
+                                 tooltip_text="Autorise cette commande exacte pour la suite, dans les "
+                                 "réglages du projet (pas les commandes voisines). Pour ne plus être "
+                                 "interrompu, choisis « Modifications acceptées » ou « Tout autoriser » "
+                                 "dans la barre du chat.", visible=bool(rules))
         self.always.connect("clicked", lambda *_: self._answer("always"))
         self.deny = Gtk.Button(label="Refuser", css_classes=["destructive-action"])
         self.deny.connect("clicked", lambda *_: self._answer("deny"))
@@ -405,6 +552,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._views = []
         self._segs = {}           # msg_id -> segment courant
         self._tools = {}          # tool_id -> ToolCard
+        self._run = None          # dernière action ajoutée (carte ou groupe) : la suite s'y regroupe
         self._perms = {}          # request_id -> PermissionCard
         self._todos = None
         self._last = None         # dernier widget de contenu (avant la ligne d'activité)
@@ -421,6 +569,16 @@ class MessageList(Gtk.ScrolledWindow):
         self.busy_row.append(self.busy_label)
         self.box.append(self.busy_row)
         self.set_child(Adw.Clamp(child=self.box, maximum_size=MAX_WIDTH, tightening_threshold=MAX_WIDTH - 200))
+        # « ↓ Nouveaux messages » : posé en surimpression par l'onglet (Gtk.Overlay), visible
+        # quand du contenu arrive alors qu'on lit plus haut.
+        self.new_button = Gtk.Button(label="↓ Nouveaux messages", visible=False, halign=Gtk.Align.CENTER,
+                                     valign=Gtk.Align.END, margin_bottom=12,
+                                     css_classes=["pill", "suggested-action"])
+        self.new_button.connect("clicked", lambda *_: self.follow())
+        self._scroll_pending = False
+        self._history_loading = False
+        self._busy_text, self._busy_started, self._busy_timer = "", time.time(), 0
+        self._last_footer = None
         adj = self.get_vadjustment()
         adj.connect("value-changed", self._on_value)
         adj.connect("notify::upper", self._on_upper)
@@ -431,18 +589,50 @@ class MessageList(Gtk.ScrolledWindow):
         if self._moving:
             return
         self._stick = adj.get_upper() - adj.get_page_size() - adj.get_value() < STICK_PX
+        if self._stick:
+            self.new_button.set_visible(False)
         if adj.get_value() < 80 and self._hist_pos > 0:
             self._load_more()
 
     def _on_upper(self, adj, _p):
+        if self._history_loading:
+            return  # l'historique s'ajoute en haut : _load_more garde la position
+        if self._stick:
+            self._queue_scroll_end()
+
+    def _queue_scroll_end(self):
+        """Ramène en bas APRÈS la mise en page. Changer l'ajustement pendant l'allocation
+        (dans `notify::upper`) est ignoré par GTK : le contenu ajouté restait hors de la vue
+        tant qu'on ne faisait pas défiler."""
+        if not self._scroll_pending:
+            self._scroll_pending = True
+            GLib.idle_add(self._scroll_end_idle)
+
+    def _scroll_end_idle(self):
+        self._scroll_pending = False
         if self._stick:
             self.scroll_end()
+        return False
+
+    def _content_added(self):
+        """Du nouveau en bas du fil : on suit si l'on est en bas, sinon le bouton apparaît."""
+        if self._stick:
+            self._queue_scroll_end()
+        else:
+            self.new_button.set_visible(True)
+
+    def follow(self):
+        """Retour en bas (bouton « Nouveaux messages ») ; la vue suit de nouveau."""
+        self._stick = True
+        self.scroll_end()
+        self._queue_scroll_end()
 
     def scroll_end(self):
         adj = self.get_vadjustment()
         self._moving = True
         adj.set_value(max(0.0, adj.get_upper() - adj.get_page_size()))
         self._moving = False
+        self.new_button.set_visible(False)
 
     # -- ajout --
 
@@ -451,6 +641,7 @@ class MessageList(Gtk.ScrolledWindow):
         self.box.insert_child_after(widget, self._last)
         self._last = widget
         self._built += 1
+        self._content_added()
         return widget
 
     def _bubble_widget(self, role_class, child, halign):
@@ -464,7 +655,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._views.append(view)
         return view
 
-    def _user_widget(self, text, images=()):
+    def _user_widget(self, text, images=(), during=False):
         col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         for media_type, data in images or ():
             try:
@@ -476,17 +667,74 @@ class MessageList(Gtk.ScrolledWindow):
                               width_request=min(320, texture.get_width()))
             col.append(pic)
         if text:
-            col.append(Gtk.Label(label=text, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
-                                 selectable=True, max_width_chars=80))
-        outer = Gtk.Box(halign=Gtk.Align.END, margin_start=60)
+            label = Gtk.Label(label=text, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+                              selectable=True, max_width_chars=80)
+            col.append(label)
+            short = _fold(text)
+            if short != text:
+                # un long texte collé n'occupe pas tout l'écran : replié, « Afficher tout »
+                # (le texte est coupé à la main : la limite de lignes de GTK ignore les vrais
+                # retours à la ligne)
+                label.set_label(short)
+                more = Gtk.Button(label="Afficher tout", halign=Gtk.Align.START, css_classes=["flat", "small"])
+
+                def toggle(btn, label=label, full=text, short=short):
+                    unfold = btn.get_label() == "Afficher tout"
+                    label.set_label(full if unfold else short)
+                    btn.set_label("Replier" if unfold else "Afficher tout")
+                more.connect("clicked", toggle)
+                col.append(more)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.END, margin_start=60, spacing=2)
         outer.append(self._bubble_widget("ccs-bubble-user", col, Gtk.Align.END))
+        if during:
+            outer.append(Gtk.Label(label="envoyé pendant que Claude travaille", xalign=1,
+                                   css_classes=["ccs-subtle", "caption"]))
         return outer
 
     def _assistant_widget(self, text=""):
         view = self._markdown(text)
         bubble = Gtk.Box(css_classes=["ccs-bubble-claude"], hexpand=True, margin_end=24, visible=bool(text))
-        bubble.append(view)
+        overlay = Gtk.Overlay(child=view, hexpand=True)
+        # « Copier » (texte Markdown brut) : visible au survol de la réponse
+        copy = Gtk.Button(icon_name="edit-copy-symbolic", tooltip_text="Copier la réponse",
+                          halign=Gtk.Align.END, valign=Gtk.Align.START, opacity=0,
+                          css_classes=["flat", "circular", "ccs-copy"])
+        bubble.copy_text = text
+        copy.connect("clicked", lambda *_b: self._to_clipboard(bubble.copy_text or ""))
+        overlay.add_overlay(copy)
+        hover = Gtk.EventControllerMotion()
+        hover.connect("enter", lambda *_a: copy.set_opacity(1))
+        hover.connect("leave", lambda *_a: copy.set_opacity(0))
+        bubble.add_controller(hover)
+        bubble.copy_button = copy
+        bubble.append(overlay)
         return bubble, view
+
+    def _to_clipboard(self, text):
+        display = Gdk.Display.get_default()
+        if display is not None:
+            display.get_clipboard().set(text)
+
+    # -- fin de tour, activité --
+
+    def add_turn_footer(self, seconds, cost_usd=None):
+        """« ✓ Terminé en 42 s · 0,12 $ éq. » sous la réponse : durée du tour et coût de ce tour."""
+        parts = [f"✓ Terminé en {_duration(seconds)}"]
+        if cost_usd:
+            parts.append(f"{cost_usd:.2f}".replace(".", ",") + " $ éq.")
+        label = Gtk.Label(label=" · ".join(parts), xalign=0, css_classes=["ccs-subtle", "caption"],
+                          margin_start=4)
+        self._last_footer = label
+        self._append(label)
+        return label
+
+    def _tick_busy(self):
+        if not self.busy_row.get_visible():
+            self._busy_timer = 0
+            return False
+        elapsed = int(time.time() - self._busy_started)
+        self.busy_label.set_label(self._busy_text + (f" · {_duration(elapsed)}" if elapsed >= 1 else ""))
+        return True
 
     def _tool_widget(self, name, target, data=None, nested=False):
         return ToolCard(name, target, data, on_diff=lambda *a: self.on_diff and self.on_diff(*a),
@@ -506,8 +754,8 @@ class MessageList(Gtk.ScrolledWindow):
             row.append(button)
         return row
 
-    def add_user(self, text, images=()):
-        self._append(self._user_widget(text, images))
+    def add_user(self, text, images=(), during=False):
+        self._append(self._user_widget(text, images, during))
         self.scroll_end_if_stuck()
 
     def _segment(self, msg_id, create=True):
@@ -534,6 +782,7 @@ class MessageList(Gtk.ScrolledWindow):
     def _render(self, seg):
         seg.timer = 0
         seg.bubble.set_visible(bool(seg.text.strip()))
+        seg.bubble.copy_text = seg.text
         seg.view.set_text(seg.text)
         self.scroll_end_if_stuck()
         return False
@@ -554,14 +803,39 @@ class MessageList(Gtk.ScrolledWindow):
         card = self._tool_widget(ev.name, tool_target(ev.name, ev.input, self.base_dir), ev.input,
                                  nested=bool(getattr(ev, "parent_id", None)))
         self._tools[ev.tool_id] = card
-        self._append(card)
+        if ev.name in AGENT_TOOLS or getattr(ev, "parent_id", None):
+            self._run = None
+            self._append(card)
+        else:
+            self._add_to_run(card)
         self.scroll_end_if_stuck()
         return card
+
+    def _add_to_run(self, card):
+        """Une action qui suit directement une autre (aucun texte entre elles) rejoint son
+        groupe ; la deuxième transforme la carte seule en groupe."""
+        run = self._run
+        if run is None or run is not self._last or run.get_parent() is not self.box:
+            self._run = card
+            self._append(card)
+            return
+        if isinstance(run, ToolGroup):
+            run.add(card)
+        else:
+            group = ToolGroup()
+            self.box.insert_child_after(group, run.get_prev_sibling())
+            self.box.remove(run)
+            group.add(run)
+            group.add(card)
+            self._last = self._run = group
+        self._content_added()
 
     def set_tool_result(self, ev):
         card = self._tools.get(ev.tool_id)
         if card is not None:
             card.set_result(ev.text, ev.is_error)
+            if card.group is not None:
+                card.group.refresh()
 
     def add_permission(self, req, on_answer):
         card = PermissionCard(req, on_answer, self.base_dir)
@@ -594,15 +868,23 @@ class MessageList(Gtk.ScrolledWindow):
         return widget
 
     def set_busy(self, busy, text="Claude travaille…"):
+        """Ligne d'activité : ce que fait Claude, et depuis combien de temps dans ce tour."""
+        was = self.busy_row.get_visible()
         self.busy_row.set_visible(bool(busy))
         self.busy_spinner.set_spinning(bool(busy))
-        self.busy_label.set_label(text)
+        self._busy_text = text
+        if busy and not was:
+            self._busy_started = time.time()
+        if busy and not self._busy_timer:
+            self._busy_timer = GLib.timeout_add_seconds(1, self._tick_busy)
         if busy:
+            self._tick_busy()
             self.scroll_end_if_stuck()
+        else:
+            self.busy_label.set_label(text)
 
     def scroll_end_if_stuck(self):
-        if self._stick:
-            GLib.idle_add(lambda: (self.scroll_end(), False)[1])
+        self._content_added()
 
     def set_dark(self, dark):
         self._dark = bool(dark)
@@ -644,6 +926,31 @@ class MessageList(Gtk.ScrolledWindow):
             return self._notice_widget(m.text)
         return None
 
+    def _history_widgets(self, batch):
+        """Les widgets d'un paquet d'historique ; les actions qui s'enchaînent sont groupées."""
+        run = []
+
+        def flush():
+            if len(run) == 1:
+                yield run[0]
+            elif run:
+                group = ToolGroup()
+                for card in run:
+                    group.add(card)
+                yield group
+            run.clear()
+
+        for m in batch:
+            widget = self._history_widget(m)
+            if widget is None:
+                continue
+            if isinstance(widget, ToolCard) and widget.name not in AGENT_TOOLS:
+                run.append(widget)
+                continue
+            yield from flush()
+            yield widget
+        yield from flush()
+
     def _load_more(self, initial=False):
         start = max(0, self._hist_pos - PAGE)
         batch = self._hist[start:self._hist_pos]
@@ -651,10 +958,7 @@ class MessageList(Gtk.ScrolledWindow):
         adj = self.get_vadjustment()
         old_upper, old_value = adj.get_upper(), adj.get_value()
         prev = None
-        for m in batch:
-            widget = self._history_widget(m)
-            if widget is None:
-                continue
+        for widget in self._history_widgets(batch):
             self.box.insert_child_after(widget, prev)
             self._built += 1
             prev = widget
@@ -663,10 +967,12 @@ class MessageList(Gtk.ScrolledWindow):
         elif prev is not None:
             # garde à l'écran ce que l'on regardait : le contenu ajouté pousse tout vers le bas
             handler = []
+            self._history_loading = True
 
             def keep(a, _p):
                 a.disconnect(handler[0])
                 self._moving = True
                 a.set_value(old_value + a.get_upper() - old_upper)
                 self._moving = False
+                self._history_loading = False
             handler.append(adj.connect("notify::upper", keep))

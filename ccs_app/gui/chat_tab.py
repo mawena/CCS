@@ -10,6 +10,7 @@ Signaux : `open-file(path, line)` et `show-diff(path, ancien, nouveau)`, pour l'
 session (panneau Fichiers).
 """
 
+import dataclasses
 import os
 import re
 import threading
@@ -19,7 +20,7 @@ import gi
 
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, GLib, GObject, Gtk  # noqa: E402
+from gi.repository import Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, preview, sessions, settings  # noqa: E402
 from .. import terminal  # noqa: E402
@@ -56,12 +57,27 @@ class _NoTerm:
         pass
 
 
+AGENT_TOOLS = ("Task", "Agent")   # outils qui lancent un sous-agent
+
+
+class _Agent:
+    """Un sous-agent lancé par Claude dans ce chat : sa pastille et sa vue."""
+
+    def __init__(self, name, messages, view, pill, spinner, icon, background=False):
+        self.name, self.messages, self.view, self.pill = name, messages, view, pill
+        self.spinner, self.icon = spinner, icon
+        self.background = background
+        self.done = False
+
+
 class ChatTab(Gtk.Box):
     """Un chat (voir le docstring du module)."""
 
     __gsignals__ = {
         "open-file": (GObject.SignalFlags.RUN_FIRST, None, (str, int)),
         "show-diff": (GObject.SignalFlags.RUN_FIRST, None, (str, str, str)),
+        # une action de Claude (nom de l'outil, entrée) : l'espace de session suit le projet
+        "tool-used": (GObject.SignalFlags.RUN_FIRST, None, (str, object)),
     }
 
     def __init__(self, owner, launch, options=None, history_path=None, claude=None, environ=None):
@@ -89,7 +105,22 @@ class ChatTab(Gtk.Box):
         self.composer = Composer(base_dir=launch.cwd)
         self.bar = ChatBar()
         self.bar.set_options(self.options)
-        for w in (self.messages, self.composer, self.bar):
+        self.messages_overlay = Gtk.Overlay(child=self.messages, vexpand=True)
+        self.messages_overlay.add_overlay(self.messages.new_button)   # « ↓ Nouveaux messages »
+        # Sous-agents : une pastille par sous-agent au-dessus du fil, chacun sa vue (comme VS Code).
+        self.agents = {}                                              # tool_use_id -> _Agent
+        self._turn_started, self._cost_seen = None, 0.0               # bilan de chaque tour
+        self.view_stack = Gtk.Stack(vexpand=True, transition_type=Gtk.StackTransitionType.CROSSFADE)
+        self.view_stack.add_named(self.messages_overlay, "principale")
+        self.agent_pills = Gtk.Box(spacing=6)
+        self.main_pill = Gtk.ToggleButton(label="Conversation principale", active=True,
+                                          css_classes=["pill", "small"])
+        self.main_pill.connect("toggled", lambda b: b.get_active() and self.show_agent(None))
+        self.agent_pills.append(self.main_pill)
+        self.agent_bar = Gtk.ScrolledWindow(child=self.agent_pills, visible=False, margin_start=12,
+                                            margin_end=12, margin_top=6, vscrollbar_policy=Gtk.PolicyType.NEVER,
+                                            propagate_natural_height=True)
+        for w in (self.agent_bar, self.view_stack, self.composer, self.bar):
             self.panel.append(w)
         self.append(self.panel)
 
@@ -184,6 +215,7 @@ class ChatTab(Gtk.Box):
 
     def apply_colors(self, dark):
         self.messages.set_dark(dark)
+        self.composer.set_dark(dark)
 
     def set_account(self, name, color, usage=None):
         """Compte et couleur montrés à droite de la barre."""
@@ -223,38 +255,37 @@ class ChatTab(Gtk.Box):
         return self.engine.state in ("busy", "permission", "starting")
 
     def _on_send(self, _composer, text, images):
-        """Entrée dans la zone de saisie : envoi, ou file de messages si Claude travaille."""
-        if self._engine_busy():
-            if images:
-                self.composer.restore(text, images)
-                self.messages.add_notice("Les images ne peuvent pas attendre : envoie-les quand "
-                                         "Claude aura fini.", "warning")
-                return
-            queue = terminal.queue_add(self.state.queue, text)
-            if len(queue) > len(self.state.queue):
-                self.set_queue(queue, added=True)
-            return
+        """Entrée dans la zone de saisie : envoi tout de suite, même pendant que Claude travaille
+        (la CLI le lit en cours de route ou juste après ; la page n'a rien à mettre en file)."""
         self.state.typed_at = time.time()
         if not self._send(text, images):
             self.composer.restore(text, images)
 
     def _send(self, text, images=()):
-        """Envoie au moteur et montre la bulle ; faux si Claude est occupé ou ne démarre pas."""
-        if not self.state.running:
+        """Envoie au moteur et montre la bulle ; faux si Claude ne démarre pas. Pendant un tour,
+        le message part aussi tout de suite (bulle marquée « envoyé pendant que Claude travaille »)."""
+        during = self._engine_busy()
+        if not during and not self.state.running:
             self.spawn()
         if not self.engine.send(text, images):
             if not self._engine_busy():
                 self._start_failed("Claude Code n'a pas pu démarrer.")
             return False
+        self.messages.add_user(text, images, during=during)
+        if during:
+            return True
+        self._turn_started = time.time()
         self._pending = (text, list(images))
         self._turn_done = False
-        self.messages.add_user(text, images)
         self._on_state(chat_engine.StateChanged("busy"))   # tout de suite : la page lit cet état
         return True
 
     def send_auto(self, text):
-        """Envoi décidé par l'application (reprise après une limite, file de messages)."""
-        if not self.state.running:
+        """Envoi décidé par l'application (reprise après une limite, file de messages, « créer
+        une feuille de route »). Un chat sans processus — c'est le cas de tout chat ouvert ou
+        rouvert par la page Sessions — le lance comme un envoi au clavier (`_send`) ; seule une
+        conversation ouverte ailleurs (lecture seule) refuse."""
+        if getattr(self, "elsewhere_pid", None):
             return False
         if not self._send(text):
             return False
@@ -313,23 +344,36 @@ class ChatTab(Gtk.Box):
         st = self.state
         if not 0 <= index < len(st.queue):
             return
-        if self._engine_busy():
-            self.queue_reason = "Claude travaille : envoi à la fin du tour."
-            self.refresh_queue()
-            return
-        if self.send_auto(st.queue[index]):
+        if self.send_auto(st.queue[index]):   # même pendant un tour : la CLI le lit
             self.set_queue(terminal.queue_remove(st.queue, index))
+        else:   # jamais en silence : le bandeau de la file dit pourquoi rien n'est parti
+            self.queue_reason = ("Conversation ouverte ailleurs : rien n'est envoyé."
+                                 if getattr(self, "elsewhere_pid", None)
+                                 else "Envoi impossible : Claude Code n'a pas démarré.")
+            self.refresh_queue()
 
     # ---- événements du moteur ------------------------------------------------------------
 
     def _dispatch(self, ev):
         """Un événement du moteur (déjà ramené dans la boucle GTK)."""
+        parent = getattr(ev, "parent_id", None)
+        if parent and parent in getattr(self, "agents", {}):
+            self._agent_event(self.agents[parent], ev)
+            return False
+        if isinstance(ev, proto.ToolResult) and ev.tool_id in getattr(self, "agents", {}):
+            self._agent_done(ev.tool_id)
         if self._closed and not isinstance(ev, (chat_engine.StateChanged, chat_engine.ProcessExited)):
             return False
         handler = {
             chat_engine.StateChanged: self._on_state,
             chat_engine.ProcessExited: self._on_exited,
             chat_engine.ContextUsage: self._on_context,
+            chat_engine.OptionRefused: self._on_option_refused,
+            chat_engine.UnhandledRequest: lambda e: self.messages.add_notice(
+                f"Claude Code a posé une question que CCS ne sait pas encore afficher ({e.subtype}"
+                + (f" — {e.summary}" if e.summary else "") + ") : réponse « non pris en charge », "
+                "pour qu'il ne reste pas bloqué.", "warning"),
+            proto.Status: self._on_status,
             proto.Init: self._on_init,
             proto.Hello: self._on_hello,
             proto.TextDelta: lambda e: self._text(e, delta=True),
@@ -383,6 +427,19 @@ class ChatTab(Gtk.Box):
             self.state.session_id = ev.session_id
             self.owner.changed(self)
 
+    def _on_status(self, ev):
+        """Mode de droits réellement en vigueur, confirmé par la CLI : la barre le reflète."""
+        mode = "manual" if ev.permission_mode in (None, "default") else ev.permission_mode
+        if mode != self.options.rights:
+            self.options = dataclasses.replace(self.options, rights=mode)
+            self.bar.set_options(self.options)
+            self.owner.schedule_save()
+
+    def _on_option_refused(self, ev):
+        what = "Les droits" if ev.what == "set_permission_mode" else "Le modèle"
+        self.messages.add_notice(f"{what} : Claude Code a refusé le changement en direct ; il sera "
+                                 "appliqué en relançant la conversation au prochain message.", "warning")
+
     def _on_hello(self, ev):
         self.composer.set_commands(ev.commands)
         try:
@@ -404,8 +461,74 @@ class ChatTab(Gtk.Box):
     def _on_tool(self, ev):
         if ev.name in proto.TODO_TOOLS:
             return  # la liste de tâches a sa propre carte (événement Todos)
-        self.messages.add_tool(ev)
+        card = self.messages.add_tool(ev)
         self.messages.set_busy(True, f"{tool_label(ev.name)}…")
+        self.emit("tool-used", ev.name, dict(ev.input or {}))
+        if ev.name in AGENT_TOOLS and not ev.parent_id:
+            self._new_agent(ev, card)
+
+    # ---- sous-agents ----------------------------------------------------------------------
+
+    def _new_agent(self, ev, card):
+        """Un sous-agent démarre : sa pastille, sa vue (fil en lecture seule), et « Voir » sur sa carte."""
+        data = ev.input or {}
+        name = str(data.get("description") or data.get("subagent_type") or "Sous-agent")[:60]
+        messages = MessageList(on_diff=lambda p, o, n: self.emit("show-diff", p, o, n),
+                               on_open=lambda p, line: self.emit("open-file", p, line),
+                               on_link=self.open_link, base_dir=self.launch.cwd)
+        view = Gtk.Overlay(child=messages, vexpand=True)
+        view.add_overlay(messages.new_button)
+        pill_box = Gtk.Box(spacing=6)
+        spinner = Gtk.Spinner(spinning=True)
+        icon = Gtk.Image(icon_name="emblem-ok-symbolic", visible=False)
+        pill_box.append(spinner)
+        pill_box.append(icon)
+        pill_box.append(Gtk.Label(label=name, ellipsize=Pango.EllipsizeMode.END, max_width_chars=28))
+        pill = Gtk.ToggleButton(child=pill_box, group=self.main_pill, css_classes=["pill", "small"],
+                                tooltip_text=f"Sous-agent : {name}")
+        agent = _Agent(name, messages, view, pill, spinner, icon,
+                       background=bool(data.get("run_in_background")))
+        self.agents[ev.tool_id] = agent
+        self.view_stack.add_named(view, ev.tool_id)
+        pill.connect("toggled", lambda b, tid=ev.tool_id: b.get_active() and self.show_agent(tid))
+        self.agent_pills.append(pill)
+        self.agent_bar.set_visible(True)
+        if card is not None:
+            see = Gtk.Button(label="Voir le sous-agent", halign=Gtk.Align.START, css_classes=["flat"])
+            see.connect("clicked", lambda *_b, tid=ev.tool_id: self.show_agent(tid))
+            card.append(see)
+
+    def show_agent(self, tool_id):
+        """Affiche la vue d'un sous-agent, ou la conversation principale (`None`)."""
+        agent = self.agents.get(tool_id) if tool_id else None
+        if agent is None:
+            self.view_stack.set_visible_child(self.messages_overlay)
+            if not self.main_pill.get_active():
+                self.main_pill.set_active(True)
+            return
+        self.view_stack.set_visible_child(agent.view)
+        if not agent.pill.get_active():
+            agent.pill.set_active(True)
+
+    def _agent_event(self, agent, ev):
+        """Événement émis par un sous-agent : dans sa vue, pas dans le fil principal."""
+        if isinstance(ev, proto.ToolUse):
+            if ev.name not in proto.TODO_TOOLS:
+                agent.messages.add_tool(ev)
+            self.emit("tool-used", ev.name, dict(ev.input or {}))
+        elif isinstance(ev, proto.ToolResult):
+            agent.messages.set_tool_result(ev)
+        elif isinstance(ev, proto.AssistantText):
+            agent.messages.finish_assistant(ev.msg_id, ev.text)
+
+    def _agent_done(self, tool_id):
+        agent = self.agents.get(tool_id)
+        if agent is None or agent.background:   # un sous-agent de fond rend la main tout de suite
+            return
+        agent.done = True
+        agent.spinner.set_spinning(False)
+        agent.spinner.set_visible(False)
+        agent.icon.set_visible(True)
 
     def _on_permission(self, ev):
         self.messages.add_permission(ev, self._answer)
@@ -422,6 +545,14 @@ class ChatTab(Gtk.Box):
     def _on_result(self, ev):
         self._turn_done = True
         self._pending = None
+        # bilan du tour : durée et coût de CE tour (la CLI donne un total cumulé sur la session)
+        total = ev.cost_usd if isinstance(ev.cost_usd, (int, float)) else None
+        turn_cost = (total - self._cost_seen) if total is not None and total >= self._cost_seen else total
+        if total is not None:
+            self._cost_seen = total
+        if ev.ok and not ev.interrupted and self._turn_started is not None:
+            self.messages.add_turn_footer(time.time() - self._turn_started, turn_cost)
+        self._turn_started = None
         if ev.interrupted:
             self.messages.add_notice("Arrêté.")
         elif getattr(ev, "is_limit", False):

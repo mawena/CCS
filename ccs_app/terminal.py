@@ -542,9 +542,11 @@ def elsewhere_pid(session_id, live, own_pids=()):
 
 
 def waiting_alert_key(tab):
-    """Clé de l'alerte « attend ta réponse » d'un chat : une par attente (début de l'attente)."""
+    """Clé de l'alerte d'un chat qui attend, une par attente (début de l'attente) :
+    `attente:` pour une demande d'autorisation, `fin:` pour une simple fin de réponse."""
     since = int(tab.state_since or 0)
-    return f"attente:{tab.session_id or tab.pid or tab.cwd}:{since}"
+    prefix = "attente" if (tab.waiting_for or "").lower().startswith("permission") else "fin"
+    return f"{prefix}:{tab.session_id or tab.pid or tab.cwd}:{since}"
 
 
 def is_waiting_for_user(tab):

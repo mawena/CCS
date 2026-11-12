@@ -281,6 +281,34 @@ class RelocateTest(ConversationsTestCase):
         conv.relocate(moved, new)
         self.assertEqual(copy.read_text(), "déjà repris\n")
 
+    def test_relocated_from_an_existing_folder_wins_the_tie(self):
+        # Une conversation lancée depuis le Bureau, reliée à son vrai projet : l'original existe
+        # toujours (même contenu, même date) ; l'exemplaire relié doit l'emporter.
+        desktop = self.home / "Desktop"
+        desktop.mkdir()
+        self.journal(str(desktop), "s-1", [prompt("travail sur App", str(desktop))], mtime=NOW - 600)
+        first = next(c for c in conv.scan() if c.session_id == "s-1")
+        copy = Path(conv.relocate(first, str(self.app)).path)
+        real_glob = Path.glob
+        for reverse in (False, True):   # quel que soit l'ordre dans lequel le disque liste les fichiers
+            def ordered(path, pattern, reverse=reverse):
+                return iter(sorted(real_glob(path, pattern), reverse=reverse))
+            with mock.patch.object(Path, "glob", ordered):
+                again = next(c for c in conv.scan() if c.session_id == "s-1")
+            self.assertEqual((again.cwd, again.path), (str(self.app), str(copy)), f"reverse={reverse}")
+
+    def test_original_newer_than_the_copy_wins(self):
+        # La conversation a continué dans l'ancien dossier après la copie : l'activité récente
+        # l'emporte (la copie est périmée).
+        desktop = self.home / "Desktop"
+        desktop.mkdir()
+        orig = self.journal(str(desktop), "s-2", [prompt("début", str(desktop))], mtime=NOW - 900)
+        first = next(c for c in conv.scan() if c.session_id == "s-2")
+        conv.relocate(first, str(self.app))
+        self.append(orig, [prompt("suite", str(desktop))])
+        again = next(c for c in conv.scan() if c.session_id == "s-2")
+        self.assertEqual(again.path, str(orig))
+
     def test_no_suggestion_when_ambiguous_or_present(self):
         a = make("a", cwd="/old/App", exists=False)
         convs = [a, make("b", cwd="/w1/App"), make("c", cwd="/w2/App")]

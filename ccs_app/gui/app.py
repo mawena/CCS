@@ -1,5 +1,7 @@
 """Application « CCS » (GTK4/libadwaita)."""
 
+import shutil
+import subprocess
 import sys
 import time
 
@@ -23,7 +25,6 @@ from .home_page import HomePage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
 from .prefs_dialog import PrefsDialog  # noqa: E402
-from .projects_page import ProjectsPage  # noqa: E402
 from .sessions_page import SessionsPage  # noqa: E402
 from .update_dialog import show_update  # noqa: E402
 from .terminals import TerminalsPage  # noqa: E402
@@ -37,6 +38,7 @@ NARROW_SP = 900
 # Pendant une pause, « Auto ⏸ jusqu'à 14:00 » remplace « Auto » : le seuil monte de la
 # différence de largeur (mesurée), plus cette marge.
 PAUSE_MARGIN_SP = 16
+FRESH_CHECK_S = 30   # vérifie toutes les 30 s si un nouveau paquet a été installé
 
 
 class Window(Adw.ApplicationWindow):
@@ -98,13 +100,11 @@ class Window(Adw.ApplicationWindow):
         # Onglet Sessions : la vue d'ensemble est la première page épinglée de la barre
         # d'onglets des chats et des terminaux.
         self.terminals = TerminalsPage(self, overview=self.sessions)
-        self.projects = ProjectsPage(self)
         self.analysis_hub = AnalysisHub(self)
         self.history, self.analysis = self.analysis_hub.history, self.analysis_hub.analysis
         for page, name, title, icon in (
                 (self.home, "home", "Accueil", "go-home-symbolic"),
                 (self.terminals, "sessions", "Sessions", "utilities-terminal-symbolic"),
-                (self.projects, "projects", "Projets", "folder-symbolic"),
                 (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
         self.stack.connect("notify::visible-child-name", self.on_page)
@@ -126,6 +126,12 @@ class Window(Adw.ApplicationWindow):
         self.doctor_banner = Adw.Banner(button_label="Voir le bilan")
         self.doctor_banner.connect("button-clicked", lambda *_: self.show_doctor())
         view.add_top_bar(self.doctor_banner)
+        # Un nouveau paquet installé pendant que l'application tourne : proposer de la relancer.
+        self._code_stamp = installer.code_stamp()
+        self.restart_banner = Adw.Banner(title="CCS a été mis à jour : relance-le pour profiter des nouveautés",
+                                         button_label="Relancer")
+        self.restart_banner.connect("button-clicked", lambda *_: self.relaunch_app())
+        view.add_top_bar(self.restart_banner)
         view.add_bottom_bar(bottom_switcher)
         self.set_content(view)
         # Fenêtre étroite : onglets en bas, comme les applications GNOME (en dessous de
@@ -141,6 +147,7 @@ class Window(Adw.ApplicationWindow):
         self.monitor = state_file.monitor_file(Gio.FileMonitorFlags.NONE, None)
         self.monitor.connect("changed", lambda *_: self.schedule_reload())
         GLib.timeout_add_seconds(60, lambda: (self.reload(), True)[1])
+        GLib.timeout_add_seconds(FRESH_CHECK_S, self.check_fresh)
 
         self.reload()
         state = load_state()
@@ -288,8 +295,6 @@ class Window(Adw.ApplicationWindow):
             self.sessions.load()
         if name == "analysis":
             self.analysis_hub.on_shown()
-        elif name == "projects" and hasattr(self.projects, "refresh"):
-            self.projects.refresh()
         self.update_badge()
 
     def update_badge(self):
@@ -439,6 +444,21 @@ class Window(Adw.ApplicationWindow):
         if self.sessions.visible_page:
             self.sessions.rerender()
         self.update_badge()
+
+    def check_fresh(self):
+        """Le code sur le disque a changé depuis le lancement : bandeau « Relancer »."""
+        stamp = installer.code_stamp()
+        if stamp is not None and self._code_stamp is not None and stamp != self._code_stamp:
+            self.restart_banner.set_revealed(True)
+        return True
+
+    def relaunch_app(self):
+        """« Relancer » : une nouvelle instance démarre une seconde après la fermeture de celle-ci
+        (la confirmation habituelle s'applique si des sessions tournent)."""
+        exe = shutil.which("claude-accounts") or "claude-accounts"
+        subprocess.Popen(["sh", "-c", 'sleep 1; exec "$0" gui', exe], start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.close()
 
     def on_close_request(self, *_):
         if self.closing:

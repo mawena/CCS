@@ -1,3 +1,14 @@
+ccs (0.10.0) unstable; urgency=medium
+
+  * Chat graphique à la place du terminal Claude : bulles, Markdown, cartes
+    d'actions, autorisations, barre modèle / effort / ultracode / droits.
+  * Panneau Fichiers (arbre, éditeur, aperçu Markdown, diff) et feuille de
+    route dans chaque onglet de session ; page Projets.
+  * Navigation en quatre onglets, nouveau design, couleur par compte.
+  * Dépend de gir1.2-gtksource-5 et python3-markdown-it.
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 12 Nov 2026 14:36:45 +0000
+
 ccs (0.9.0) unstable; urgency=medium
 
   * L'application s'appelle désormais « CCS » partout (fenêtre, menu des

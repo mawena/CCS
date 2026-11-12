@@ -94,7 +94,6 @@ DEFAULTS = {
     # chat (0 = jamais) ; rights : mode de permission des nouveaux chats.
     "chat": {"idle_suspend_min": 30, "rights": "manual"},
     "files": {"layout": "B", "show_ignored": False},
-    "projects": {"hidden": []},
     "appearance": {"color_scheme": "auto", "account_colors": {}},
 }
 
@@ -191,8 +190,6 @@ def _valid(path, v, default):
         return isinstance(v, str) and (v == "" or phone.valid_topic(v))
     if path in CHOICES:
         return isinstance(v, str) and v in CHOICES[path]
-    if path == "projects.hidden":
-        return isinstance(v, list) and all(isinstance(x, str) and x for x in v)
     if path == "budget.alert_pcts":
         return (isinstance(v, list) and all(_is_number(x) and 0 < x <= 1000 for x in v))
     if path in ("tasks.night.start", "tasks.night.end"):

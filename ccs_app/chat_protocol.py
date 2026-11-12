@@ -72,6 +72,7 @@ class TextDelta:
 class AssistantText:
     msg_id: str
     text: str
+    parent_id: str | None = None     # texte d'un sous-agent (outil Task/Agent qui l'a lancé)
 
 
 @dataclass(frozen=True)
@@ -110,6 +111,7 @@ class PermissionRequest:
     suggestions: list = field(default_factory=list)
     description: str = ""
     blocked_path: str | None = None
+    agent_id: str | None = None      # demande venue d'un sous-agent
 
 
 @dataclass(frozen=True)
@@ -223,7 +225,8 @@ def _control_request(ev):
         input=_dict(request.get("input")),
         suggestions=list(suggestions) if isinstance(suggestions, list) else [],
         description=_str(request.get("description")),
-        blocked_path=blocked if isinstance(blocked, str) and blocked else None)]
+        blocked_path=blocked if isinstance(blocked, str) and blocked else None,
+        agent_id=_str(request.get("agent_id")) or None)]
 
 
 def _system(ev):
@@ -280,13 +283,13 @@ def _assistant(ev):
     out = []
     content = message.get("content")
     if isinstance(content, str):
-        return [AssistantText(msg_id, content)] if content else []
+        return [AssistantText(msg_id, content, parent)] if content else []
     for block in content if isinstance(content, list) else ():
         if not isinstance(block, dict):
             continue
         kind = block.get("type")
         if kind == "text" and isinstance(block.get("text"), str):
-            out.append(AssistantText(msg_id, block["text"]))
+            out.append(AssistantText(msg_id, block["text"], parent))
         elif kind == "thinking":
             out.append(Thinking(msg_id))
         elif kind == "tool_use":
@@ -416,3 +419,10 @@ def deny(request_id, message, interrupt=False):
     if interrupt:
         response["interrupt"] = True
     return _permission_reply(request_id, response)
+
+
+def control_error(request_id, message):
+    """Réponse d'erreur à une `control_request` de la CLI que CCS ne sait pas traiter : elle
+    reçoit une réponse au lieu d'attendre sans fin."""
+    return _line({"type": "control_response", "response": {
+        "subtype": "error", "request_id": request_id, "error": message}})

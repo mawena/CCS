@@ -417,3 +417,20 @@ def plain_notes(markdown):
             continue
         lines.append(line)
     return "\n".join(lines).strip()
+
+
+# ---- version déjà en mémoire ----------------------------------------------------------------
+
+def code_stamp(root=None):
+    """Empreinte du code de CCS sur le disque (date de modification la plus récente des .py du
+    paquet et de `gui/`) ; elle change quand un nouveau paquet remplace les fichiers. None si
+    le dossier est illisible. Sert à proposer de relancer une application ouverte avant."""
+    root = Path(root) if root is not None else Path(__file__).resolve().parent
+    stamps = []
+    for folder in (root, root / "gui"):
+        try:
+            stamps += [e.stat().st_mtime for e in os.scandir(folder)
+                       if e.name.endswith(".py") and e.is_file()]
+        except OSError:
+            continue
+    return max(stamps) if stamps else None

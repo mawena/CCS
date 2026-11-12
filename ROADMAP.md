@@ -48,6 +48,23 @@ version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`.
 - [x] Release correctif 0.3.2 (genre choisi par l'utilisateur), `main`, `develop` et le tag poussés
 - [x] Paquet `.deb` construit pour l'installation (`dist/ccs_0.3.2_all.deb`)
 
+## Phase 4 — Propositions pour 0.4.0 (à choisir)
+
+Recommandées :
+- [x] `ccs doctor` : bilan de santé (service, version, extension, intégration, connexions) avec la commande qui corrige → Phase 7
+- [x] Prévision de fin de semaine par compte, alerte 2 jours avant → Phase 7
+- [x] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain) → Phase 7
+- [x] Avertissement de nouvelle version et relance automatique de l'icône → Phase 7
+- [x] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars → Phase 8
+
+Autres :
+- [x] Conseil de modèle près des limites (Opus → Sonnet) → Phase 8
+- [x] Bilan de la semaine → Phase 8
+- [x] Raccourci clavier global → Phase 8
+- [x] Rappel quand une session attend depuis plus de 10 min → Phase 7
+- [x] Journal lisible des bascules dans l'application → Phase 8
+- [x] Compte par projet → Phase 8
+
 ## Phase 5 — Historique des conversations (0.4.0) ✅
 
 Toutes les conversations Claude Code du PC, comme la liste « Past conversations »
@@ -137,6 +154,17 @@ Raccordement, documentation et release :
 Releases GitHub manquantes :
 - [x] Releases GitHub 0.3.1, 0.3.2 et 0.4.0, avec leurs `.deb` reconstruits depuis les tags
 
+## Phase 9 — Points mineurs reportés (correctif)
+
+- [x] Réveil précis au début de la plage horaire
+- [x] Réglages invalides édités à la main : valeurs par défaut au lieu d'un échec
+- [x] Heure locale exacte (changement d'heure) pour les plages couvrant 2 h – 3 h
+- [x] `ccs best` : ignorer les comptes en erreur
+- [x] Moniteur de sessions créé même si `~/.claude/sessions` apparaît après le démarrage
+- [x] Suite de tests au vert, CHANGELOG et documentation
+- [x] Release correctif 0.6.1 (genre choisi par Charles), `main`, `develop` et le tag poussés
+- [x] Paquet `.deb` construit (`dist/ccs_0.6.1_all.deb`) et release GitHub v0.6.1
+
 ## Phase 10 — Confort et vue d'ensemble (0.7.0)
 
 - [x] Mise à jour en un clic : téléchargement du `.deb` de la release GitHub, vérification SHA-256 et du paquet, installation après mot de passe
@@ -196,40 +224,19 @@ Les fichiers :
 
 Feuille de route et projets :
 - [x] Feuille de route dans l'onglet de session : phases, cases cliquables, case cochée mise en avant
-- [x] Page Projets : cartes des projets, frise des versions, tâches cochées par jour
+- [x] Page Projets : cartes des projets, frise des versions, tâches cochées par jour (retirée à l'essai le 12/11 : sans utilité)
 
 Le design :
-- [x] Navigation en 4 onglets (Accueil, Sessions, Projets, Analyse), Réglages dans le menu, anciens noms de page acceptés
+- [x] Navigation en 3 onglets (Accueil, Sessions, Analyse), Réglages dans le menu, anciens noms de page acceptés
 - [x] Nouveau design : couleur par compte, cartes, écrans vides, clair et sombre
+
+Retours de l'essai de Charles (12/11) :
+- [x] Envoi direct pendant que Claude travaille, « Envoyer maintenant », « Tout autoriser », saisie lisible en sombre, défilement et « Nouveaux messages »
+- [x] Sous-agents en pastilles et leurs autorisations, questions inconnues de la CLI, pas de mise en veille pendant un sous-agent
+- [x] Feuille de route qui suit le projet de la conversation, « Dossier du projet… », conversations reliées à leur projet
+- [x] Fichiers joints, bilan de chaque réponse, bouton Copier, longs messages repliés, actions regroupées dans le fil
+- [x] Bandeau « Relancer » après une mise à jour, Accueil redessiné, page Projets retirée
 
 Documentation et release :
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG, site)
 - [ ] Release mineure 0.10.0, `.deb`, release GitHub et dépôt APT
-
-## Phase 4 — Propositions pour 0.4.0 (à choisir)
-
-Recommandées :
-- [x] `ccs doctor` : bilan de santé (service, version, extension, intégration, connexions) avec la commande qui corrige → Phase 7
-- [x] Prévision de fin de semaine par compte, alerte 2 jours avant → Phase 7
-- [x] Mode pause (bascule auto et orchestrateur suspendus 1 h / 4 h / jusqu'à demain) → Phase 7
-- [x] Avertissement de nouvelle version et relance automatique de l'icône → Phase 7
-- [x] Conseiller de formule (2–3 Pro ou Max) avec équivalent en dollars → Phase 8
-
-Autres :
-- [x] Conseil de modèle près des limites (Opus → Sonnet) → Phase 8
-- [x] Bilan de la semaine → Phase 8
-- [x] Raccourci clavier global → Phase 8
-- [x] Rappel quand une session attend depuis plus de 10 min → Phase 7
-- [x] Journal lisible des bascules dans l'application → Phase 8
-- [x] Compte par projet → Phase 8
-
-## Phase 9 — Points mineurs reportés (correctif)
-
-- [x] Réveil précis au début de la plage horaire
-- [x] Réglages invalides édités à la main : valeurs par défaut au lieu d'un échec
-- [x] Heure locale exacte (changement d'heure) pour les plages couvrant 2 h – 3 h
-- [x] `ccs best` : ignorer les comptes en erreur
-- [x] Moniteur de sessions créé même si `~/.claude/sessions` apparaît après le démarrage
-- [x] Suite de tests au vert, CHANGELOG et documentation
-- [x] Release correctif 0.6.1 (genre choisi par Charles), `main`, `develop` et le tag poussés
-- [x] Paquet `.deb` construit (`dist/ccs_0.6.1_all.deb`) et release GitHub v0.6.1

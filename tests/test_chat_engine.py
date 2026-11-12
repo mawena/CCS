@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from ccs_app import chat_engine as eng
@@ -112,15 +113,45 @@ class ChatEngineTest(EngineCase):
         self.assertNotIn("--resume", argv)
         self.assertTrue(s.session_id)
 
-    def test_send_while_busy_is_refused(self):
-        s = self.make(SCEN_PERM, FAKE_CLAUDE_DELAY_MS=30)
+    def test_send_while_busy_is_written_cli_queues_it(self):
+        # Comportement (a) : la CLI traite le message après le tour, avec son propre result.
+        s = self.make(SCEN_PERM, FAKE_CLAUDE_DELAY_MS=20)
         self.assertTrue(s.send("un"))
-        self.assertFalse(s.send("deux"))
-        self.assertFalse(s.send("trois"))
-        # rien d'autre n'a été écrit : un seul processus lancé
         self.col.wait_state("permission")
-        self.assertFalse(s.send("pendant une autorisation"))
-        self.assertEqual(len(self.wait_argvs(1)), 1)
+        self.assertTrue(s.send("pendant le tour"))               # écrit tout de suite
+        self.assertEqual(s.state, "permission")                  # l'état ne bouge pas pour ça
+        s.answer(self.col.of(proto.PermissionRequest)[0].request_id, "allow")
+        # le message parti pendant le tour lance le tour suivant (qui demande lui aussi)
+        self.col.wait(lambda evs: sum(isinstance(e, proto.PermissionRequest) for e in evs) >= 2)
+        self.assertEqual(s.state, "permission")                  # pas repassé idle entre les deux
+        s.answer(self.col.of(proto.PermissionRequest)[1].request_id, "allow")
+        self.col.wait(lambda evs: sum(isinstance(e, proto.TurnResult) for e in evs) >= 2)
+        self.col.wait_state("idle")
+        self.assertEqual(s.state, "idle")
+        self.assertEqual(len(self.wait_argvs(1)), 1)             # un seul processus
+
+    def test_absorbed_message_never_blocks_busy(self):
+        # Comportement (b) : la CLI absorbe le message dans le tour en cours, sans result à part.
+        with mock.patch.object(eng, "SETTLE_S", 0.5):
+            s = self.make(SCEN_PERM, FAKE_CLAUDE_MERGE=1, FAKE_CLAUDE_DELAY_MS=20)
+            s.send("un")
+            self.col.wait_state("permission")
+            self.assertTrue(s.send("absorbé"))
+            s.answer(self.col.of(proto.PermissionRequest)[0].request_id, "allow")
+            self.col.wait_state("idle")                          # grâce au filet, sans 2e result
+            self.assertEqual(sum(isinstance(e, proto.TurnResult) for e in self.col.events), 1)
+            self.assertEqual(s.state, "idle")
+
+    def test_local_effort_commands_do_not_flicker(self):
+        s = self.make(SCEN_LOCAL)
+        s.send("x")
+        self.col.wait_state("idle")
+        n_idle = sum(1 for st in self.col.states() if st == "idle")
+        s.set_options(ChatOptions(effort="high"))
+        s.send("y")                                              # /effort high part avant, en silence
+        self.col.wait_state("idle", count=n_idle + 1)
+        after = self.col.states()[self.col.states().index("busy", len(self.col.states()) - 3):]
+        self.assertEqual(after.count("idle"), 1)                 # pas d'idle intermédiaire
 
     def test_interrupt_then_send_resumes(self):
         s = self.make(SCEN_DENY)
@@ -213,6 +244,50 @@ class ChatEngineTest(EngineCase):
         self.assertEqual(argv[argv.index("--model") + 1], "sonnet")
         self.assertEqual(argv[argv.index("--effort") + 1], "max")
         self.assertEqual(argv[argv.index("--permission-mode") + 1], "acceptEdits")
+
+    def test_unknown_question_is_answered_not_left_waiting(self):
+        # Une control_request que CCS ne connaît pas (ex. activation des mods) : réponse
+        # « non pris en charge », sinon la CLI attendrait sans fin.
+        s = self.make(SCEN_LOCAL, FAKE_CLAUDE_ASK_UNKNOWN="1")
+        s.send("x")
+        self.col.wait(lambda evs: any(isinstance(e, eng.UnhandledRequest) for e in evs))
+        self.assertEqual(self.col.of(eng.UnhandledRequest)[0].subtype, "question_mystere")
+        self.col.wait_state("idle")                              # la CLI a eu sa réponse et a fini
+
+    def test_no_suspend_while_background_agents_run(self):
+        s = self.make(SCEN_LOCAL)
+        s.send("x")
+        self.col.wait_state("idle")
+        s._handle_event(s._proc, proto.ToolUse("toolu_bg", "Task", {"run_in_background": True,
+                                                                    "description": "fouiller"}, None))
+        s._handle_event(s._proc, proto.ToolResult("toolu_bg", "lancé en arrière-plan", False, None))
+        self.assertFalse(s.suspend_if_idle(time.time() + 10 ** 6, 1))   # couperait le sous-agent
+
+    def test_launch_allows_switching_to_bypass_later(self):
+        # Sans cette option au lancement, la CLI refuse de passer en bypassPermissions en cours
+        # de session (« Tout autoriser » ne prenait pas).
+        s = self.make(SCEN_LOCAL)
+        s.send("x")
+        self.assertIn("--allow-dangerously-skip-permissions", self.wait_argvs(1)[0])
+        self.col.wait_state("idle")
+        s.set_options(ChatOptions(rights="bypassPermissions"))
+        self.col.wait(lambda evs: any(isinstance(e, proto.Status) and e.permission_mode == "bypassPermissions"
+                                      for e in evs))
+        self.assertEqual(len(self.argvs()), 1)                    # changé en direct, sans relance
+
+    def test_refused_rights_change_is_applied_by_relaunch(self):
+        s = self.make(SCEN_LOCAL, FAKE_CLAUDE_REFUSE_MODE="bypassPermissions")
+        s.send("x")
+        self.col.wait_state("idle")
+        s.set_options(ChatOptions(rights="bypassPermissions"))
+        self.col.wait(lambda evs: any(isinstance(e, eng.OptionRefused) for e in evs))
+        refused = self.col.of(eng.OptionRefused)[0]
+        self.assertEqual(refused.what, "set_permission_mode")
+        self.assertTrue(s.send("y"))                              # relance avant ce message
+        argv = self.wait_argvs(2)[1]
+        self.assertEqual(argv[argv.index("--permission-mode") + 1], "bypassPermissions")
+        self.assertIn("--resume", argv)
+        self.col.wait_state("idle")
 
     def test_resume_uses_session_id(self):
         s = self.make(SCEN_LOCAL, session_id="abc-123")

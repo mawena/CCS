@@ -15,7 +15,7 @@ import gi
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 gi.require_version("GtkSource", "5")
-from gi.repository import Gdk, Gio, GLib, GObject, Gtk, GtkSource, Pango  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, GtkSource, Pango  # noqa: E402
 
 from .chat_messages import install_css  # noqa: E402
 
@@ -26,8 +26,10 @@ MAX_CHOICES = 12
 FILE_TOKEN = re.compile(r"(?:^|\s)@([^\s@]*)$")
 COMMAND_TOKEN = re.compile(r"^/([^\s/]*)$")
 
-HINT_IDLE = "Entrée envoie · Maj+Entrée : nouvelle ligne · @ fichiers · / commandes"
-HINT_BUSY = "Claude travaille · Entrée met le message en file · Échap arrête"
+# Indications dans le texte gris de la zone vide (plus de ligne à part sous la saisie).
+HINT_IDLE = "Écris à Claude…  (@ fichiers · / commandes)"
+HINT_BUSY = "Claude travaille — écris quand même, Entrée envoie · Échap arrête"
+SEND_TIP = "Envoyer (Entrée) · Maj+Entrée : nouvelle ligne"
 
 
 def _command(item):
@@ -61,6 +63,7 @@ class Composer(Gtk.Box):
         self.base_dir = base_dir
         self.busy = False
         self.images = []                 # [(type MIME, octets)]
+        self.files = []                  # fichiers joints (chemins absolus) : `@chemin` à l'envoi
         self._commands = []              # [(nom, description)]
         self._files = lambda: []
         self._token = None               # (type, début, fin) de la complétion en cours
@@ -77,28 +80,37 @@ class Composer(Gtk.Box):
         self.buffer = self.view.get_buffer()
         self.buffer.set_highlight_syntax(False)
         self.buffer.connect("changed", self._on_changed)
-        overlay = Gtk.Overlay(child=Gtk.ScrolledWindow(
+        # Le tampon garde sinon le schéma clair par défaut : texte noir sur fond sombre.
+        style = Adw.StyleManager.get_default()
+        self.set_dark(style.get_dark())
+        style.connect("notify::dark", lambda sm, _p: self.set_dark(sm.get_dark()))
+        overlay = Gtk.Overlay(hexpand=True, child=Gtk.ScrolledWindow(
             child=self.view, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True,
             min_content_height=40, max_content_height=220))
-        self.placeholder = Gtk.Label(label="Écris à Claude…", xalign=0, halign=Gtk.Align.START,
+        self.placeholder = Gtk.Label(label=HINT_IDLE, xalign=0, halign=Gtk.Align.START,
                                      valign=Gtk.Align.START, margin_start=12, margin_top=12,
-                                     css_classes=["ccs-subtle"], can_target=False)
+                                     ellipsize=Pango.EllipsizeMode.END, css_classes=["ccs-subtle"],
+                                     can_target=False)
         overlay.add_overlay(self.placeholder)
-        card.append(overlay)
 
-        self.hint = Gtk.Label(label=HINT_IDLE, xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
-                              css_classes=["ccs-subtle", "caption"], margin_start=6)
         self.stop_button = Gtk.Button(icon_name="media-playback-stop-symbolic", css_classes=["circular"],
                                       tooltip_text="Arrêter Claude (Échap)", visible=False)
         self.stop_button.connect("clicked", lambda *_: self.emit("stop"))
         self.send_button = Gtk.Button(icon_name="go-up-symbolic", css_classes=["circular", "suggested-action"],
-                                      tooltip_text="Envoyer (Entrée)")
+                                      tooltip_text=SEND_TIP)
         self.send_button.connect("clicked", lambda *_: self.submit())
-        foot = Gtk.Box(spacing=6)
-        foot.append(self.hint)
-        foot.append(self.stop_button)
-        foot.append(self.send_button)
-        card.append(foot)
+        self.attach_button = Gtk.Button(icon_name="mail-attachment-symbolic", css_classes=["circular", "flat"],
+                                        tooltip_text="Joindre des fichiers (ou glisse-les ici)")
+        self.attach_button.connect("clicked", self.choose_files)
+        # Boutons à droite du texte, comme dans VS Code : pas de ligne à part sous la saisie.
+        buttons = Gtk.Box(spacing=6, valign=Gtk.Align.END, margin_bottom=4, margin_end=2)
+        buttons.append(self.attach_button)
+        buttons.append(self.stop_button)
+        buttons.append(self.send_button)
+        self.input_row = Gtk.Box(spacing=6)
+        self.input_row.append(overlay)
+        self.input_row.append(buttons)
+        card.append(self.input_row)
         self.card = card
         self.append(card)
 
@@ -129,7 +141,7 @@ class Composer(Gtk.Box):
         self.queue_strip = Gtk.Revealer(child=strip)
 
         head = Gtk.Box(spacing=8)
-        head.append(Gtk.Label(label="Envoyer quand Claude sera libre", xalign=0, css_classes=["heading"]))
+        head.append(Gtk.Label(label="Messages en attente", xalign=0, css_classes=["heading"]))
         self.queue_status = Gtk.Label(xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
                                       css_classes=["dim-label", "caption"])
         head.append(self.queue_status)
@@ -190,12 +202,21 @@ class Composer(Gtk.Box):
 
     # ---- état ----------------------------------------------------------------------------
 
+    def set_dark(self, dark):
+        """Schéma de couleurs du texte saisi, lisible en clair comme en sombre."""
+        manager = GtkSource.StyleSchemeManager.get_default()
+        for name in (("Adwaita-dark", "classic-dark") if dark else ("Adwaita", "classic")):
+            scheme = manager.get_scheme(name)
+            if scheme:
+                self.buffer.set_style_scheme(scheme)
+                return
+
     def set_busy(self, busy):
-        """Pendant que Claude travaille : bouton Arrêter, et Entrée met en file."""
+        """Pendant que Claude travaille : bouton Arrêter ; Entrée envoie quand même."""
         self.busy = bool(busy)
         self.stop_button.set_visible(self.busy)
-        self.hint.set_label(HINT_BUSY if self.busy else HINT_IDLE)
-        self.send_button.set_tooltip_text("Mettre en file (Entrée)" if self.busy else "Envoyer (Entrée)")
+        self.placeholder.set_label(HINT_BUSY if self.busy else HINT_IDLE)
+        self.send_button.set_tooltip_text(SEND_TIP + (" · même pendant que Claude travaille" if self.busy else ""))
 
     def set_enabled(self, enabled):
         self.view.set_editable(bool(enabled))
@@ -220,6 +241,7 @@ class Composer(Gtk.Box):
     def clear(self):
         self.buffer.set_text("")
         self.images.clear()
+        self.files.clear()
         self._refresh_thumbs()
         self._close_popover()
 
@@ -230,8 +252,12 @@ class Composer(Gtk.Box):
         self._refresh_thumbs()
 
     def submit(self):
-        """Envoie le texte (et les images) : ne fait rien si tout est vide."""
+        """Envoie le texte, les images et les fichiers joints (en références `@chemin`, que
+        Claude lit) : ne fait rien si tout est vide."""
         text, images = self.text.strip(), list(self.images)
+        if self.files:
+            refs = " ".join(f"@{self._shown_path(f)}" for f in self.files)
+            text = f"{text}\n\n{refs}" if text else refs
         if not text and not images:
             return False
         self.clear()
@@ -264,7 +290,55 @@ class Composer(Gtk.Box):
             close.connect("clicked", lambda _b, i=i: self._remove_image(i))
             overlay.add_overlay(close)
             self.thumbs.append(overlay)
-        self.thumbs.set_visible(bool(self.images))
+        for i, path in enumerate(self.files):
+            chip = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER, css_classes=["ccs-chip"],
+                           tooltip_text=path)
+            chip.append(Gtk.Image(icon_name="text-x-generic-symbolic"))
+            chip.append(Gtk.Label(label=os.path.basename(path), ellipsize=Pango.EllipsizeMode.MIDDLE,
+                                  max_width_chars=24))
+            close = Gtk.Button(icon_name="window-close-symbolic", css_classes=["circular", "flat"],
+                               tooltip_text="Retirer le fichier")
+            close.connect("clicked", lambda _b, i=i: self._remove_file(i))
+            chip.append(close)
+            self.thumbs.append(chip)
+        self.thumbs.set_visible(bool(self.images or self.files))
+
+    def _remove_file(self, index):
+        if 0 <= index < len(self.files):
+            del self.files[index]
+            self._refresh_thumbs()
+
+    def add_file(self, path):
+        """Joint un fichier (étiquette avec ✕) ; il part en référence `@chemin` avec le message."""
+        path = os.path.abspath(path)
+        if path not in self.files:
+            self.files.append(path)
+            self._refresh_thumbs()
+
+    def _shown_path(self, path):
+        """Chemin relatif au projet s'il y est, sinon absolu."""
+        if self.base_dir and path.startswith(str(self.base_dir).rstrip("/") + "/"):
+            return os.path.relpath(path, self.base_dir)
+        return path
+
+    def choose_files(self, *_):
+        """Bouton trombone : choisir un ou plusieurs fichiers à joindre."""
+        dialog = Gtk.FileDialog(title="Joindre des fichiers")
+        if self.base_dir:
+            dialog.set_initial_folder(Gio.File.new_for_path(str(self.base_dir)))
+        root = self.get_root()
+
+        def done(d, res):
+            try:
+                files = d.open_multiple_finish(res)
+            except GLib.Error:
+                return   # annulé
+            for i in range(files.get_n_items() if files is not None else 0):
+                path = files.get_item(i).get_path()
+                if path:
+                    self.add_path(path)
+            self.focus()
+        dialog.open_multiple(root if isinstance(root, Gtk.Window) else None, None, done)
 
     def _remove_image(self, index):
         if 0 <= index < len(self.images):
@@ -306,7 +380,8 @@ class Composer(Gtk.Box):
         return bool(paths)
 
     def add_path(self, path):
-        """Un fichier glissé : une image devient une vignette, le reste une référence `@chemin`."""
+        """Un fichier glissé ou choisi : une image devient une vignette, le reste un fichier
+        joint (étiquette, envoyé en référence `@chemin`)."""
         media = IMAGE_EXT.get(os.path.splitext(path)[1].lower())
         if media:
             try:
@@ -316,7 +391,7 @@ class Composer(Gtk.Box):
                     return
             except OSError:
                 pass
-        self.insert_reference(path)
+        self.add_file(path)
 
     def insert_reference(self, path):
         """Insère `@chemin` (relatif au projet s'il y est) à la position du curseur."""
