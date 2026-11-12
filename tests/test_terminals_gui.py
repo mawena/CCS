@@ -410,7 +410,7 @@ class SessionsPageTest(HomeTestCase):
         self.assertEqual(len(self.notified), 1)
         self.assertTrue(self.notified[0].title.endswith("Claude a fini de répondre"))   # pas « attend ta réponse »
         self.assertEqual(self.notified[0].urgency, 0)
-        self.assertTrue(self.notified[0].key.startswith("attente:"))
+        self.assertTrue(self.notified[0].key.startswith("fin:"))
         self.assertEqual(self.phoned[0][1], "projet")    # le téléphone aussi, par le même chemin
         with mock.patch.object(self.page, "on_screen", return_value=True):
             self.page.changed(tab)                       # même attente : une seule alerte

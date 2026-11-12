@@ -84,6 +84,13 @@ class MessageTest(unittest.TestCase):
         for secret in ("secrète", "mot-de-passe", "/home"):
             self.assertNotIn(secret, blob)
 
+    def test_end_of_reply_says_finished(self):
+        m = phone.message_for(Alert("fin:42:1", "App : Claude a fini de répondre", "secret", 0), project="App")
+        self.assertEqual(m.event, "waiting")                       # même réglage que l'attente
+        self.assertEqual(m.title, "Claude a fini de répondre")
+        self.assertEqual(m.body, "App : Claude a fini de répondre.")
+        self.assertNotIn("attend", f"{m.title} {m.body}")
+
     def test_reminder(self):
         m = phone.message_for(waiting("App attend toujours ta réponse", "rappel:42:1"))
         self.assertEqual(m.event, "waiting")

@@ -628,6 +628,10 @@ class ChatTabsTest(HomeTestCase):
         first = terminal.waiting_alert_key(tab)
         tab.state_since = 200.0
         self.assertNotEqual(first, terminal.waiting_alert_key(tab))
+        self.assertTrue(first.startswith("fin:"))              # simple fin de réponse
+        tab.waiting_for = "permission"
+        self.assertTrue(terminal.waiting_alert_key(tab).startswith("attente:"))  # vraie demande
+        tab.waiting_for = None
         self.assertTrue(terminal.is_waiting_for_user(tab))
         tab.state = "idle"
         self.assertFalse(terminal.is_waiting_for_user(tab))

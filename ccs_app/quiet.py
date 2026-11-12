@@ -288,7 +288,7 @@ def command(args, now=None, settings=None):
 def kind(alert):
     """Genre d'une notification, d'après sa clé."""
     prefix = str(alert.key).split(":", 1)[0]
-    if prefix in ("attente", "rappel"):
+    if prefix in ("attente", "rappel", "fin"):   # fin : un chat a fini de répondre
         return "attente"
     if prefix == "session":
         return "terminee"

@@ -182,6 +182,7 @@ class HoldTest(QuietBase):
         s = self.conf(allow_waiting=True)
         self.assertIsNone(quiet.should_hold(alert("attente:1:2"), self.NIGHT, s))
         self.assertIsNone(quiet.should_hold(alert("rappel:1:2"), self.NIGHT, s))
+        self.assertIsNone(quiet.should_hold(alert("fin:1:2"), self.NIGHT, s))     # fin de réponse d'un chat
 
     def test_waiting_held_when_not_allowed(self):
         s = self.conf(allow_waiting=False)
