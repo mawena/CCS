@@ -9,13 +9,14 @@ import re
 import subprocess
 from datetime import date, datetime, timezone
 
-from gi.repository import Adw, GLib, GObject, Gtk
+from gi.repository import Adw, Gdk, GLib, GObject, Gtk
 
 from .. import __version__, advisor, archive, budget, context_alert, core, daemon, quiet, session_memory, \
     tasks, updates
 from ..settings import load_settings, save_settings
 from .backup_group import BackupGroup
-from .common import in_thread, string_factory
+from . import style
+from .common import account_hex, in_thread, string_factory, sync_accounts
 from .phone_group import PhoneGroup
 from .shortcuts_group import ShortcutsGroup
 
@@ -88,6 +89,7 @@ class PrefsPage(Adw.PreferencesPage):
             self.remove(g)
         self.groups = []
         self.s = self.seeded(load_settings())
+        self.add_group(self.appearance_group())
         self.add_group(self.auto_group())
         self.add_group(self.orchestrator_group())
         self.add_group(self.alerts_group())
@@ -187,6 +189,66 @@ class PrefsPage(Adw.PreferencesPage):
             switch.bind_property("active", row, "sensitive", GObject.BindingFlags.SYNC_CREATE)
 
     # ---- groupes -----------------------------------------------------------------
+
+    SCHEMES = (("Automatique (suit le système)", "auto"), ("Clair", "clair"), ("Sombre", "sombre"))
+
+    def appearance_group(self):
+        """Thème (Auto / Clair / Sombre) et couleur de chaque compte (cartes, jauges, courbes)."""
+        ap = self.s.setdefault("appearance", {})
+        ap.setdefault("color_scheme", "auto")
+        colors = ap.setdefault("account_colors", {})
+        g = Adw.PreferencesGroup(
+            title="Apparence",
+            description="Thème de l'application et couleur de chaque compte, reprise sur les cartes, "
+                        "les jauges et les courbes.")
+
+        def choose_scheme(value, _row):
+            ap["color_scheme"] = value
+            style.apply_color_scheme(value)
+            self.save()
+        g.add(self.combo_row("Thème", "Auto suit le réglage du système", self.SCHEMES,
+                             ap["color_scheme"], choose_scheme))
+        profiles = [p.name for p in core.list_profiles()]
+        sync_accounts(profiles)
+        self.color_buttons = {}
+        for name in profiles:
+            g.add(self.color_row(name, colors))
+        return g
+
+    def color_row(self, name, colors):
+        row = Adw.ActionRow(title=name, subtitle="Couleur du compte", use_markup=False)
+        rgba = Gdk.RGBA()
+        rgba.parse(account_hex(name))
+        button = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog(with_alpha=False), rgba=rgba,
+                                       valign=Gtk.Align.CENTER, tooltip_text="Choisir la couleur")
+        reset = Gtk.Button(icon_name="edit-undo-symbolic", css_classes=["flat"], valign=Gtk.Align.CENTER,
+                           tooltip_text="Couleur automatique", sensitive=name in colors)
+        self.color_buttons[name] = button
+
+        def apply():
+            self.save()
+            sync_accounts([p.name for p in core.list_profiles()])
+
+        def picked(b, _p):
+            c = b.get_rgba()
+            colors[name] = "#{:02x}{:02x}{:02x}".format(*(round(v * 255) for v in (c.red, c.green, c.blue)))
+            reset.set_sensitive(True)
+            apply()
+        button.connect("notify::rgba", picked)
+
+        def clicked(*_):
+            colors.pop(name, None)
+            reset.set_sensitive(False)
+            apply()
+            auto = Gdk.RGBA()
+            auto.parse(account_hex(name))
+            button.handler_block_by_func(picked)
+            button.set_rgba(auto)
+            button.handler_unblock_by_func(picked)
+        reset.connect("clicked", clicked)
+        row.add_suffix(reset)
+        row.add_suffix(button)
+        return row
 
     def auto_group(self):
         g = Adw.PreferencesGroup(

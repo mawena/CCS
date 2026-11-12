@@ -106,6 +106,26 @@ class PrefsPageTest(HomeTestCase):
 
     # ---- groupes -----------------------------------------------------------------------
 
+    def test_prefs_color_scheme_saved(self):
+        page = self.page()
+        row = self.rows(page)["Thème"]
+        row.set_selected(2)                       # Sombre
+        self.assertEqual(self.saved()["appearance"]["color_scheme"], "sombre")
+        self.assertEqual(Adw.StyleManager.get_default().get_color_scheme(), Adw.ColorScheme.FORCE_DARK)
+        row.set_selected(0)
+        self.assertEqual(self.saved()["appearance"]["color_scheme"], "auto")
+        self.addCleanup(Adw.StyleManager.get_default().set_color_scheme, Adw.ColorScheme.DEFAULT)
+
+    def test_prefs_account_color_saved(self):
+        from gi.repository import Gdk
+        self.add_profile("perso", "pro")
+        page = self.page()
+        self.assertIn("perso", page.color_buttons)
+        rgba = Gdk.RGBA()
+        rgba.parse("#112233")
+        page.color_buttons["perso"].set_rgba(rgba)
+        self.assertEqual(self.saved()["appearance"]["account_colors"], {"perso": "#112233"})
+
     def test_groups_and_order(self):
         page = self.page()
         titles = [g.get_title() for g in page.groups]

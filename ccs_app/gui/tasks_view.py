@@ -17,7 +17,7 @@ import os
 from gi.repository import Adw, Gio, GLib, Gtk, Pango
 
 from .. import core, launch_options, task_runner, tasks
-from .common import caption, clear, short_path
+from .common import caption, clear, empty_state, short_path
 
 REFRESH_MS = 2000
 LOG_LINES = 400
@@ -178,7 +178,7 @@ class NewTaskDialog(Adw.Dialog):
 
 class TasksView(Gtk.Box):
     def __init__(self, on_resume=None, window=None):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["card", "profile-card"])
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["ccs-card"])
         self.on_resume = on_resume
         self.window = window
         self.selected = None
@@ -195,7 +195,9 @@ class TasksView(Gtk.Box):
         self.append(caption("Des messages que Claude traite sans fenêtre, quand il y a du quota ou de nuit, "
                             "avec le compte actif. Une seule tâche à la fois, jamais pendant une pause."))
         self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"])
-        self.empty = caption("Aucune tâche. Ajoute-en une avec « + » ou « ccs tache ajouter \"…\" ».")
+        self.empty = empty_state("alarm-symbolic", "Aucune tâche",
+                                 "Ajoute-en une avec « + » ou « ccs tache ajouter \"…\" ».",
+                                 "Nouvelle tâche…", lambda: self.on_new(), compact=True)
         self.append(self.empty)
         self.append(self.list)
 

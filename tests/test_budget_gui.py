@@ -80,7 +80,7 @@ class BudgetGroupTest(HomeTestCase):
         g = self.group()
         g.refresh()
         self.assertEqual(g.empty.get_title(), "Calcul impossible")
-        self.assertIn("illisibles", g.empty.get_subtitle())
+        self.assertIn("illisibles", g.empty.get_description())
 
     def test_set_amount_and_remove_write_the_store(self):
         self.result = self.status()

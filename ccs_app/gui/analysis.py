@@ -8,7 +8,8 @@ from .. import core, transcripts
 from .advisor_cards import AdvisorCard, MonthlyReportCard, WeeklyReportCard
 from .budget_view import BudgetGroup
 from .charts import HourBars
-from .common import caption, clear, in_thread
+from .common import (account_rgb, big_number, caption, card_box, clear, empty_state, in_thread,
+                     sync_accounts, tag_account)
 
 
 class AnalysisPage(Gtk.ScrolledWindow):
@@ -17,6 +18,7 @@ class AnalysisPage(Gtk.ScrolledWindow):
         self.window = window
         self.days = 7
         self.loaded = False
+        self.profiles = set()
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14,
                         margin_top=18, margin_bottom=18, margin_start=12, margin_end=12)
         # Conseils calculés sur leurs propres périodes (relevés et journaux), dans un fil.
@@ -31,8 +33,10 @@ class AnalysisPage(Gtk.ScrolledWindow):
         outer.append(self.budgets)
         toggles = Gtk.Box(css_classes=["linked"], halign=Gtk.Align.CENTER)
         first = None
+        self.days_buttons = {}
         for days in (7, 30):
             b = Gtk.ToggleButton(label=f"{days} jours", active=first is None)
+            self.days_buttons[days] = b
             if first:
                 b.set_group(first)
             first = first or b
@@ -62,6 +66,9 @@ class AnalysisPage(Gtk.ScrolledWindow):
                                      width_request=32, height_request=32))
         days = self.days
 
+        self.profiles = {p.name for p in core.list_profiles()}
+        sync_accounts(self.profiles)
+
         def work():
             from ..store import Store
             since = time.time() - days * 86400
@@ -70,9 +77,8 @@ class AnalysisPage(Gtk.ScrolledWindow):
             return transcripts.aggregate(rows, periods, days), len(rows)
         in_thread(work, self.show)
 
-    def section(self, title, data, total):
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
-                       css_classes=["card", "profile-card"])
+    def section(self, title, data, total, accounts=False):
+        card = card_box(8)
         card.append(Gtk.Label(label=title, xalign=0, css_classes=["heading"]))
         for name, v in sorted(data.items(), key=lambda kv: -kv[1])[:8]:
             pct = 100 * v / total
@@ -83,6 +89,8 @@ class AnalysisPage(Gtk.ScrolledWindow):
                                   css_classes=["pct", "dim-label"]))
             row.append(head)
             bar = Gtk.ProgressBar(fraction=pct / 100, css_classes=["ok"])
+            if accounts and name in self.profiles:
+                tag_account(row, name)      # la barre prend la couleur du compte
             row.append(bar)
             card.append(row)
         return card
@@ -91,30 +99,32 @@ class AnalysisPage(Gtk.ScrolledWindow):
         report, count = result
         clear(self.body)
         if not count:
-            self.body.append(Adw.StatusPage(icon_name="edit-find-symbolic",
-                                            title=f"Aucune activité sur {self.days} jours"))
+            longer = (lambda: self.days_buttons[30].set_active(True)) if self.days < 30 else None
+            self.body.append(empty_state("edit-find-symbolic", f"Aucune activité sur {self.days} jours",
+                                         "Les journaux de Claude Code de cette période sont vides.",
+                                         "Voir 30 jours", longer))
             return
-        self.body.append(Gtk.Label(
-            label=f"{transcripts.fmt_tokens(report.total)} tokens pondérés · {count} réponses",
-            css_classes=["title-4"]))
+        head = Gtk.Box(spacing=10, halign=Gtk.Align.CENTER)
+        head.append(big_number(transcripts.fmt_tokens(report.total)))
+        head.append(Gtk.Label(label=f"tokens pondérés · {count} réponses", valign=Gtk.Align.END,
+                              css_classes=["title-4"], margin_bottom=6))
+        self.body.append(head)
         tips = transcripts.advice(report)
         if tips:
-            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
-                           css_classes=["card", "profile-card"])
+            card = card_box(8)
             card.append(Gtk.Label(label="Conseils", xalign=0, css_classes=["heading"]))
             for t in tips:
                 card.append(Gtk.Label(label=f"• {t}", xalign=0, wrap=True))
             self.body.append(card)
         self.body.append(self.section("Par projet", report.by_project, report.total))
         self.body.append(self.section("Par modèle", report.by_model, report.total))
-        hours = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
-                        css_classes=["card", "profile-card"])
+        hours = card_box(8)
         hours.append(Gtk.Label(label="Par heure", xalign=0, css_classes=["heading"]))
         bars = HourBars()
         bars.set_data(report.by_hour)
         hours.append(bars)
         self.body.append(hours)
-        self.body.append(self.section("Par compte", report.by_account, report.total))
+        self.body.append(self.section("Par compte", report.by_account, report.total, accounts=True))
         self.body.append(caption("Tokens pondérés : entrée + écriture cache + sortie × 5 + "
                                  "lecture cache × 0,1. L'attribution aux comptes commence avec "
                                  "le service de collecte (« inconnu » avant)."))
