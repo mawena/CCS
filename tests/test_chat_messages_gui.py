@@ -10,7 +10,7 @@ if GTK:
     from gi.repository import GLib, Gtk
     from ccs_app import chat_protocol as proto
     from ccs_app import preview
-    from ccs_app.gui.chat_messages import MessageList, PermissionCard, TodosCard, edit_info
+    from ccs_app.gui.chat_messages import MessageList, PermissionCard, TodosCard, ToolCard, ToolGroup, edit_info
 
 
 def pump(ms=50):
@@ -250,6 +250,134 @@ def widget_visible_in_view(ml, widget):
     if rect.get_height() > ml.get_height():
         return 0 < bottom <= ml.get_height() + 1
     return top >= -1 and bottom <= ml.get_height() + 1
+
+
+def head_text(group):
+    """Texte de l'en-tête d'un groupe d'actions (replié ou non)."""
+    return " | ".join(labels(group.header))
+
+
+def groups_of(ml):
+    return [w for w in descendants(ml.box) if isinstance(w, ToolGroup)]
+
+
+@unittest.skipUnless(GTK, "tests graphiques : CCS_GUI_TESTS=1 avec xvfb-run")
+class ToolGroupTest(unittest.TestCase):
+    def three_reads(self, ml, finish=True):
+        cards = [ml.add_tool(proto.ToolUse(f"t{i}", "Read", {"file_path": f"/p/f{i}.py"})) for i in range(3)]
+        if finish:
+            for i in range(3):
+                ml.set_tool_result(proto.ToolResult(f"t{i}", "ok", False))
+        return cards
+
+    def test_three_actions_make_one_group(self):
+        ml = MessageList()
+        self.three_reads(ml)
+        groups = groups_of(ml)
+        self.assertEqual(len(groups), 1)
+        self.assertIn("3 actions", head_text(groups[0]))
+        self.assertIn("3 lectures", head_text(groups[0]))
+        self.assertEqual(ml.row_count(), 1)
+
+    def test_running_header_shows_current_action_and_count(self):
+        ml = MessageList()
+        self.three_reads(ml, finish=False)
+        group = groups_of(ml)[0]
+        self.assertTrue(group.running)
+        self.assertIn("Lecture de /p/f2.py", head_text(group))
+        self.assertIn("3 actions", head_text(group))
+
+    def test_text_between_actions_splits_groups(self):
+        ml = MessageList()
+        for i in range(2):
+            ml.add_tool(proto.ToolUse(f"a{i}", "Bash", {"command": "ls"}))
+        ml.finish_assistant("m1", "Je continue")
+        for i in range(2):
+            ml.add_tool(proto.ToolUse(f"b{i}", "Bash", {"command": "ls"}))
+        self.assertEqual(len(groups_of(ml)), 2)
+        self.assertEqual(ml.row_count(), 3)
+
+    def test_error_is_visible_in_collapsed_header(self):
+        ml = MessageList()
+        self.three_reads(ml, finish=False)
+        ml.set_tool_result(proto.ToolResult("t0", "ok", False))
+        ml.set_tool_result(proto.ToolResult("t1", "boom", True))
+        ml.set_tool_result(proto.ToolResult("t2", "ok", False))
+        group = groups_of(ml)[0]
+        self.assertFalse(group.revealer.get_reveal_child())
+        self.assertIn("1 erreur", head_text(group))
+        self.assertTrue(group.has_css_class("error"))
+
+    def test_edit_counts_are_added(self):
+        ml = MessageList()
+        ml.add_tool(proto.ToolUse("e1", "Edit", {"file_path": "/p/a", "old_string": "a\n", "new_string": "a\nb\nc\n"}))
+        ml.add_tool(proto.ToolUse("e2", "Write", {"file_path": "/p/b", "content": "1\n2\n3"}))
+        ml.add_tool(proto.ToolUse("r", "Read", {"file_path": "/p/c"}))
+        for t in ("e1", "e2", "r"):
+            ml.set_tool_result(proto.ToolResult(t, "ok", False))
+        group = groups_of(ml)[0]
+        self.assertIn("2 modifications (+5 −0)", head_text(group))
+
+    def test_permission_never_enters_a_group(self):
+        ml = MessageList()
+        ml.add_tool(proto.ToolUse("t1", "Bash", {"command": "ls"}))
+        ml.add_permission(proto.PermissionRequest("r1", "Bash", "Bash", {"command": "rm x"}), lambda *a: None)
+        ml.add_tool(proto.ToolUse("t2", "Bash", {"command": "ls"}))
+        self.assertEqual(groups_of(ml), [])
+        self.assertEqual(ml.row_count(), 3)
+
+    def test_single_action_stays_a_plain_card(self):
+        ml = MessageList()
+        card = ml.add_tool(proto.ToolUse("t1", "Bash", {"command": "ls"}))
+        self.assertEqual(groups_of(ml), [])
+        self.assertIs(card.get_parent(), ml.box)
+
+    def test_subagent_card_stays_alone(self):
+        ml = MessageList()
+        ml.add_tool(proto.ToolUse("t1", "Read", {"file_path": "/p/a"}))
+        task = ml.add_tool(proto.ToolUse("k", "Task", {"description": "Explorer"}))
+        ml.add_tool(proto.ToolUse("t2", "Read", {"file_path": "/p/b"}))
+        self.assertEqual(groups_of(ml), [])
+        self.assertIs(task.get_parent(), ml.box)
+        task.append(Gtk.Button(label="Voir le sous-agent"))       # comme chat_tab
+
+    def test_set_tool_result_reaches_a_card_in_a_group(self):
+        ml = MessageList()
+        cards = self.three_reads(ml, finish=False)
+        ml.set_tool_result(proto.ToolResult("t1", "contenu", False))
+        self.assertFalse(cards[1].running)
+        self.assertTrue(cards[0].running)
+        self.assertIs(ml._tools["t1"], cards[1])
+        self.assertIn("contenu", labels(cards[1]))
+
+    def test_group_folds_itself_at_the_end(self):
+        ml = MessageList()
+        self.three_reads(ml, finish=False)
+        group = groups_of(ml)[0]
+        group.toggle(True)
+        self.assertTrue(group.revealer.get_reveal_child())
+        for i in range(3):
+            ml.set_tool_result(proto.ToolResult(f"t{i}", "ok", False))
+        self.assertFalse(group.running)
+        self.assertFalse(group.revealer.get_reveal_child())
+
+    def test_click_unfolds_and_shows_the_cards(self):
+        ml = MessageList()
+        cards = self.three_reads(ml)
+        group = groups_of(ml)[0]
+        group.main.emit("clicked")
+        self.assertTrue(group.revealer.get_reveal_child())
+        self.assertTrue(all(isinstance(c, ToolCard) for c in cards))
+
+    def test_history_actions_are_grouped(self):
+        ml = MessageList()
+        tool = lambda i: preview.Message(preview.TOOL, "", tool=preview.ToolCall("Read", f"a{i}.py", f"h{i}", "x", False))
+        ml.load_history([preview.Message(preview.USER, "go"), tool(1), tool(2), tool(3),
+                         preview.Message(preview.ASSISTANT, "fini")])
+        groups = groups_of(ml)
+        self.assertEqual(len(groups), 1)
+        self.assertIn("3 actions", head_text(groups[0]))
+        self.assertEqual(ml.built_count, 3)
 
 
 @unittest.skipUnless(GTK, "tests graphiques : CCS_GUI_TESTS=1 avec xvfb-run")
