@@ -1396,8 +1396,11 @@ class TerminalsPage(Gtk.Box):
             return
         tab.alerted = key
         project = sessions.project_name(tab.state.cwd)
-        alert = alerts.Alert(key=key, title=f"{project} attend ta réponse",
-                             body=tab.state.title or project, urgency=1)
+        if (tab.state.waiting_for or "").lower().startswith("permission"):
+            title, urgency = f"{project} : Claude attend ton autorisation", 1
+        else:   # simple fin de réponse : rien à valider, pas de « question en attente »
+            title, urgency = f"{project} : Claude a fini de répondre", 0
+        alert = alerts.Alert(key=key, title=title, body=tab.state.title or project, urgency=urgency)
         try:
             cfg = settings.load_settings()
         except Exception:  # noqa: BLE001

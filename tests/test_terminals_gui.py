@@ -387,6 +387,17 @@ class SessionsPageTest(HomeTestCase):
         self.assertIs(one.panel.get_parent(), one)
         self.assertIs(two.panel.get_parent(), two)
 
+    def test_waiting_alert_for_a_permission_says_so(self):
+        tab = self.chat("s-3", running=True, pid=78)
+        other = self.chat("s-4")
+        self.page.view.set_selected_page(other.page)
+        tab.state.state, tab.state.waiting_for, tab.state.state_since = "waiting", "permission", time.time()
+        with mock.patch.object(self.page, "on_screen", return_value=True):
+            self.page.changed(tab)
+        self.assertTrue(spin(lambda: self.notified))
+        self.assertTrue(self.notified[0].title.endswith("Claude attend ton autorisation"))
+        self.assertEqual(self.notified[0].urgency, 1)
+
     def test_waiting_alert_when_hidden(self):
         tab = self.chat("s-1", running=True, pid=77)
         other = self.chat("s-2")                         # l'onglet affiché est un autre
@@ -397,7 +408,8 @@ class SessionsPageTest(HomeTestCase):
             self.page.changed(tab)
         self.assertTrue(spin(lambda: self.notified))
         self.assertEqual(len(self.notified), 1)
-        self.assertTrue(self.notified[0].title.endswith("attend ta réponse"))
+        self.assertTrue(self.notified[0].title.endswith("Claude a fini de répondre"))   # pas « attend ta réponse »
+        self.assertEqual(self.notified[0].urgency, 0)
         self.assertTrue(self.notified[0].key.startswith("attente:"))
         self.assertEqual(self.phoned[0][1], "projet")    # le téléphone aussi, par le même chemin
         with mock.patch.object(self.page, "on_screen", return_value=True):
