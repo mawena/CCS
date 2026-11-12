@@ -63,6 +63,7 @@ class Composer(Gtk.Box):
         self.base_dir = base_dir
         self.busy = False
         self.images = []                 # [(type MIME, octets)]
+        self.files = []                  # fichiers joints (chemins absolus) : `@chemin` à l'envoi
         self._commands = []              # [(nom, description)]
         self._files = lambda: []
         self._token = None               # (type, début, fin) de la complétion en cours
@@ -98,8 +99,12 @@ class Composer(Gtk.Box):
         self.send_button = Gtk.Button(icon_name="go-up-symbolic", css_classes=["circular", "suggested-action"],
                                       tooltip_text=SEND_TIP)
         self.send_button.connect("clicked", lambda *_: self.submit())
+        self.attach_button = Gtk.Button(icon_name="mail-attachment-symbolic", css_classes=["circular", "flat"],
+                                        tooltip_text="Joindre des fichiers (ou glisse-les ici)")
+        self.attach_button.connect("clicked", self.choose_files)
         # Boutons à droite du texte, comme dans VS Code : pas de ligne à part sous la saisie.
         buttons = Gtk.Box(spacing=6, valign=Gtk.Align.END, margin_bottom=4, margin_end=2)
+        buttons.append(self.attach_button)
         buttons.append(self.stop_button)
         buttons.append(self.send_button)
         self.input_row = Gtk.Box(spacing=6)
@@ -236,6 +241,7 @@ class Composer(Gtk.Box):
     def clear(self):
         self.buffer.set_text("")
         self.images.clear()
+        self.files.clear()
         self._refresh_thumbs()
         self._close_popover()
 
@@ -246,8 +252,12 @@ class Composer(Gtk.Box):
         self._refresh_thumbs()
 
     def submit(self):
-        """Envoie le texte (et les images) : ne fait rien si tout est vide."""
+        """Envoie le texte, les images et les fichiers joints (en références `@chemin`, que
+        Claude lit) : ne fait rien si tout est vide."""
         text, images = self.text.strip(), list(self.images)
+        if self.files:
+            refs = " ".join(f"@{self._shown_path(f)}" for f in self.files)
+            text = f"{text}\n\n{refs}" if text else refs
         if not text and not images:
             return False
         self.clear()
@@ -280,7 +290,55 @@ class Composer(Gtk.Box):
             close.connect("clicked", lambda _b, i=i: self._remove_image(i))
             overlay.add_overlay(close)
             self.thumbs.append(overlay)
-        self.thumbs.set_visible(bool(self.images))
+        for i, path in enumerate(self.files):
+            chip = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER, css_classes=["ccs-chip"],
+                           tooltip_text=path)
+            chip.append(Gtk.Image(icon_name="text-x-generic-symbolic"))
+            chip.append(Gtk.Label(label=os.path.basename(path), ellipsize=Pango.EllipsizeMode.MIDDLE,
+                                  max_width_chars=24))
+            close = Gtk.Button(icon_name="window-close-symbolic", css_classes=["circular", "flat"],
+                               tooltip_text="Retirer le fichier")
+            close.connect("clicked", lambda _b, i=i: self._remove_file(i))
+            chip.append(close)
+            self.thumbs.append(chip)
+        self.thumbs.set_visible(bool(self.images or self.files))
+
+    def _remove_file(self, index):
+        if 0 <= index < len(self.files):
+            del self.files[index]
+            self._refresh_thumbs()
+
+    def add_file(self, path):
+        """Joint un fichier (étiquette avec ✕) ; il part en référence `@chemin` avec le message."""
+        path = os.path.abspath(path)
+        if path not in self.files:
+            self.files.append(path)
+            self._refresh_thumbs()
+
+    def _shown_path(self, path):
+        """Chemin relatif au projet s'il y est, sinon absolu."""
+        if self.base_dir and path.startswith(str(self.base_dir).rstrip("/") + "/"):
+            return os.path.relpath(path, self.base_dir)
+        return path
+
+    def choose_files(self, *_):
+        """Bouton trombone : choisir un ou plusieurs fichiers à joindre."""
+        dialog = Gtk.FileDialog(title="Joindre des fichiers")
+        if self.base_dir:
+            dialog.set_initial_folder(Gio.File.new_for_path(str(self.base_dir)))
+        root = self.get_root()
+
+        def done(d, res):
+            try:
+                files = d.open_multiple_finish(res)
+            except GLib.Error:
+                return   # annulé
+            for i in range(files.get_n_items() if files is not None else 0):
+                path = files.get_item(i).get_path()
+                if path:
+                    self.add_path(path)
+            self.focus()
+        dialog.open_multiple(root if isinstance(root, Gtk.Window) else None, None, done)
 
     def _remove_image(self, index):
         if 0 <= index < len(self.images):
@@ -322,7 +380,8 @@ class Composer(Gtk.Box):
         return bool(paths)
 
     def add_path(self, path):
-        """Un fichier glissé : une image devient une vignette, le reste une référence `@chemin`."""
+        """Un fichier glissé ou choisi : une image devient une vignette, le reste un fichier
+        joint (étiquette, envoyé en référence `@chemin`)."""
         media = IMAGE_EXT.get(os.path.splitext(path)[1].lower())
         if media:
             try:
@@ -332,7 +391,7 @@ class Composer(Gtk.Box):
                     return
             except OSError:
                 pass
-        self.insert_reference(path)
+        self.add_file(path)
 
     def insert_reference(self, path):
         """Insère `@chemin` (relatif au projet s'il y est) à la position du curseur."""

@@ -36,6 +36,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   connaît pas reçoit « non pris en charge » (avec un message dans le fil) au lieu de
   laisser Claude bloqué ; un chat qui a lancé des sous-agents en arrière-plan ne se
   met jamais en veille (la veille les couperait).
+- **Fichiers joints** : bouton trombone à côté d'Envoyer (ou glisser-déposer depuis le
+  gestionnaire de fichiers) ; une image devient une vignette, tout autre fichier une
+  étiquette avec ✕, envoyée en référence `@chemin` que Claude lit.
 - **Saisie du chat** : `@` propose les fichiers du projet, `/` les commandes de
   Claude Code, une image collée ou glissée s'ajoute au message, un fichier glissé
   depuis l'arbre insère `@chemin`. Le bouton Arrêter (ou Échap) interrompt Claude.

@@ -272,6 +272,30 @@ class ChatTabTest(HomeTestCase):
         self.assertIn("Échap", c.placeholder.get_label())
         self.assertIn("Maj+Entrée", c.send_button.get_tooltip_text())
 
+    def test_attach_files_button_and_chips(self):
+        from ccs_app.gui.chat_composer import Composer
+        doc = Path(self.tmp) / "rapport.pdf"
+        doc.write_bytes(b"%PDF-1.4 faux")
+        note = self.cwd / "notes.txt"
+        note.write_text("x")
+        c = Composer(base_dir=str(self.cwd))
+        sent = []
+        c.connect("send", lambda _c, text, images: sent.append((text, images)))
+        self.assertIn("Joindre", c.attach_button.get_tooltip_text())
+        c.add_path(str(doc))
+        c.add_path(str(note))
+        self.assertEqual(c.files, [str(doc), str(note)])
+        self.assertTrue(c.thumbs.get_visible())
+        self.assertEqual(c.text, "")                       # pas de texte inséré : une étiquette
+        c._remove_file(0)
+        self.assertEqual(c.files, [str(note)])
+        c.add_path(str(doc))
+        self.assertTrue(c.submit())                        # sans texte, les fichiers suffisent
+        text = sent[0][0]
+        self.assertIn(f"@{doc}", text)
+        self.assertIn("@notes.txt", text)                  # relatif au projet
+        self.assertEqual(c.files, [])
+
     def test_start_failure_shows_notice(self):
         tab, owner = self.make(env={"FAKE_CLAUDE_EXIT": "1"})
         self.say(tab, "Bonjour")

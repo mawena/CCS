@@ -926,6 +926,10 @@ téléphone).
   coche quand il a fini. Un clic montre sa conversation, en lecture seule ; « Conversation
   principale » ramène au fil, où ta saisie part toujours. Une demande d'autorisation
   venue d'un sous-agent le dit dans sa carte.
+- **Joindre des fichiers** : le bouton trombone (à gauche d'Envoyer) ouvre un sélecteur ;
+  tu peux aussi glisser des fichiers sur la zone de saisie. Une image devient une
+  vignette envoyée avec le message ; un autre fichier (PDF, texte, code…) devient une
+  étiquette avec ✕, et part en référence `@chemin` que Claude lit avec ses outils.
 - **Écrire pendant que Claude travaille** : Entrée envoie tout de suite, images
   comprises, comme dans le terminal de Claude Code. La bulle porte la mention
   « envoyé pendant que Claude travaille » ; Claude le lit en cours de route ou juste
