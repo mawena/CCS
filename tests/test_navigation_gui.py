@@ -55,6 +55,10 @@ class NavigationTest(HomeTestCase):
         self.assertIn("gui", cmd)
         close.assert_called_once()
 
+    def test_home_sections_in_order(self):
+        titles = [label.get_label() for label in self.win.home.section_titles]
+        self.assertEqual(titles, ["Comptes", "Derniers événements", "Planning"])
+
     def test_color_scheme_applied_at_startup(self):
         from ccs_app.gui import app
         with mock.patch.object(app.style, "apply_color_scheme") as applied, \

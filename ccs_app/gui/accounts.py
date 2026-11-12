@@ -1,5 +1,7 @@
 """Onglet Comptes : meilleur compte, capacité, cartes avec prévisions."""
 
+import json
+import re
 import shutil
 import time
 
@@ -81,6 +83,36 @@ def pause_box(window, now, offer=True):
     return row
 
 
+ERROR_MAX = 160
+_HTTP_RE = re.compile(r"^HTTP (\d{3})\s*:?\s*(.*)$", re.S)
+
+
+def friendly_error(raw):
+    """Erreur d'usage d'un compte dite en clair (jamais le JSON brut de l'API) ; le texte
+    d'origine reste en info-bulle."""
+    text = " ".join(str(raw or "").split())
+    m = _HTTP_RE.match(text)
+    if m:
+        code, rest = int(m.group(1)), m.group(2)
+        if code == 401 or "authentication_error" in rest:
+            return "Connexion refusée par Anthropic : reconnecte ce compte (menu ⋮ du compte)."
+        if code == 403:
+            return "Accès refusé par Anthropic pour ce compte."
+        if code == 429:
+            return "Trop de demandes à Anthropic pour l'instant : nouvel essai automatique plus tard."
+        if code >= 500:
+            return f"Anthropic ne répond pas (erreur {code}) : nouvel essai automatique plus tard."
+        message = None
+        try:
+            data = json.loads(rest)
+            err = data.get("error") if isinstance(data, dict) else None
+            message = (err or {}).get("message") if isinstance(err, dict) else None
+        except ValueError:
+            pass
+        text = f"Erreur {code} : {message}" if message else f"Erreur {code} de l'API d'Anthropic."
+    return text if len(text) <= ERROR_MAX else text[:ERROR_MAX - 1].rstrip() + "…"
+
+
 class AccountsPage(Gtk.ScrolledWindow):
     def __init__(self, window):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
@@ -93,7 +125,7 @@ class AccountsPage(Gtk.ScrolledWindow):
                             margin_top=18, margin_bottom=18, margin_start=12, margin_end=12)
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         body.append(self.banner)
-        body.append(Adw.Clamp(maximum_size=680, child=self.list))
+        body.append(Adw.Clamp(maximum_size=900, child=self.list))   # même largeur que le reste de l'Accueil
         self.set_child(body)
 
     # ---- rendu ---------------------------------------------------------------
@@ -221,7 +253,9 @@ class AccountsPage(Gtk.ScrolledWindow):
 
         if a.get("error"):
             stale = f" — données de {core.fmt_time(a['fetched_at'])}" if a.get("limits") else ""
-            card.append(caption(f"⚠ {a['error']}{stale}", error=True))
+            err = caption(f"⚠ {friendly_error(a['error'])}{stale}", error=True)
+            err.set_tooltip_text(str(a["error"]))
+            card.append(err)
         elif a.get("fetched_at"):
             card.append(caption(f"Mis à jour à {core.fmt_time(a['fetched_at'])}"))
         return card

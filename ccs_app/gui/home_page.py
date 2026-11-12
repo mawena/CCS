@@ -13,6 +13,7 @@ from .planning import PlanningPage
 EVENTS_SHOWN = 8
 EVENTS_DAYS = 7
 SUBPARTS = ("accounts", "planning", "events")
+WIDTH = 900   # largeur commune de toutes les parties de l'Accueil
 
 
 def recent_events(store, now=None, limit=EVENTS_SHOWN):
@@ -57,11 +58,18 @@ class HomePage(Gtk.ScrolledWindow):
             _flatten(page)
         self.events_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"])
         self.events_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_start=12,
-                                   margin_end=12, margin_bottom=18)
-        self.events_card.append(Gtk.Label(label="Derniers événements", xalign=0, css_classes=["title-4"]))
+                                   margin_end=12, margin_top=6, margin_bottom=6)
         self.events_card.append(self.events_list)
-        self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        for part in (self.accounts, self.planning, Adw.Clamp(maximum_size=900, child=self.events_card)):
+        # Une seule colonne, une seule largeur (WIDTH), et des titres de section : les comptes,
+        # puis ce qui vient de se passer, puis le planning (réglages et frise, moins souvent lus).
+        self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_bottom=18)
+        self.section_titles = []
+        for title, part in (("Comptes", self.accounts),
+                            ("Derniers événements", Adw.Clamp(maximum_size=WIDTH, child=self.events_card)),
+                            ("Planning", self.planning)):
+            label = Gtk.Label(label=title, xalign=0, css_classes=["title-3"], margin_start=12, margin_top=18)
+            self.section_titles.append(label)
+            self.body.append(Adw.Clamp(maximum_size=WIDTH, child=label))
             self.body.append(part)
         self.set_child(self.body)
         self.events_card_widget = self.events_card.get_parent()

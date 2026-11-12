@@ -70,3 +70,29 @@ class AccountsPageTest(HomeTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
+class FriendlyErrorTest(unittest.TestCase):
+    """Les erreurs d'usage d'un compte sont dites en clair, jamais en JSON brut."""
+
+    def test_rejected_token(self):
+        from ccs_app.gui.accounts import friendly_error
+        raw = ('HTTP 401 : {"type":"error","error":{"type":"authentication_error",'
+               '"message":"Invalid bearer token"},"request_id":"req_011Cgy"}')
+        text = friendly_error(raw)
+        self.assertNotIn("{", text)
+        self.assertIn("reconnecte", text)
+
+    def test_other_http_errors(self):
+        from ccs_app.gui.accounts import friendly_error
+        self.assertIn("Trop de demandes", friendly_error("HTTP 429 : {}"))
+        self.assertIn("ne répond pas", friendly_error("HTTP 503 : Service Unavailable"))
+        msg = friendly_error('HTTP 400 : {"type":"error","error":{"message":"Bad thing"}}')
+        self.assertIn("Bad thing", msg)
+        self.assertNotIn("{", msg)
+
+    def test_plain_text_kept_and_long_text_cut(self):
+        from ccs_app.gui.accounts import friendly_error
+        self.assertEqual(friendly_error("connexion expirée ou révoquée"), "connexion expirée ou révoquée")
+        self.assertLessEqual(len(friendly_error("x" * 1000)), 161)
