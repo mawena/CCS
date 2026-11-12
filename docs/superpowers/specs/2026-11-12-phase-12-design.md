@@ -147,9 +147,12 @@ sous les yeux, sans jamais avoir besoin d'ouvrir VS Code pour ça.
   grosses tâches) : `/effort ultracode` l'active, `/effort ultracode off` le coupe,
   `--effort ultracode` le met au lancement (en `xhigh`). Grisé si le modèle n'accepte
   pas `xhigh` ou si les workflows sont désactivés. Pas de mot-clé ajouté aux messages.
-- **Droits** : lecture seule / modifications acceptées / tout autoriser (avec le même
-  avertissement que l'option avancée d'aujourd'hui) / mode plan, en reprenant
-  `launch_options`.
+- **Droits** : « Demander » (par défaut : une carte d'autorisation à chaque action
+  qui le demande ; remplace « lecture seule », qui n'a plus lieu d'être avec les
+  cartes) / modifications acceptées / plan / tout autoriser (avec le même
+  avertissement que l'option avancée d'aujourd'hui), en reprenant `launch_options`
+  **[choix de Claude]**. Si les cartes s'avèrent impossibles (repli de l'annexe),
+  « Demander » redevient « Lecture seule ».
 - À droite, non cliquables : **contexte utilisé** (pourcentage, couleur au-delà du
   seuil de l'alerte de contexte lourd) et **compte** (nom, couleur du compte, jauge
   courte).
@@ -326,10 +329,11 @@ du SDK.
   Même logique pour `/effort` : s'il ne passe pas en message, relance avec `--resume
   --effort`.
 - **Pas de casse en cours de route** **[choix de Claude]** : le code du terminal Claude
-  actuel reste (il sert à « Ouvrir dans un terminal »). Pendant les travaux, le chat
-  est derrière un réglage caché (`CCS_CHAT=1` ou équivalent) ; il devient le mode par
-  défaut à la fin de la phase, quand toutes les fonctions listées dans « Comportements
-  conservés » passent leurs tests. Pas de release intermédiaire : tout part en 0.10.0.
+  actuel reste (il sert à « Ouvrir dans un terminal »). Les briques du chat arrivent
+  d'abord sans être branchées ; une seule tâche, à la fin, fait ouvrir un chat au lieu
+  d'un terminal, quand toutes les fonctions listées dans « Comportements conservés »
+  ont leurs tests (pas besoin de réglage caché). Pas de release intermédiaire : tout
+  part en 0.10.0.
 - **Mémoire** **[choix de Claude]** : le processus `claude` d'un chat reste vivant
   entre les messages (file, texte au fil de l'eau, autorisations). Après **30 min**
   sans activité (réglable, 0 = jamais), CCS l'arrête proprement et le relance avec
