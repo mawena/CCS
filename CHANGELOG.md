@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [0.10.0] — 2026-11-12
+
 ### Ajouté
 
 - **Chat graphique.** Une session Claude de CCS est maintenant un chat, plus un
@@ -65,9 +67,12 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   se rouvrent en chat, avec leur historique ; un onglet shell reste un shell.
 - Le fichier `terminals.json` passe en version 2 (options du chat de chaque
   onglet, largeurs des volets) ; un fichier de la version 1 se lit sans perte.
-- Nouveaux réglages : `chat` (`idle_suspend_min`, `rights`), `files` (`layout`,
-  `show_ignored`), `projects` (`hidden`), `appearance` (`color_scheme`,
-  `account_colors`).
+- Nouveaux réglages, dans la fenêtre des Réglages : groupe « Chat et fichiers »
+  (mise en veille d'un chat inactif, droits par défaut des nouveaux chats,
+  fichiers ignorés par git, disposition A ou B), projets masqués (« Masquer ce
+  projet » sur une carte de la page Projets, « Réafficher » dans les Réglages),
+  apparence (thème, couleur par compte). Clés de `settings.json` : `chat`,
+  `files`, `projects`, `appearance`.
 - Dépendances : le paquet requiert maintenant `gir1.2-gtksource-5` (éditeur et
   coloration) et `python3-markdown-it` (rendu du Markdown).
 - Documentation : README, guide d'utilisation, architecture (avec le protocole
