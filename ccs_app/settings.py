@@ -6,7 +6,7 @@ import logging
 import math
 import re
 
-from . import core, phone
+from . import core, launch_options, phone
 
 log = logging.getLogger("ccs.settings")
 
@@ -89,6 +89,12 @@ DEFAULTS = {
     "sessions": {"idle_hours": 2},
     "context_alert": {"enabled": True, "threshold_tokens": 150000},
     "budget": {"enabled": True, "alert_pcts": [80, 100]},
+    # Phase 12 : chat graphique, panneau Fichiers, page Projets, apparence.
+    # idle_suspend_min : minutes d'inactivité avant de suspendre le processus claude d'un
+    # chat (0 = jamais) ; rights : mode de permission des nouveaux chats.
+    "chat": {"idle_suspend_min": 30, "rights": "manual"},
+    "files": {"layout": "B", "show_ignored": False},
+    "appearance": {"color_scheme": "auto", "account_colors": {}},
 }
 
 
@@ -138,10 +144,18 @@ BOUNDS = {
     "archive.max_age_days": (0, 36500),
     "sessions.idle_hours": (0.01, 720),
     "context_alert.threshold_tokens": (1000, 10_000_000),
+    "chat.idle_suspend_min": (0, 1440),
 }
 INTEGERS = {"alerts.weekly_report_hour", "alerts.monthly_report_hour", "advisor.weeks",
             "advisor.max_accounts", "tasks.max_attempts", "archive.idle_days",
-            "archive.max_age_days", "context_alert.threshold_tokens"}
+            "archive.max_age_days", "context_alert.threshold_tokens",
+            "chat.idle_suspend_min"}
+CHOICES = {
+    "chat.rights": launch_options.PERMISSION_MODE_VALUES,
+    "files.layout": ("A", "B"),
+    "appearance.color_scheme": ("auto", "clair", "sombre"),
+}
+_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 _HHMM = re.compile(r"^(\d{1,2}):(\d{2})$")
 
 
@@ -174,6 +188,8 @@ def _valid(path, v, default):
         return isinstance(v, str) and phone.valid_server(v)
     if path == "phone.topic":
         return isinstance(v, str) and (v == "" or phone.valid_topic(v))
+    if path in CHOICES:
+        return isinstance(v, str) and v in CHOICES[path]
     if path == "budget.alert_pcts":
         return (isinstance(v, list) and all(_is_number(x) and 0 < x <= 1000 for x in v))
     if path in ("tasks.night.start", "tasks.night.end"):
@@ -260,6 +276,8 @@ def _clean(value, default, path, bad):
         return _clean_dict_of(value, lambda v: _is_number(v) and v > 0, path, bad)
     if path == "advisor.profile_plans":
         return _clean_dict_of(value, lambda v: isinstance(v, str), path, bad)
+    if path == "appearance.account_colors":
+        return _clean_dict_of(value, lambda v: isinstance(v, str) and bool(_COLOR.match(v)), path, bad)
     if path == "warmup":
         return _clean_warmup(value, path, bad)
     if isinstance(default, dict):

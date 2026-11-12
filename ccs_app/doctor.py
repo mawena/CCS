@@ -219,6 +219,23 @@ def vte_available():
         return False
 
 
+def gtksource_available():
+    try:
+        import gi
+        gi.require_version("GtkSource", "5")
+        return True
+    except (ImportError, ValueError):
+        return False
+
+
+def markdown_it_available():
+    try:
+        import markdown_it  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def local_deb(version):
     """Paquet déjà construit dans le dépôt (dist/ccs_<version>_all.deb), s'il existe."""
     deb = Path(__file__).resolve().parent.parent / "dist" / f"ccs_{version}_all.deb"
@@ -289,6 +306,8 @@ class Probes:
     claude_bin: Callable = find_claude
     claude_version: Callable = claude_version
     vte: Callable = vte_available
+    gtksource: Callable = gtksource_available
+    markdown_it: Callable = markdown_it_available
     which: Callable = shutil.which
     local_deb: Callable = local_deb
     settings_problems: Callable = settings.problems
@@ -521,6 +540,19 @@ def check_vte(p):
                                      "séparé", "sudo apt install gir1.2-vte-3.91")
 
 
+def check_chat_deps(p):
+    """Bibliothèques du chat (coloration du code, rendu Markdown)."""
+    nom = "Chat graphique"
+    missing = [(name, pkg) for name, pkg, ok in (
+        ("GtkSource 5", "gir1.2-gtksource-5", p.once("gtksource")),
+        ("markdown_it", "python3-markdown-it", p.once("markdown_it"))) if not ok]
+    if not missing:
+        return Check(nom, OK, "GtkSource 5 et markdown_it présents")
+    return Check(nom, AVERTISSEMENT,
+                 "manquant : " + ", ".join(f"{n} (paquet {pkg})" for n, pkg in missing),
+                 "sudo apt install " + " ".join(pkg for _n, pkg in missing))
+
+
 def _mo(n):
     return f"{n / 1024 ** 2:.1f}".replace(".", ",") + " Mo"
 
@@ -578,14 +610,15 @@ def check_tasks(p):
 
 CHECKS = (check_service, check_state, check_package, check_daemon_code, check_extension, check_tray,
           check_integration, check_profiles, check_settings, check_claude, check_tools, check_gpg,
-          check_archive, check_phone, check_tasks, check_vte)
+          check_archive, check_phone, check_tasks, check_vte, check_chat_deps)
 CHECK_NAMES = {check_service: f"Service {SERVICE}", check_state: "Relevés", check_package: "Version installée",
                check_daemon_code: "Code du service", check_extension: "Extension AppIndicator",
                check_tray: "Indicateur", check_integration: "Intégration Claude Code", check_profiles: "Comptes",
                check_settings: "Réglages",
                check_claude: "Commande claude", check_tools: "Outils de ccs", check_vte: "Terminal intégré",
                check_gpg: "Chiffrement (gpg)", check_archive: "Archive des conversations",
-               check_phone: "Téléphone (ntfy)", check_tasks: "File de tâches"}
+               check_phone: "Téléphone (ntfy)", check_tasks: "File de tâches",
+               check_chat_deps: "Chat graphique"}
 
 
 def run_checks(probes=None):

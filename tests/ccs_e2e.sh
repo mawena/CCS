@@ -298,4 +298,15 @@ expect "$(cat "$T/err")" "crée un canal"
 [[ "$(status_of "$CCS" telephone zzz)" == 2 ]] || fail "téléphone : argument inconnu"
 out="$("$CCS" sessions)"; expect "$out" "Aucune session"
 
+# `gui --page` : les quatre onglets et les anciens noms sont acceptés ; on lit seulement les
+# arguments (jamais de fenêtre ouverte), et un nom inconnu est refusé avant tout affichage.
+for page in accueil sessions analyse comptes planning historique terminaux reglages; do
+    got="$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1])
+from ccs_app.cli import build_parser
+print(build_parser().parse_args(["gui", "--page", sys.argv[2]]).page)' "$ROOT" "$page")"
+    [[ -n "$got" && "$got" != None ]] || fail "gui --page $page : refusé"
+done
+[[ "$(status_of "$ROOT/bin/claude-accounts" gui --page zzz)" == 2 ]] || fail "gui --page : nom inconnu accepté"
+expect "$(cat "$T/err")" "onglet inconnu"
+
 echo "OK ccs_e2e"

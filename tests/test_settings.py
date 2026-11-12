@@ -70,3 +70,41 @@ class SettingsTest(HomeTestCase):
         self.assertTrue(settings.DEFAULTS["auto_switch"]["enabled"])
         self.assertFalse(json.loads((self.store / "settings.json").read_text())["auto_switch"]["enabled"])
         self.assertFalse(settings.load_settings()["auto_switch"]["enabled"])
+
+
+class Phase12SettingsTest(HomeTestCase):
+    def test_chat_defaults_and_bounds(self):
+        s = settings.load_settings()
+        self.assertEqual(s["chat"], {"idle_suspend_min": 30, "rights": "manual"})
+        self.assertEqual(s["files"], {"layout": "B", "show_ignored": False})
+        self.assertEqual(s["appearance"], {"color_scheme": "auto", "account_colors": {}})
+        write(self.store / "settings.json", {"chat": {"idle_suspend_min": 2000, "rights": "plan"}})
+        self.assertEqual(settings.load_settings()["chat"], {"idle_suspend_min": 30, "rights": "plan"})
+        self.assertIn("chat.idle_suspend_min", settings.problems())
+        write(self.store / "settings.json", {"chat": {"idle_suspend_min": 0}})
+        self.assertEqual(settings.load_settings()["chat"]["idle_suspend_min"], 0)  # 0 = jamais
+        self.assertEqual(settings.problems(), [])
+        write(self.store / "settings.json", {"chat": {"rights": "nimporte"}})
+        self.assertEqual(settings.load_settings()["chat"]["rights"], "manual")
+        self.assertIn("chat.rights", settings.problems())
+
+    def test_files_layout_must_be_A_or_B(self):
+        write(self.store / "settings.json", {"files": {"layout": "A"}})
+        self.assertEqual(settings.load_settings()["files"]["layout"], "A")
+        write(self.store / "settings.json", {"files": {"layout": "C", "show_ignored": "oui"}})
+        self.assertEqual(settings.load_settings()["files"], {"layout": "B", "show_ignored": False})
+        self.assertEqual(settings.problems(), ["files.layout", "files.show_ignored"])
+
+    def test_appearance_color_scheme_values(self):
+        for ok in ("auto", "clair", "sombre"):
+            write(self.store / "settings.json", {"appearance": {"color_scheme": ok}})
+            self.assertEqual(settings.load_settings()["appearance"]["color_scheme"], ok)
+        write(self.store / "settings.json", {"appearance": {"color_scheme": "dark"}})
+        self.assertEqual(settings.load_settings()["appearance"]["color_scheme"], "auto")
+        self.assertIn("appearance.color_scheme", settings.problems())
+
+    def test_account_colors(self):
+        write(self.store / "settings.json", {
+            "appearance": {"account_colors": {"perso": "#aabbcc", "pro": "rouge", "x": 3}}})
+        s = settings.load_settings()
+        self.assertEqual(s["appearance"]["account_colors"], {"perso": "#aabbcc"})

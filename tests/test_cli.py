@@ -306,13 +306,19 @@ class GuiCliTest(HomeTestCase):
             self.assertEqual(code, 0)
             launched.assert_called_once_with(session=None, page=name, new_session=False)
 
+    def test_gui_page_accepts_accueil_and_old_names(self):
+        for text, name in (("Accueil", "home"), ("terminaux", "terminals")):
+            code, launched = self.run_gui("gui", "--page", text)
+            self.assertEqual(code, 0)
+            launched.assert_called_once_with(session=None, page=name, new_session=False)
+
     def test_unknown_page_is_refused(self):
         err = io.StringIO()
         with mock.patch("sys.stderr", err), self.assertRaises(SystemExit) as raised:
             self.run_gui("gui", "--page", "inconnu")
         self.assertEqual(raised.exception.code, 2)
         self.assertIn("onglet inconnu", err.getvalue())
-        self.assertIn("sessions, comptes, planning", err.getvalue())
+        self.assertIn("accueil, sessions, analyse", err.getvalue())
 
     def test_task_from_a_notification(self):
         code, launched = self.run_gui("gui", "--page", "planning", "--task", "12")

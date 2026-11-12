@@ -1,5 +1,7 @@
 """Application « CCS » (GTK4/libadwaita)."""
 
+import shutil
+import subprocess
 import sys
 import time
 
@@ -13,29 +15,30 @@ from .. import (attention, conversations, daemon, desktop, doctor, installer, la
                sessions, switch_log, terminal)
 from ..settings import load_settings, save_settings  # noqa: E402
 from ..store import Store  # noqa: E402
-from .accounts import AccountsPage, add_account, set_pause  # noqa: E402
-from .analysis import AnalysisPage  # noqa: E402
+from .accounts import add_account, set_pause  # noqa: E402
+from .analysis_hub import AnalysisHub  # noqa: E402
 from .common import (ask_name, ask_title, cap, error_text, in_thread, install_css, load_state,  # noqa: E402
                      now_utc, refresh_data, run_ccs_async)
 from .doctor_dialog import show_doctor  # noqa: E402
-from .history import HistoryPage  # noqa: E402
+from . import style  # noqa: E402
+from .home_page import HomePage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
-from .planning import PlanningPage  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
+from .prefs_dialog import PrefsDialog  # noqa: E402
 from .sessions_page import SessionsPage  # noqa: E402
 from .update_dialog import show_update  # noqa: E402
-from .prefs import PrefsPage  # noqa: E402
 from .terminals import TerminalsPage  # noqa: E402
 
 APP_ID = desktop.APP_ID
 STALE_S = 600
 DOCTOR_DELAY_S = 4   # bilan de santé du démarrage : après le premier affichage
 # Sous cette largeur, les onglets passent dans la barre du bas : 6 onglets de même largeur
-# tiennent en 1080 px, 7 (avec « Terminaux ») en 1202 px (mesuré), plus une marge.
-NARROW_SP = {False: 1100, True: 1220}
+# tenaient en 1080 px, 7 en 1202 px (mesuré : environ 100 px par onglet) ; 4 onglets, plus une marge.
+NARROW_SP = 900
 # Pendant une pause, « Auto ⏸ jusqu'à 14:00 » remplace « Auto » : le seuil monte de la
 # différence de largeur (mesurée), plus cette marge.
 PAUSE_MARGIN_SP = 16
+FRESH_CHECK_S = 30   # vérifie toutes les 30 s si un nouveau paquet a été installé
 
 
 class Window(Adw.ApplicationWindow):
@@ -43,6 +46,7 @@ class Window(Adw.ApplicationWindow):
         super().__init__(application=app, title="CCS")
         self.set_default_size(1180, 860)
         install_css()
+        style.apply_color_scheme(load_settings()["appearance"]["color_scheme"])
         self.store = Store()
         self._reload_pending = False
         self.closing = False
@@ -57,6 +61,7 @@ class Window(Adw.ApplicationWindow):
         menu = Gio.Menu()
         menu.append("Nouvelle session…", "win.new-session")
         menu.append("Bilan de santé…", "win.doctor")
+        menu.append("Réglages", "win.prefs")
         header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, primary=True,
                                        tooltip_text="Menu principal"))
         refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Actualiser (F5)")
@@ -79,30 +84,29 @@ class Window(Adw.ApplicationWindow):
         self.auto_box.append(self.auto)
         header.pack_end(self.auto_box)
         for name, handler in (("new-session", lambda *_: self.new_session()),
-                              ("doctor", lambda *_: self.show_doctor())):
+                              ("doctor", lambda *_: self.show_doctor()),
+                              ("prefs", lambda *_: self.show_prefs())):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", handler)
             self.add_action(action)
+        tab_action = Gio.SimpleAction.new("show-tab", GLib.VariantType.new("s"))
+        tab_action.connect("activate", lambda _a, v: self.show_page(v.get_string()))
+        self.add_action(tab_action)
 
         self.stack = Adw.ViewStack()
-        self.accounts = AccountsPage(self)
-        self.planning = PlanningPage(self)
+        self.home = HomePage(self)
+        self.accounts, self.planning = self.home.accounts, self.home.planning
         self.sessions = SessionsPage(self)
-        self.terminals = TerminalsPage(self)
-        self.history = HistoryPage(self)
-        self.analysis = AnalysisPage(self)
-        self.prefs = PrefsPage(self)
+        # Onglet Sessions : la vue d'ensemble est la première page épinglée de la barre
+        # d'onglets des chats et des terminaux.
+        self.terminals = TerminalsPage(self, overview=self.sessions)
+        self.analysis_hub = AnalysisHub(self)
+        self.history, self.analysis = self.analysis_hub.history, self.analysis_hub.analysis
         for page, name, title, icon in (
-                (self.accounts, "accounts", "Comptes", "system-users-symbolic"),
-                (self.planning, "planning", "Planning", "x-office-calendar-symbolic"),
-                (self.sessions, "sessions", "Sessions", "utilities-terminal-symbolic"),
-                (self.terminals, "terminals", "Terminaux", "tab-new-symbolic"),
-                (self.history, "history", "Historique", "document-open-recent-symbolic"),
-                (self.analysis, "analysis", "Analyse", "edit-find-symbolic"),
-                (self.prefs, "prefs", "Réglages", "emblem-system-symbolic")):
+                (self.home, "home", "Accueil", "go-home-symbolic"),
+                (self.terminals, "sessions", "Sessions", "utilities-terminal-symbolic"),
+                (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
-        self.terminals_page = self.stack.get_page(self.terminals)
-        self.terminals_page.set_visible(False)  # visible tant qu'un onglet est ouvert
         self.stack.connect("notify::visible-child-name", self.on_page)
         top_switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
         header.set_title_widget(top_switcher)
@@ -122,6 +126,12 @@ class Window(Adw.ApplicationWindow):
         self.doctor_banner = Adw.Banner(button_label="Voir le bilan")
         self.doctor_banner.connect("button-clicked", lambda *_: self.show_doctor())
         view.add_top_bar(self.doctor_banner)
+        # Un nouveau paquet installé pendant que l'application tourne : proposer de la relancer.
+        self._code_stamp = installer.code_stamp()
+        self.restart_banner = Adw.Banner(title="CCS a été mis à jour : relance-le pour profiter des nouveautés",
+                                         button_label="Relancer")
+        self.restart_banner.connect("button-clicked", lambda *_: self.relaunch_app())
+        view.add_top_bar(self.restart_banner)
         view.add_bottom_bar(bottom_switcher)
         self.set_content(view)
         # Fenêtre étroite : onglets en bas, comme les applications GNOME (en dessous de
@@ -137,13 +147,16 @@ class Window(Adw.ApplicationWindow):
         self.monitor = state_file.monitor_file(Gio.FileMonitorFlags.NONE, None)
         self.monitor.connect("changed", lambda *_: self.schedule_reload())
         GLib.timeout_add_seconds(60, lambda: (self.reload(), True)[1])
+        GLib.timeout_add_seconds(FRESH_CHECK_S, self.check_fresh)
 
         self.reload()
         state = load_state()
         if time.time() - (state.get("updated_at") or 0) > STALE_S and not daemon.running_pid():
             self.refresh()
         self.sessions.count_waiting()
-        self.terminals.connect("tab-state-changed", lambda *_: self.sessions.count_waiting())
+        self.update_badge()
+        self.terminals.connect("tab-state-changed", lambda *_: (self.sessions.count_waiting(),
+                                                                self.update_badge()))
         GLib.timeout_add_seconds(DOCTOR_DELAY_S, self.check_health)
 
     # ---- données -----------------------------------------------------------------
@@ -162,16 +175,11 @@ class Window(Adw.ApplicationWindow):
 
     def reload(self):
         state = load_state()
-        self.accounts.render(state, self.store)
-        self.planning.render(state)
-        if self.stack.get_visible_child_name() == "analysis":
-            self.analysis.budgets.refresh()
-        if self.stack.get_visible_child_name() == "history":
-            self.history.render(state, self.store)
-        else:
-            self.history.last = (state, self.store)
+        self.home.render(state, self.store)
+        self.analysis_hub.reload(state, self.store, self.stack.get_visible_child_name() == "analysis")
         self.show_pause()
         self.show_update(state)
+        self.update_badge()
 
     # ---- en-tête et bandeaux ---------------------------------------------------------
 
@@ -272,47 +280,54 @@ class Window(Adw.ApplicationWindow):
         refresh_data(self.reload)
 
     def on_page(self, *_):
+        if getattr(self, "terminals", None) is None:
+            return  # la page Sessions se construit encore
         name = self.stack.get_visible_child_name()
-        if name == "terminals":
+        on_terminals = name == "sessions" and not self.terminals.overview_shown()
+        if on_terminals:
             self.terminals.focus_selected()
         else:
-            self.back_to = name
             self.terminals.update_badge()
-        self.sessions.visible_page = name == "sessions"
-        if name == "sessions":
+        if name != "sessions":
+            self.back_to = name
+        self.sessions.visible_page = name == "sessions" and not on_terminals
+        if self.sessions.visible_page:
             self.sessions.load()
-        if name == "history":
-            self.history.render(load_state(), self.store)
-        elif name == "analysis":
-            self.analysis.ensure_loaded()
-        elif name == "prefs":
-            self.prefs.render()
+        if name == "analysis":
+            self.analysis_hub.on_shown()
+        self.update_badge()
+
+    def update_badge(self):
+        """Badge de l'onglet Sessions : nombre de sessions (chats compris) qui attendent une
+        réponse ou une autorisation ; point d'attention si un onglet demande de l'attention."""
+        def work():
+            try:
+                return attention.waiting_count(sessions.list_sessions())
+            except Exception:  # noqa: BLE001 — pas de badge plutôt qu'une erreur
+                return 0
+
+        def done(n):
+            page = self.stack.get_page(self.stack.get_child_by_name("sessions"))
+            page.set_badge_number(n)
+            page.set_needs_attention(
+                self.stack.get_visible_child_name() != "sessions"
+                and (n > 0 or self.terminals.wants_attention))
+        in_thread(work, done)
 
     # ---- terminal intégré ----------------------------------------------------------
 
     def narrow_condition(self):
-        width = NARROW_SP[self.terminals_page.get_visible()]
-        width += self.pause_extra
-        return Adw.BreakpointCondition.parse(f"max-width: {width}sp")
+        return Adw.BreakpointCondition.parse(f"max-width: {NARROW_SP + self.pause_extra}sp")
 
     def reveal_terminals(self):
-        """Onglet « Terminaux » visible dans la barre de la fenêtre, sans l'afficher."""
-        if not self.terminals_page.get_visible():
-            self.terminals_page.set_visible(True)
-            self.narrow.set_condition(self.narrow_condition())
+        """Les terminaux sont toujours accessibles dans l'onglet Sessions."""
 
     def show_terminals(self):
-        self.reveal_terminals()
-        if self.stack.get_visible_child_name() != "terminals":
-            self.stack.set_visible_child_name("terminals")
+        self.stack.set_visible_child_name("sessions")
 
     def hide_terminals(self):
-        shown = self.stack.get_visible_child_name() == "terminals"
-        back = self.back_to or "sessions"  # cacher la page visible fait afficher la première
-        self.terminals_page.set_visible(False)
-        self.narrow.set_condition(self.narrow_condition())
-        if shown:
-            self.stack.set_visible_child_name(back)
+        """Plus de chat ouvert : retour à la vue d'ensemble des sessions."""
+        self.terminals.show_overview()
 
     def open_claude(self, cwd, resume=None, title=None, external=False):
         """Claude Code dans `cwd` (reprise de la conversation `resume`) : dans un onglet de
@@ -372,16 +387,29 @@ class Window(Adw.ApplicationWindow):
             GLib.timeout_add(delay, lambda: (self.sessions.visible_page and self.sessions.load(), False)[1])
 
     def show_page(self, name):
-        """Affiche l'onglet `name` (nom du ViewStack, cf. desktop.page_name). Terminaux sans
-        onglet ouvert : l'onglet Sessions, avec un message."""
-        name = desktop.page_name(name)
-        if name is None:
+        """Affiche la page `name` (ancien ou nouveau nom, cf. desktop.page_name) : l'onglet et
+        sa sous-partie. « prefs » ouvre la fenêtre des réglages. Renvoie le nom de l'onglet
+        (ou « prefs »), None si le nom est inconnu."""
+        found = desktop.page_name(name)
+        if found is None:
             return None
-        if name == "terminals" and not self.terminals_page.get_visible():
-            self.toast("Aucun terminal ouvert dans l'application")
-            name = "sessions"
-        self.stack.set_visible_child_name(name)
-        return name
+        page, sub = found
+        if page == "prefs":
+            self.show_prefs()
+            return page
+        self.stack.set_visible_child_name(page)
+        if page == "home":
+            self.home.show(sub)
+        elif page == "analysis":
+            self.analysis_hub.show(sub)
+        return page
+
+    def show_prefs(self):
+        PrefsDialog(self).present(self)
+
+    def open_session(self, cwd):
+        """Ouvre une session Claude dans `cwd` (bouton de la page Projets)."""
+        return self.open_claude(cwd)
 
     def show_session(self, ref):
         """Session désignée par une notification : son onglet s'il y en a un, sinon sa carte
@@ -396,14 +424,15 @@ class Window(Adw.ApplicationWindow):
                 return "onglet"
             target = ("sessions", target[1].pid, target[1].session_id)
         self.stack.set_visible_child_name("sessions")
+        self.terminals.show_overview()
         self.sessions.highlight(target[1], target[2])
         return "sessions"
 
     def show_task(self, task_id):
-        """Tâche désignée par la notification de fin : onglet Planning, journal de la tâche
-        ouvert. Renvoie « planning » (la tâche est affichée) ou None (identifiant inconnu : on
-        n'affiche alors que l'onglet)."""
-        self.stack.set_visible_child_name("planning")
+        """Tâche désignée par la notification de fin : Accueil, partie Planning, journal de la
+        tâche ouvert. Renvoie « planning » (la tâche est affichée) ou None (identifiant inconnu :
+        on n'affiche alors que l'onglet)."""
+        self.show_page("planning")
         return "planning" if self.planning.tasks_view.show_task(task_id) else None
 
     def preview(self, conv):
@@ -414,6 +443,22 @@ class Window(Adw.ApplicationWindow):
         « Afficher » de l'onglet Sessions suivent."""
         if self.sessions.visible_page:
             self.sessions.rerender()
+        self.update_badge()
+
+    def check_fresh(self):
+        """Le code sur le disque a changé depuis le lancement : bandeau « Relancer »."""
+        stamp = installer.code_stamp()
+        if stamp is not None and self._code_stamp is not None and stamp != self._code_stamp:
+            self.restart_banner.set_revealed(True)
+        return True
+
+    def relaunch_app(self):
+        """« Relancer » : une nouvelle instance démarre une seconde après la fermeture de celle-ci
+        (la confirmation habituelle s'applique si des sessions tournent)."""
+        exe = shutil.which("claude-accounts") or "claude-accounts"
+        subprocess.Popen(["sh", "-c", 'sleep 1; exec "$0" gui', exe], start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.close()
 
     def on_close_request(self, *_):
         if self.closing:
@@ -544,6 +589,9 @@ class App(Adw.Application):
             refresh.connect("activate", lambda *_: win.refresh())
             win.add_action(refresh)
             self.set_accels_for_action("win.refresh", ["F5", "<Control>r"])
+            self.set_accels_for_action("win.prefs", ["<Control>comma"])
+            for key, tab in enumerate(desktop.PAGES, 1):
+                self.set_accels_for_action(f"win.show-tab::{tab}", [f"<Control>{key}"])
         return win
 
     def do_activate(self):

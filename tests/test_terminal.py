@@ -558,3 +558,80 @@ class QueueDecisionTest(HomeTestCase):
         self.assertEqual(tab.state_since, 7.0)
         terminal.sync_tabs([tab], [live_at(10, "busy", 0.0)], now=9.0)
         self.assertEqual(tab.state_since, 9.0)
+
+
+class ChatTabsTest(HomeTestCase):
+    """Onglets de chat : état tenu par le moteur, fermeture, réouverture, autres processus."""
+
+    def chat(self, **kw):
+        kw.setdefault("running", True)
+        return TabState("claude", "/w/App", "App", session_id="s-1", pid=7, chat=True, **kw)
+
+    def test_sync_tabs_leaves_chats_alone(self):
+        tab = self.chat(state="idle", state_since=1.0)
+        done = terminal.sync_tabs([tab], [live_at(7, "busy", 5.0)], now=9.0)
+        self.assertEqual((tab.state, tab.state_since, done), ("idle", 1.0, []))
+
+    def test_idle_chat_closes_without_question(self):
+        self.assertFalse(terminal.needs_confirm(self.chat(state="idle")))
+        self.assertFalse(terminal.needs_confirm(self.chat(state="waiting", waiting_for="input")))
+        self.assertIsNone(terminal.tab_close_question(self.chat(state="idle")))
+        self.assertIsNone(terminal.close_question([self.chat(state="idle")]))
+
+    def test_busy_or_permission_chat_asks_before_closing(self):
+        self.assertTrue(terminal.needs_confirm(self.chat(state="busy")))
+        self.assertTrue(terminal.needs_confirm(self.chat(state="waiting", waiting_for="permission")))
+        title, _body = terminal.close_question([self.chat(state="busy"), self.chat(state="idle")])
+        self.assertEqual(title, "Fermer la fenêtre ?")
+
+    def test_terminal_claude_still_asks_when_idle(self):
+        tab = TabState("claude", "/w/App", "App", running=True, state="idle")
+        self.assertTrue(terminal.needs_confirm(tab))
+
+    def test_chat_without_process_is_not_shown_as_stopped(self):
+        tab = TabState("claude", "/w/App", "App", session_id="s-1", chat=True)
+        self.assertEqual(terminal.indicator(tab), (False, None, None))
+        tab.exit_status = 1
+        self.assertEqual(terminal.indicator(tab), terminal.STOPPED)
+
+    def test_queue_goes_to_a_chat_without_process(self):
+        tab = TabState("claude", "/w/App", "App", session_id="s-1", chat=True, queue=["un"],
+                       queued_at=10.0)
+        self.assertEqual(terminal.queue_next(tab, 100.0).text, "un")
+        tab.chat = False
+        self.assertEqual(terminal.queue_next(tab, 100.0).reason, "Session arrêtée.")
+
+    def test_record_carries_chat_options(self):
+        chat = {"model": "opus", "effort": None, "ultracode": False, "rights": "plan"}
+        self.assertEqual(terminal.tab_record(self.chat(), chat=chat)["chat"], chat)
+        self.assertNotIn("chat", terminal.tab_record(self.chat()))
+        shell = TabState("shell", "/w", "Terminal · w")
+        self.assertNotIn("chat", terminal.tab_record(shell, chat=chat))
+
+    def test_restore_plan_keeps_chat_options(self):
+        chat = {"model": "opus", "effort": "high", "ultracode": False, "rights": None}
+        p = terminal.restore_plan([record(chat=chat), record(session_id=None, kind="shell")],
+                                  folder_exists=lambda c: True, conversation_exists=lambda c, s: True)
+        self.assertEqual(p.tabs[0].chat, chat)
+        self.assertIsNone(p.tabs[1].chat)
+
+    def test_elsewhere_pid(self):
+        live = [live_at(50, "idle", 1.0), live_at(60, "busy", 1.0)]
+        live[0].session_id, live[1].session_id = "s-1", "s-2"
+        self.assertEqual(terminal.elsewhere_pid("s-1", live), 50)
+        self.assertIsNone(terminal.elsewhere_pid("s-1", live, own_pids={50}))
+        self.assertIsNone(terminal.elsewhere_pid("s-3", live))
+        self.assertIsNone(terminal.elsewhere_pid(None, live))
+
+    def test_waiting_alert_key_is_per_wait(self):
+        tab = self.chat(state="waiting", state_since=100.4)
+        first = terminal.waiting_alert_key(tab)
+        tab.state_since = 200.0
+        self.assertNotEqual(first, terminal.waiting_alert_key(tab))
+        self.assertTrue(first.startswith("fin:"))              # simple fin de réponse
+        tab.waiting_for = "permission"
+        self.assertTrue(terminal.waiting_alert_key(tab).startswith("attente:"))  # vraie demande
+        tab.waiting_for = None
+        self.assertTrue(terminal.is_waiting_for_user(tab))
+        tab.state = "idle"
+        self.assertFalse(terminal.is_waiting_for_user(tab))

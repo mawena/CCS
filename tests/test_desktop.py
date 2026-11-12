@@ -133,28 +133,43 @@ class ShowSessionTest(unittest.TestCase):
 class PageNameTest(unittest.TestCase):
     def test_real_names_of_the_window(self):
         for name in desktop.PAGES:
-            self.assertEqual(desktop.page_name(name), name)
+            self.assertEqual(desktop.page_name(name)[0], name)
 
     def test_french_names_without_accents_or_case(self):
-        expected = {"comptes": "accounts", "Planning": "planning", "SESSIONS": "sessions",
-                    "terminaux": "terminals", "historique": "history", "analyse": "analysis",
-                    "réglages": "prefs", "reglages": "prefs", " sessions ": "sessions"}
+        expected = {"comptes": ("home", "accounts"), "Planning": ("home", "planning"),
+                    "SESSIONS": ("sessions", None), "terminaux": ("sessions", None),
+                    "historique": ("analysis", "history"), "analyse": ("analysis", "analysis"),
+                    "réglages": ("prefs", None), "reglages": ("prefs", None),
+                    " sessions ": ("sessions", None), "accueil": ("home", None)}
         for text, name in expected.items():
             self.assertEqual(desktop.page_name(text), name, text)
 
     def test_conversations_lead_to_sessions(self):
         # L'ancien onglet Conversations fait partie de l'onglet Sessions.
-        self.assertEqual(desktop.page_name("conversations"), "sessions")
+        self.assertEqual(desktop.page_name("conversations"), ("sessions", None))
 
     def test_unknown(self):
-        for text in ("", "inconnu", None, "sessions2"):
+        for text in ("", "inconnu", None, "sessions2", "projets"):   # la page Projets a été retirée
             self.assertIsNone(desktop.page_name(text))
 
     def test_names_shown_to_the_user(self):
-        self.assertEqual(desktop.PAGE_CHOICES, ("sessions", "comptes", "planning", "historique", "analyse",
-                                                "terminaux", "reglages"))
+        self.assertEqual(desktop.PAGE_CHOICES, ("accueil", "sessions", "analyse", "comptes",
+                                                "planning", "historique", "terminaux", "reglages"))
         for text in desktop.PAGE_CHOICES:
-            self.assertIn(desktop.page_name(text), desktop.PAGES)
+            self.assertIn(desktop.page_name(text)[0], desktop.PAGES + ("prefs",))
+
+    def test_old_page_names_map_to_new_tabs(self):
+        self.assertEqual(desktop.page_name("historique"), ("analysis", "history"))
+        self.assertEqual(desktop.page_name("terminaux"), ("sessions", None))
+        self.assertEqual(desktop.page_name("planning"), ("home", "planning"))
+        self.assertEqual(desktop.PAGES, ("home", "sessions", "analysis"))
+
+    def test_canonical_names_are_the_subpage_keys(self):
+        for text, key in (("comptes", "accounts"), ("accueil", "home"),
+                          ("historique", "history"), ("Réglages", "prefs")):
+            self.assertEqual(desktop.canonical_page(text), key)
+            self.assertIn(key, desktop.SUBPAGES)
+        self.assertIsNone(desktop.canonical_page("inconnu"))
 
 
 if __name__ == "__main__":

@@ -255,12 +255,15 @@ def scan(archived=True):
             core.atomic_write_json(cache_path(), {"version": CACHE_VERSION, "files": files})
         except OSError:
             pass  # cache facultatif
-    # Une conversation copiée par relocate() existe en double : on garde l'exemplaire
-    # dont le dossier existe, puis le plus récent.
+    # Une conversation copiée par relocate() existe en double : on garde l'exemplaire dont le
+    # dossier existe, puis le plus récent ; à égalité (copie intacte), l'exemplaire relié,
+    # quel que soit l'ordre de lecture des fichiers. Une conversation qui a continué dans
+    # l'ancien dossier après la copie reste plus récente, et l'emporte.
     best = {}
     for c in out:
         cur = best.get(c.session_id)
-        if cur is None or (c.folder_exists, c.updated_at) > (cur.folder_exists, cur.updated_at):
+        rank = (c.folder_exists, c.updated_at, c.path in moves)
+        if cur is None or rank > (cur.folder_exists, cur.updated_at, cur.path in moves):
             best[c.session_id] = c
     if archived:
         try:

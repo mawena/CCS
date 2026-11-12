@@ -4,11 +4,11 @@ rapport mensuel (calculs dans un fil)."""
 from gi.repository import Gtk
 
 from .. import advisor, costs, daemon, monthly_report, weekly_report
-from .common import caption, clear, in_thread, load_state, now_utc
+from .common import caption, card_box, clear, in_thread, load_state, now_utc
 
 
 def _card(title):
-    card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=["card", "profile-card"])
+    card = card_box(8)
     head = Gtk.Box(spacing=6)
     head.append(Gtk.Label(label=title, xalign=0, hexpand=True, css_classes=["heading"]))
     card.append(head)
@@ -17,7 +17,7 @@ def _card(title):
 
 def _figure(value, label):
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
-    box.append(Gtk.Label(label=value, xalign=0, wrap=True, css_classes=["title-4"]))
+    box.append(Gtk.Label(label=value, xalign=0, wrap=True, css_classes=["ccs-big-number", "small"]))
     box.append(Gtk.Label(label=label, xalign=0, wrap=True, css_classes=["caption", "dim-label"]))
     return box
 

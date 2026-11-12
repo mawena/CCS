@@ -106,6 +106,26 @@ class PrefsPageTest(HomeTestCase):
 
     # ---- groupes -----------------------------------------------------------------------
 
+    def test_prefs_color_scheme_saved(self):
+        page = self.page()
+        row = self.rows(page)["Thème"]
+        row.set_selected(2)                       # Sombre
+        self.assertEqual(self.saved()["appearance"]["color_scheme"], "sombre")
+        self.assertEqual(Adw.StyleManager.get_default().get_color_scheme(), Adw.ColorScheme.FORCE_DARK)
+        row.set_selected(0)
+        self.assertEqual(self.saved()["appearance"]["color_scheme"], "auto")
+        self.addCleanup(Adw.StyleManager.get_default().set_color_scheme, Adw.ColorScheme.DEFAULT)
+
+    def test_prefs_account_color_saved(self):
+        from gi.repository import Gdk
+        self.add_profile("perso", "pro")
+        page = self.page()
+        self.assertIn("perso", page.color_buttons)
+        rgba = Gdk.RGBA()
+        rgba.parse("#112233")
+        page.color_buttons["perso"].set_rgba(rgba)
+        self.assertEqual(self.saved()["appearance"]["account_colors"], {"perso": "#112233"})
+
     def test_groups_and_order(self):
         page = self.page()
         titles = [g.get_title() for g in page.groups]
@@ -431,6 +451,41 @@ class PrefsPageTest(HomeTestCase):
                  and w.get_child_visible()]
         self.assertTrue(shown)
         self.assertTrue(all(w.get_ellipsize() == Pango.EllipsizeMode.NONE for w in shown))
+
+    # ---- Chat et fichiers ----------------------------------------------
+
+    def test_chat_files_settings_saved(self):
+        page = self.page()
+        rows = self.rows(page)
+        spin = rows["Mettre en veille un chat inactif après (min)"]
+        spin.set_value(45)
+        self.assertEqual(self.saved()["chat"]["idle_suspend_min"], 45)
+        spin.set_value(0)
+        self.assertEqual(self.saved()["chat"]["idle_suspend_min"], 0)
+        rows["Afficher les fichiers ignorés par git"].set_active(True)
+        self.assertTrue(self.saved()["files"]["show_ignored"])
+        rows["Disposition par défaut"].set_selected(0)
+        self.assertEqual(self.saved()["files"]["layout"], "A")
+        rows["Disposition par défaut"].set_selected(1)
+        self.assertEqual(self.saved()["files"]["layout"], "B")
+        rights = rows["Droits par défaut des nouveaux chats"]
+        rights.set_selected(2)                    # Plan
+        self.assertEqual(self.saved()["chat"]["rights"], "plan")
+
+    def test_rights_everything_asks_confirmation(self):
+        page = self.page()
+        asked = []
+        page.confirm_dangerous = lambda yes, no: asked.append((yes, no))
+        rights = self.rows(page)["Droits par défaut des nouveaux chats"]
+        rights.set_selected(3)                    # Tout autoriser
+        self.assertEqual(len(asked), 1)
+        self.assertEqual(page.s["chat"]["rights"], "manual")
+        asked[0][1]()                             # refus : retour au choix précédent
+        self.assertEqual(rights.get_selected(), 0)
+        self.assertFalse(self.store.joinpath("settings.json").exists())
+        rights.set_selected(3)
+        asked[1][0]()                             # accepté
+        self.assertEqual(self.saved()["chat"]["rights"], "bypassPermissions")
 
     def test_groups_fit_the_narrow_window(self):
         """360 px moins les marges de la page (2 × 12 px). Le groupe des raccourcis clavier

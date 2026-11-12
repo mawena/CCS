@@ -6,15 +6,18 @@ décide sans GTK (commande, environnement, textes, état des onglets) est dans
 `ccs_app.terminal`.
 """
 
+import dataclasses
 import os
 import signal
 import time
+from datetime import datetime, timezone
 
 import gi
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
-from .. import conversations, limit_events, sessions, terminal, terminal_store
+from .. import alerts, chat_options as chat_options_module, conversations, limit_events, notify, phone, sessions, settings, terminal, terminal_store
 from .common import in_thread
+from .session_workspace import ASK_CREATE_TEXT, SessionWorkspace
 from .terminal_split import SplitView
 
 SCROLLBACK_LINES = 100_000
@@ -29,6 +32,8 @@ PALETTE = ("#171421", "#c01c28", "#26a269", "#a2734c", "#12488b", "#a347ba", "#2
            "#5e5c64", "#f66151", "#33d17a", "#e9ad0c", "#2a7bde", "#c061cb", "#33c7de", "#ffffff")
 COLORS = {False: ("#1e1e1e", "#ffffff"), True: ("#ffffff", "#1e1e1e")}  # sombre ? -> (texte, fond)
 SAVE_DELAY_MS = 1000
+STOP_WAIT_TRIES = 60       # 60 × 100 ms : temps laissé au chat pour s'arrêter avant le terminal
+ELSEWHERE_TEXT = "Cette conversation est ouverte ailleurs : tu pourras écrire quand elle sera fermée."
 SPLIT_ACCEL = "<Control><Shift>e"
 QUEUE_ACCEL = "<Control><Shift>m"
 CSS = b"""
@@ -43,6 +48,13 @@ CSS = b"""
 """
 
 _vte = None
+
+
+def _chat_classes():
+    """(ChatTab, module chat_options) : importés à la demande (le chat n'a pas besoin de VTE)."""
+    from .. import chat_options
+    from . import chat_tab
+    return chat_tab.ChatTab, chat_options
 _css = False
 
 
@@ -79,6 +91,37 @@ def menu_item(label, action, accel=None):
     if accel:
         item.set_attribute_value("accel", GLib.Variant.new_string(accel))
     return item
+
+
+def is_chat(tab):
+    """Onglet de chat (et non un terminal VTE)."""
+    return not isinstance(tab, TerminalTab)
+
+
+def insert_reference(tab, relpath):
+    """« Insérer @chemin » depuis l'arbre : dans la zone de saisie du chat."""
+    if hasattr(tab, "insert_reference"):
+        tab.insert_reference(relpath)
+    elif hasattr(tab, "composer"):
+        tab.composer.insert_reference(relpath)
+
+
+def set_read_only(tab, flag):
+    """Chat ouvert ailleurs : la saisie est grisée (le chat lui-même sait le faire, sinon la
+    zone de saisie)."""
+    if hasattr(tab, "set_read_only"):
+        tab.set_read_only(flag)
+    elif hasattr(tab, "composer"):
+        tab.composer.set_sensitive(not flag)
+
+
+def chat_record(options):
+    """Options du chat telles que `terminal_store` les garde (droits « manual » : None)."""
+    if options is None:
+        return None
+    rights = getattr(options, "rights", None)
+    return {"model": options.model, "effort": options.effort, "ultracode": bool(options.ultracode),
+            "rights": None if rights in (None, "manual") else rights}
 
 
 def _rgba(spec):
@@ -118,6 +161,7 @@ class TerminalTab(Gtk.Box):
         self.queue_rev = None      # file de messages (onglets de claude)
         self.queue_reason = None
         self.queue_shown = None
+        self.back = None           # ouvert depuis un chat : de quoi y revenir (cwd, session, options)
 
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
         self.notice = Adw.Banner(revealed=False, button_label="OK", use_markup=False)
@@ -156,7 +200,10 @@ class TerminalTab(Gtk.Box):
         close.connect("clicked", lambda *_: self.owner.close(self))
         self.relaunch_btn = Gtk.Button(css_classes=["suggested-action"])
         self.relaunch_btn.connect("clicked", lambda *_: self.relaunch())
+        self.back_btn = Gtk.Button(label="Revenir au chat", visible=False)
+        self.back_btn.connect("clicked", lambda *_: self.owner.back_to_chat(self))
         self.bar.pack_end(self.relaunch_btn)
+        self.bar.pack_end(self.back_btn)
         self.bar.pack_end(close)
         self.panel.append(self.bar)
         self.append(self.panel)
@@ -431,6 +478,7 @@ class TerminalTab(Gtk.Box):
     def show_bar(self, text):
         self.bar_label.set_label(text)
         self.relaunch_btn.set_label(terminal.relaunch_label(self.state))
+        self.back_btn.set_visible(self.back is not None)
         self.bar.set_revealed(True)
 
     def relaunch(self):
@@ -521,9 +569,18 @@ class TerminalsPage(Gtk.Box):
         "tab-closed": (GObject.SignalFlags.RUN_FIRST, None, (object,)),
     }
 
-    def __init__(self, window):
+    def __init__(self, window, overview=None):
+        """`overview` : la page « Toutes les sessions » (SessionsPage), épinglée en première
+        page de la barre d'onglets ; elle reste toujours là."""
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.window = window
+        self.overview = overview
+        self.overview_page = None
+        self.wants_attention = False
+        self.seen = {}             # chats : dernier (état, depuis) vu, pour les alertes
+        self.notifier = notify.send
+        self.phoner = phone.send
+        self.layout = self.saved_layout()
         self.available = vte() is not None
         self.menu_tab = None
         self.polling = False
@@ -535,6 +592,8 @@ class TerminalsPage(Gtk.Box):
         self.pending, self.pending_selected, self.offering = None, None, False
         self.save_source, self.last_saved, self.closed = None, None, False
         if not self.available:
+            if overview is not None:   # sans VTE : seulement la vue d'ensemble
+                self.append(overview)
             return
         install_css()
 
@@ -561,12 +620,15 @@ class TerminalsPage(Gtk.Box):
         tab_menu.append_item(menu_item("Côte à côte", "tabs.split", SPLIT_ACCEL))
         tab_menu.append_item(menu_item("Revenir aux onglets", "tabs.unsplit", SPLIT_ACCEL))
         tab_menu.append_item(menu_item("Messages en attente…", "tabs.queue", QUEUE_ACCEL))
+        tab_menu.append("Dossier du projet…", "tabs.project")
+        tab_menu.append("Ouvrir cette conversation dans un terminal", "tabs.terminal")
         tab_menu.append("Fermer l'onglet", "tabs.close")
         self.view.set_menu_model(tab_menu)
 
         self.tab_actions = Gio.SimpleActionGroup()
         for name, handler in (("rename", self.rename_tab), ("folder", self.folder_of_tab),
                               ("split", self.split_with), ("queue", lambda tab: tab.toggle_queue()),
+                              ("terminal", self.open_in_terminal), ("project", self.project_folder),
                               ("close", self.close)):
             a = Gio.SimpleAction.new(name, None)
             a.connect("activate", lambda *_a, h=handler: self.with_tab(h))
@@ -600,7 +662,13 @@ class TerminalsPage(Gtk.Box):
         more = Gtk.MenuButton(icon_name="view-more-symbolic", menu_model=page_menu, css_classes=["flat"],
                               tooltip_text="Onglet et options")
         more.connect("notify::active", lambda b, _p: b.get_active() and self.prepare_menu(None))
-        self.bar = Adw.TabBar(view=self.view, autohide=False, end_action_widget=more)
+        self.layout_btn = Gtk.Button(icon_name="view-dual-symbolic", css_classes=["flat"])
+        self.layout_btn.connect("clicked", lambda *_: self.toggle_layout())
+        self.update_layout_button()
+        ends = Gtk.Box()
+        ends.append(self.layout_btn)
+        ends.append(more)
+        self.bar = Adw.TabBar(view=self.view, autohide=False, end_action_widget=ends)
 
         # Bandeau « Rouvrir les N sessions de la dernière fois ? » et page vide qui l'accompagne.
         self.restore_label = Gtk.Label(xalign=0, hexpand=True, wrap=True)
@@ -624,6 +692,13 @@ class TerminalsPage(Gtk.Box):
         self.append(self.bar)
         self.append(self.content)
 
+        if overview is not None:
+            self.overview_page = self.view.append(overview)
+            self.overview_page.set_title("Toutes les sessions")
+            self.overview_page.set_icon(Gio.ThemedIcon.new("view-list-symbolic"))
+            self.view.set_page_pinned(self.overview_page, True)
+            self.view.set_selected_page(self.overview_page)
+            self.update_content()
         window.connect("close-request", self.on_window_close)  # avant celui de la fenêtre
         window.connect("destroy", lambda *_: setattr(self, "closed", True))
         GLib.idle_add(self.startup)
@@ -640,7 +715,8 @@ class TerminalsPage(Gtk.Box):
     def tabs(self):
         if not self.available:
             return []
-        return [self.view.get_nth_page(i).get_child() for i in range(self.view.get_n_pages())]
+        pages = (self.view.get_nth_page(i) for i in range(self.view.get_n_pages()))
+        return [p.get_child() for p in pages if p.get_child() is not self.overview]
 
     def states(self):
         return [t.state for t in self.tabs()]
@@ -650,9 +726,100 @@ class TerminalsPage(Gtk.Box):
         return next((t for t in self.tabs() if t.state is state), None) if state else None
 
     def open_claude(self, cwd, resume=None, title=None, extra_args=()):
-        """Nouvel onglet : Claude Code dans `cwd` (`resume` : identifiant à reprendre,
-        `extra_args` : arguments ajoutés à claude, gardés pour la relance)."""
-        return self.open(terminal.claude_launch(cwd, resume, title, extra_args=extra_args))
+        """Nouvel onglet : un chat Claude Code dans `cwd` (`resume` : conversation à reprendre,
+        `extra_args` : arguments de la nouvelle session avancée, traduits en options du chat
+        par `chat_options.from_args`). Le processus ne démarre qu'au premier message."""
+        _cls, chat_options = _chat_classes()
+        options = chat_options.from_args(tuple(extra_args or ()))
+        # Sans droits explicites : ceux des réglages (`chat.rights`).
+        options = chat_options_module.with_default_rights(options, extra_args, settings.load_settings())
+        return self.open_chat(cwd, resume, title, options, extra_args)
+
+    def open_chat(self, cwd, resume=None, title=None, options=None, extra_args=(), present=True):
+        """Onglet de chat (sans processus) dans un espace de session ; l'historique de la
+        conversation `resume` est chargé depuis son journal. Une conversation qui tourne dans
+        un autre terminal s'ouvre en lecture seule."""
+        chat_cls, chat_options = _chat_classes()
+        launch = terminal.claude_launch(cwd, resume, title, extra_args=tuple(extra_args or ()))
+        history = None
+        if resume:
+            path = sessions.transcript_path(cwd, resume)
+            history = path if path.exists() else None
+        tab = chat_cls(self, launch, options if options is not None else chat_options.ChatOptions(),
+                       history)
+        tab.state.chat = True
+        tab.elsewhere_pid = None
+        self.install_workspace(tab)
+        tab.page = self.view.append(tab)
+        tab.update_page()
+        self.update_content()
+        if present:
+            self.present(tab)
+        self.changed(tab)
+        if resume:
+            in_thread(sessions.list_sessions, lambda live: self.check_elsewhere(tab, live))
+        return tab
+
+    def install_workspace(self, tab):
+        """Le panneau du chat devient le centre d'un espace de session (arbre, éditeur,
+        feuille de route) ; l'espace est le `panel` de l'onglet (la vue côte à côte l'emprunte)."""
+        chat = tab.panel
+
+        def ask():
+            if not tab.send_auto(ASK_CREATE_TEXT):
+                tab.state.queue[:] = terminal.queue_add(tab.state.queue, ASK_CREATE_TEXT)
+                self.queue_changed(tab)
+        tab.remove(chat)  # le chat n'a plus de parent avant d'entrer dans le Gtk.Paned de l'espace
+        workspace = SessionWorkspace(tab.state.cwd, chat, on_ask_create=ask, layout=self.layout)
+        workspace.set_dark(self.dark)
+        for name, handler in (("open-file", lambda _t, path, line=0: workspace.open_file(path, line or None)),
+                              ("show-diff", lambda _t, path, old, new: workspace.show_diff(path, old, new))):
+            if GObject.signal_lookup(name, type(tab)):
+                tab.connect(name, handler)
+        workspace.connect("insert-reference", lambda _w, rel: insert_reference(tab, rel))
+        if GObject.signal_lookup("tool-used", type(tab)):
+            tab.connect("tool-used", lambda _t, name, data: (workspace.follow_tool(name, data),
+                                                            self.schedule_save()))
+        tab.panel = workspace
+        tab.append(workspace)
+
+    # ---- disposition de l'espace de session --------------------------------------------
+
+    def saved_layout(self):
+        try:
+            layout = settings.load_settings()["files"]["layout"]
+        except Exception:  # noqa: BLE001 — réglages illisibles : disposition par défaut
+            layout = "B"
+        return layout if layout in ("A", "B") else "B"
+
+    def workspaces(self):
+        return [t.panel for t in self.tabs() if isinstance(t.panel, SessionWorkspace)]
+
+    def set_layout(self, layout):
+        """Disposition A (fichier au centre) ou B (fichier à droite) : tous les espaces,
+        retenue dans les réglages (`files.layout`)."""
+        if layout not in ("A", "B"):
+            return
+        self.layout = layout
+        for ws in self.workspaces():
+            ws.set_layout(layout)
+        self.update_layout_button()
+        try:
+            current = settings.load_settings()
+            if current["files"]["layout"] != layout:
+                current["files"]["layout"] = layout
+                settings.save_settings(current)
+        except Exception:  # noqa: BLE001 — disposition appliquée même si elle n'est pas gardée
+            pass
+
+    def toggle_layout(self):
+        self.set_layout("A" if self.layout == "B" else "B")
+
+    def update_layout_button(self):
+        btn = getattr(self, "layout_btn", None)
+        if btn is not None:
+            btn.set_tooltip_text("Disposition : fichier au centre, chat à droite" if self.layout == "B"
+                                 else "Disposition : chat au centre, fichier à droite")
 
     def open_shell(self, cwd):
         return self.open(terminal.shell_launch(cwd))
@@ -684,7 +851,8 @@ class TerminalsPage(Gtk.Box):
         tab.focus()
 
     def on_screen(self):
-        return self.window.stack.get_visible_child_name() == "terminals" and self.window.is_active()
+        return (self.window.stack.get_visible_child_name() == "sessions"
+                and not self.overview_shown() and self.window.is_active())
 
     def on_selected(self, *_):
         page = self.view.get_selected_page()
@@ -693,15 +861,18 @@ class TerminalsPage(Gtk.Box):
                 self.split_view.set_active(page.get_child())
             else:
                 self.unsplit()  # un autre onglet choisi dans la barre : retour aux onglets
-        if page is not None:
+        if page is not None and page.get_child() is not self.overview:
             page.set_needs_attention(False)
             page.get_child().focus()
         self.update_badge()
         self.schedule_save()
+        on_page = getattr(self.window, "on_page", None)
+        if on_page is not None:
+            on_page()
 
     def focus_selected(self):
         page = self.view.get_selected_page() if self.available else None
-        if page is not None:
+        if page is not None and page.get_child() is not self.overview:
             page.set_needs_attention(False)
             page.get_child().focus()
         self.update_badge()
@@ -710,19 +881,41 @@ class TerminalsPage(Gtk.Box):
         if tab is not None:
             tab.update_page()
         self.update_badge()
+        if tab is not None and is_chat(tab):
+            self.watch_chat(tab)
         self.update_actions()
         self.window.terminals_changed()
         self.schedule_save()
-        if not self.polling and terminal.running_claude(self.states()):
+        if not self.polling and self.needs_poll():
             self.polling = True
             GLib.timeout_add_seconds(POLL_S, self.poll)
 
+    def needs_poll(self):
+        """Des sessions à suivre : un claude en marche, ou un chat en lecture seule qui attend
+        la fin de l'autre processus."""
+        return bool(terminal.running_claude(self.states())) or any(
+            getattr(t, "elsewhere_pid", None) for t in self.tabs())
+
     def update_badge(self):
-        page = self.window.terminals_page
-        tabs = self.tabs()
-        page.set_badge_number(len(tabs))
-        wanted = self.offering or any(t.page.get_needs_attention() for t in tabs if t.page)
-        page.set_needs_attention(wanted and self.window.stack.get_visible_child_name() != "terminals")
+        """Le badge est celui de l'onglet Sessions de la fenêtre (`window.update_badge`) ;
+        ici seulement : un onglet ou la proposition de réouverture demande-t-il de l'attention ?"""
+        self.wants_attention = bool(self.offering or any(
+            t.page.get_needs_attention() for t in self.tabs() if t.page))
+        update = getattr(self.window, "update_badge", None)
+        if update is not None:
+            update()
+
+    def overview_shown(self):
+        """La page « Toutes les sessions » est la page affichée de la barre d'onglets."""
+        if self.overview is not None and not self.available:
+            return True
+        if self.overview_page is None:
+            return False
+        return self.view.get_selected_page() is self.overview_page
+
+    def show_overview(self):
+        if self.overview_page is not None:
+            self.view.set_selected_page(self.overview_page)
 
     def update_content(self):
         if self.available:
@@ -742,7 +935,7 @@ class TerminalsPage(Gtk.Box):
 
     def selected_tab(self):
         page = self.view.get_selected_page() if self.available else None
-        return page.get_child() if page is not None else None
+        return page.get_child() if page is not None and page.get_child() is not self.overview else None
 
     def split_with(self, tab):
         """Affiche `tab` à côté de l'onglet affiché (ou de son voisin s'il l'est déjà)."""
@@ -789,13 +982,7 @@ class TerminalsPage(Gtk.Box):
         self.split_view.set_active(tab)
 
     def reveal_page(self):
-        """Onglet « Terminaux » visible dans la barre de la fenêtre, sans l'afficher."""
-        page = self.window.terminals_page
-        if not page.get_visible():
-            page.set_visible(True)
-            narrow = getattr(self.window, "narrow", None)
-            if narrow is not None and hasattr(self.window, "narrow_condition"):
-                narrow.set_condition(self.window.narrow_condition())
+        """L'onglet Sessions est toujours visible : seul le badge est remis à jour."""
         self.update_badge()
 
     def on_detached(self, _view, page, _position):
@@ -803,12 +990,15 @@ class TerminalsPage(Gtk.Box):
         tab.page = None
         if self.is_split() and self.split_view.contains(tab):
             self.unsplit()  # l'autre moitié revient dans son onglet
+        if isinstance(tab.panel, SessionWorkspace):
+            tab.panel.close()
+        self.seen.pop(id(tab), None)
         self.emit("tab-closed", tab)
         self.update_badge()
         self.update_content()
         self.window.terminals_changed()
         self.schedule_save()
-        if not self.tabs() and not self.offering:
+        if not self.tabs() and not self.offering and self.overview is None:
             self.window.hide_terminals()
 
     # ---- mémoire des onglets ---------------------------------------------------------
@@ -818,11 +1008,80 @@ class TerminalsPage(Gtk.Box):
         tant que la proposition de les rouvrir n'a pas de réponse."""
         tabs = self.tabs()
         page = self.view.get_selected_page()
-        current = [terminal.tab_record(t.state) for t in tabs]
+        current = [self.record_of(t) for t in tabs]
         selected = next((i for i, t in enumerate(tabs) if page is not None and t.page is page), None)
         if self.pending is not None:
             return terminal.merge_records(self.pending, self.pending_selected, current, selected)
         return current, selected
+
+    def record_of(self, tab):
+        if is_chat(tab):
+            chat = chat_record(getattr(tab, "options", None)) or {}
+            ws = tab.panel if isinstance(tab.panel, SessionWorkspace) else None
+            if ws is not None:
+                if ws.project_root != os.path.abspath(tab.state.cwd):
+                    chat["root"] = ws.project_root
+                if ws.followed_roadmap:
+                    chat["roadmap"] = ws.followed_roadmap
+            return terminal.tab_record(tab.state, chat=chat)
+        return terminal.tab_record(tab.state)
+
+    def apply_kept(self, tab, kept):
+        """Rouvre l'espace d'un chat comme on l'avait laissé : dossier du projet, feuille suivie."""
+        ws = tab.panel if isinstance(tab.panel, SessionWorkspace) else None
+        if ws is None or not kept:
+            return
+        root, followed = kept.get("root"), kept.get("roadmap")
+        if root and os.path.isdir(root):
+            ws.set_project_root(root)
+        if followed and os.path.isfile(followed):
+            ws.roadmap.follow(followed)
+
+    def project_folder(self, tab):
+        """« Dossier du projet… » : l'arbre et la feuille de route de l'onglet partent de ce
+        dossier. Une conversation arrêtée est aussi reliée à ce dossier (reprise depuis là)."""
+        ws = tab.panel if isinstance(tab.panel, SessionWorkspace) else None
+        if ws is None:
+            return
+        dialog = Gtk.FileDialog(title="Dossier du projet",
+                                initial_folder=Gio.File.new_for_path(ws.project_root))
+
+        def done(d, res):
+            try:
+                folder = d.select_folder_finish(res)
+            except GLib.Error:
+                return   # annulé
+            if folder is None or not folder.get_path():
+                return
+            path = folder.get_path()
+            ws.set_project_root(path)
+            self.schedule_save()
+            self.relink_conversation(tab, path)
+        dialog.select_folder(self.get_root() if isinstance(self.get_root(), Gtk.Window) else None, None, done)
+
+    def relink_conversation(self, tab, folder):
+        """Relie la conversation d'un chat sans processus à `folder` (conversations.relocate) :
+        la prochaine reprise se fait depuis le projet. Jamais pour une conversation vivante."""
+        engine = getattr(tab, "engine", None)
+        sid = tab.state.session_id
+        if engine is None or engine.pid is not None or not sid or getattr(tab, "elsewhere_pid", None):
+            return
+
+        def work():
+            from .. import conversations
+            conv = next((c for c in conversations.scan(archived=False) if c.session_id == sid), None)
+            return conversations.relocate(conv, folder) if conv is not None else None
+
+        def done(conv):
+            if conv is None or engine.pid is not None:
+                return
+            engine.cwd = folder
+            tab.launch = dataclasses.replace(tab.launch, cwd=folder)
+            tab.state.cwd = folder
+            tab.update_page()
+            self.schedule_save()
+            self.window.toast("Conversation reliée au dossier du projet.")
+        in_thread(work, done)
 
     def schedule_save(self):
         if self.available and not self.closed and self.save_source is None:
@@ -906,7 +1165,7 @@ class TerminalsPage(Gtk.Box):
         self.end_offer()
         self.pending = None
         self.flush_save()
-        if not self.tabs():
+        if not self.tabs() and self.overview is None:
             self.window.hide_terminals()
 
     def end_offer(self):
@@ -918,7 +1177,12 @@ class TerminalsPage(Gtk.Box):
         """Rouvre les onglets du plan (sans voler l'affichage au démarrage si `show` est faux)."""
         opened = []
         for item in plan.tabs:
-            tab = self.open(item.launch(), present=False)
+            if item.kind == "claude":  # onglets de la 0.9 et chats : un chat sans processus
+                tab = self.open_chat(item.cwd, item.session_id, item.title or None,
+                                     self.options_of(item), item.extra_args, present=False)
+                self.apply_kept(tab, item.chat)
+            else:
+                tab = self.open(item.launch(), present=False)
             tab.state.queue[:] = list(item.queue)
             tab.refresh_queue()
             opened.append(tab)
@@ -930,11 +1194,22 @@ class TerminalsPage(Gtk.Box):
                 self.present(target)
             else:
                 self.reveal_page()
-        elif not self.tabs():
+        elif not self.tabs() and self.overview is None:
             self.window.hide_terminals()
         self.update_content()
         self.window.toast(terminal.restore_summary(len(opened), plan.skipped))
         self.flush_save()
+
+    def options_of(self, item):
+        """ChatOptions d'un onglet rouvert : celles gardées (v2), complétées par les arguments
+        de lancement d'un onglet de la 0.9 (--model, --permission-mode, --effort)."""
+        _cls, chat_options = _chat_classes()
+        base = chat_options.from_args(tuple(item.extra_args or ()))
+        kept = item.chat or {}
+        return chat_options.ChatOptions(
+            model=kept.get("model") or base.model, effort=kept.get("effort") or base.effort,
+            ultracode=bool(kept.get("ultracode")) or base.ultracode,
+            rights=kept.get("rights") or base.rights)
 
     # ---- fermeture -----------------------------------------------------------------
 
@@ -944,11 +1219,19 @@ class TerminalsPage(Gtk.Box):
 
     def on_close_page(self, view, page):
         tab = page.get_child()
+        if tab is self.overview:
+            view.close_page_finish(page, False)  # la vue d'ensemble reste toujours là
+            return True
         if tab.state.kind == "shell":
             tab.state.busy = tab.foreground_busy()
-        question = terminal.tab_close_question(tab.state)
+        forced = getattr(tab, "skip_confirm", False)
+        question = None if forced else terminal.tab_close_question(tab.state)
+        if question is None and not forced and is_chat(tab) \
+                and isinstance(tab.panel, SessionWorkspace) and tab.panel.has_unsaved():
+            question = (f"Fermer « {tab.state.title} » ?", "Des fichiers modifiés ne sont pas enregistrés.")
         if question is None:
-            tab.hang_up()
+            if not forced:
+                tab.hang_up()
             view.close_page_finish(page, True)
             return True
         d = Adw.AlertDialog(heading=question[0], body=question[1])
@@ -992,7 +1275,7 @@ class TerminalsPage(Gtk.Box):
         if self.menu_tab is not None and self.menu_tab.page is not None:
             return self.menu_tab
         page = self.view.get_selected_page()
-        return page.get_child() if page is not None else None
+        return page.get_child() if page is not None and page.get_child() is not self.overview else None
 
     def update_actions(self):
         if not self.available:
@@ -1007,6 +1290,9 @@ class TerminalsPage(Gtk.Box):
             tab is not None and len(self.tabs()) >= 2 and not (split and self.split_view.contains(tab)))
         self.tab_actions.lookup_action("unsplit").set_enabled(split)
         self.tab_actions.lookup_action("queue").set_enabled(bool(tab and tab.state.kind == "claude"))
+        self.tab_actions.lookup_action("terminal").set_enabled(
+            bool(tab and is_chat(tab) and tab.state.session_id))
+        self.tab_actions.lookup_action("project").set_enabled(bool(tab and is_chat(tab)))
 
     def with_tab(self, handler):
         tab = self.menu_target()
@@ -1028,8 +1314,7 @@ class TerminalsPage(Gtk.Box):
         terminal_store.save_options(self.options)
 
     def poll(self):
-        states = self.states()
-        if not terminal.running_claude(states):
+        if not self.needs_poll():
             self.polling = False
             return False
 
@@ -1046,6 +1331,9 @@ class TerminalsPage(Gtk.Box):
             if tab.state in done:
                 tab.attention()
             tab.update_page()
+            if is_chat(tab):
+                self.watch_chat(tab)
+        self.release_elsewhere(tabs, live)
         self.update_actions()
         if any(before[id(t.state)][0] != t.state.session_id for t in moved):
             self.window.terminals_changed()
@@ -1096,6 +1384,10 @@ class TerminalsPage(Gtk.Box):
 
     def send_queue(self, tab, blocked=False):
         """Envoie le premier message de la file si claude est libre (terminal.queue_next)."""
+        if getattr(tab, "elsewhere_pid", None):  # conversation ouverte ailleurs : lecture seule
+            tab.queue_reason = "Conversation ouverte ailleurs : rien n'est envoyé."
+            tab.refresh_queue()
+            return
         decision = terminal.queue_next(tab.state, time.time(), blocked)
         tab.queue_reason = decision.reason
         if decision.text is not None and tab.send_auto(decision.text):
@@ -1114,8 +1406,136 @@ class TerminalsPage(Gtk.Box):
         self.dark = self.style.get_dark()
         for tab in self.tabs():
             tab.apply_colors(self.dark)
+            if isinstance(tab.panel, SessionWorkspace):
+                tab.panel.set_dark(self.dark)
 
     def on_font(self, *_):
         self.font = system_font()
         for tab in self.tabs():
-            tab.term.set_font(self.font)
+            if not is_chat(tab):
+                tab.term.set_font(self.font)
+
+    # ---- chats : conversation ouverte ailleurs ---------------------------------------
+
+    def check_elsewhere(self, tab, live):
+        """Une session Claude Code vivante, hors de nos onglets, tient déjà la conversation :
+        le chat passe en lecture seule (deux processus la corrompraient)."""
+        if tab.page is None or tab.state.running:
+            return
+        own = {t.state.pid for t in self.tabs() if t.state.pid}
+        pid = terminal.elsewhere_pid(tab.state.session_id, live, own)
+        if pid:
+            self.set_read_only(tab, pid)
+            self.changed(tab)
+
+    def set_read_only(self, tab, pid):
+        tab.elsewhere_pid = pid
+        if isinstance(tab.panel, SessionWorkspace):
+            tab.panel.set_notice(ELSEWHERE_TEXT)
+        set_read_only(tab, True)
+
+    def release_elsewhere(self, tabs, live):
+        """La saisie se réactive quand l'autre processus a disparu."""
+        alive = {s.pid for s in live}
+        for tab in tabs:
+            pid = getattr(tab, "elsewhere_pid", None)
+            if pid and pid not in alive:
+                tab.elsewhere_pid = None
+                if isinstance(tab.panel, SessionWorkspace):
+                    tab.panel.set_notice(None)
+                set_read_only(tab, False)
+                self.send_queue(tab)
+
+    # ---- chats : alerte « attend ta réponse » (la mise en veille est faite par chaque ChatTab) ----
+
+    def watch_chat(self, tab):
+        """Suit l'état d'un chat (tenu par son moteur) : signal « tab-state-changed » et alerte
+        quand il attend ta réponse sans être affiché."""
+        st = tab.state
+        key = (st.state, st.state_since)
+        if self.seen.get(id(tab)) == key:
+            return
+        self.seen[id(tab)] = key
+        if terminal.is_waiting_for_user(st) and not (self.shown(tab) and self.on_screen()):
+            self.alert_waiting(tab)
+
+    def alert_waiting(self, tab):
+        """Alerte bureau et téléphone, une seule fois par attente, sauf « ne pas déranger »
+        (`notify.send` et `phone.send` décident). Les fiches de session de Claude Code ne
+        couvrent pas les processus `-p` d'un chat : CCS prévient lui-même."""
+        key = terminal.waiting_alert_key(tab.state)
+        if getattr(tab, "alerted", None) == key:
+            return
+        tab.alerted = key
+        project = sessions.project_name(tab.state.cwd)
+        if (tab.state.waiting_for or "").lower().startswith("permission"):
+            title, urgency = f"{project} : Claude attend ton autorisation", 1
+        else:   # simple fin de réponse : rien à valider, pas de « question en attente »
+            title, urgency = f"{project} : Claude a fini de répondre", 0
+        alert = alerts.Alert(key=key, title=title, body=tab.state.title or project, urgency=urgency)
+        try:
+            cfg = settings.load_settings()
+        except Exception:  # noqa: BLE001
+            cfg = None
+        try:
+            self.phoner(alert, cfg, datetime.now(timezone.utc), project=project)
+        except Exception:  # noqa: BLE001 — l'alerte ne doit jamais gêner l'interface
+            pass
+        in_thread(lambda: self.notifier(alert), lambda _r: None)
+
+    # ---- sortie de secours : le terminal -----------------------------------------------
+
+    def open_in_terminal(self, tab):
+        """« Ouvrir cette conversation dans un terminal » : le chat s'arrête (après
+        confirmation s'il travaille) et un terminal VTE reprend la conversation (`claude
+        --resume`) sous le même compte ; « Revenir au chat » le rouvre."""
+        if not is_chat(tab) or not tab.state.session_id:
+            return
+        if not terminal.needs_confirm(tab.state):
+            self.finish_open_in_terminal(tab)
+            return
+        d = Adw.AlertDialog(heading=f"Ouvrir « {tab.state.title} » dans un terminal ?",
+                            body="Claude travaille : le chat sera arrêté. "
+                                 "La conversation est enregistrée et reprend dans le terminal.")
+        d.add_response("cancel", "Annuler")
+        d.add_response("open", "Arrêter et ouvrir")
+        d.set_response_appearance("open", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.set_default_response("cancel")
+        d.set_close_response("cancel")
+        d.connect("response", lambda _d, r: r == "open" and self.finish_open_in_terminal(tab))
+        d.present(self.window)
+
+    def finish_open_in_terminal(self, tab):
+        if tab.page is None:
+            return
+        state = tab.state
+        back = {"cwd": state.cwd, "session_id": state.session_id, "title": state.title,
+                "options": getattr(tab, "options", None)}
+        position = self.view.get_page_position(tab.page)
+        tab.hang_up()
+
+        def open_terminal(tries=STOP_WAIT_TRIES):
+            # laisser le chat finir d'écrire sa conversation avant de la rouvrir ailleurs
+            if tab.state.running and tries > 0:
+                GLib.timeout_add(100, lambda: (open_terminal(tries - 1), False)[1])
+                return
+            if tab.page is None:
+                return
+            tab.skip_confirm = True
+            self.view.close_page(tab.page)
+            term = self.open(terminal.claude_launch(back["cwd"], back["session_id"], back["title"]))
+            term.back = back
+            self.view.reorder_page(term.page, min(position, self.view.get_n_pages() - 1))
+        open_terminal()
+
+    def back_to_chat(self, term):
+        """Le terminal de la conversation est fini : « Revenir au chat »."""
+        back = term.back
+        if back is None or term.page is None:
+            return
+        session_id = term.state.session_id or back["session_id"]
+        position = self.view.get_page_position(term.page)
+        term.skip_confirm = True
+        self.view.close_page(term.page)
+        tab = self.open_chat(back["cwd"], session_id, back["title"], back["options"])
+        self.view.reorder_page(tab.page, min(position, self.view.get_n_pages() - 1))

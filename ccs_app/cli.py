@@ -65,8 +65,8 @@ def cmd_gui(args):
 
 def _page(text):
     """Option --page : nom réel d'un onglet ou son titre en français."""
-    from .desktop import PAGE_CHOICES, page_name
-    name = page_name(text)
+    from .desktop import PAGE_CHOICES, canonical_page
+    name = canonical_page(text)
     if name is None:
         raise argparse.ArgumentTypeError(f"onglet inconnu : « {text} » ({', '.join(PAGE_CHOICES)})")
     return name
@@ -900,8 +900,8 @@ def build_parser():
                      help="affiche cette session Claude Code (pid, identifiant de conversation, "
                           "ou les deux) : clic sur une notification")
     gui.add_argument("--page", metavar="ONGLET", type=_page,
-                     help="affiche cet onglet : sessions, comptes, planning, historique, analyse, "
-                          "terminaux ou reglages")
+                     help="affiche cet onglet : accueil, sessions, analyse, ou une partie : "
+                          "comptes, planning, historique, terminaux, reglages (fenêtre des réglages)")
     gui.add_argument("--task", metavar="ID", type=_task_ref,
                      help="affiche cette tâche dans l'onglet Planning : clic sur une notification")
     gui.add_argument("--new-session", action="store_true",

@@ -73,14 +73,14 @@ class ShowSessionActionTest(unittest.TestCase):
         win.present.assert_called_once()
         win.show_task.assert_called_once_with("12")
 
-    def test_show_task_goes_to_planning_then_the_task(self):
+    def test_show_task_goes_to_home_planning_then_the_task(self):
         from types import SimpleNamespace
         shown = []
         fake = SimpleNamespace(
-            stack=mock.Mock(),
+            show_page=mock.Mock(),
             planning=SimpleNamespace(tasks_view=mock.Mock(show_task=lambda i: shown.append(i) or i == "3")))
         self.assertEqual(self.appmod.Window.show_task(fake, "3"), "planning")
-        fake.stack.set_visible_child_name.assert_called_once_with("planning")
+        fake.show_page.assert_called_once_with("planning")
         self.assertEqual(shown, ["3"])
         self.assertIsNone(self.appmod.Window.show_task(fake, "999"))
 
@@ -104,6 +104,7 @@ class ShowSessionActionTest(unittest.TestCase):
         import inspect
         source = inspect.getsource(self.appmod.Window.__init__)
         from ccs_app import desktop
+        self.assertEqual(desktop.PAGES, ("home", "sessions", "analysis"))
         for name in desktop.PAGES:
             self.assertIn(f'"{name}"', source)
         self.assertNotIn('"conversations"', source)

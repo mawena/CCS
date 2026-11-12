@@ -288,7 +288,7 @@ class SessionsPage(Adw.BreakpointBin):
     def set_badge(self, found):
         """Nombre de sessions qui attendent une réponse sur l'onglet (point d'attention s'il
         n'est pas affiché)."""
-        page = self.window.stack.get_page(self)
+        page = self.window.stack.get_page(self.window.stack.get_child_by_name("sessions"))
         if page is None:
             return
         n = attention.waiting_count(found)

@@ -5,6 +5,118 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [0.10.0] — 2026-11-12
+
+### Ajouté
+
+- **Chat graphique.** Une session Claude de CCS est maintenant un chat, plus un
+  terminal : tes messages en bulles, les réponses de Claude en Markdown mis en
+  forme (titres, listes, tableaux, code coloré), qui arrivent au fil de l'eau.
+  Chaque action de Claude (fichier lu ou modifié avec son `+12 −3`, commande,
+  recherche, sous-agent) est une carte repliable, et sa liste de tâches
+  s'affiche en cases à cocher. Le fil suit ce qui arrive tant que tu es en bas ; si tu
+  lis plus haut, il ne bouge pas et un bouton « ↓ Nouveaux messages » te ramène en bas.
+- **Fil de la réponse allégé** : les actions de Claude qui s'enchaînent sans texte
+  entre elles forment un seul bloc discret (action en cours et compte pendant le
+  travail, puis « 5 actions · 3 lectures, 1 modification (+12 −3), 1 commande »,
+  replié tout seul ; un clic montre les cartes). Une erreur reste signalée dans
+  l'en-tête. Autorisations, tâches, sous-agents et texte de Claude ne sont jamais
+  regroupés.
+- **Sous-agents visibles**, comme dans VS Code : quand Claude lance des sous-agents, une
+  pastille par sous-agent apparaît en haut du chat (roue tant qu'il travaille, coche à la
+  fin) ; un clic montre sa conversation (actions, résultats, texte), « Conversation
+  principale » ramène au fil. La carte Sous-agent du fil a un bouton « Voir le sous-agent ».
+- **Barre cliquable du chat** : modèle, effort (faible à max, les niveaux que le
+  modèle n'accepte pas sont grisés), ultracode et droits (Demander,
+  Modifications acceptées, Plan, Tout autoriser), avec le contexte utilisé et le
+  compte à droite. Les choix sont gardés par onglet. La barre montre le mode de
+  droits confirmé par Claude Code ; « Tout autoriser » marche en cours de session
+  (Claude est lancé avec `--allow-dangerously-skip-permissions`, qui ne fait que le
+  permettre), et un changement refusé en direct est appliqué en relançant la
+  conversation au message suivant.
+- **Autorisations dans le chat** : une demande de Claude devient une carte avec
+  Autoriser, Toujours pour cette commande (la commande exacte est écrite dans le
+  `.claude/settings.local.json` du projet, sans changer les droits de la session)
+  et Refuser (motif facultatif). L'alerte « attend ta réponse » se déclenche.
+  Une demande venue d'un sous-agent le dit. Une question de Claude Code que CCS ne
+  connaît pas reçoit « non pris en charge » (avec un message dans le fil) au lieu de
+  laisser Claude bloqué ; un chat qui a lancé des sous-agents en arrière-plan ne se
+  met jamais en veille (la veille les couperait).
+- **Fil de la réponse** : la ligne d'activité dit ce que fait Claude et depuis combien de
+  temps (« Lecture de README.md… · 12 s ») ; chaque réponse finit par un bilan discret
+  (« ✓ Terminé en 42 s · 0,12 $ éq. », coût de ce tour seulement) ; un bouton « Copier »
+  apparaît au survol d'une réponse ; un long message collé est replié à 14 lignes
+  (« Afficher tout »).
+- **Fichiers joints** : bouton trombone à côté d'Envoyer (ou glisser-déposer depuis le
+  gestionnaire de fichiers) ; une image devient une vignette, tout autre fichier une
+  étiquette avec ✕, envoyée en référence `@chemin` que Claude lit.
+- **Saisie du chat** : `@` propose les fichiers du projet, `/` les commandes de
+  Claude Code, une image collée ou glissée s'ajoute au message, un fichier glissé
+  depuis l'arbre insère `@chemin`. Le bouton Arrêter (ou Échap) interrompt Claude.
+  Un message écrit pendant que Claude travaille part tout de suite (images comprises),
+  marqué « envoyé pendant que Claude travaille » ; le chat ne reste jamais bloqué sur
+  « Claude travaille », que la CLI le lise en cours de route ou juste après.
+- **Mise en veille** : un chat resté 30 minutes au repos arrête son processus
+  `claude` pour ménager la mémoire, puis le relance sur la même conversation au
+  message suivant (réglage `chat.idle_suspend_min`, 0 = jamais). Un chat rouvert
+  montre son historique sans lancer `claude`.
+- **Ouvrir cette conversation dans un terminal** (menu de l'onglet) : sortie de
+  secours pour les commandes interactives de Claude Code, avec « Revenir au chat ».
+- **Panneau Fichiers** dans chaque onglet de session : arbre du projet avec les
+  marques git (`M`, `A`, `?`, `D`), fichiers ouverts à côté du chat (coloration,
+  numéros de ligne, recherche Ctrl+F, images), aperçu Markdown, édition et
+  Ctrl+S, diff des modifications de Claude. Un fichier modifié par Claude se
+  recharge ; si tu avais des changements non enregistrés, un bandeau te laisse
+  choisir. Deux dispositions (B par défaut : arbre | chat | fichier ; A : arbre |
+  fichier | chat), séparations réglables, Ctrl+B pour replier l'arbre.
+- **Feuille de route** dans l'onglet de session : le `ROADMAP.md` du projet avec
+  phases, barres de progression et cases cliquables (un clic coche la case dans
+  le fichier, sans le réécrire). Sans `ROADMAP.md`, le bouton « Demander à Claude
+  d'en créer une » écrit au chat.
+- **La feuille de route suit le projet de la conversation** : une conversation lancée
+  depuis ton dossier personnel ou le Bureau affiche la feuille de route du projet dès que
+  Claude lit ou modifie son `ROADMAP.md` ; « Choisir une feuille de route… » en ouvre une
+  autre ; « Demander à Claude d'en créer une » n'est proposé que dans un vrai projet
+  (dépôt git). « Dossier du projet… » (menu de l'onglet) fait partir l'arbre et la
+  feuille de route d'un autre dossier, et relie aussi une conversation arrêtée à ce
+  dossier. Ces choix sont gardés à la réouverture.
+- **Couleur par compte**, choisie automatiquement et modifiable (Réglages →
+  Apparence), reprise sur les cartes, les jauges, les courbes et la barre du chat ;
+  thème Automatique, Clair ou Sombre.
+- **Bilan de santé** : la ligne « Chat graphique » vérifie `gir1.2-gtksource-5` et
+  `python3-markdown-it`.
+
+- **« CCS a été mis à jour »** : quand un nouveau paquet est installé alors que
+  l'application est ouverte, un bandeau propose « Relancer » (nouvelle instance après
+  la fermeture, avec la confirmation habituelle si des sessions tournent).
+
+### Modifié
+
+- **Navigation en trois onglets** : Accueil, Sessions (« Toutes les sessions », puis
+  un onglet par chat et par shell), Analyse (analyse et historique). Les Réglages
+  sont dans le menu ☰, en fenêtre à part (Ctrl+virgule). Ctrl+1 à Ctrl+3 changent
+  d'onglet. Les anciens noms de `claude-accounts gui --page` (`comptes`, `planning`,
+  `terminaux`, `historique`…) mènent au bon onglet, et `accueil` s'ajoute.
+- **Accueil redessiné** : une seule colonne de même largeur, des titres de section
+  (Comptes, Derniers événements, Planning), les derniers événements avant le
+  planning. L'erreur d'un compte se lit en clair (« Connexion refusée par
+  Anthropic : reconnecte ce compte ») au lieu de la réponse brute de l'API, gardée
+  dans l'info-bulle.
+- « Nouvelle session… », « Reprendre » et les sessions rouvertes au démarrage
+  ouvrent un chat au lieu d'un terminal Claude. Les onglets enregistrés par la 0.9
+  se rouvrent en chat, avec leur historique ; un onglet shell reste un shell.
+- Le fichier `terminals.json` passe en version 2 (options du chat de chaque
+  onglet, largeurs des volets) ; un fichier de la version 1 se lit sans perte.
+- Nouveaux réglages, dans la fenêtre des Réglages : groupe « Chat et fichiers »
+  (mise en veille d'un chat inactif, droits par défaut des nouveaux chats,
+  fichiers ignorés par git, disposition A ou B), apparence (thème, couleur par
+  compte). Clés de `settings.json` : `chat`, `files`, `appearance`.
+- Dépendances : le paquet requiert maintenant `gir1.2-gtksource-5` (éditeur et
+  coloration) et `python3-markdown-it` (rendu du Markdown).
+- Documentation : README, guide d'utilisation, architecture (avec le protocole
+  stream-json), pages man et site à jour ; le scénario de bout en bout vérifie
+  les noms acceptés par `gui --page`.
+
 ## [0.9.0] — 2026-11-12
 
 ### Modifié

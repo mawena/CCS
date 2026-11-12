@@ -23,7 +23,7 @@ class FicheView(Gtk.Frame):
     modifiés et la dernière liste de tâches. `fiche` : `fiche.Fiche`."""
 
     def __init__(self, fiche):
-        super().__init__(css_classes=["card"])
+        super().__init__(css_classes=["ccs-card", "flat"])
         self.fiche = fiche
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8,
                       margin_top=10, margin_bottom=10, margin_start=12, margin_end=12)

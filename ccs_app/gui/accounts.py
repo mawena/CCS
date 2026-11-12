@@ -1,5 +1,7 @@
 """Onglet Comptes : meilleur compte, capacité, cartes avec prévisions."""
 
+import json
+import re
 import shutil
 import time
 
@@ -8,7 +10,8 @@ from gi.repository import Adw, Gio, GLib, Gtk
 from .. import core, daemon, pause
 from ..forecast import weekly_forecast_text
 from .charts import Sparkline
-from .common import (ask_name, bar_for, caption, clear, now_utc, parse_ts, run_ccs_async)
+from .common import (account_rgb, ask_name, bar_for, big_number, caption, card_box, clear, empty_state,
+                     now_utc, parse_ts, run_ccs_async, sync_accounts)
 
 DAY_S = 86400
 
@@ -80,6 +83,36 @@ def pause_box(window, now, offer=True):
     return row
 
 
+ERROR_MAX = 160
+_HTTP_RE = re.compile(r"^HTTP (\d{3})\s*:?\s*(.*)$", re.S)
+
+
+def friendly_error(raw):
+    """Erreur d'usage d'un compte dite en clair (jamais le JSON brut de l'API) ; le texte
+    d'origine reste en info-bulle."""
+    text = " ".join(str(raw or "").split())
+    m = _HTTP_RE.match(text)
+    if m:
+        code, rest = int(m.group(1)), m.group(2)
+        if code == 401 or "authentication_error" in rest:
+            return "Connexion refusée par Anthropic : reconnecte ce compte (menu ⋮ du compte)."
+        if code == 403:
+            return "Accès refusé par Anthropic pour ce compte."
+        if code == 429:
+            return "Trop de demandes à Anthropic pour l'instant : nouvel essai automatique plus tard."
+        if code >= 500:
+            return f"Anthropic ne répond pas (erreur {code}) : nouvel essai automatique plus tard."
+        message = None
+        try:
+            data = json.loads(rest)
+            err = data.get("error") if isinstance(data, dict) else None
+            message = (err or {}).get("message") if isinstance(err, dict) else None
+        except ValueError:
+            pass
+        text = f"Erreur {code} : {message}" if message else f"Erreur {code} de l'API d'Anthropic."
+    return text if len(text) <= ERROR_MAX else text[:ERROR_MAX - 1].rstrip() + "…"
+
+
 class AccountsPage(Gtk.ScrolledWindow):
     def __init__(self, window):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
@@ -92,7 +125,7 @@ class AccountsPage(Gtk.ScrolledWindow):
                             margin_top=18, margin_bottom=18, margin_start=12, margin_end=12)
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         body.append(self.banner)
-        body.append(Adw.Clamp(maximum_size=680, child=self.list))
+        body.append(Adw.Clamp(maximum_size=900, child=self.list))   # même largeur que le reste de l'Accueil
         self.set_child(body)
 
     # ---- rendu ---------------------------------------------------------------
@@ -108,22 +141,28 @@ class AccountsPage(Gtk.ScrolledWindow):
             if unsaved else "")
         self.banner.set_revealed(bool(unsaved))
 
+        sync_accounts(a["name"] for a in accounts)
         if not accounts:
-            self.list.append(Adw.StatusPage(
-                icon_name="system-users-symbolic", title="Aucun profil",
-                description="Enregistre le compte connecté, puis ajoute tes autres comptes avec +.",
-                vexpand=True))
+            save = None
+            if core.live_logged_in() and acc:
+                def save():
+                    ask_name(self.window, "Enregistrer le compte connecté", "Nom du profil…",
+                             "Enregistrer", lambda n: run_ccs_async(self.window, ["save", n]))
+            page = empty_state("system-users-symbolic", "Aucun profil",
+                               "Enregistre le compte connecté, puis ajoute tes autres comptes avec +.",
+                               "Enregistrer le compte connecté", save)
+            page.set_vexpand(True)
+            self.list.append(page)
             return
         self.list.append(self.summary_card(state))
         for a in accounts:
             self.list.append(self.card(a, store, now))
 
     def summary_card(self, state):
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6,
-                       css_classes=["card", "best-card"])
+        best = state.get("best")
+        card = card_box(6, account=best["name"] if best else None)
         row = Gtk.Box(spacing=12)
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
-        best = state.get("best")
         if best:
             text.append(Gtk.Label(label=f"Meilleur compte maintenant : {best['name']}",
                                   xalign=0, css_classes=["heading"]))
@@ -137,6 +176,11 @@ class AccountsPage(Gtk.ScrolledWindow):
         decision = (state.get("auto_switch") or {}).get("decision") or {}
         if decision.get("action") == "exhausted":
             text.append(caption(f"⚠ {decision['reason']}", error=True))
+        cap_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER,
+                          tooltip_text="Sessions complètes encore disponibles, tous comptes confondus")
+        cap_box.append(big_number(core.fr(cap)))
+        cap_box.append(caption("sessions" if cap >= 2 else "session"))
+        row.append(cap_box)
         row.append(text)
         if not daemon.state_fresh(state):
             text.append(caption(f"⚠ Données anciennes ({core.fmt_time(state.get('updated_at'))}) — "
@@ -151,8 +195,7 @@ class AccountsPage(Gtk.ScrolledWindow):
         return card
 
     def card(self, a, store, now):
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
-                       css_classes=["card", "profile-card"])
+        card = card_box(12, account=a["name"])
         top = Gtk.Box(spacing=10)
         info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
         title = Gtk.Box(spacing=8)
@@ -181,7 +224,8 @@ class AccountsPage(Gtk.ScrolledWindow):
             row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
             head = Gtk.Box()
             head.append(Gtk.Label(label=lim["label"], hexpand=True, xalign=0))
-            head.append(Gtk.Label(label=f"{lim['percent']:.0f} %", css_classes=["pct"]))
+            head.append(Gtk.Label(label=f"{lim['percent']:.0f} %",
+                                  css_classes=["ccs-big-number", "small"]))
             row.append(head)
             row.append(bar_for(lim["percent"]))
             reset = parse_ts(lim.get("resets_at"))
@@ -203,13 +247,15 @@ class AccountsPage(Gtk.ScrolledWindow):
         samples = [(ts, p) for ts, p, _ in store.samples(a["name"], "session", t1 - DAY_S)]
         if len(samples) >= 2:
             spark = Sparkline()
-            spark.set_data(t1 - DAY_S, t1, samples)
+            spark.set_data(t1 - DAY_S, t1, samples, rgb=account_rgb(a["name"]))
             card.append(caption("Session sur 24 h"))
             card.append(spark)
 
         if a.get("error"):
             stale = f" — données de {core.fmt_time(a['fetched_at'])}" if a.get("limits") else ""
-            card.append(caption(f"⚠ {a['error']}{stale}", error=True))
+            err = caption(f"⚠ {friendly_error(a['error'])}{stale}", error=True)
+            err.set_tooltip_text(str(a["error"]))
+            card.append(err)
         elif a.get("fetched_at"):
             card.append(caption(f"Mis à jour à {core.fmt_time(a['fetched_at'])}"))
         return card

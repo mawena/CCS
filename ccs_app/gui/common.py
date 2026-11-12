@@ -6,7 +6,9 @@ from pathlib import Path
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
-from .. import core, daemon
+from .. import account_colors, core, daemon
+from ..settings import load_settings
+from . import style
 
 CSS = b"""
 .profile-card { padding: 18px; }
@@ -30,12 +32,97 @@ progressbar.crit progress { background-color: @error_color; }
 .ccs-days > button { padding-left: 8px; padding-right: 8px; }
 """
 
+# Chargé après les règles des comptes (style.py) : une jauge qui approche de la limite garde
+# l'orange ou le rouge, quelle que soit la couleur du compte.
+CSS_TOP = b"""
+.ccs-card progressbar.warn progress { background-color: @warning_color; }
+.ccs-card progressbar.crit progress { background-color: @error_color; }
+"""
+
 
 def install_css():
     provider = Gtk.CssProvider()
     provider.load_from_data(CSS, -1)
-    Gtk.StyleContext.add_provider_for_display(
-        Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    display = Gdk.Display.get_default()
+    Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    style.install()
+    top = Gtk.CssProvider()
+    top.load_from_data(CSS_TOP, -1)
+    Gtk.StyleContext.add_provider_for_display(display, top, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 2)
+
+
+# ---- couleur des comptes, cartes, écrans vides ---------------------------------------
+
+_known = []        # profils connus (dernier état affiché)
+_chosen = {}       # couleurs choisies dans les Réglages
+_synced = None
+
+
+def sync_accounts(names):
+    """Retient les profils et les couleurs choisies, et regénère les règles CSS des comptes
+    quand l'un des deux change (les pages l'appellent à chaque rendu : sans effet sinon)."""
+    global _known, _chosen, _synced
+    try:
+        chosen = dict(load_settings().get("appearance", {}).get("account_colors") or {})
+    except (OSError, ValueError, AttributeError):
+        chosen = {}
+    names = sorted({n for n in names if n})
+    key = (tuple(names), tuple(sorted(chosen.items())))
+    _known, _chosen = names, chosen
+    if key != _synced:
+        _synced = key
+        style.refresh_accounts(names, chosen)
+
+
+def account_hex(name):
+    """Couleur `#rrggbb` du compte."""
+    return account_colors.color_for(name, _known, _chosen)
+
+
+def account_rgb(name):
+    """Couleur du compte en (r, g, b) de 0 à 1, pour les graphiques."""
+    return account_colors.rgb(account_hex(name))
+
+
+def tag_account(widget, name):
+    """Donne à `widget` la classe de couleur du compte (inconnu jusque-là : règles regénérées)."""
+    if not name:
+        return widget
+    if name not in _known:
+        sync_accounts(_known + [name])
+    widget.add_css_class(style.account_class(name))
+    return widget
+
+
+def card_box(spacing=8, account=None, flat=False):
+    """Carte arrondie `.ccs-card` (liseré de la couleur du compte si `account`)."""
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=spacing, css_classes=["ccs-card"])
+    if flat:
+        box.add_css_class("flat")
+    return tag_account(box, account)
+
+
+def big_number(text, small=False, **props):
+    """Gros chiffre lisible d'un coup d'œil."""
+    label = Gtk.Label(label=text, xalign=0, css_classes=["ccs-big-number"], **props)
+    if small:
+        label.add_css_class("small")
+    return label
+
+
+def empty_state(icon, title, description=None, button=None, on_click=None, compact=False):
+    """Écran vide : icône, phrase et, si utile, un bouton d'action."""
+    page = Adw.StatusPage(icon_name=icon, title=title)
+    if description:
+        page.set_description(description)
+    if button and on_click:
+        b = Gtk.Button(label=button, halign=Gtk.Align.CENTER, css_classes=["pill", "suggested-action"])
+        b.connect("clicked", lambda *_: on_click())
+        page.set_child(b)
+        page.button = b
+    if compact:
+        page.add_css_class("compact")
+    return page
 
 
 def load_state():

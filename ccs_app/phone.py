@@ -112,7 +112,7 @@ def event_of(alert):
     """Événement du téléphone d'une alerte, ou None (rien à envoyer : fin de session,
     seuils, conseils, bilans, budgets…). D'après la clé, comme `quiet.kind`."""
     prefix = str(alert.key).split(":", 1)[0]
-    if prefix in ("attente", "rappel"):
+    if prefix in ("attente", "rappel", "fin"):   # fin : un chat a fini de répondre
         return "waiting"
     if prefix in ("tache", "task"):
         return "task"
@@ -149,6 +149,10 @@ def message_for(alert, project=None):
     if ev is None:
         return None
     name = _clean(project) or (_project_from_title(alert.title) if ev == "waiting" else "")
+    if ev == "waiting" and str(alert.key).startswith("fin"):
+        return Message(ev, "Claude a fini de répondre",
+                       f"{name} : Claude a fini de répondre." if name else "Une session a fini de répondre.",
+                       3, ("white_check_mark",))
     if ev == "waiting":
         again = str(alert.key).startswith("rappel")
         body = ("Une session attend ta réponse." if not name else

@@ -17,6 +17,7 @@ from gi.repository import Adw, GLib, Gtk
 
 from .. import budget, costs
 from ..project_accounts import short_path
+from .common import empty_state
 
 CENTER = Gtk.Align.CENTER
 
@@ -33,7 +34,7 @@ class BudgetGroup(Adw.PreferencesGroup):
         self.rows = {}                  # dossier -> ligne
         self._shown = []
         self._generation = 0
-        self.empty = Adw.ActionRow(title="Chargement…", use_markup=False)
+        self.empty = empty_state("folder-symbolic", "Chargement…", compact=True)
         self.add(self.empty)
         add = Adw.ActionRow(title="Ajouter un budget…", activatable=True,
                             subtitle="Choisir un dossier de projet et un montant par semaine")
@@ -65,7 +66,8 @@ class BudgetGroup(Adw.PreferencesGroup):
         self._shown, self.rows = [], {}
         if error is not None or not st.rows:
             self.empty.set_title("Calcul impossible" if error else "Aucun budget défini")
-            self.empty.set_subtitle(error or "Ajoute un dossier de projet avec un montant par semaine.")
+            self.empty.set_description(error or "Ajoute un dossier de projet avec un montant par semaine.")
+            self.empty.set_icon_name("dialog-error-symbolic" if error else "folder-symbolic")
             self.empty.set_visible(True)
             return False
         self.empty.set_visible(False)
