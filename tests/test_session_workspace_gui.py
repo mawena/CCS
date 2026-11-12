@@ -84,9 +84,9 @@ class SessionWorkspaceGuiTest(HomeTestCase):
         self.assertIs(chat.get_parent(), self.ws.inner)
 
     def test_pane_positions_saved_per_layout(self):
-        self.ws.outer.set_position(300)
         self.chat.emit("open-file", str(self.project / "a.py"), 0)
-        spin(lambda: False, 0.3)
+        spin(lambda: False, 0.5)
+        self.ws.outer.set_position(300)
         self.ws.inner.set_position(self.ws.inner.get_width() - 380)
         self.ws.save_sizes()
         saved = terminal_store.load_panes()
