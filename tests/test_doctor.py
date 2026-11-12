@@ -36,6 +36,8 @@ def healthy(**over):
         claude_bin=lambda: "/home/u/.local/bin/claude",
         claude_version=lambda path: "2.1.319 (Claude Code)",
         vte=lambda: True,
+        gtksource=lambda: True,
+        markdown_it=lambda: True,
         which=lambda name: f"/usr/bin/{name}",
         local_deb=lambda version: None,
         settings_problems=lambda: [],
@@ -176,6 +178,18 @@ class DesktopTest(unittest.TestCase):
         c = doctor.check_tray(healthy(tray_running=lambda: False))
         self.assertEqual(c.statut, AVERTISSEMENT)
         self.assertIn("claude-accounts tray", c.commande)
+
+    def test_missing_gtksource_is_reported(self):
+        c = doctor.check_chat_deps(healthy(gtksource=lambda: False))
+        self.assertEqual((c.statut, c.commande), (AVERTISSEMENT, "sudo apt install gir1.2-gtksource-5"))
+        self.assertIn("GtkSource 5", c.detail)
+
+    def test_missing_markdown_it_is_reported(self):
+        c = doctor.check_chat_deps(healthy(markdown_it=lambda: False))
+        self.assertEqual((c.statut, c.commande), (AVERTISSEMENT, "sudo apt install python3-markdown-it"))
+        c = doctor.check_chat_deps(healthy(gtksource=lambda: False, markdown_it=lambda: False))
+        self.assertEqual(c.commande, "sudo apt install gir1.2-gtksource-5 python3-markdown-it")
+        self.assertEqual(doctor.check_chat_deps(healthy()).statut, OK)
 
     def test_vte(self):
         c = doctor.check_vte(healthy(vte=lambda: False))
