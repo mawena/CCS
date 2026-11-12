@@ -92,13 +92,14 @@ class ChatTabTest(HomeTestCase):
             tab.engine.stop(grace_s=1)
         super().tearDown()
 
-    def make(self, scenario="reprise-resume.jsonl", session_id=None, env=None, history_path=None):
+    def make(self, scenario="reprise-resume.jsonl", session_id=None, env=None, history_path=None, spawn=True):
         environ = {"PATH": os.environ["PATH"], "HOME": str(self.home),
                    "FAKE_CLAUDE_SCENARIO": str(FIXTURES / scenario), **(env or {})}
         launch = terminal.claude_launch(str(self.cwd), session_id, "Essai")
         owner = FakeOwner()
         tab = ChatTab(owner, launch, claude=FAKE, environ=environ, history_path=history_path)
-        tab.spawn()
+        if spawn:   # la page Sessions, elle, ouvre ses chats sans spawn() : processus au premier envoi
+            tab.spawn()
         self.tabs.append(tab)
         return tab, owner
 
@@ -160,6 +161,23 @@ class ChatTabTest(HomeTestCase):
         self.assertEqual(decision.text, "et ensuite ceci")
         self.assertTrue(tab.send_auto(decision.text))
         self.assertIsNotNone(tab.state.sent_at)
+
+    def test_send_now_from_a_chat_opened_without_spawn(self):
+        # Comme un chat ouvert ou rouvert par la page Sessions : pas de spawn(), pas de processus.
+        tab, _owner = self.make(spawn=False)
+        self.assertFalse(tab.state.running)
+        tab.state.queue[:] = ["Réponds juste OK."]
+        tab.send_message_now(0)                                    # « Envoyer maintenant »
+        self.assertEqual(tab.state.queue, [])
+        self.assertIn("Réponds juste OK.", texts(tab))
+        self.assertEqual(tab.state.state, "busy")
+        self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
+
+    def test_send_auto_starts_a_chat_without_process(self):
+        tab, _owner = self.make(spawn=False)
+        self.assertTrue(tab.send_auto("Réponds juste OK."))       # file de messages, reprise, « créer une feuille de route »
+        self.assertIsNotNone(tab.state.sent_at)
+        self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
 
     def test_start_failure_shows_notice(self):
         tab, owner = self.make(env={"FAKE_CLAUDE_EXIT": "1"})

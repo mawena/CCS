@@ -253,8 +253,11 @@ class ChatTab(Gtk.Box):
         return True
 
     def send_auto(self, text):
-        """Envoi décidé par l'application (reprise après une limite, file de messages)."""
-        if not self.state.running:
+        """Envoi décidé par l'application (reprise après une limite, file de messages, « créer
+        une feuille de route »). Un chat sans processus — c'est le cas de tout chat ouvert ou
+        rouvert par la page Sessions — le lance comme un envoi au clavier (`_send`) ; seule une
+        conversation ouverte ailleurs (lecture seule) refuse."""
+        if getattr(self, "elsewhere_pid", None):
             return False
         if not self._send(text):
             return False
@@ -319,6 +322,11 @@ class ChatTab(Gtk.Box):
             return
         if self.send_auto(st.queue[index]):
             self.set_queue(terminal.queue_remove(st.queue, index))
+        else:   # jamais en silence : le bandeau de la file dit pourquoi rien n'est parti
+            self.queue_reason = ("Conversation ouverte ailleurs : rien n'est envoyé."
+                                 if getattr(self, "elsewhere_pid", None)
+                                 else "Envoi impossible : Claude Code n'a pas démarré.")
+            self.refresh_queue()
 
     # ---- événements du moteur ------------------------------------------------------------
 

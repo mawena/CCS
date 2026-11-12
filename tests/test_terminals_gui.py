@@ -470,6 +470,28 @@ class RealChatTabTest(HomeTestCase):
         records, _sel = self.page.records()
         self.assertEqual(records[0]["chat"]["model"], "opus")
 
+    def test_page_sends_the_queue_of_a_chat_opened_without_process(self):
+        # Les chats de la page n'ont pas de processus avant le premier envoi : la file, l'envoi
+        # immédiat et « créer une feuille de route » doivent le lancer, pas échouer en silence.
+        tests_dir = Path(__file__).resolve().parent
+        fake = str(tests_dir / "fake_claude.py")
+        scenario = str(tests_dir / "fixtures" / "chat" / "reprise-resume.jsonl")
+        with mock.patch.object(sessions, "_claude_bin", return_value=fake), \
+                mock.patch.dict(os.environ, {"FAKE_CLAUDE_SCENARIO": scenario}):
+            tab = self.page.open_claude(self.cwd)
+            self.addCleanup(lambda: tab.engine.stop(grace_s=1))
+            self.assertFalse(tab.state.running)
+            tab.state.queue[:] = ["Réponds juste OK."]
+            tab.state.queued_at = time.time()
+            self.page.send_queue(tab)
+            self.assertEqual(tab.state.queue, [])
+            self.assertEqual(tab.state.state, "busy")
+            deadline = time.time() + 15
+            while tab.engine.state != "idle" and time.time() < deadline:
+                GLib.MainContext.default().iteration(False)
+                time.sleep(0.01)
+            self.assertEqual(tab.engine.state, "idle")
+
     def test_workspace_install_and_layouts_leave_no_gtk_critical(self):
         # Gtk-CRITICAL (fatal sous G_DEBUG=fatal-criticals) si un widget déjà parenté entre dans un Gtk.Paned.
         tab = self.page.open_claude(self.cwd)
