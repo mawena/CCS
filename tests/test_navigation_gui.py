@@ -140,6 +140,9 @@ class NavigationTest(HomeTestCase):
     def test_overview_pinned_in_sessions(self):
         tab = self.win.stack.get_child_by_name("sessions")
         self.assertIs(tab, self.win.terminals)
+        if not self.win.terminals.available:   # sans VTE : la vue d'ensemble seule
+            self.assertIs(self.win.sessions.get_parent(), self.win.terminals)
+            return
         first = self.win.terminals.view.get_nth_page(0)
         self.assertIs(first.get_child(), self.win.sessions)
         self.assertTrue(first.get_pinned())
