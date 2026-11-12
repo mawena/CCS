@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from ccs_app import chat_engine as eng
@@ -112,15 +113,45 @@ class ChatEngineTest(EngineCase):
         self.assertNotIn("--resume", argv)
         self.assertTrue(s.session_id)
 
-    def test_send_while_busy_is_refused(self):
-        s = self.make(SCEN_PERM, FAKE_CLAUDE_DELAY_MS=30)
+    def test_send_while_busy_is_written_cli_queues_it(self):
+        # Comportement (a) : la CLI traite le message après le tour, avec son propre result.
+        s = self.make(SCEN_PERM, FAKE_CLAUDE_DELAY_MS=20)
         self.assertTrue(s.send("un"))
-        self.assertFalse(s.send("deux"))
-        self.assertFalse(s.send("trois"))
-        # rien d'autre n'a été écrit : un seul processus lancé
         self.col.wait_state("permission")
-        self.assertFalse(s.send("pendant une autorisation"))
-        self.assertEqual(len(self.wait_argvs(1)), 1)
+        self.assertTrue(s.send("pendant le tour"))               # écrit tout de suite
+        self.assertEqual(s.state, "permission")                  # l'état ne bouge pas pour ça
+        s.answer(self.col.of(proto.PermissionRequest)[0].request_id, "allow")
+        # le message parti pendant le tour lance le tour suivant (qui demande lui aussi)
+        self.col.wait(lambda evs: sum(isinstance(e, proto.PermissionRequest) for e in evs) >= 2)
+        self.assertEqual(s.state, "permission")                  # pas repassé idle entre les deux
+        s.answer(self.col.of(proto.PermissionRequest)[1].request_id, "allow")
+        self.col.wait(lambda evs: sum(isinstance(e, proto.TurnResult) for e in evs) >= 2)
+        self.col.wait_state("idle")
+        self.assertEqual(s.state, "idle")
+        self.assertEqual(len(self.wait_argvs(1)), 1)             # un seul processus
+
+    def test_absorbed_message_never_blocks_busy(self):
+        # Comportement (b) : la CLI absorbe le message dans le tour en cours, sans result à part.
+        with mock.patch.object(eng, "SETTLE_S", 0.5):
+            s = self.make(SCEN_PERM, FAKE_CLAUDE_MERGE=1, FAKE_CLAUDE_DELAY_MS=20)
+            s.send("un")
+            self.col.wait_state("permission")
+            self.assertTrue(s.send("absorbé"))
+            s.answer(self.col.of(proto.PermissionRequest)[0].request_id, "allow")
+            self.col.wait_state("idle")                          # grâce au filet, sans 2e result
+            self.assertEqual(sum(isinstance(e, proto.TurnResult) for e in self.col.events), 1)
+            self.assertEqual(s.state, "idle")
+
+    def test_local_effort_commands_do_not_flicker(self):
+        s = self.make(SCEN_LOCAL)
+        s.send("x")
+        self.col.wait_state("idle")
+        n_idle = sum(1 for st in self.col.states() if st == "idle")
+        s.set_options(ChatOptions(effort="high"))
+        s.send("y")                                              # /effort high part avant, en silence
+        self.col.wait_state("idle", count=n_idle + 1)
+        after = self.col.states()[self.col.states().index("busy", len(self.col.states()) - 3):]
+        self.assertEqual(after.count("idle"), 1)                 # pas d'idle intermédiaire
 
     def test_interrupt_then_send_resumes(self):
         s = self.make(SCEN_DENY)

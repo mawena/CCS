@@ -26,6 +26,12 @@ STDERR_LINES = 20
 # Événements propres au moteur
 # --------------------------------------------------------------------------
 
+# Après un `result`, si des messages envoyés pendant le tour restent « non soldés » et que la
+# CLI ne montre plus aucune activité pendant ce délai, on les tient pour absorbés par le tour
+# (la CLI peut lire un message reçu en plein tour sans lui donner de `result` à part).
+SETTLE_S = 3.0
+
+
 @dataclass(frozen=True)
 class StateChanged:
     state: str
@@ -79,6 +85,7 @@ class ChatSession:
         self._silent = 0                    # commandes locales du moteur dont la réponse est cachée
         self._pending_cmds = []             # `/effort …` à envoyer avant le prochain message
         self._relaunch_needed = False       # changement refusé en direct : relance au prochain message
+        self._activity_at = 0.0             # dernier signe de vie de la CLI (hors result)
         self._requested_stop = False
 
     # ------------------------------------------------------------------ état
@@ -205,6 +212,8 @@ class ChatSession:
 
     def _handle_event(self, proc, ev):
         forward = True
+        if not isinstance(ev, (proto.TurnResult, proto.LocalCommand, proto.ControlReply, proto.Status)):
+            self._activity_at = self._clock()   # la CLI travaille (nouveau tour, texte, outil…)
         if isinstance(ev, proto.Init):
             if ev.session_id:
                 self.session_id = ev.session_id
@@ -238,15 +247,30 @@ class ChatSession:
             self._finish_one(proc, ev)
 
     def _finish_one(self, proc, ev):
-        """Un `result` (tour ou commande locale) est arrivé : idle quand tous le sont."""
+        """Un `result` (tour ou commande locale) est arrivé : idle quand tous le sont. S'il reste
+        des messages envoyés pendant le tour, un filet les solde si la CLI ne fait plus rien."""
         with self._lock:
             if self._expected > 0:
                 self._expected -= 1
             done = self._expected == 0
             if done:
                 self._perms.clear()
+            at = self._clock()
         if done:
             self._set_state("idle", proc)
+        else:
+            timer = threading.Timer(SETTLE_S, self._settle, args=(proc, at))
+            timer.daemon = True
+            timer.start()
+
+    def _settle(self, proc, result_at):
+        """Filet : aucun signe de vie depuis le `result` → les messages restants ont été absorbés."""
+        with self._lock:
+            if (proc is not self._proc or self._expected == 0 or self._perms
+                    or self._activity_at > result_at):
+                return
+            self._expected = 0
+        self._set_state("idle", proc)
 
     # ---------------------------------------------------------------- écriture
 
@@ -270,7 +294,8 @@ class ChatSession:
     # ------------------------------------------------------------------- API
 
     def send(self, text, images=()):
-        """Envoie un message (lance ou relance le processus). Faux si busy ou permission."""
+        """Envoie un message (lance ou relance le processus), même pendant un tour. Faux si le
+        processus ne peut pas démarrer ou que l'écriture échoue."""
         if self._relaunch_needed and self._proc is not None and self.state not in ("busy", "permission"):
             self._relaunch_needed = False
             old = self._proc
@@ -279,8 +304,14 @@ class ChatSession:
                 if self._proc is old:
                     self._proc, self.pid = None, None
         with self._lock:
-            if self.state in ("busy", "permission"):
-                return False
+            working = self.state in ("busy", "permission") and self._proc is not None
+            if working:
+                # Pendant un tour : écrit tout de suite, la CLI le lit (après le tour ou en cours
+                # de route) ; l'état ne bouge pas, le message sera soldé par un result ou le filet.
+                self._expected += 1
+                ok = self._write(proto.user_message(text, list(images)))
+                self.last_activity = self._clock()
+                return ok
             if self._proc is None:
                 if not self._spawn():
                     return False

@@ -10,6 +10,8 @@ Variables d'environnement :
   FAKE_CLAUDE_BIG_LINE   nombre de caractères : avant le `result` de chaque tour, émet un
                          `tool_result` d'une seule ligne de cette taille ;
   FAKE_CLAUDE_DELAY_MS   pause entre deux lignes rejouées (0 par défaut).
+  FAKE_CLAUDE_MERGE      1 : un message reçu pendant un tour est absorbé par ce tour, sans
+                         result à part (l'autre comportement possible de la CLI).
   FAKE_CLAUDE_REFUSE_MODE mode refusé par set_permission_mode (comme la CLI qui refuse
                          bypassPermissions sans --allow-dangerously-skip-permissions).
 
@@ -29,6 +31,7 @@ Comportement :
 
 import json
 import os
+import select
 import sys
 import time
 
@@ -77,6 +80,8 @@ class Fake:
         self.contexts = 0
         self.last_request_id = None
         self.queue = []          # lignes lues pendant un tour et pas encore traitées
+        self.merge = os.environ.get("FAKE_CLAUDE_MERGE") == "1"
+        self._buf = b""          # octets lus sur stdin et pas encore découpés en lignes
         self.turns = self.split_turns()
 
     def scenario_session(self):
@@ -122,16 +127,48 @@ class Fake:
             time.sleep(self.delay)
 
     # -- lecture de stdin
+    def _readline(self, timeout=None):
+        """Une ligne de stdin, sans tampon caché (pour pouvoir regarder s'il reste des lignes) ;
+        "" si rien n'est prêt avant `timeout`, None à la fin de stdin."""
+        while b"\n" not in self._buf:
+            if timeout is not None and not select.select([0], [], [], timeout)[0]:
+                return ""
+            chunk = os.read(0, 65536)
+            if not chunk:
+                rest, self._buf = self._buf, b""
+                return rest.decode("utf-8", "replace") if rest else None
+            self._buf += chunk
+        line, _, self._buf = self._buf.partition(b"\n")
+        return line.decode("utf-8", "replace") + "\n"
+
     def read(self):
         if self.queue:
             return self.queue.pop(0)
-        line = sys.stdin.readline()
+        return self.read_stdin()
+
+    def read_stdin(self):
+        """La ligne suivante de stdin, sans passer par la file des messages mis de côté."""
+        line = self._readline()
         if not line:
             return None
         try:
             return json.loads(line)
         except ValueError:
             return {}
+
+    def absorb(self):
+        """Mode FAKE_CLAUDE_MERGE : les messages reçus pendant le tour y sont absorbés."""
+        self.queue = [m for m in self.queue if m.get("type") != "user"]
+        while True:
+            line = self._readline(timeout=0)
+            if not line:
+                return
+            try:
+                msg = json.loads(line)
+            except ValueError:
+                continue
+            if msg.get("type") == "control_request":
+                self.handle_control(msg)
 
     def reply(self, request_id, body):
         self.emit({"type": "control_response", "response": {
@@ -209,6 +246,8 @@ class Fake:
                     "type": "tool_result", "tool_use_id": "toolu_GROS", "is_error": False,
                     "content": "x" * self.big}]}, "parent_tool_use_id": None,
                     "session_id": self.session_id()})
+            if self.merge and isinstance(data, dict) and data.get("type") == "result":
+                self.absorb()
             self.emit(data)
             if isinstance(data, dict) and data.get("type") == "result" and data.get("terminal_reason") == "aborted_streaming":
                 sys.exit(1)
@@ -218,7 +257,7 @@ class Fake:
         """Attend la `control_response` (ou la requête `interrupt`) que le scénario a notée."""
         want_response = expected.get("type") == "control_response"
         while True:
-            msg = self.read()
+            msg = self.read_stdin()   # pas self.read() : il rendrait sans fin le message mis de côté
             if msg is None:
                 return None
             if msg.get("type") == "control_response" and want_response:
