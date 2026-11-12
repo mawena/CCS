@@ -1,7 +1,6 @@
 """Navigation en quatre onglets (Accueil, Sessions, Projets, Analyse) : fenêtre réelle dans un
 HOME temporaire, sans écran réel (Xvfb), sans service ni vraie session."""
 
-import importlib.util
 import os
 import unittest
 from unittest import mock
@@ -17,8 +16,6 @@ try:
     GTK = gui_ready()
 except (ImportError, ValueError):
     GTK = False
-
-HAS_PROJECTS = importlib.util.find_spec("ccs_app.gui.projects_page") is not None
 
 
 @unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
@@ -126,11 +123,6 @@ class NavigationTest(HomeTestCase):
             self.win.open_session("/tmp/projet")
         opened.assert_called_once_with("/tmp/projet")
 
-    @unittest.skipIf(HAS_PROJECTS, "la vraie page Projets est là")
-    def test_provisional_projects_page(self):
-        self.assertIsInstance(self.win.projects, Adw.StatusPage)
-
-    @unittest.skipUnless(HAS_PROJECTS, "page Projets (tâche 8) pas encore fusionnée")
     def test_projects_tab_holds_the_projects_page(self):
         from ccs_app.gui.projects_page import ProjectsPage
         self.assertIsInstance(self.win.projects, ProjectsPage)

@@ -13,8 +13,6 @@ from .. import (attention, conversations, daemon, desktop, doctor, installer, la
                sessions, switch_log, terminal)
 from ..settings import load_settings, save_settings  # noqa: E402
 from ..store import Store  # noqa: E402
-import importlib.util  # noqa: E402
-
 from .accounts import add_account, set_pause  # noqa: E402
 from .analysis_hub import AnalysisHub  # noqa: E402
 from .common import (ask_name, ask_title, cap, error_text, in_thread, install_css, load_state,  # noqa: E402
@@ -24,6 +22,7 @@ from .home_page import HomePage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
 from .prefs_dialog import PrefsDialog  # noqa: E402
+from .projects_page import ProjectsPage  # noqa: E402
 from .sessions_page import SessionsPage  # noqa: E402
 from .update_dialog import show_update  # noqa: E402
 from .terminals import TerminalsPage  # noqa: E402
@@ -37,15 +36,6 @@ NARROW_SP = 900
 # Pendant une pause, « Auto ⏸ jusqu'à 14:00 » remplace « Auto » : le seuil monte de la
 # différence de largeur (mesurée), plus cette marge.
 PAUSE_MARGIN_SP = 16
-
-
-def projects_page(window):
-    """Page Projets (tâche 8) ; un écran provisoire tant que son module n'est pas là."""
-    if importlib.util.find_spec(__package__ + ".projects_page") is not None:
-        from .projects_page import ProjectsPage
-        return ProjectsPage(window)
-    return Adw.StatusPage(title="Projets", icon_name="folder-symbolic",
-                          description="Les feuilles de route de vos projets s'afficheront ici.")
 
 
 class Window(Adw.ApplicationWindow):
@@ -115,7 +105,7 @@ class Window(Adw.ApplicationWindow):
         sessions_tab.append(Adw.ViewSwitcher(stack=self.sessions_stack, policy=Adw.ViewSwitcherPolicy.WIDE,
                                              halign=Gtk.Align.CENTER, margin_top=6, margin_bottom=2))
         sessions_tab.append(self.sessions_stack)
-        self.projects = projects_page(self)
+        self.projects = ProjectsPage(self)
         self.analysis_hub = AnalysisHub(self)
         self.history, self.analysis = self.analysis_hub.history, self.analysis_hub.analysis
         for page, name, title, icon in (

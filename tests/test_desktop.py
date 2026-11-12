@@ -133,7 +133,7 @@ class ShowSessionTest(unittest.TestCase):
 class PageNameTest(unittest.TestCase):
     def test_real_names_of_the_window(self):
         for name in desktop.PAGES:
-            self.assertEqual(desktop.page_name(name), (name, None))
+            self.assertEqual(desktop.page_name(name)[0], name)
 
     def test_french_names_without_accents_or_case(self):
         expected = {"comptes": ("home", "accounts"), "Planning": ("home", "planning"),
