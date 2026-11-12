@@ -454,6 +454,18 @@ class RealChatTabTest(HomeTestCase):
         records, _sel = self.page.records()
         self.assertEqual(records[0]["chat"]["model"], "opus")
 
+    def test_workspace_install_and_layouts_leave_no_gtk_critical(self):
+        # Gtk-CRITICAL (fatal sous G_DEBUG=fatal-criticals) si un widget déjà parenté entre dans un Gtk.Paned.
+        tab = self.page.open_claude(self.cwd)
+        ws = tab.panel
+        self.assertIsInstance(ws, SessionWorkspace)
+        self.assertIs(ws.center.get_parent(), ws.inner)
+        self.assertIs(ws.get_parent(), tab)
+        for layout in ("A", "B", "A"):
+            self.page.set_layout(layout)
+            self.assertIs(ws.center.get_parent(), ws.inner)
+            self.assertIs(ws.editor_box.get_parent(), ws.inner)
+
     def test_open_file_signal_opens_the_editor(self):
         (self.project / "a.py").write_text("print(1)\n")
         tab = self.page.open_claude(self.cwd)
