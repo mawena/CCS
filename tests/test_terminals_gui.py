@@ -97,7 +97,7 @@ if GTK:
             self.page = None
             self.queue_reason = None
             self.limits_done = set()
-            self.sent, self.notices, self.suspends = [], [], []
+            self.sent, self.notices = [], []
             self.hung_up = 0
             self.read_only = False
             self.panel = Gtk.Box(hexpand=True, vexpand=True)
@@ -138,10 +138,6 @@ if GTK:
         def hang_up(self):
             self.hung_up += 1
             self.state.running = False
-
-        def suspend_if_idle(self, now, idle_s):
-            self.suspends.append((now, idle_s))
-            return False
 
         def set_read_only(self, flag):
             self.read_only = flag
@@ -362,16 +358,6 @@ class SessionsPageTest(HomeTestCase):
         self.assertEqual(tab.sent, ["suite"])
         self.assertEqual(tab.state.queue, [])
 
-    def test_idle_chat_suspended(self):
-        tab = self.chat("s-1", running=True, pid=77, state="idle")
-        self.assertTrue(self.page.suspend_idle(now=5000.0))
-        self.assertEqual(tab.suspends, [(5000.0, 30 * 60)])
-        current = settings.load_settings()
-        current["chat"]["idle_suspend_min"] = 0
-        settings.save_settings(current)
-        self.page.suspend_idle(now=9000.0)
-        self.assertEqual(len(tab.suspends), 1)          # 0 = jamais
-
     def test_split_two_chats(self):
         one, two = self.chat("s-1"), self.chat("s-2")
         self.page.split_with(one)
@@ -418,14 +404,6 @@ class SessionsPageTest(HomeTestCase):
         spin(lambda: False, 0.2)
         self.assertEqual((self.notified, self.phoned), ([], []))
 
-    def test_chat_state_change_emits_signal(self):
-        tab = self.chat("s-1", running=True, pid=77)
-        got = []
-        self.page.connect("tab-state-changed", lambda _p, t: got.append(t))
-        tab.state.state, tab.state.state_since = "busy", time.time()
-        self.page.changed(tab)
-        self.assertEqual(got, [tab])
-
     def test_layout_button_switches_every_workspace_and_is_kept(self):
         one, two = self.chat("s-1"), self.chat("s-2")
         self.page.layout_btn.emit("clicked")
@@ -441,3 +419,57 @@ class SessionsPageTest(HomeTestCase):
         self.assertIsInstance(shell, terminals.TerminalTab)
         self.assertIs(self.page.tabs()[0], shell)
         self.page.hang_up_all()
+
+
+@unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
+class RealChatTabTest(HomeTestCase):
+    """Avec le vrai ChatTab (sans jamais lancer claude : le processus démarre au premier envoi)."""
+
+    def setUp(self):
+        super().setUp()
+        self.project = Path(self.tmp) / "projet"
+        self.project.mkdir()
+        self.cwd = str(self.project)
+        self.live = []
+        for patcher in (mock.patch.object(sessions, "_claude_bin", return_value="/bin/true"),
+                        mock.patch.object(sessions, "list_sessions", side_effect=lambda *a, **k: list(self.live))):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.window = FakeWindow()
+        self.page = terminals.TerminalsPage(self.window, overview=Gtk.Label(label="Toutes"))
+        self.window.set_child(self.page)
+        self.window.present()
+        self.addCleanup(self.window.destroy)
+        self.page.notifier = lambda alert: None
+        self.page.phoner = lambda *a, **k: None
+
+    def test_real_chat_in_workspace_without_process(self):
+        from ccs_app.gui.chat_tab import ChatTab
+        tab = self.page.open_claude(self.cwd, None, "Export", ("--model", "opus"))
+        self.assertIsInstance(tab, ChatTab)
+        self.assertIsInstance(tab.panel, SessionWorkspace)
+        self.assertIsNone(tab.state.pid)
+        self.assertTrue(tab.state.chat)
+        self.assertEqual(tab.options.model, "opus")
+        records, _sel = self.page.records()
+        self.assertEqual(records[0]["chat"]["model"], "opus")
+
+    def test_open_file_signal_opens_the_editor(self):
+        (self.project / "a.py").write_text("print(1)\n")
+        tab = self.page.open_claude(self.cwd)
+        tab.emit("open-file", str(self.project / "a.py"), 1)
+        self.assertTrue(tab.panel.editor_box.get_visible())
+        self.assertTrue(spin(lambda: tab.panel.editor.paths()))
+
+    def test_insert_reference_goes_to_the_composer(self):
+        tab = self.page.open_claude(self.cwd)
+        tab.panel.tree.emit("insert-reference", "a.py")
+        self.assertIn("@a.py", tab.composer.text)
+
+    def test_read_only_greys_the_composer(self):
+        tab = self.page.open_claude(self.cwd, "s-9", "Ailleurs")
+        self.page.set_read_only(tab, 123)
+        self.assertFalse(tab.composer.get_sensitive())
+        tab.elsewhere_pid = 123
+        self.page.release_elsewhere([tab], [])
+        self.assertTrue(tab.composer.get_sensitive())

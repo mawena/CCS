@@ -31,7 +31,6 @@ PALETTE = ("#171421", "#c01c28", "#26a269", "#a2734c", "#12488b", "#a347ba", "#2
            "#5e5c64", "#f66151", "#33d17a", "#e9ad0c", "#2a7bde", "#c061cb", "#33c7de", "#ffffff")
 COLORS = {False: ("#1e1e1e", "#ffffff"), True: ("#ffffff", "#1e1e1e")}  # sombre ? -> (texte, fond)
 SAVE_DELAY_MS = 1000
-IDLE_CHECK_S = 60          # la mise en veille des chats inactifs est revue chaque minute
 STOP_WAIT_TRIES = 60       # 60 × 100 ms : temps laissé au chat pour s'arrêter avant le terminal
 ELSEWHERE_TEXT = "Cette conversation est ouverte ailleurs : tu pourras écrire quand elle sera fermée."
 SPLIT_ACCEL = "<Control><Shift>e"
@@ -96,6 +95,23 @@ def menu_item(label, action, accel=None):
 def is_chat(tab):
     """Onglet de chat (et non un terminal VTE)."""
     return not isinstance(tab, TerminalTab)
+
+
+def insert_reference(tab, relpath):
+    """« Insérer @chemin » depuis l'arbre : dans la zone de saisie du chat."""
+    if hasattr(tab, "insert_reference"):
+        tab.insert_reference(relpath)
+    elif hasattr(tab, "composer"):
+        tab.composer.insert_reference(relpath)
+
+
+def set_read_only(tab, flag):
+    """Chat ouvert ailleurs : la saisie est grisée (le chat lui-même sait le faire, sinon la
+    zone de saisie)."""
+    if hasattr(tab, "set_read_only"):
+        tab.set_read_only(flag)
+    elif hasattr(tab, "composer"):
+        tab.composer.set_sensitive(not flag)
 
 
 def chat_record(options):
@@ -680,7 +696,6 @@ class TerminalsPage(Gtk.Box):
             self.view.set_page_pinned(self.overview_page, True)
             self.view.set_selected_page(self.overview_page)
             self.update_content()
-        GLib.timeout_add_seconds(IDLE_CHECK_S, self.suspend_idle)
         window.connect("close-request", self.on_window_close)  # avant celui de la fenêtre
         window.connect("destroy", lambda *_: setattr(self, "closed", True))
         GLib.idle_add(self.startup)
@@ -755,8 +770,7 @@ class TerminalsPage(Gtk.Box):
                               ("show-diff", lambda _t, path, old, new: workspace.show_diff(path, old, new))):
             if GObject.signal_lookup(name, type(tab)):
                 tab.connect(name, handler)
-        workspace.connect("insert-reference", lambda _w, rel: getattr(tab, "insert_reference",
-                                                                       lambda _r: None)(rel))
+        workspace.connect("insert-reference", lambda _w, rel: insert_reference(tab, rel))
         tab.remove(chat)
         tab.panel = workspace
         tab.append(workspace)
@@ -1344,8 +1358,7 @@ class TerminalsPage(Gtk.Box):
         tab.elsewhere_pid = pid
         if isinstance(tab.panel, SessionWorkspace):
             tab.panel.set_notice(ELSEWHERE_TEXT)
-        if hasattr(tab, "set_read_only"):
-            tab.set_read_only(True)
+        set_read_only(tab, True)
 
     def release_elsewhere(self, tabs, live):
         """La saisie se réactive quand l'autre processus a disparu."""
@@ -1356,11 +1369,10 @@ class TerminalsPage(Gtk.Box):
                 tab.elsewhere_pid = None
                 if isinstance(tab.panel, SessionWorkspace):
                     tab.panel.set_notice(None)
-                if hasattr(tab, "set_read_only"):
-                    tab.set_read_only(False)
+                set_read_only(tab, False)
                 self.send_queue(tab)
 
-    # ---- chats : alerte « attend ta réponse », mise en veille ------------------------
+    # ---- chats : alerte « attend ta réponse » (la mise en veille est faite par chaque ChatTab) ----
 
     def watch_chat(self, tab):
         """Suit l'état d'un chat (tenu par son moteur) : signal « tab-state-changed » et alerte
@@ -1369,10 +1381,7 @@ class TerminalsPage(Gtk.Box):
         key = (st.state, st.state_since)
         if self.seen.get(id(tab)) == key:
             return
-        first = id(tab) not in self.seen
         self.seen[id(tab)] = key
-        if not first:
-            self.emit("tab-state-changed", tab)
         if terminal.is_waiting_for_user(st) and not (self.shown(tab) and self.on_screen()):
             self.alert_waiting(tab)
 
@@ -1396,22 +1405,6 @@ class TerminalsPage(Gtk.Box):
         except Exception:  # noqa: BLE001 — l'alerte ne doit jamais gêner l'interface
             pass
         in_thread(lambda: self.notifier(alert), lambda _r: None)
-
-    def suspend_idle(self, now=None):
-        """Chaque minute : les chats inactifs depuis `chat.idle_suspend_min` minutes arrêtent
-        leur processus (0 = jamais). L'onglet, l'historique et la file restent."""
-        if self.closed:
-            return False
-        try:
-            minutes = settings.load_settings()["chat"]["idle_suspend_min"]
-        except Exception:  # noqa: BLE001
-            minutes = 0
-        if minutes:
-            now = time.time() if now is None else now
-            for tab in self.tabs():
-                if is_chat(tab) and hasattr(tab, "suspend_if_idle"):
-                    tab.suspend_if_idle(now, minutes * 60)
-        return True
 
     # ---- sortie de secours : le terminal -----------------------------------------------
 
