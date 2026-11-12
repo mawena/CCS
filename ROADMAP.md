@@ -200,7 +200,7 @@ Feuille de route et projets :
 
 Le design :
 - [ ] Navigation en 4 onglets (Accueil, Sessions, Projets, Analyse), Réglages dans le menu, anciens noms de page acceptés
-- [ ] Nouveau design : couleur par compte, cartes, écrans vides, clair et sombre
+- [x] Nouveau design : couleur par compte, cartes, écrans vides, clair et sombre
 
 Documentation et release :
 - [ ] Documentation (README, guide, architecture, pages man, CHANGELOG, site)
