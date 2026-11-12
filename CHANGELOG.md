@@ -83,6 +83,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - **Bilan de santé** : la ligne « Chat graphique » vérifie `gir1.2-gtksource-5` et
   `python3-markdown-it`.
 
+- **« CCS a été mis à jour »** : quand un nouveau paquet est installé alors que
+  l'application est ouverte, un bandeau propose « Relancer » (nouvelle instance après
+  la fermeture, avec la confirmation habituelle si des sessions tournent).
+
 ### Modifié
 
 - **Navigation en quatre onglets** : Accueil (comptes, file de tâches, derniers

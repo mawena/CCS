@@ -38,6 +38,23 @@ class NavigationTest(HomeTestCase):
     def tab(self):
         return self.win.stack.get_visible_child_name()
 
+    def test_restart_banner_when_a_new_version_is_installed(self):
+        from ccs_app.gui import app
+        self.assertFalse(self.win.restart_banner.get_revealed())
+        with mock.patch.object(app.installer, "code_stamp", return_value=self.win._code_stamp):
+            self.win.check_fresh()
+        self.assertFalse(self.win.restart_banner.get_revealed())    # même code : rien
+        with mock.patch.object(app.installer, "code_stamp", return_value=(self.win._code_stamp or 0) + 60):
+            self.win.check_fresh()
+        self.assertTrue(self.win.restart_banner.get_revealed())
+        with mock.patch.object(app.subprocess, "Popen") as popen, \
+                mock.patch.object(self.win, "close") as close:
+            self.win.relaunch_app()
+        cmd = " ".join(popen.call_args[0][0])
+        self.assertIn("claude-accounts", cmd)
+        self.assertIn("gui", cmd)
+        close.assert_called_once()
+
     def test_color_scheme_applied_at_startup(self):
         from ccs_app.gui import app
         with mock.patch.object(app.style, "apply_color_scheme") as applied, \

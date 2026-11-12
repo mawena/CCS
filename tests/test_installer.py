@@ -359,3 +359,22 @@ class NotesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CodeStampTest(unittest.TestCase):
+    """Empreinte du code installé : change quand un nouveau paquet remplace les fichiers."""
+
+    def test_stamp_changes_when_code_is_replaced(self):
+        import tempfile as _tf
+        from pathlib import Path as _P
+        root = _P(_tf.mkdtemp(prefix="ccs-stamp-"))
+        self.addCleanup(__import__("shutil").rmtree, root, True)
+        (root / "gui").mkdir()
+        (root / "a.py").write_text("x = 1\n")
+        (root / "gui" / "b.py").write_text("y = 2\n")
+        first = installer.code_stamp(root)
+        self.assertIsNotNone(first)
+        self.assertEqual(installer.code_stamp(root), first)          # rien n'a bougé
+        os.utime(root / "gui" / "b.py", (1_900_000_000, 1_900_000_000))
+        self.assertNotEqual(installer.code_stamp(root), first)       # nouveau paquet installé
+        self.assertIsNone(installer.code_stamp(root / "absent"))

@@ -1,5 +1,7 @@
 """Application « CCS » (GTK4/libadwaita)."""
 
+import shutil
+import subprocess
 import sys
 import time
 
@@ -37,6 +39,7 @@ NARROW_SP = 900
 # Pendant une pause, « Auto ⏸ jusqu'à 14:00 » remplace « Auto » : le seuil monte de la
 # différence de largeur (mesurée), plus cette marge.
 PAUSE_MARGIN_SP = 16
+FRESH_CHECK_S = 30   # vérifie toutes les 30 s si un nouveau paquet a été installé
 
 
 class Window(Adw.ApplicationWindow):
@@ -126,6 +129,12 @@ class Window(Adw.ApplicationWindow):
         self.doctor_banner = Adw.Banner(button_label="Voir le bilan")
         self.doctor_banner.connect("button-clicked", lambda *_: self.show_doctor())
         view.add_top_bar(self.doctor_banner)
+        # Un nouveau paquet installé pendant que l'application tourne : proposer de la relancer.
+        self._code_stamp = installer.code_stamp()
+        self.restart_banner = Adw.Banner(title="CCS a été mis à jour : relance-le pour profiter des nouveautés",
+                                         button_label="Relancer")
+        self.restart_banner.connect("button-clicked", lambda *_: self.relaunch_app())
+        view.add_top_bar(self.restart_banner)
         view.add_bottom_bar(bottom_switcher)
         self.set_content(view)
         # Fenêtre étroite : onglets en bas, comme les applications GNOME (en dessous de
@@ -141,6 +150,7 @@ class Window(Adw.ApplicationWindow):
         self.monitor = state_file.monitor_file(Gio.FileMonitorFlags.NONE, None)
         self.monitor.connect("changed", lambda *_: self.schedule_reload())
         GLib.timeout_add_seconds(60, lambda: (self.reload(), True)[1])
+        GLib.timeout_add_seconds(FRESH_CHECK_S, self.check_fresh)
 
         self.reload()
         state = load_state()
@@ -439,6 +449,21 @@ class Window(Adw.ApplicationWindow):
         if self.sessions.visible_page:
             self.sessions.rerender()
         self.update_badge()
+
+    def check_fresh(self):
+        """Le code sur le disque a changé depuis le lancement : bandeau « Relancer »."""
+        stamp = installer.code_stamp()
+        if stamp is not None and self._code_stamp is not None and stamp != self._code_stamp:
+            self.restart_banner.set_revealed(True)
+        return True
+
+    def relaunch_app(self):
+        """« Relancer » : une nouvelle instance démarre une seconde après la fermeture de celle-ci
+        (la confirmation habituelle s'applique si des sessions tournent)."""
+        exe = shutil.which("claude-accounts") or "claude-accounts"
+        subprocess.Popen(["sh", "-c", 'sleep 1; exec "$0" gui', exe], start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.close()
 
     def on_close_request(self, *_):
         if self.closing:
