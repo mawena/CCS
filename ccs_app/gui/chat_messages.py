@@ -41,6 +41,14 @@ TOOL_ICONS = {"Read": "text-x-generic-symbolic", "Edit": "document-edit-symbolic
               "WebSearch": "web-browser-symbolic", "NotebookEdit": "document-edit-symbolic",
               "LS": "folder-symbolic"}
 EDIT_TOOLS = ("Edit", "MultiEdit", "Write")
+AGENT_TOOLS = ("Task", "Agent")   # leur carte reste seule (pastille et « Voir le sous-agent »)
+# catégories du résumé d'un groupe : (clé, singulier, pluriel), dans cet ordre
+GROUP_KINDS = (("read", "lecture", "lectures"), ("edit", "modification", "modifications"),
+               ("run", "commande", "commandes"), ("search", "recherche", "recherches"),
+               ("web", "page web", "pages web"), ("other", "autre", "autres"))
+KIND_OF = {"Read": "read", "Edit": "edit", "MultiEdit": "edit", "Write": "edit", "NotebookEdit": "edit",
+           "Bash": "run", "Grep": "search", "Glob": "search", "LS": "search",
+           "WebFetch": "web", "WebSearch": "web"}
 FILE_TOOLS = ("Read", "Edit", "MultiEdit", "Write", "NotebookEdit")
 
 CSS = """
@@ -55,6 +63,12 @@ CSS = """
 .ccs-tool-card .ccs-tool-name { font-weight: 700; }
 .ccs-diff-add { color: @success_color; font-weight: 700; font-feature-settings: "tnum"; }
 .ccs-diff-del { color: @error_color; font-weight: 700; font-feature-settings: "tnum"; }
+.ccs-tool-group { background-color: alpha(@window_fg_color, 0.035); border-radius: 10px;
+  padding: 2px 6px; }
+.ccs-tool-group.error { background-color: alpha(@error_bg_color, 0.10); }
+.ccs-tool-group .ccs-group-title { font-size: 0.92em; }
+.ccs-tool-group.error .ccs-group-title, .ccs-tool-group.error .ccs-group-icon { color: @error_color; }
+.ccs-tool-group .ccs-group-count { font-size: 0.85em; }
 .ccs-todo-done label { text-decoration: line-through; opacity: 0.6; }
 .ccs-todo-now label { font-weight: 700; }
 .ccs-busy-row { padding: 4px 6px; }
@@ -206,6 +220,7 @@ class ToolCard(Gtk.Box):
         self.on_diff, self.on_open = on_diff, on_open
         self.edit = edit_info(name, self.data)
         self.running = True
+        self.group = None
         self.result_text = None
         if nested:
             self.set_margin_start(24)
@@ -298,6 +313,110 @@ class ToolCard(Gtk.Box):
             self.on_open(self.data["file_path"], 0)
         else:
             self.toggle()
+
+
+class ToolGroup(Gtk.Box):
+    """Des actions de Claude qui s'enchaînent, en un bloc discret.
+
+    En-tête : roue, action en cours et compte tant que ça travaille ; puis coche et résumé
+    (« 5 actions · 3 lectures, 1 modification (+12 −3), 1 commande »). Une erreur est
+    signalée dans l'en-tête (icône et couleur d'erreur, « 1 erreur »). Replié, il se déplie
+    d'un clic et montre les cartes, inchangées ; il se replie seul à la fin du travail, sauf
+    si on l'a ouvert ou fermé à la main."""
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=2, css_classes=["ccs-tool-group"])
+        self.cards = []
+        self.touched = False
+        self.running = True
+
+        self.icon = Gtk.Image(icon_name="object-select-symbolic", css_classes=["ccs-group-icon"])
+        self.spinner = Gtk.Spinner(spinning=True)
+        self.stack = Gtk.Stack()
+        self.stack.add_named(self.icon, "icon")
+        self.stack.add_named(self.spinner, "spin")
+        self.stack.set_visible_child_name("spin")
+        self.title = Gtk.Label(xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END,
+                               css_classes=["ccs-group-title", "ccs-subtle"])
+        self.count = Gtk.Label(css_classes=["ccs-group-count", "ccs-subtle"])
+        self.chevron = Gtk.Image(icon_name="pan-end-symbolic")
+        self.header = Gtk.Box(spacing=8)
+        for w in (self.stack, self.title, self.count, self.chevron):
+            self.header.append(w)
+        self.main = Gtk.Button(child=self.header, css_classes=["flat", "ccs-tool-head"], hexpand=True)
+        self.main.connect("clicked", self._on_click)
+        self.append(self.main)
+
+        self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, margin_start=6, margin_bottom=4)
+        self.revealer = Gtk.Revealer(child=self.body, reveal_child=False,
+                                     transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+        self.append(self.revealer)
+
+    def add(self, card):
+        self.cards.append(card)
+        card.group = self
+        self.body.append(card)
+        self.refresh()
+
+    def _on_click(self, *_):
+        self.touched = True
+        self.toggle()
+
+    def toggle(self, show=None):
+        show = (not self.revealer.get_reveal_child()) if show is None else show
+        self.revealer.set_reveal_child(show)
+        self.chevron.set_from_icon_name("pan-down-symbolic" if show else "pan-end-symbolic")
+
+    @staticmethod
+    def _noun(n, one, many):
+        return f"{n} {one if n == 1 else many}"
+
+    def summary(self):
+        """« 5 actions · 3 lectures, 1 modification (+12 −3), 1 commande »."""
+        plus = sum(c.edit[3] for c in self.cards if c.edit)
+        minus = sum(c.edit[4] for c in self.cards if c.edit)
+        parts = []
+        for kind, one, many in GROUP_KINDS:
+            n = sum(1 for c in self.cards if KIND_OF.get(c.name, "other") == kind)
+            if n:
+                text = self._noun(n, one, many)
+                if kind == "edit" and any(c.edit for c in self.cards):
+                    text += f" (+{plus} −{minus})"
+                parts.append(text)
+        return f"{len(self.cards)} actions · " + ", ".join(parts)
+
+    def refresh(self):
+        errors = sum(1 for c in self.cards if c.has_css_class("error"))
+        err_text = f" · {self._noun(errors, 'erreur', 'erreurs')}" if errors else ""
+        running = [c for c in self.cards if c.running]
+        was = self.running
+        self.running = bool(running)
+        self.count.set_visible(self.running)
+        if self.running:
+            card = running[-1]
+            verb = tool_label(card.name)
+            if card.name in FILE_TOOLS and card.target:
+                what = f"{verb} de {card.target}"
+            else:
+                what = f"{verb} : {card.target}" if card.target else f"{verb}…"
+            self.title.set_label(what)
+            self.title.set_tooltip_text(what)
+            self.count.set_label(f"{len(self.cards)} actions{err_text}")
+            self.stack.set_visible_child_name("spin")
+            self.spinner.set_spinning(True)
+        else:
+            text = self.summary() + err_text
+            self.title.set_label(text)
+            self.title.set_tooltip_text(text)
+            self.spinner.set_spinning(False)
+            self.stack.set_visible_child_name("icon")
+            self.icon.set_from_icon_name("dialog-error-symbolic" if errors else "object-select-symbolic")
+            if was and not self.touched:
+                self.toggle(False)
+        if errors:
+            self.add_css_class("error")
+        else:
+            self.remove_css_class("error")
 
 
 class PermissionCard(Gtk.Box):
@@ -433,6 +552,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._views = []
         self._segs = {}           # msg_id -> segment courant
         self._tools = {}          # tool_id -> ToolCard
+        self._run = None          # dernière action ajoutée (carte ou groupe) : la suite s'y regroupe
         self._perms = {}          # request_id -> PermissionCard
         self._todos = None
         self._last = None         # dernier widget de contenu (avant la ligne d'activité)
@@ -683,14 +803,39 @@ class MessageList(Gtk.ScrolledWindow):
         card = self._tool_widget(ev.name, tool_target(ev.name, ev.input, self.base_dir), ev.input,
                                  nested=bool(getattr(ev, "parent_id", None)))
         self._tools[ev.tool_id] = card
-        self._append(card)
+        if ev.name in AGENT_TOOLS or getattr(ev, "parent_id", None):
+            self._run = None
+            self._append(card)
+        else:
+            self._add_to_run(card)
         self.scroll_end_if_stuck()
         return card
+
+    def _add_to_run(self, card):
+        """Une action qui suit directement une autre (aucun texte entre elles) rejoint son
+        groupe ; la deuxième transforme la carte seule en groupe."""
+        run = self._run
+        if run is None or run is not self._last or run.get_parent() is not self.box:
+            self._run = card
+            self._append(card)
+            return
+        if isinstance(run, ToolGroup):
+            run.add(card)
+        else:
+            group = ToolGroup()
+            self.box.insert_child_after(group, run.get_prev_sibling())
+            self.box.remove(run)
+            group.add(run)
+            group.add(card)
+            self._last = self._run = group
+        self._content_added()
 
     def set_tool_result(self, ev):
         card = self._tools.get(ev.tool_id)
         if card is not None:
             card.set_result(ev.text, ev.is_error)
+            if card.group is not None:
+                card.group.refresh()
 
     def add_permission(self, req, on_answer):
         card = PermissionCard(req, on_answer, self.base_dir)
@@ -781,6 +926,31 @@ class MessageList(Gtk.ScrolledWindow):
             return self._notice_widget(m.text)
         return None
 
+    def _history_widgets(self, batch):
+        """Les widgets d'un paquet d'historique ; les actions qui s'enchaînent sont groupées."""
+        run = []
+
+        def flush():
+            if len(run) == 1:
+                yield run[0]
+            elif run:
+                group = ToolGroup()
+                for card in run:
+                    group.add(card)
+                yield group
+            run.clear()
+
+        for m in batch:
+            widget = self._history_widget(m)
+            if widget is None:
+                continue
+            if isinstance(widget, ToolCard) and widget.name not in AGENT_TOOLS:
+                run.append(widget)
+                continue
+            yield from flush()
+            yield widget
+        yield from flush()
+
     def _load_more(self, initial=False):
         start = max(0, self._hist_pos - PAGE)
         batch = self._hist[start:self._hist_pos]
@@ -788,10 +958,7 @@ class MessageList(Gtk.ScrolledWindow):
         adj = self.get_vadjustment()
         old_upper, old_value = adj.get_upper(), adj.get_value()
         prev = None
-        for m in batch:
-            widget = self._history_widget(m)
-            if widget is None:
-                continue
+        for widget in self._history_widgets(batch):
             self.box.insert_child_after(widget, prev)
             self._built += 1
             prev = widget

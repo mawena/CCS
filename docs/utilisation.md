@@ -859,6 +859,13 @@ a pas de terminal à regarder.
   [panneau Fichiers](#panneau-fichiers)), commande lancée (la sortie est
   repliée), recherche, sous-agent, outil MCP. Une roue tourne tant que
   l'action est en cours ; une action en échec est marquée.
+- Les actions qui **s'enchaînent** (sans texte de Claude entre elles) sont
+  regroupées en un bloc discret : pendant le travail, l'en-tête montre l'action
+  en cours et le compte ; à la fin, une coche et un résumé (« 5 actions ·
+  3 lectures, 1 modification (+12 −3), 1 commande »), et le bloc se replie. Un
+  clic le déplie et montre les cartes. Une erreur est toujours signalée dans
+  l'en-tête (rouge, « 1 erreur »). Une action seule reste une carte ; les
+  autorisations, la liste de tâches et les sous-agents ne sont jamais regroupés.
 - La **liste de tâches** de Claude s'affiche en cases à cocher qui se mettent à
   jour.
 - Un chat **rouvert** (au démarrage, depuis l'historique, ou migré de l'ancien
