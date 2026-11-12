@@ -103,6 +103,14 @@ class ParseTest(unittest.TestCase):
         self.assertEqual([s["type"] for s in req.suggestions], ["addRules", "addDirectories", "setMode"])
         self.assertFalse(hasattr(req, "title"))
 
+    def test_permission_request_from_a_subagent(self):
+        line = j({"type": "control_request", "request_id": "r9", "request": {
+            "subtype": "can_use_tool", "tool_name": "Bash", "input": {"command": "ls"},
+            "agent_id": "agent-42"}})
+        req = cp.parse_line(line)[0]
+        self.assertEqual(req.agent_id, "agent-42")
+        self.assertIsNone(cp.parse_line(line.replace(', "agent_id": "agent-42"', ""))[0].agent_id)
+
     def test_permission_request_without_optional_fields(self):
         line = j({"type": "control_request", "request_id": "r1", "request": {
             "subtype": "can_use_tool", "tool_name": "Read", "input": {"file_path": "/x"}}})

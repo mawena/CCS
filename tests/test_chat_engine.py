@@ -245,6 +245,24 @@ class ChatEngineTest(EngineCase):
         self.assertEqual(argv[argv.index("--effort") + 1], "max")
         self.assertEqual(argv[argv.index("--permission-mode") + 1], "acceptEdits")
 
+    def test_unknown_question_is_answered_not_left_waiting(self):
+        # Une control_request que CCS ne connaît pas (ex. activation des mods) : réponse
+        # « non pris en charge », sinon la CLI attendrait sans fin.
+        s = self.make(SCEN_LOCAL, FAKE_CLAUDE_ASK_UNKNOWN="1")
+        s.send("x")
+        self.col.wait(lambda evs: any(isinstance(e, eng.UnhandledRequest) for e in evs))
+        self.assertEqual(self.col.of(eng.UnhandledRequest)[0].subtype, "question_mystere")
+        self.col.wait_state("idle")                              # la CLI a eu sa réponse et a fini
+
+    def test_no_suspend_while_background_agents_run(self):
+        s = self.make(SCEN_LOCAL)
+        s.send("x")
+        self.col.wait_state("idle")
+        s._handle_event(s._proc, proto.ToolUse("toolu_bg", "Task", {"run_in_background": True,
+                                                                    "description": "fouiller"}, None))
+        s._handle_event(s._proc, proto.ToolResult("toolu_bg", "lancé en arrière-plan", False, None))
+        self.assertFalse(s.suspend_if_idle(time.time() + 10 ** 6, 1))   # couperait le sous-agent
+
     def test_launch_allows_switching_to_bypass_later(self):
         # Sans cette option au lancement, la CLI refuse de passer en bypassPermissions en cours
         # de session (« Tout autoriser » ne prenait pas).

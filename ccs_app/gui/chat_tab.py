@@ -334,6 +334,10 @@ class ChatTab(Gtk.Box):
             chat_engine.ProcessExited: self._on_exited,
             chat_engine.ContextUsage: self._on_context,
             chat_engine.OptionRefused: self._on_option_refused,
+            chat_engine.UnhandledRequest: lambda e: self.messages.add_notice(
+                f"Claude Code a posé une question que CCS ne sait pas encore afficher ({e.subtype}"
+                + (f" — {e.summary}" if e.summary else "") + ") : réponse « non pris en charge », "
+                "pour qu'il ne reste pas bloqué.", "warning"),
             proto.Status: self._on_status,
             proto.Init: self._on_init,
             proto.Hello: self._on_hello,

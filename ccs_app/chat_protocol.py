@@ -110,6 +110,7 @@ class PermissionRequest:
     suggestions: list = field(default_factory=list)
     description: str = ""
     blocked_path: str | None = None
+    agent_id: str | None = None      # demande venue d'un sous-agent
 
 
 @dataclass(frozen=True)
@@ -223,7 +224,8 @@ def _control_request(ev):
         input=_dict(request.get("input")),
         suggestions=list(suggestions) if isinstance(suggestions, list) else [],
         description=_str(request.get("description")),
-        blocked_path=blocked if isinstance(blocked, str) and blocked else None)]
+        blocked_path=blocked if isinstance(blocked, str) and blocked else None,
+        agent_id=_str(request.get("agent_id")) or None)]
 
 
 def _system(ev):
@@ -416,3 +418,10 @@ def deny(request_id, message, interrupt=False):
     if interrupt:
         response["interrupt"] = True
     return _permission_reply(request_id, response)
+
+
+def control_error(request_id, message):
+    """Réponse d'erreur à une `control_request` de la CLI que CCS ne sait pas traiter : elle
+    reçoit une réponse au lieu d'attendre sans fin."""
+    return _line({"type": "control_response", "response": {
+        "subtype": "error", "request_id": request_id, "error": message}})

@@ -286,7 +286,8 @@ class PermissionCard(Gtk.Box):
         name = getattr(req, "display_name", "") or req.tool_name
         head = Gtk.Box(spacing=8)
         head.append(Gtk.Image(icon_name="dialog-password-symbolic"))
-        head.append(Gtk.Label(label=f"Claude demande l'autorisation : {name}", xalign=0, hexpand=True,
+        who = "Un sous-agent de Claude" if getattr(req, "agent_id", None) else "Claude"
+        head.append(Gtk.Label(label=f"{who} demande l'autorisation : {name}", xalign=0, hexpand=True,
                               wrap=True, css_classes=["heading"]))
         self.append(head)
         desc = getattr(req, "description", "") or ""

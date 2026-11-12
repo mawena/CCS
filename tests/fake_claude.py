@@ -12,6 +12,8 @@ Variables d'environnement :
   FAKE_CLAUDE_DELAY_MS   pause entre deux lignes rejouées (0 par défaut).
   FAKE_CLAUDE_MERGE      1 : un message reçu pendant un tour est absorbé par ce tour, sans
                          result à part (l'autre comportement possible de la CLI).
+  FAKE_CLAUDE_ASK_UNKNOWN 1 : au premier tour, pose une control_request d'un sous-type inconnu
+                         (question_mystere) et attend sa réponse avant de continuer.
   FAKE_CLAUDE_REFUSE_MODE mode refusé par set_permission_mode (comme la CLI qui refuse
                          bypassPermissions sans --allow-dangerously-skip-permissions).
 
@@ -231,6 +233,20 @@ class Fake:
             return True
         entries = self.turns[self.turn]
         self.turn += 1
+        if os.environ.get("FAKE_CLAUDE_ASK_UNKNOWN") == "1" and self.turn == 1:
+            self.emit({"type": "control_request", "request_id": "q-mystere", "request": {
+                "subtype": "question_mystere", "question": "Activer les mods de cette session ?"}})
+            while True:   # la vraie CLI attend la réponse du client
+                msg = self.read_stdin()
+                if msg is None:
+                    return False
+                if msg.get("type") == "control_response" and \
+                        (msg.get("response") or {}).get("request_id") == "q-mystere":
+                    break
+                if msg.get("type") == "control_request":
+                    self.handle_control(msg)
+                elif msg.get("type") == "user":
+                    self.queue.append(msg)
         for e in entries:
             data = e["data"]
             if e["dir"] == "envoye":

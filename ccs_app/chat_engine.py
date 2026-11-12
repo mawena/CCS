@@ -53,6 +53,14 @@ class OptionRefused:
 
 
 @dataclass(frozen=True)
+class UnhandledRequest:
+    """La CLI a posé une question que CCS ne sait pas traiter (sous-type de `control_request`
+    inconnu, ex. activation des mods) : elle a reçu « non pris en charge » pour ne pas attendre."""
+    subtype: str
+    summary: str
+
+
+@dataclass(frozen=True)
 class ProcessExited:
     code: int | None
     stderr_tail: str  # les 20 dernières lignes de stderr
@@ -86,6 +94,7 @@ class ChatSession:
         self._pending_cmds = []             # `/effort …` à envoyer avant le prochain message
         self._relaunch_needed = False       # changement refusé en direct : relance au prochain message
         self._activity_at = 0.0             # dernier signe de vie de la CLI (hors result)
+        self._background = False            # un sous-agent ou une tâche tourne en arrière-plan
         self._requested_stop = False
 
     # ------------------------------------------------------------------ état
@@ -153,6 +162,7 @@ class ChatSession:
         self._expected = 0
         self._silent = 0
         self._pending_cmds.clear()  # l'effort part avec les options de lancement
+        self._background = False
         self.effort = self.options.effort
         tail = collections.deque(maxlen=STDERR_LINES)
         err = threading.Thread(target=self._read_stderr, args=(proc, tail), daemon=True)
@@ -214,6 +224,18 @@ class ChatSession:
         forward = True
         if not isinstance(ev, (proto.TurnResult, proto.LocalCommand, proto.ControlReply, proto.Status)):
             self._activity_at = self._clock()   # la CLI travaille (nouveau tour, texte, outil…)
+        if isinstance(ev, proto.Unknown) and isinstance(ev.raw, dict) and ev.raw.get("type") == "control_request":
+            request = ev.raw.get("request") if isinstance(ev.raw.get("request"), dict) else {}
+            sub = str(request.get("subtype") or "?")
+            self._write(proto.control_error(str(ev.raw.get("request_id") or ""),
+                                            f"Non pris en charge par CCS : {sub}"))
+            summary = "; ".join(f"{k} : {v}" for k, v in request.items()
+                                if k != "subtype" and isinstance(v, (str, int, float, bool)))[:300]
+            self._emit(UnhandledRequest(sub, summary))
+            return
+        if isinstance(ev, proto.ToolUse) and ev.name in ("Task", "Agent") \
+                and (ev.input or {}).get("run_in_background"):
+            self._background = True   # sous-agent en arrière-plan : jamais de mise en veille
         if isinstance(ev, proto.Init):
             if ev.session_id:
                 self.session_id = ev.session_id
@@ -296,7 +318,8 @@ class ChatSession:
     def send(self, text, images=()):
         """Envoie un message (lance ou relance le processus), même pendant un tour. Faux si le
         processus ne peut pas démarrer ou que l'écriture échoue."""
-        if self._relaunch_needed and self._proc is not None and self.state not in ("busy", "permission"):
+        if (self._relaunch_needed and self._proc is not None and not self._background
+                and self.state not in ("busy", "permission")):
             self._relaunch_needed = False
             old = self._proc
             self.stop(grace_s=2)   # relance avec les options refusées en direct (`--resume`)
@@ -379,7 +402,7 @@ class ChatSession:
     def suspend_if_idle(self, now, idle_s):
         with self._lock:
             if (self.state != "idle" or self._proc is None or self._perms or self._open_tools
-                    or now - self.last_activity < idle_s):
+                    or self._background or now - self.last_activity < idle_s):
                 return False
             proc = self._proc
             self._requested_stop = True

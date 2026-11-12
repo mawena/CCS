@@ -28,6 +28,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   Autoriser, Toujours pour cette commande (la commande exacte est écrite dans le
   `.claude/settings.local.json` du projet, sans changer les droits de la session)
   et Refuser (motif facultatif). L'alerte « attend ta réponse » se déclenche.
+  Une demande venue d'un sous-agent le dit. Une question de Claude Code que CCS ne
+  connaît pas reçoit « non pris en charge » (avec un message dans le fil) au lieu de
+  laisser Claude bloqué ; un chat qui a lancé des sous-agents en arrière-plan ne se
+  met jamais en veille (la veille les couperait).
 - **Saisie du chat** : `@` propose les fichiers du projet, `/` les commandes de
   Claude Code, une image collée ou glissée s'ajoute au message, un fichier glissé
   depuis l'arbre insère `@chemin`. Le bouton Arrêter (ou Échap) interrompt Claude.

@@ -212,6 +212,16 @@ class ChatTabTest(HomeTestCase):
         tab._dispatch(chat_engine.OptionRefused("set_permission_mode", "Cannot set permission mode"))
         self.assertTrue(any("refusé" in t for t in texts(tab)))
 
+    def test_unknown_question_is_shown(self):
+        tab, _owner = self.make()
+        tab._dispatch(chat_engine.UnhandledRequest("question_mystere", "question : Activer ?"))
+        self.assertTrue(any("question_mystere" in t and "Activer" in t for t in texts(tab)))
+
+    def test_subagent_permission_says_so(self):
+        tab, _owner = self.make()
+        tab._dispatch(proto.PermissionRequest("r1", "Bash", "Bash", {"command": "ls"}, agent_id="agent-1"))
+        self.assertTrue(any("sous-agent" in t for t in texts(tab)))
+
     def test_start_failure_shows_notice(self):
         tab, owner = self.make(env={"FAKE_CLAUDE_EXIT": "1"})
         self.say(tab, "Bonjour")
