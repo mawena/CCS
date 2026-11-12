@@ -202,7 +202,7 @@ class TasksEntryTest(unittest.TestCase):
     def test_label_counts_running_and_queued(self):
         from ccs_app.desktop import page_name
         from ccs_app.tray import TASKS_ARGS, tasks_label
-        self.assertEqual(page_name(TASKS_ARGS[-1]), "planning")
+        self.assertEqual(page_name(TASKS_ARGS[-1]), ("home", "planning"))
         self.assertIsNone(tasks_label([]))
         self.assertIsNone(tasks_label([self.task("done"), self.task("failed"), self.task("cancelled")]))
         self.assertEqual(tasks_label([self.task("queued"), self.task("waiting"), self.task("done")]),
@@ -223,8 +223,8 @@ class AppEntriesTest(unittest.TestCase):
         labels = [label for label, _ in APP_ENTRIES]
         self.assertEqual(labels, ["Journal des bascules", "Bilan de la semaine", "Ouvrir CCS"])
         pages = {label: args for label, args in APP_ENTRIES}
-        self.assertEqual(page_name(pages["Journal des bascules"][-1]), "history")
-        self.assertEqual(page_name(pages["Bilan de la semaine"][-1]), "analysis")
+        self.assertEqual(page_name(pages["Journal des bascules"][-1]), ("analysis", "history"))
+        self.assertEqual(page_name(pages["Bilan de la semaine"][-1]), ("analysis", "analysis"))
         self.assertEqual(pages["Ouvrir CCS"], ("gui",))
         with mock.patch.object(sys, "argv", ["/usr/bin/claude-accounts", "tray"]):
             self.assertEqual(gui_argv(("gui", "--page", "historique")),
