@@ -6,6 +6,7 @@ décide sans GTK (commande, environnement, textes, état des onglets) est dans
 `ccs_app.terminal`.
 """
 
+import dataclasses
 import os
 import signal
 import time
@@ -619,6 +620,7 @@ class TerminalsPage(Gtk.Box):
         tab_menu.append_item(menu_item("Côte à côte", "tabs.split", SPLIT_ACCEL))
         tab_menu.append_item(menu_item("Revenir aux onglets", "tabs.unsplit", SPLIT_ACCEL))
         tab_menu.append_item(menu_item("Messages en attente…", "tabs.queue", QUEUE_ACCEL))
+        tab_menu.append("Dossier du projet…", "tabs.project")
         tab_menu.append("Ouvrir cette conversation dans un terminal", "tabs.terminal")
         tab_menu.append("Fermer l'onglet", "tabs.close")
         self.view.set_menu_model(tab_menu)
@@ -626,7 +628,8 @@ class TerminalsPage(Gtk.Box):
         self.tab_actions = Gio.SimpleActionGroup()
         for name, handler in (("rename", self.rename_tab), ("folder", self.folder_of_tab),
                               ("split", self.split_with), ("queue", lambda tab: tab.toggle_queue()),
-                              ("terminal", self.open_in_terminal), ("close", self.close)):
+                              ("terminal", self.open_in_terminal), ("project", self.project_folder),
+                              ("close", self.close)):
             a = Gio.SimpleAction.new(name, None)
             a.connect("activate", lambda *_a, h=handler: self.with_tab(h))
             self.tab_actions.add_action(a)
@@ -774,6 +777,9 @@ class TerminalsPage(Gtk.Box):
             if GObject.signal_lookup(name, type(tab)):
                 tab.connect(name, handler)
         workspace.connect("insert-reference", lambda _w, rel: insert_reference(tab, rel))
+        if GObject.signal_lookup("tool-used", type(tab)):
+            tab.connect("tool-used", lambda _t, name, data: (workspace.follow_tool(name, data),
+                                                            self.schedule_save()))
         tab.panel = workspace
         tab.append(workspace)
 
@@ -1010,8 +1016,72 @@ class TerminalsPage(Gtk.Box):
 
     def record_of(self, tab):
         if is_chat(tab):
-            return terminal.tab_record(tab.state, chat=chat_record(getattr(tab, "options", None)))
+            chat = chat_record(getattr(tab, "options", None)) or {}
+            ws = tab.panel if isinstance(tab.panel, SessionWorkspace) else None
+            if ws is not None:
+                if ws.project_root != os.path.abspath(tab.state.cwd):
+                    chat["root"] = ws.project_root
+                if ws.followed_roadmap:
+                    chat["roadmap"] = ws.followed_roadmap
+            return terminal.tab_record(tab.state, chat=chat)
         return terminal.tab_record(tab.state)
+
+    def apply_kept(self, tab, kept):
+        """Rouvre l'espace d'un chat comme on l'avait laissé : dossier du projet, feuille suivie."""
+        ws = tab.panel if isinstance(tab.panel, SessionWorkspace) else None
+        if ws is None or not kept:
+            return
+        root, followed = kept.get("root"), kept.get("roadmap")
+        if root and os.path.isdir(root):
+            ws.set_project_root(root)
+        if followed and os.path.isfile(followed):
+            ws.roadmap.follow(followed)
+
+    def project_folder(self, tab):
+        """« Dossier du projet… » : l'arbre et la feuille de route de l'onglet partent de ce
+        dossier. Une conversation arrêtée est aussi reliée à ce dossier (reprise depuis là)."""
+        ws = tab.panel if isinstance(tab.panel, SessionWorkspace) else None
+        if ws is None:
+            return
+        dialog = Gtk.FileDialog(title="Dossier du projet",
+                                initial_folder=Gio.File.new_for_path(ws.project_root))
+
+        def done(d, res):
+            try:
+                folder = d.select_folder_finish(res)
+            except GLib.Error:
+                return   # annulé
+            if folder is None or not folder.get_path():
+                return
+            path = folder.get_path()
+            ws.set_project_root(path)
+            self.schedule_save()
+            self.relink_conversation(tab, path)
+        dialog.select_folder(self.get_root() if isinstance(self.get_root(), Gtk.Window) else None, None, done)
+
+    def relink_conversation(self, tab, folder):
+        """Relie la conversation d'un chat sans processus à `folder` (conversations.relocate) :
+        la prochaine reprise se fait depuis le projet. Jamais pour une conversation vivante."""
+        engine = getattr(tab, "engine", None)
+        sid = tab.state.session_id
+        if engine is None or engine.pid is not None or not sid or getattr(tab, "elsewhere_pid", None):
+            return
+
+        def work():
+            from .. import conversations
+            conv = next((c for c in conversations.scan(archived=False) if c.session_id == sid), None)
+            return conversations.relocate(conv, folder) if conv is not None else None
+
+        def done(conv):
+            if conv is None or engine.pid is not None:
+                return
+            engine.cwd = folder
+            tab.launch = dataclasses.replace(tab.launch, cwd=folder)
+            tab.state.cwd = folder
+            tab.update_page()
+            self.schedule_save()
+            self.window.toast("Conversation reliée au dossier du projet.")
+        in_thread(work, done)
 
     def schedule_save(self):
         if self.available and not self.closed and self.save_source is None:
@@ -1110,6 +1180,7 @@ class TerminalsPage(Gtk.Box):
             if item.kind == "claude":  # onglets de la 0.9 et chats : un chat sans processus
                 tab = self.open_chat(item.cwd, item.session_id, item.title or None,
                                      self.options_of(item), item.extra_args, present=False)
+                self.apply_kept(tab, item.chat)
             else:
                 tab = self.open(item.launch(), present=False)
             tab.state.queue[:] = list(item.queue)
@@ -1221,6 +1292,7 @@ class TerminalsPage(Gtk.Box):
         self.tab_actions.lookup_action("queue").set_enabled(bool(tab and tab.state.kind == "claude"))
         self.tab_actions.lookup_action("terminal").set_enabled(
             bool(tab and is_chat(tab) and tab.state.session_id))
+        self.tab_actions.lookup_action("project").set_enabled(bool(tab and is_chat(tab)))
 
     def with_tab(self, handler):
         tab = self.menu_target()

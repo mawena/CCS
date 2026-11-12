@@ -504,6 +504,23 @@ class RealChatTabTest(HomeTestCase):
                 time.sleep(0.01)
             self.assertEqual(tab.engine.state, "idle")
 
+    def test_roadmap_followed_from_claude_actions_and_kept(self):
+        from ccs_app import chat_protocol as proto
+        other = self.project / "Work" / "App"
+        (other / ".git").mkdir(parents=True)
+        (other / "ROADMAP.md").write_text("# App\n## Phase 1\n- [ ] a\n")
+        tab = self.page.open_claude(self.cwd)
+        tab._dispatch(proto.ToolUse("toolu_r", "Read", {"file_path": str(other / "ROADMAP.md")}, None))
+        self.assertTrue(spin(lambda: tab.panel.followed_roadmap == str(other / "ROADMAP.md")))
+        tab.panel.set_project_root(other)
+        records, _sel = self.page.records()
+        self.assertEqual(records[0]["chat"]["root"], str(other))
+        # réouverture : la racine et la feuille de route reviennent
+        item = terminal.Reopen("claude", self.cwd, "Essai", None, (), (), chat=records[0]["chat"])
+        again = self.page.open_chat(item.cwd, None, "Essai", self.page.options_of(item), (), present=False)
+        self.page.apply_kept(again, item.chat)
+        self.assertEqual(again.panel.project_root, str(other))
+
     def test_workspace_install_and_layouts_leave_no_gtk_critical(self):
         # Gtk-CRITICAL (fatal sous G_DEBUG=fatal-criticals) si un widget déjà parenté entre dans un Gtk.Paned.
         tab = self.page.open_claude(self.cwd)

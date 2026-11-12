@@ -117,6 +117,18 @@ class ChatAndPanesTest(HomeTestCase):
         self.assertFalse(terminal_store.load_options()["auto_resume"])
         self.assertEqual(terminal_store.load_panes(), terminal_store.DEFAULT_PANES)
 
+    def test_chat_keeps_project_root_and_roadmap(self):
+        rec = {"kind": "claude", "cwd": "/home/u", "title": "t", "session_id": "s1", "extra_args": [],
+               "queue": [], "chat": {"model": None, "effort": None, "ultracode": False, "rights": None,
+                                     "root": "/home/u/Work/App", "roadmap": "/home/u/Work/App/ROADMAP.md"}}
+        terminal_store.save_tabs([rec], 0)
+        tabs, _sel = terminal_store.load_tabs()
+        self.assertEqual(tabs[0]["chat"]["root"], "/home/u/Work/App")
+        self.assertEqual(tabs[0]["chat"]["roadmap"], "/home/u/Work/App/ROADMAP.md")
+        rec["chat"]["root"] = "pas/absolu"                      # chemin relatif : écarté
+        terminal_store.save_tabs([rec], 0)
+        self.assertNotIn("root", terminal_store.load_tabs()[0][0]["chat"])
+
     def test_chat_options_round_trip(self):
         chat = {"model": "opus", "effort": "high", "ultracode": True, "rights": "plan"}
         tab = {**CLAUDE, "chat": chat}

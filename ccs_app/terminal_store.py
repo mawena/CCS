@@ -86,11 +86,21 @@ def _opt_str(value):
     return value if isinstance(value, str) and value else None
 
 
+def _abs_path(value):
+    return value if isinstance(value, str) and value.startswith("/") else None
+
+
 def _chat(raw):
     raw = raw if isinstance(raw, dict) else {}
-    return {"model": _opt_str(raw.get("model")), "effort": _opt_str(raw.get("effort")),
+    chat = {"model": _opt_str(raw.get("model")), "effort": _opt_str(raw.get("effort")),
             "ultracode": raw["ultracode"] if isinstance(raw.get("ultracode"), bool) else False,
             "rights": _opt_str(raw.get("rights"))}
+    # dossier du projet de l'espace et feuille de route suivie : gardés seulement s'ils servent
+    for key in ("root", "roadmap"):
+        value = _abs_path(raw.get(key))
+        if value:
+            chat[key] = value
+    return chat
 
 
 def _entry(raw):

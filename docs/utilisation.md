@@ -1017,9 +1017,18 @@ Chaque phase a sa barre de progression et son compte `cochées/total` ; les phas
 non finies sont dépliées, les finies repliées. **Un clic sur une case** la coche
 (ou la décoche) dans `ROADMAP.md` en ne changeant que ce caractère ; si le
 fichier a changé depuis sa lecture, il est relu d'abord, et jamais réécrit en
-entier. Quand Claude coche une case, la tâche s'allume brièvement. Sans
-`ROADMAP.md`, la page propose **Demander à Claude d'en créer une**, qui envoie ce
-message au chat de l'onglet.
+entier. Quand Claude coche une case, la tâche s'allume brièvement.
+
+**Le projet de la conversation.** Une conversation lancée depuis ton dossier
+personnel ou le Bureau travaille souvent dans un projet ailleurs : dès que Claude lit
+ou modifie un `ROADMAP.md` (fichier ouvert, ou commande qui le cite, même après un
+`cd`), le panneau suit cette feuille de route. **Choisir une feuille de route…** en
+ouvre une autre à la main. Sans `ROADMAP.md`, **Demander à Claude d'en créer une**
+n'est proposé que dans un vrai projet (un dépôt git), jamais pour ton dossier
+personnel. **Dossier du projet…** (clic droit sur l'onglet) fait partir l'arbre des
+fichiers et la feuille de route d'un autre dossier ; si la conversation est arrêtée,
+elle y est aussi reliée, et sa reprise se fait depuis le projet. Ces choix sont
+gardés quand l'onglet est rouvert.
 
 ## Page Projets
 

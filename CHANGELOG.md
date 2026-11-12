@@ -59,6 +59,13 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   phases, barres de progression et cases cliquables (un clic coche la case dans
   le fichier, sans le réécrire). Sans `ROADMAP.md`, le bouton « Demander à Claude
   d'en créer une » écrit au chat.
+- **La feuille de route suit le projet de la conversation** : une conversation lancée
+  depuis ton dossier personnel ou le Bureau affiche la feuille de route du projet dès que
+  Claude lit ou modifie son `ROADMAP.md` ; « Choisir une feuille de route… » en ouvre une
+  autre ; « Demander à Claude d'en créer une » n'est proposé que dans un vrai projet
+  (dépôt git). « Dossier du projet… » (menu de l'onglet) fait partir l'arbre et la
+  feuille de route d'un autre dossier, et relie aussi une conversation arrêtée à ce
+  dossier. Ces choix sont gardés à la réouverture.
 - **Page Projets** : tous les projets qui ont une feuille de route, avec leur
   dernière version, leur dernière activité, leur phase en cours, la frise des
   versions et les tâches cochées par jour (tirées de l'historique git).

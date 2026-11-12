@@ -76,6 +76,8 @@ class ChatTab(Gtk.Box):
     __gsignals__ = {
         "open-file": (GObject.SignalFlags.RUN_FIRST, None, (str, int)),
         "show-diff": (GObject.SignalFlags.RUN_FIRST, None, (str, str, str)),
+        # une action de Claude (nom de l'outil, entrée) : l'espace de session suit le projet
+        "tool-used": (GObject.SignalFlags.RUN_FIRST, None, (str, object)),
     }
 
     def __init__(self, owner, launch, options=None, history_path=None, claude=None, environ=None):
@@ -459,6 +461,7 @@ class ChatTab(Gtk.Box):
             return  # la liste de tâches a sa propre carte (événement Todos)
         card = self.messages.add_tool(ev)
         self.messages.set_busy(True, f"{tool_label(ev.name)}…")
+        self.emit("tool-used", ev.name, dict(ev.input or {}))
         if ev.name in AGENT_TOOLS and not ev.parent_id:
             self._new_agent(ev, card)
 
@@ -510,6 +513,7 @@ class ChatTab(Gtk.Box):
         if isinstance(ev, proto.ToolUse):
             if ev.name not in proto.TODO_TOOLS:
                 agent.messages.add_tool(ev)
+            self.emit("tool-used", ev.name, dict(ev.input or {}))
         elif isinstance(ev, proto.ToolResult):
             agent.messages.set_tool_result(ev)
         elif isinstance(ev, proto.AssistantText):
