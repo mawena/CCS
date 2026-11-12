@@ -65,26 +65,26 @@ class RoadmapViewTest(unittest.TestCase):
 
     def test_click_toggles_file(self):
         v = self.view()
-        v.task_rows[6].check.set_active(True)    # « d »
+        v.task_rows[9].check.set_active(True)    # « d »
         self.assertTrue(pump(lambda: "- [x] d" in self.file.read_text()))
         self.assertEqual(self.file.read_text(), TEXT.replace("- [ ] d", "- [x] d"))
-        self.assertTrue(pump(lambda: v.task_rows[6].check.get_active()))
+        self.assertTrue(pump(lambda: v.task_rows[9].check.get_active()))
 
     def test_changed_file_toast_and_reload(self):
         v = self.view()
         self.file.write_text(TEXT.replace("- [ ] d", "- [ ] autre"))
-        v.task_rows[6].check.set_active(True)
+        v.task_rows[9].check.set_active(True)
         self.assertTrue(pump(lambda: v.last_toast is not None))
         self.assertEqual(v.last_toast, "La feuille de route a changé, relue")
         self.assertIn("- [ ] autre", self.file.read_text())
-        self.assertTrue(pump(lambda: v.task_rows.get(6) is not None
-                             and v.task_rows[6].get_title() == "autre"))
+        self.assertTrue(pump(lambda: v.task_rows.get(9) is not None
+                             and v.task_rows[9].get_title() == "autre"))
 
     def test_external_check_highlighted(self):
         v = self.view()
         self.file.write_text(TEXT.replace("- [ ] e", "- [x] e"))
-        self.assertTrue(pump(lambda: v.task_rows[7].has_css_class("ccs-just-done")))
-        self.assertFalse(v.task_rows[6].has_css_class("ccs-just-done"))
+        self.assertTrue(pump(lambda: v.task_rows[10].has_css_class("ccs-just-done")))
+        self.assertFalse(v.task_rows[9].has_css_class("ccs-just-done"))
 
     def test_no_roadmap_status_page(self):
         self.file.unlink()

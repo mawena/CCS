@@ -9,12 +9,12 @@ from pathlib import Path
 
 from gi.repository import Adw, GLib, Gtk
 
-from .. import conversations, projects, settings
+from .. import account_colors, conversations, projects, settings
 from .common import clear, in_thread
 from .roadmap_view import RoadmapView, gauge
 
 DAYS_SHOWN = 30
-BAR_RGB = (0.21, 0.52, 0.89)
+BAR_RGB = account_colors.rgb(account_colors.PALETTE[0])
 
 
 def fmt_day(day):
