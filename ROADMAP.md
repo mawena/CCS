@@ -172,8 +172,8 @@ Raccordement, documentation et release :
 - [x] Service et commandes : `daemon`, `settings`, `cli`, `bin/ccs`, `doctor`, paquet
 - [x] Application : Réglages, Planning, Analyse, Sessions
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG)
-- [ ] Release mineure 0.8.0 (recommandée : nouvelles fonctions compatibles), `main`, `develop` et le tag poussés
-- [ ] Paquet `.deb`, release GitHub v0.8.0 et publication dans le dépôt APT (vérifiée par `apt-get update`)
+- [x] Release mineure 0.8.0 (recommandée : nouvelles fonctions compatibles), `main`, `develop` et le tag poussés
+- [x] Paquet `.deb`, release GitHub v0.8.0 et publication dans le dépôt APT (vérifiée par `apt-get update`)
 
 ## Phase 4 — Propositions pour 0.4.0 (à choisir)
 

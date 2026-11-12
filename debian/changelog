@@ -1,3 +1,12 @@
+ccs (0.9.0) unstable; urgency=medium
+
+  * L'application s'appelle désormais « CCS » partout (fenêtre, menu des
+    applications, indicateur, notifications) ; les commandes ne changent pas.
+  * Tests graphiques : jamais sur le bureau réel, lancés sous Xvfb par
+    make unit.
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 12 Nov 2026 11:39:24 +0000
+
 ccs (0.8.1) unstable; urgency=medium
 
   * Archive des conversations : le premier passage du service échouait

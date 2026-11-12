@@ -322,7 +322,7 @@ def stop_failure(payload, notifier=notify.send):
                 return f"basculé sur {decision.target}"
             mark("failed", after, decision.target)
             notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
-                           f"Bascule vers {decision.target} impossible : ouvre « Comptes Claude » "
+                           f"Bascule vers {decision.target} impossible : ouvre « CCS » "
                            "pour voir l'erreur.", 2))
             return "bascule impossible"
         mark("exhausted", after)

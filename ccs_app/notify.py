@@ -2,7 +2,7 @@
 
 import logging
 
-APP_NAME = "Comptes Claude"
+APP_NAME = "CCS"
 ICON = "io.ccs.ClaudeAccounts"
 
 log = logging.getLogger(__name__)

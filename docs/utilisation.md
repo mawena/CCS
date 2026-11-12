@@ -946,7 +946,7 @@ défaut**.
 
 | Action (`ccs raccourcis`) | Raccourci par défaut | Commande lancée |
 |---|---|---|
-| Ouvrir Comptes Claude (`ouvrir`) | Super+Alt+C | `claude-accounts gui` |
+| Ouvrir CCS (`ouvrir`) | Super+Alt+C | `claude-accounts gui` |
 | Afficher les sessions (`sessions`) | Super+Alt+V | `claude-accounts gui --page sessions` |
 | Nouvelle session (`nouvelle-session`) | Super+Alt+N | `claude-accounts gui --new-session` |
 | Basculer sur le compte suivant (`suivant`) | Super+Alt+B | `ccs next --notifier` |

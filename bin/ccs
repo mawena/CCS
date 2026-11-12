@@ -45,7 +45,7 @@ notify_desktop() {
     return 0
   fi
   if command -v notify-send >/dev/null 2>&1; then
-    notify-send -a "Comptes Claude" -i io.ccs.ClaudeAccounts -h boolean:transient:true \
+    notify-send -a "CCS" -i io.ccs.ClaudeAccounts -h boolean:transient:true \
       -- "$1" "${2:-}" >/dev/null 2>&1 || true
   fi
   return 0

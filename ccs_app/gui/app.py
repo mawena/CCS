@@ -1,4 +1,4 @@
-"""Application « Comptes Claude » (GTK4/libadwaita)."""
+"""Application « CCS » (GTK4/libadwaita)."""
 
 import sys
 import time
@@ -40,7 +40,7 @@ PAUSE_MARGIN_SP = 16
 
 class Window(Adw.ApplicationWindow):
     def __init__(self, app):
-        super().__init__(application=app, title="Comptes Claude")
+        super().__init__(application=app, title="CCS")
         self.set_default_size(1180, 860)
         install_css()
         self.store = Store()

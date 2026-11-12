@@ -3,6 +3,23 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+## [0.9.0] — 2026-11-12
+
+### Modifié
+
+- L'application s'appelle désormais « CCS » partout (fenêtre, menu des
+  applications, indicateur, notifications, raccourci « Ouvrir CCS ») au lieu de
+  « Comptes Claude » ; les commandes (`ccs`, `claude-accounts`) et l'identifiant
+  `io.ccs.ClaudeAccounts` ne changent pas. Un raccourci clavier installé sous
+  l'ancien nom reste reconnu (par son chemin) et est renommé à la prochaine
+  mise à jour des raccourcis.
+- Tests : les tests graphiques ne tournent plus jamais sur le bureau réel. Ils
+  demandent `CCS_GUI_TESTS=1` et un affichage joignable (`tests/helpers.gui_ready`),
+  et `make unit` (donc `make deb`) les lance sous Xvfb quand `xvfb-run` est là ;
+  sinon l'affichage est retiré et ils sont sautés.
+
 ## [0.8.1] — 2026-11-11
 
 ### Corrigé

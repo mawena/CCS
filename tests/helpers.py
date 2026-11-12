@@ -77,6 +77,23 @@ def fake_http(responses):
         yield calls
 
 
+def gui_ready():
+    """Vrai si les tests graphiques peuvent tourner : CCS_GUI_TESTS=1 (posé avec
+    `xvfb-run`, voir `make unit`), GTK 4 et libadwaita présents, et un affichage
+    réellement joignable (`Gtk.init_check()` répond vrai même sans affichage)."""
+    if os.environ.get("CCS_GUI_TESTS") != "1":
+        return False
+    try:
+        import gi
+        gi.require_version("Gtk", "4.0")
+        gi.require_version("Adw", "1")
+        from gi.repository import Gdk, Gtk
+    except (ImportError, ValueError):
+        return False
+    Gtk.init_check()
+    return Gdk.Display.get_default() is not None
+
+
 class HomeTestCase(unittest.TestCase):
     """Chaque test tourne dans un HOME temporaire avec deux profils."""
 
