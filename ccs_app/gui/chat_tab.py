@@ -60,6 +60,9 @@ class _NoTerm:
 AGENT_TOOLS = ("Task", "Agent")   # outils qui lancent un sous-agent
 
 
+JOURNAL_TAIL = 2 * 1024 * 1024   # fin du journal relue pour les avis de fin des sous-agents de fond
+
+
 class _Agent:
     """Un sous-agent lancé par Claude dans ce chat : sa pastille et sa vue."""
 
@@ -68,6 +71,7 @@ class _Agent:
         self.spinner, self.icon = spinner, icon
         self.background = background
         self.done = False
+        self.card = None
 
 
 class ChatTab(Gtk.Box):
@@ -362,6 +366,10 @@ class ChatTab(Gtk.Box):
             return False
         if isinstance(ev, proto.ToolResult) and ev.tool_id in getattr(self, "agents", {}):
             self._agent_done(ev.tool_id)
+        if isinstance(ev, proto.TaskNotice):
+            if ev.tool_id in getattr(self, "agents", {}):
+                self._agent_done(ev.tool_id, notice=True)
+            return False
         if self._closed and not isinstance(ev, (chat_engine.StateChanged, chat_engine.ProcessExited)):
             return False
         handler = {
@@ -493,6 +501,7 @@ class ChatTab(Gtk.Box):
         pill.connect("toggled", lambda b, tid=ev.tool_id: b.get_active() and self.show_agent(tid))
         self.agent_pills.append(pill)
         self.agent_bar.set_visible(True)
+        agent.card = card
         if card is not None:
             see = Gtk.Button(label="Voir le sous-agent", halign=Gtk.Align.START, css_classes=["flat"])
             see.connect("clicked", lambda *_b, tid=ev.tool_id: self.show_agent(tid))
@@ -505,10 +514,26 @@ class ChatTab(Gtk.Box):
             self.view_stack.set_visible_child(self.messages_overlay)
             if not self.main_pill.get_active():
                 self.main_pill.set_active(True)
+            self._tidy_pills()
             return
+        agent.pill.set_visible(True)          # un sous-agent fini se rouvre depuis sa carte
+        self.agent_bar.set_visible(True)
         self.view_stack.set_visible_child(agent.view)
         if not agent.pill.get_active():
             agent.pill.set_active(True)
+        self._tidy_pills()
+
+    def _tidy_pills(self):
+        """Comme VS Code : un sous-agent fini quitte la barre (sa carte dans le fil garde « Voir
+        le sous-agent ») ; il n'y reste que ceux qui travaillent et celui qu'on regarde. La barre
+        disparaît quand il ne reste que la conversation principale."""
+        shown = self.view_stack.get_visible_child()
+        left = False
+        for agent in self.agents.values():
+            keep = not agent.done or agent.view is shown
+            agent.pill.set_visible(keep)
+            left = left or keep
+        self.agent_bar.set_visible(left)
 
     def _agent_event(self, agent, ev):
         """Événement émis par un sous-agent : dans sa vue, pas dans le fil principal."""
@@ -521,14 +546,20 @@ class ChatTab(Gtk.Box):
         elif isinstance(ev, proto.AssistantText):
             agent.messages.finish_assistant(ev.msg_id, ev.text)
 
-    def _agent_done(self, tool_id):
+    def _agent_done(self, tool_id, notice=False):
+        """Fin d'un sous-agent : son résultat (premier plan) ou son avis de fin (arrière-plan, qui
+        rend la main tout de suite : son résultat immédiat ne compte pas)."""
         agent = self.agents.get(tool_id)
-        if agent is None or agent.background:   # un sous-agent de fond rend la main tout de suite
+        if agent is None or agent.done or (agent.background and not notice):
             return
         agent.done = True
         agent.spinner.set_spinning(False)
         agent.spinner.set_visible(False)
         agent.icon.set_visible(True)
+        if agent.background and agent.card is not None:
+            agent.card.append(Gtk.Label(label="✓ Sous-agent terminé", xalign=0,
+                                        css_classes=["caption", "dim-label"]))
+        self._tidy_pills()
 
     def _on_permission(self, ev):
         self.messages.add_permission(ev, self._answer)
@@ -542,8 +573,37 @@ class ChatTab(Gtk.Box):
         if ev.text and ev.text.strip():
             self.messages.add_notice(ev.text.strip())
 
+    def _check_background(self):
+        """Filet : si la CLI ne redonne pas l'avis de fin d'un sous-agent de fond dans son flux,
+        il est de toute façon écrit dans le journal de la conversation. Relu à chaque fin de tour
+        (fin du fichier seulement, dans un fil)."""
+        waiting = [tid for tid, a in self.agents.items() if a.background and not a.done]
+        session_id = self.engine.session_id or self.state.session_id
+        if not waiting or not session_id:
+            return
+        path = sessions.transcript_path(self.state.cwd, session_id)
+
+        def read():
+            try:
+                with open(path, "rb") as f:
+                    f.seek(0, os.SEEK_END)
+                    f.seek(max(0, f.tell() - JOURNAL_TAIL))
+                    return proto.task_notices(f.read().decode("utf-8", "replace"))
+            except (OSError, TypeError):
+                return []
+
+        def apply(notices):
+            if self._closed:
+                return
+            for n in notices:
+                if n.tool_id in waiting:
+                    self.engine.background_finished(n.tool_id)
+                    self._agent_done(n.tool_id, notice=True)
+        in_thread(read, apply)
+
     def _on_result(self, ev):
         self._turn_done = True
+        self._check_background()
         self._pending = None
         # bilan du tour : durée et coût de CE tour (la CLI donne un total cumulé sur la session)
         total = ev.cost_usd if isinstance(ev.cost_usd, (int, float)) else None

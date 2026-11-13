@@ -13,6 +13,7 @@ documentation publique : voir `docs/superpowers/specs/2026-11-12-phase-12-design
 import base64
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 
 from . import task_runner
@@ -94,6 +95,15 @@ class ToolResult:
     text: str
     is_error: bool = False
     parent_id: str | None = None
+
+
+@dataclass(frozen=True)
+class TaskNotice:
+    """Avis de fin d'un travail d'arrière-plan (sous-agent, commande) : la CLI le remet à Claude
+    comme un message « <task-notification> ». `tool_id` : l'appel d'outil qui l'avait lancé."""
+    tool_id: str
+    status: str = ""
+    summary: str = ""
 
 
 @dataclass(frozen=True)
@@ -301,14 +311,37 @@ def _assistant(ev):
     return out
 
 
+_NOTICE_RE = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)
+
+
+def _notice_field(body, tag):
+    m = re.search(rf"<{tag}>(.*?)</{tag}>", body, re.S)
+    return m.group(1).strip() if m else ""
+
+
+def task_notices(text):
+    """Les avis « <task-notification> » d'un texte, en `TaskNotice` (sans `tool-use-id` : ignoré)."""
+    out = []
+    for m in _NOTICE_RE.finditer(text or ""):
+        body = m.group(1)
+        tool_id = _notice_field(body, "tool-use-id")
+        if tool_id:
+            out.append(TaskNotice(tool_id, _notice_field(body, "status"), _notice_field(body, "summary")))
+    return out
+
+
 def _user(ev):
     parent = _parent(ev)
     content = _dict(ev.get("message")).get("content")
     out = []
+    if isinstance(content, str):
+        out += task_notices(content)
     for block in content if isinstance(content, list) else ():
         if isinstance(block, dict) and block.get("type") == "tool_result":
             out.append(ToolResult(_str(block.get("tool_use_id")), _text_of(block.get("content")),
                                   bool(block.get("is_error")), parent))
+        elif isinstance(block, dict) and block.get("type") == "text":
+            out += task_notices(_str(block.get("text")))
     return out
 
 

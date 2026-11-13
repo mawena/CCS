@@ -456,8 +456,10 @@ class Window(Adw.ApplicationWindow):
         """« Relancer » : une nouvelle instance démarre une seconde après la fermeture de celle-ci
         (la confirmation habituelle s'applique si des sessions tournent)."""
         exe = shutil.which("claude-accounts") or "claude-accounts"
+        # La sortie d'erreur reste celle de cette instance (le journal du bureau) : une fenêtre
+        # relancée qui plante doit laisser une trace.
         subprocess.Popen(["sh", "-c", 'sleep 1; exec "$0" gui', exe], start_new_session=True,
-                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
         self.close()
 
     def on_close_request(self, *_):

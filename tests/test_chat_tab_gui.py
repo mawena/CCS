@@ -259,6 +259,41 @@ class ChatTabTest(HomeTestCase):
         self.say(tab, "message")                                   # la saisie reste pour la principale
         self.assertIn("message", labels_in(tab.messages))
 
+    def test_finished_subagent_leaves_the_bar(self):
+        """Comme VS Code : un sous-agent fini quitte la barre ; sa carte le rouvre."""
+        tab, _owner = self.make()
+        tab._dispatch(proto.ToolUse("toolu_A", "Task", {"description": "Explorer", "prompt": "…"}, None))
+        tab._dispatch(proto.ToolUse("toolu_B", "Task", {"description": "Relire", "prompt": "…"}, None))
+        a, b = tab.agents["toolu_A"], tab.agents["toolu_B"]
+        tab._dispatch(proto.ToolResult("toolu_A", "fini", False, None))
+        self.assertFalse(a.pill.get_visible())                     # fini : plus dans la barre
+        self.assertTrue(b.pill.get_visible())
+        self.assertTrue(tab.agent_bar.get_visible())
+        tab._dispatch(proto.ToolResult("toolu_B", "fini", False, None))
+        self.assertFalse(tab.agent_bar.get_visible())              # plus personne : barre cachée
+        tab.show_agent("toolu_A")                                  # « Voir le sous-agent » sur sa carte
+        self.assertTrue(a.pill.get_visible())
+        self.assertTrue(tab.agent_bar.get_visible())
+        self.assertIs(tab.view_stack.get_visible_child(), a.view)
+        tab.show_agent(None)
+        self.assertFalse(tab.agent_bar.get_visible())
+
+    def test_background_subagent_ends_with_its_notice(self):
+        tab, _owner = self.make()
+        tab._dispatch(proto.ToolUse("toolu_F", "Agent", {"description": "De fond", "prompt": "…",
+                                                         "run_in_background": True}, None))
+        agent = tab.agents["toolu_F"]
+        tab._dispatch(proto.ToolResult("toolu_F", "Async agent launched", False, None))
+        self.assertFalse(agent.done)                               # lancé, pas fini
+        self.assertTrue(agent.pill.get_visible())
+        line = json.dumps({"type": "user", "message": {"role": "user", "content":
+                           "<task-notification>\n<task-id>abc</task-id>\n<tool-use-id>toolu_F</tool-use-id>\n"
+                           "<status>completed</status>\n<summary>Agent fini</summary>\n</task-notification>"}})
+        for ev in proto.parse_line(line):
+            tab._dispatch(ev)
+        self.assertTrue(agent.done)
+        self.assertFalse(tab.agent_bar.get_visible())
+
     def test_composer_has_no_hint_line(self):
         # Pas de ligne d'indications sous la saisie : les boutons sont à droite du texte, les
         # indications dans le texte gris de la zone vide et dans l'info-bulle d'Envoyer.

@@ -17,9 +17,19 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   l'onglet Sessions et l'historique).
 - Bandeau du haut en une ligne : sessions disponibles, meilleur compte avec
   « Utiliser <compte> », bouton « Pause » (l'explication passe en info-bulle).
+- **Sous-agents terminés** : comme dans VS Code, un sous-agent qui a fini quitte la barre
+  des pastilles (elle disparaît quand il ne reste que la conversation principale) ; sa
+  carte dans le fil garde « Voir le sous-agent ». Un sous-agent d'arrière-plan est tenu
+  pour fini à son avis de fin (lu dans le flux, sinon dans le journal de la conversation),
+  et la mise en veille du chat redevient alors possible.
 - Planning resserré : frise des fenêtres de 5 h et prochaines recharges dans une
   même carte, explications en info-bulles, « Meilleur moment » repliable avec sa
   conclusion dans l'en-tête, file de tâches vide en une ligne.
+
+### Corrigé
+
+- Une fenêtre ouverte par « Relancer » n'écrivait plus ses erreurs nulle part : elles vont
+  de nouveau dans le journal du bureau.
 
 ## [0.10.0] — 2026-11-12
 
