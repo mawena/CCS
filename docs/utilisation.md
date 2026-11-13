@@ -33,7 +33,7 @@ les sources) et les étapes qui suivent la première installation sont dans le
 
 ## Lire l'usage
 
-`ccs usage` (ou l'onglet **Comptes**) affiche pour chaque compte :
+`ccs usage` (ou l'**Accueil**) affiche pour chaque compte :
 
 - **Session (5 h)** : la fenêtre glissante démarre au premier message et se
   réinitialise 5 h plus tard.
@@ -51,7 +51,16 @@ les sources) et les étapes qui suivent la première installation sont dans le
   s'épuisera avant sa réinitialisation.
 
 Le bandeau **Meilleur compte maintenant** et la **capacité restante** (en
-sessions complètes, tous comptes confondus) résument la situation.
+sessions complètes, tous comptes confondus) résument la situation, avec le bouton
+« Utiliser <compte> » et le bouton **Pause**.
+
+Dans l'Accueil, les comptes sont **côte à côte** (jusqu'à trois par ligne, un par
+ligne en fenêtre étroite). Chaque carte montre ses deux jauges principales
+(session de 5 h et semaine tous modèles) et **une seule ligne d'état**, la plus
+importante : erreur du compte, limite de session proche, limite de la semaine
+prévue, sinon « tient jusqu'à la réinitialisation ». Les autres limites (Opus,
+Sonnet…), le rythme de la semaine, la courbe de la session sur 24 h et l'heure du
+relevé sont dans **Détails**, qui reste ouvert d'une actualisation à l'autre.
 
 ## Bascule automatique
 
@@ -167,8 +176,8 @@ Un choix inconnu affiche l'usage et sort avec le code 2. Le service est réveill
 dès que l'état change, pour que l'icône et l'application suivent.
 
 Aussi : menu de l'icône (« Mettre en pause », puis « Reprendre maintenant ») et
-carte **Meilleur compte** de l'onglet Comptes (« Mettre en pause » /
-« Reprendre »). Dans l'en-tête de la fenêtre, « Auto » devient « Auto ⏸ jusqu'à
+bouton **Pause** du bandeau **Meilleur compte** de l'Accueil (« Reprendre » pendant
+la pause). Dans l'en-tête de la fenêtre, « Auto » devient « Auto ⏸ jusqu'à
 14:00 » (« Auto ⏸ en pause » pour une pause sans échéance) ; un clic propose
 « Reprendre maintenant ». `ccs status` affiche « En pause jusqu'à 14:00 :
 bascule automatique et orchestrateur suspendus (ccs pause off pour

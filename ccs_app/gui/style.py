@@ -69,6 +69,10 @@ levelbar.ccs-gauge block, progressbar.ccs-gauge progress { border-radius: 99px; 
 .ccs-gauge-warn block.filled, .ccs-gauge-warn progress { background-color: @warning_bg_color; }
 .ccs-gauge-crit block.filled, .ccs-gauge-crit progress { background-color: @error_bg_color; }
 
+.ccs-accounts-grid > flowboxchild { padding: 0; background: none; outline: none; }
+.ccs-gauge-label { font-weight: 600; }
+expander.ccs-details > title { color: alpha(@card_fg_color, 0.7); font-size: 0.92em; }
+
 .ccs-just-done {
   background-color: alpha(@success_bg_color, 0.22); border-radius: 8px;
   box-shadow: inset 0 0 0 1px alpha(@success_bg_color, 0.6);
@@ -106,7 +110,9 @@ def accounts_css(profiles, chosen):
         out.append(
             f"{k} {{ color: {c}; }}\n"
             f"{k}.ccs-account-dot, {k}.ccs-account-bg {{ background-color: {c}; color: white; }}\n"
-            f"{k}.ccs-card {{ border-top: 3px solid {c}; }}\n"
+            # La couleur du compte borde la carte et teinte son nom et ses jauges, pas tout
+            # son texte (des légendes pâles se lisent mal).
+            f"{k}.ccs-card {{ border-top: 3px solid {c}; color: @card_fg_color; }}\n"
             f"{k}.ccs-chip {{ background-color: alpha({c}, 0.20); color: {c}; }}\n"
             f"{k}.ccs-account-bar {{ border-left: 3px solid {c}; }}\n"
             f"{k} levelbar block.filled, {k} progressbar progress {{ background-color: {c}; }}\n")

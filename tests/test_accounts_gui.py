@@ -68,8 +68,6 @@ class AccountsPageTest(HomeTestCase):
         self.assertEqual([p.get_title() for p in pages], ["Aucun profil"])
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 @unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
@@ -96,3 +94,88 @@ class FriendlyErrorTest(unittest.TestCase):
         from ccs_app.gui.accounts import friendly_error
         self.assertEqual(friendly_error("connexion expirée ou révoquée"), "connexion expirée ou révoquée")
         self.assertLessEqual(len(friendly_error("x" * 1000)), 161)
+
+
+def three_accounts(now_iso):
+    lim = lambda kind, label, pct: {"kind": kind, "label": label, "percent": pct, "resets_at": now_iso}
+    return {"accounts": [
+        {"name": "perso", "active": True, "plan": "max", "email": "a@x",
+         "limits": [lim("session", "Session (5 h)", 64), lim("weekly_all", "Semaine · tous modèles", 41),
+                    lim("weekly_opus", "Semaine · Opus", 22)]},
+        {"name": "pro", "active": False, "plan": "max", "email": "b@y",
+         "limits": [lim("session", "Session (5 h)", 8), lim("weekly_all", "Semaine · tous modèles", 77)]},
+        {"name": "boulot", "active": False, "plan": "pro", "email": "c@z", "limits": []}]}
+
+
+@unittest.skipUnless(GTK, "GTK 4, libadwaita ou affichage absents")
+class HomeAccountsLayoutTest(HomeTestCase):
+    """Accueil : comptes côte à côte, deux jauges par carte, le reste dans « Détails »."""
+
+    @classmethod
+    def setUpClass(cls):
+        Adw.init()
+
+    def page(self, state):
+        from ccs_app.gui.accounts import AccountsPage
+        page = AccountsPage(FakeWindow())
+        page.render(state, FakeStore())
+        return page
+
+    def test_accounts_in_a_grid_up_to_three_per_line(self):
+        from datetime import datetime, timezone
+        page = self.page(three_accounts(datetime.now(timezone.utc).isoformat()))
+        self.assertIsInstance(page.grid, Gtk.FlowBox)
+        n, child = 0, page.grid.get_first_child()
+        while child is not None:
+            n += 1
+            child = child.get_next_sibling()
+        self.assertEqual(n, 3)
+        self.assertEqual(page.grid.get_max_children_per_line(), 3)
+
+    def test_two_gauges_shown_others_in_details(self):
+        from datetime import datetime, timezone
+        page = self.page(three_accounts(datetime.now(timezone.utc).isoformat()))
+        card = page.grid.get_first_child().get_child()
+        shown = [w.get_label() for w in walk(card)
+                 if isinstance(w, Gtk.Label) and w.has_css_class("ccs-gauge-label")]
+        self.assertEqual(shown, ["Session (5 h)", "Semaine · tous modèles"])
+        exp = [w for w in walk(card) if isinstance(w, Gtk.Expander)]
+        self.assertEqual(len(exp), 1)
+        exp[0].set_expanded(True)
+        labels = [w.get_label() for w in walk(card) if isinstance(w, Gtk.Label)]
+        self.assertIn("Semaine · Opus", labels)
+        # ouvert : le reste ouvert au rendu suivant (le service relit l'état chaque minute)
+        page.render(three_accounts(datetime.now(timezone.utc).isoformat()), FakeStore())
+        card = page.grid.get_first_child().get_child()
+        self.assertTrue([w for w in walk(card) if isinstance(w, Gtk.Expander)][0].get_expanded())
+
+    def test_card_text_keeps_normal_color(self):
+        from ccs_app.gui import style
+        css = style.accounts_css(["perso"], {})
+        rule = next(line for line in css.splitlines() if ".ccs-card" in line)
+        self.assertIn("color: @card_fg_color", rule)
+
+
+@unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
+class StatusLineTest(unittest.TestCase):
+    """Une seule ligne d'état par carte : erreur, puis limite de session, puis semaine, puis « tient »."""
+
+    def test_priority(self):
+        from datetime import datetime, timedelta, timezone
+        from ccs_app.gui.accounts import status_of
+        now = datetime.now(timezone.utc)
+        soon = (now + timedelta(minutes=40)).isoformat()
+        limit = {"verdict": "limit", "eta": soon, "rate_per_min": 0.5, "minutes_before_reset": 20}
+        week = {"verdict": "limit", "eta": (now + timedelta(days=1)).isoformat(), "rate_per_day": 19,
+                "days_before_reset": 0.2}
+        ok = {"verdict": "ok", "eta": None, "rate_per_min": 0.05, "minutes_before_reset": None}
+        self.assertEqual(status_of({"error": "HTTP 401 : {}", "forecast": limit}, now)[1], "error")
+        self.assertEqual(status_of({"forecast": limit, "weekly_forecast": week}, now)[1], "warning")
+        self.assertIn("Limite estimée", status_of({"forecast": limit, "weekly_forecast": week}, now)[0])
+        self.assertIn("Semaine", status_of({"forecast": ok, "weekly_forecast": week}, now)[0])
+        self.assertEqual(status_of({"forecast": ok}, now)[1], "success")
+        self.assertIsNone(status_of({}, now))
+
+
+if __name__ == "__main__":
+    unittest.main()

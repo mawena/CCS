@@ -14,10 +14,10 @@ when) que la vue passe à `tasks.add`. Le dialogue n'écrit rien lui-même.
 
 import os
 
-from gi.repository import Adw, Gio, GLib, Gtk, Pango
+from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango
 
 from .. import core, launch_options, task_runner, tasks
-from .common import caption, clear, empty_state, short_path
+from .common import caption, clear, short_path
 
 REFRESH_MS = 2000
 LOG_LINES = 400
@@ -186,19 +186,25 @@ class TasksView(Gtk.Box):
         self.timer = 0
         self.tasks = []
 
-        head = Gtk.Box(spacing=8)
-        head.append(Gtk.Label(label="Tâches Claude", xalign=0, hexpand=True, css_classes=["heading"]))
-        self.add_btn = Gtk.Button(icon_name="list-add-symbolic", css_classes=["flat"], tooltip_text="Nouvelle tâche…")
+        head = Gtk.Box(spacing=8, tooltip_text="Des messages que Claude traite sans fenêtre, quand il y a "
+                       "du quota ou de nuit, avec le compte actif. Une seule tâche à la fois, jamais "
+                       "pendant une pause.")
+        head.append(Gtk.Label(label="Tâches Claude", xalign=0, css_classes=["heading"]))
+        # Sans tâche : une ligne, pas un grand écran vide (l'Accueil reste court).
+        self.empty = caption("Aucune tâche en attente. « + » ou « ccs tache ajouter \"…\" » en ajoute une, "
+                             "traitée sans fenêtre quand il y a du quota.")
+        self.empty.set_hexpand(True)
+        head.append(self.empty)
+        filler = Gtk.Box(hexpand=True)
+        head.append(filler)
+        self.empty.bind_property("visible", filler, "visible", GObject.BindingFlags.SYNC_CREATE
+                                 | GObject.BindingFlags.INVERT_BOOLEAN)
+        self.add_btn = Gtk.Button(icon_name="list-add-symbolic", css_classes=["flat"], tooltip_text="Nouvelle tâche…",
+                                  valign=Gtk.Align.CENTER)
         self.add_btn.connect("clicked", self.on_new)
         head.append(self.add_btn)
         self.append(head)
-        self.append(caption("Des messages que Claude traite sans fenêtre, quand il y a du quota ou de nuit, "
-                            "avec le compte actif. Une seule tâche à la fois, jamais pendant une pause."))
-        self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"])
-        self.empty = empty_state("alarm-symbolic", "Aucune tâche",
-                                 "Ajoute-en une avec « + » ou « ccs tache ajouter \"…\" ».",
-                                 "Nouvelle tâche…", lambda: self.on_new(), compact=True)
-        self.append(self.empty)
+        self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"], visible=False)
         self.append(self.list)
 
         self.detail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, visible=False)
@@ -266,6 +272,7 @@ class TasksView(Gtk.Box):
     def render(self):
         clear(self.list)
         self.empty.set_visible(not self.tasks)
+        self.list.set_visible(bool(self.tasks))   # liste vide : pas de cadre vide
         for t in reversed(self.tasks):
             row = Adw.ActionRow(title=GLib.markup_escape_text(" ".join(t.message.split())[:90]),
                                 subtitle=GLib.markup_escape_text(row_subtitle(t)), activatable=True,

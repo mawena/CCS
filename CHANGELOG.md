@@ -5,6 +5,22 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Modifié
+
+- **Accueil plus lisible.** Les comptes sont côte à côte (jusqu'à trois par ligne,
+  un par ligne en fenêtre étroite) : on les compare d'un coup d'œil. Chaque carte
+  garde ses deux jauges principales (session, semaine) et une seule ligne d'état
+  (erreur, limite proche, limite de la semaine ou « tient ») ; les autres limites,
+  le rythme, la courbe 24 h et l'heure du relevé passent dans « Détails », qui reste
+  ouvert d'une actualisation à l'autre. Le texte des cartes garde la couleur normale :
+  la couleur du compte reste sur le liseré, le nom et les jauges (aussi dans
+  l'onglet Sessions et l'historique).
+- Bandeau du haut en une ligne : sessions disponibles, meilleur compte avec
+  « Utiliser <compte> », bouton « Pause » (l'explication passe en info-bulle).
+- Planning resserré : frise des fenêtres de 5 h et prochaines recharges dans une
+  même carte, explications en info-bulles, « Meilleur moment » repliable avec sa
+  conclusion dans l'en-tête, file de tâches vide en une ligne.
+
 ## [0.10.0] — 2026-11-12
 
 ### Ajouté

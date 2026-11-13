@@ -103,8 +103,8 @@ bascules que tu fais toi-même, les alertes et les warm-up continuent. La pause
 se lève seule à l'échéance (notification « Pause terminée ») ; `ccs pause off`
 reprend tout de suite.
 
-Aussi dans le menu de l'icône (« Mettre en pause ») et sur la carte **Meilleur
-compte** de l'onglet Comptes. Pendant la pause, l'en-tête de la fenêtre affiche
+Aussi dans le menu de l'icône (« Mettre en pause ») et par le bouton **Pause** du
+bandeau **Meilleur compte** de l'Accueil. Pendant la pause, l'en-tête de la fenêtre affiche
 « Auto ⏸ jusqu'à 14:00 » (un clic propose « Reprendre maintenant ») ;
 `ccs status`, l'onglet Planning, l'icône et la ligne d'état de Claude Code la
 rappellent aussi.
