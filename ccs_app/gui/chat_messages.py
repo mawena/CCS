@@ -463,8 +463,22 @@ class PermissionCard(Gtk.Box):
             row.append(w)
         self.buttons = row
         self.append(row)
+        keys = "1 Autoriser · " + ("2 Toujours · " if rules else "") + "3 Refuser"
+        self.keys_hint = Gtk.Label(label=f"Au clavier, la saisie vide : {keys}", xalign=0,
+                                   css_classes=["caption", "dim-label"])
+        self.append(self.keys_hint)
         self.verdict = Gtk.Label(xalign=0, css_classes=["heading"], visible=False)
         self.append(self.verdict)
+
+    KEY_DECISIONS = {"1": "allow", "2": "always", "3": "deny"}
+
+    def answer_key(self, key):
+        """Réponse au clavier (1, 2, 3, comme l'extension VS Code). Vrai si la touche a servi."""
+        decision = self.KEY_DECISIONS.get(key)
+        if decision is None or self.answered or (decision == "always" and not self.always.get_visible()):
+            return False
+        self._answer(decision)
+        return True
 
     @staticmethod
     def _shown(req, base_dir):
@@ -492,6 +506,7 @@ class PermissionCard(Gtk.Box):
     def resolve(self, decision):
         """Fige la carte : l'autorisation a reçu sa réponse."""
         self.buttons.set_visible(False)
+        self.keys_hint.set_visible(False)
         self.verdict.set_label({"allow": "Autorisé", "always": "Autorisé, et toujours pour cette règle",
                                 "deny": "Refusé", "cancelled": "Annulée"}.get(decision, decision))
         self.verdict.add_css_class("success" if decision in ("allow", "always") else "error")
@@ -527,6 +542,51 @@ class TodosCard(Gtk.Box):
                 row.append(Gtk.Spinner(spinning=True))
             self.rows.append(row)
         self.title.set_label(f"Tâches · {done}/{len(items)}")
+
+
+class TodosBar(Gtk.Box):
+    """Liste de tâches de Claude épinglée au-dessus de la saisie (comme l'extension VS Code) :
+    l'en-tête dit où en est Claude (« Tâches 2/5 · Écrire les tests »), un clic déplie la liste.
+    Elle reste visible tant que la liste n'est pas finie ; finie, elle s'efface au message
+    suivant."""
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, css_classes=["ccs-todos-bar"],
+                         visible=False, margin_start=12, margin_end=12, margin_top=4)
+        self.card = TodosCard()
+        self.card.remove_css_class("ccs-card")
+        self.card.title.set_visible(False)
+        head = Gtk.Box(spacing=8)
+        self.spinner = Gtk.Spinner()
+        self.summary = Gtk.Label(xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END)
+        head.append(self.spinner)
+        head.append(self.summary)
+        self.expander = Gtk.Expander(label_widget=head, child=self.card)
+        self.append(self.expander)
+        self.done = False
+
+    def update(self, items):
+        items = list(items or ())
+        self.card.update(items)
+        total = len(items)
+        done = sum(1 for _t, s in items if s == "completed")
+        current = next((t for t, s in items if s == "in_progress"), None)
+        self.done = total > 0 and done == total
+        if self.done:
+            text = f"✓ Tâches terminées · {done}/{total}"
+        elif current:
+            text = f"Tâches {done}/{total} · {' '.join(current.split())}"
+        else:
+            text = f"Tâches {done}/{total}"
+        self.summary.set_label(text)
+        self.spinner.set_visible(current is not None and not self.done)
+        self.spinner.set_spinning(current is not None and not self.done)
+        self.set_visible(total > 0)
+
+    def new_turn(self):
+        """Un nouveau message part : une liste finie n'a plus à rester épinglée."""
+        if self.done:
+            self.set_visible(False)
 
 
 class _Segment:
@@ -836,6 +896,10 @@ class MessageList(Gtk.ScrolledWindow):
             card.set_result(ev.text, ev.is_error)
             if card.group is not None:
                 card.group.refresh()
+
+    def pending_permission(self):
+        """La plus ancienne demande d'autorisation encore sans réponse, ou None."""
+        return next((card for card in self._perms.values() if not card.answered), None)
 
     def add_permission(self, req, on_answer):
         card = PermissionCard(req, on_answer, self.base_dir)

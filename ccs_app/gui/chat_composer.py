@@ -27,7 +27,8 @@ FILE_TOKEN = re.compile(r"(?:^|\s)@([^\s@]*)$")
 COMMAND_TOKEN = re.compile(r"^/([^\s/]*)$")
 
 # Indications dans le texte gris de la zone vide (plus de ligne à part sous la saisie).
-HINT_IDLE = "Écris à Claude…  (@ fichiers · / commandes)"
+HINT_IDLE = "Écris à Claude…  (@ fichiers · / commandes · Maj+Tab : droits)"
+HINT_PERMISSION = "Claude attend ton accord : 1 Autoriser · 2 Toujours · 3 Refuser — ou écris"
 HINT_BUSY = "Claude travaille — écris quand même, Entrée envoie · Échap arrête"
 SEND_TIP = "Envoyer (Entrée) · Maj+Entrée : nouvelle ligne"
 
@@ -49,6 +50,8 @@ class Composer(Gtk.Box):
     __gsignals__ = {
         "send": (GObject.SignalFlags.RUN_FIRST, None, (str, object)),
         "stop": (GObject.SignalFlags.RUN_FIRST, None, ()),
+        # Maj+Tab : droits suivants (Demander → Modifications acceptées → Plan), comme VS Code
+        "cycle-rights": (GObject.SignalFlags.RUN_FIRST, None, ()),
         "queue-edit": (GObject.SignalFlags.RUN_FIRST, None, (int, str, str)),
         "queue-move": (GObject.SignalFlags.RUN_FIRST, None, (int, int)),
         "queue-remove": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
@@ -62,6 +65,7 @@ class Composer(Gtk.Box):
         GtkSource.init()
         self.base_dir = base_dir
         self.busy = False
+        self.permission_keys = None   # autorisation en attente : 1, 2, 3 y répondent
         self.images = []                 # [(type MIME, octets)]
         self.files = []                  # fichiers joints (chemins absolus) : `@chemin` à l'envoi
         self._commands = []              # [(nom, description)]
@@ -215,7 +219,18 @@ class Composer(Gtk.Box):
         """Pendant que Claude travaille : bouton Arrêter ; Entrée envoie quand même."""
         self.busy = bool(busy)
         self.stop_button.set_visible(self.busy)
-        self.placeholder.set_label(HINT_BUSY if self.busy else HINT_IDLE)
+        self._update_hint()
+
+    def set_permission_keys(self, handler):
+        """`handler(touche) -> bool` tant qu'une autorisation attend : 1, 2, 3 y répondent quand
+        la saisie est vide. None : plus d'autorisation en attente."""
+        self.permission_keys = handler
+        self._update_hint()
+
+    def _update_hint(self):
+        hint = (HINT_PERMISSION if getattr(self, "permission_keys", None)
+                else HINT_BUSY if self.busy else HINT_IDLE)
+        self.placeholder.set_label(hint)
         self.send_button.set_tooltip_text(SEND_TIP + (" · même pendant que Claude travaille" if self.busy else ""))
 
     def set_enabled(self, enabled):
@@ -513,6 +528,16 @@ class Composer(Gtk.Box):
                 return self._accept()
             if keyval == Gdk.KEY_Escape:
                 self._close_popover()
+                return True
+        if keyval == Gdk.KEY_ISO_Left_Tab or (keyval == Gdk.KEY_Tab and shift):
+            self.emit("cycle-rights")
+            return True
+        handler = getattr(self, "permission_keys", None)
+        if handler and not ctrl and self.buffer.get_char_count() == 0:
+            key = {Gdk.KEY_1: "1", Gdk.KEY_KP_1: "1", Gdk.KEY_2: "2", Gdk.KEY_KP_2: "2",
+                   Gdk.KEY_3: "3", Gdk.KEY_KP_3: "3", Gdk.KEY_ampersand: "1", Gdk.KEY_eacute: "2",
+                   Gdk.KEY_quotedbl: "3"}.get(keyval)
+            if key and handler(key):
                 return True
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and not shift:
             self.submit()

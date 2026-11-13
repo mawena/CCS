@@ -37,9 +37,14 @@ BASE_CSS = """
   background-color: alpha(@accent_bg_color, 0.20); color: @window_fg_color;
   border-bottom-right-radius: 4px;
 }
+/* Réponses de Claude en texte plein, sans bulle (comme l'extension VS Code) : les longues
+   réponses se lisent mieux ; seules les demandes de l'utilisateur sont en bulle. */
 .ccs-bubble-claude {
-  background-color: alpha(@window_fg_color, 0.06); color: @window_fg_color;
-  border-bottom-left-radius: 4px;
+  background-color: transparent; color: @window_fg_color; padding: 4px 4px;
+}
+.ccs-todos-bar {
+  background-color: alpha(@window_fg_color, 0.05); border-radius: 10px;
+  border: 1px solid alpha(@window_fg_color, 0.10); padding: 4px 10px;
 }
 
 .ccs-tool-card {

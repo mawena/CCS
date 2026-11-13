@@ -27,7 +27,7 @@ from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
 from .chat_composer import Composer  # noqa: E402
-from .chat_messages import MessageList, tool_label  # noqa: E402
+from .chat_messages import MessageList, TodosBar, tool_label  # noqa: E402
 from .common import in_thread  # noqa: E402
 
 SUSPEND_CHECK_S = 60
@@ -124,12 +124,14 @@ class ChatTab(Gtk.Box):
         self.agent_bar = Gtk.ScrolledWindow(child=self.agent_pills, visible=False, margin_start=12,
                                             margin_end=12, margin_top=6, vscrollbar_policy=Gtk.PolicyType.NEVER,
                                             propagate_natural_height=True)
-        for w in (self.agent_bar, self.view_stack, self.composer, self.bar):
+        self.todos_bar = TodosBar()           # liste de tâches épinglée au-dessus de la saisie
+        for w in (self.agent_bar, self.view_stack, self.todos_bar, self.composer, self.bar):
             self.panel.append(w)
         self.append(self.panel)
 
         self.composer.set_file_source(self._file_source)
         self.composer.connect("send", self._on_send)
+        self.composer.connect("cycle-rights", lambda *_: self.bar.cycle_rights())
         self.composer.connect("stop", lambda *_: self.stop_turn())
         self.composer.connect("queue-edit", lambda _c, i, text, old: self.edit_message(i, text, old))
         self.composer.connect("queue-move", lambda _c, i, d: self.move_message(i, d))
@@ -269,6 +271,7 @@ class ChatTab(Gtk.Box):
         """Envoie au moteur et montre la bulle ; faux si Claude ne démarre pas. Pendant un tour,
         le message part aussi tout de suite (bulle marquée « envoyé pendant que Claude travaille »)."""
         during = self._engine_busy()
+        self.todos_bar.new_turn()
         if not during and not self.state.running:
             self.spawn()
         if not self.engine.send(text, images):
@@ -389,7 +392,7 @@ class ChatTab(Gtk.Box):
             proto.Thinking: self._on_thinking,
             proto.ToolUse: self._on_tool,
             proto.ToolResult: lambda e: self.messages.set_tool_result(e),
-            proto.Todos: lambda e: self.messages.set_todos(e),
+            proto.Todos: lambda e: self.todos_bar.update(e.items),
             proto.PermissionRequest: self._on_permission,
             proto.TurnResult: self._on_result,
             proto.LocalCommand: self._on_local,
@@ -561,13 +564,26 @@ class ChatTab(Gtk.Box):
                                         css_classes=["caption", "dim-label"]))
         self._tidy_pills()
 
+    def _permission_key(self, key):
+        card = self.messages.pending_permission()
+        done = card is not None and card.answer_key(key)
+        self._sync_permission_keys()
+        return done
+
+    def _sync_permission_keys(self):
+        """1, 2, 3 répondent dans la saisie tant qu'une autorisation attend (comme VS Code)."""
+        pending = self.messages.pending_permission() is not None
+        self.composer.set_permission_keys(self._permission_key if pending else None)
+
     def _on_permission(self, ev):
         self.messages.add_permission(ev, self._answer)
+        self._sync_permission_keys()
         self.messages.set_busy(False)
         self.attention()
 
     def _answer(self, request_id, decision, message=""):
         self.engine.answer(request_id, decision, message)
+        GLib.idle_add(lambda: (self._sync_permission_keys(), False)[1])
 
     def _on_local(self, ev):
         if ev.text and ev.text.strip():
@@ -621,6 +637,7 @@ class ChatTab(Gtk.Box):
         elif not ev.ok:
             self.messages.add_notice(ev.text or "Claude n'a pas pu finir sa réponse.", "error")
         self.messages.cancel_permissions()
+        self._sync_permission_keys()
         self.engine.request_context()
 
     def _on_context(self, ev):
@@ -643,6 +660,7 @@ class ChatTab(Gtk.Box):
         self.state.exit_status = 1
         self.messages.set_busy(False)
         self.messages.cancel_permissions()
+        self._sync_permission_keys()
         self._dismiss_error()
         self._error_notice = self.messages.add_notice(text, "error", action=("Relancer", self.relaunch))
         if self._pending and not self.composer.text.strip():

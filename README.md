@@ -257,7 +257,8 @@ Une session Claude de CCS est un **chat** : tes messages à droite, les réponse
 de Claude à gauche en Markdown mis en forme (titres, listes, tableaux, code
 coloré, liens), qui arrivent au fil de l'eau. Chaque action de Claude (fichier
 lu ou modifié avec son `+12 −3`, commande lancée, recherche, sous-agent) est une
-**carte repliable** ; sa liste de tâches s'affiche en cases à cocher.
+**carte repliable** ; sa liste de tâches reste épinglée au-dessus de la saisie, comme
+dans l'extension VS Code.
 
 - **Barre cliquable** sous la zone de saisie : **modèle**, **effort** (faible à
   max ; les niveaux que le modèle n'accepte pas sont grisés), **ultracode**
@@ -268,7 +269,8 @@ lu ou modifié avec son `+12 −3`, commande lancée, recherche, sous-agent) est
   **Autoriser**, **Toujours** (écrit la règle exacte dans le
   `.claude/settings.local.json` du projet) ou **Refuser** (motif facultatif).
   Le badge de l'onglet et l'alerte « attend ta réponse » se déclenchent.
-- **Saisie** : Entrée envoie, Maj+Entrée va à la ligne, `@` propose les fichiers
+- **Saisie** : Entrée envoie, Maj+Entrée va à la ligne, Maj+Tab change les droits,
+  1 / 2 / 3 répondent à une autorisation, `@` propose les fichiers
   du projet, `/` les commandes de Claude Code, une image collée ou glissée
   s'ajoute au message, un fichier glissé depuis l'arbre insère `@chemin`.
   **Arrêter** (ou Échap) interrompt Claude ; un message écrit pendant qu'il

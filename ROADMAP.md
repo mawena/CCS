@@ -244,6 +244,8 @@ Documentation et release :
 ## Correctif 0.10.1 — Accueil lisible, dossier des conversations, documentation
 
 - [x] Accueil : comptes côte à côte, deux jauges et une ligne d'état par carte, « Détails » repliable, texte lisible (plus teinté de la couleur du compte), planning resserré
+- [x] Sous-agents finis retirés de la barre (avis de fin des sous-agents de fond), erreurs d'une fenêtre relancée gardées dans le journal
+- [x] Chat proche de VS Code : tâches épinglées, réponses sans bulle, Maj+Tab pour les droits, 1/2/3 pour les autorisations
 - [ ] Dossier d'une conversation : celui où elle est rangée (ou reliée), plus le premier `cwd` du journal (aperçu, archive, projets récents)
 - [ ] Documentation et textes : plus d'« onglet Planning / Comptes / Historique / Réglages » (onglets disparus en 0.10.0)
 - [ ] Release correctif 0.10.1, `.deb`, release GitHub et dépôt APT

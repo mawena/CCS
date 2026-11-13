@@ -294,6 +294,44 @@ class ChatTabTest(HomeTestCase):
         self.assertTrue(agent.done)
         self.assertFalse(tab.agent_bar.get_visible())
 
+    def test_todos_pinned_above_the_composer(self):
+        """Comme VS Code : la liste de tâches reste visible au-dessus de la saisie."""
+        tab, _owner = self.make(spawn=False)
+        self.assertFalse(tab.todos_bar.get_visible())
+        tab._dispatch(proto.Todos((("Lire", "completed"), ("Écrire les tests", "in_progress"),
+                                   ("Publier", "pending"))))
+        self.assertTrue(tab.todos_bar.get_visible())
+        self.assertEqual(tab.todos_bar.summary.get_label(), "Tâches 1/3 · Écrire les tests")
+        self.assertIsNone(tab.messages._todos)                   # pas dans le fil
+        tab._dispatch(proto.Todos((("Lire", "completed"), ("Écrire les tests", "completed"),
+                                   ("Publier", "completed"))))
+        self.assertIn("terminées", tab.todos_bar.summary.get_label())
+        self.assertTrue(tab.todos_bar.get_visible())
+        tab.todos_bar.new_turn()                                 # message suivant : liste finie effacée
+        self.assertFalse(tab.todos_bar.get_visible())
+
+    def test_shift_tab_cycles_rights(self):
+        tab, _owner = self.make(spawn=False)
+        tab.bar._change(rights="manual")
+        seen = []
+        for _ in range(3):
+            tab.composer.emit("cycle-rights")
+            seen.append(tab.bar.options.rights)
+        self.assertEqual(seen, ["acceptEdits", "plan", "manual"])
+
+    def test_permission_answered_with_number_keys(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        self.assertIsNotNone(tab.composer.permission_keys)
+        self.assertIn("1 Autoriser", tab.composer.placeholder.get_label())
+        card = tab.messages.pending_permission()
+        self.assertFalse(tab._permission_key("9"))               # touche sans rôle : rien
+        self.assertTrue(tab._permission_key("1"))
+        self.assertTrue(card.answered)
+        self.assertTrue(pump_until(lambda: tab.composer.permission_keys is None
+                                   or tab.messages.pending_permission() is not None))
+
     def test_composer_has_no_hint_line(self):
         # Pas de ligne d'indications sous la saisie : les boutons sont à droite du texte, les
         # indications dans le texte gris de la zone vide et dans l'info-bulle d'Envoyer.

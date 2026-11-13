@@ -873,8 +873,14 @@ a pas de terminal à regarder.
   clic le déplie et montre les cartes. Une erreur est toujours signalée dans
   l'en-tête (rouge, « 1 erreur »). Une action seule reste une carte ; les
   autorisations, la liste de tâches et les sous-agents ne sont jamais regroupés.
-- La **liste de tâches** de Claude s'affiche en cases à cocher qui se mettent à
-  jour.
+- La **liste de tâches** de Claude est épinglée au-dessus de la saisie, comme dans
+  l'extension VS Code : son en-tête dit où en est Claude (« Tâches 1/3 · Proposer les
+  améliorations »), un clic déplie les cases à cocher. Finie, elle s'efface au message
+  suivant.
+- Les réponses de Claude s'affichent en texte plein, sans bulle ; seules tes demandes
+  sont en bulle.
+- Une **demande d'autorisation** se répond aussi au clavier, la saisie vide : **1**
+  Autoriser, **2** Toujours, **3** Refuser (la saisie le rappelle).
 - Un chat **rouvert** (au démarrage, depuis l'historique, ou migré de l'ancien
   format) montre d'abord la conversation, lue dans son journal, **sans lancer
   `claude`** : le processus ne démarre qu'au premier message envoyé. Si la
@@ -926,6 +932,8 @@ téléphone).
 ### Écrire à Claude
 
 - **Entrée** envoie, **Maj+Entrée** va à la ligne.
+- **Maj+Tab** passe aux droits suivants : Demander, Modifications acceptées, Plan
+  (« Tout autoriser » ne se choisit que dans la barre, avec sa confirmation).
 - **`@`** propose les fichiers du projet ; **`/`** propose les commandes (celles
   que Claude Code annonce, plus tes commandes personnalisées et celles des
   plugins). Les commandes réservées au terminal répondent qu'elles ne sont pas

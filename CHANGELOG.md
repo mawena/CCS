@@ -22,6 +22,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   carte dans le fil garde « Voir le sous-agent ». Un sous-agent d'arrière-plan est tenu
   pour fini à son avis de fin (lu dans le flux, sinon dans le journal de la conversation),
   et la mise en veille du chat redevient alors possible.
+- **Chat plus proche de l'extension VS Code** : liste de tâches épinglée au-dessus de la
+  saisie (en-tête « Tâches 1/3 · tâche en cours », dépliable, effacée au message suivant
+  une fois finie) ; réponses de Claude en texte plein, sans bulle ; Maj+Tab passe aux
+  droits suivants (Demander → Modifications acceptées → Plan) ; une autorisation se
+  répond au clavier, saisie vide (1 Autoriser, 2 Toujours, 3 Refuser).
 - Planning resserré : frise des fenêtres de 5 h et prochaines recharges dans une
   même carte, explications en info-bulles, « Meilleur moment » repliable avec sa
   conclusion dans l'en-tête, file de tâches vide en une ligne.
