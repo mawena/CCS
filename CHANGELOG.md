@@ -59,6 +59,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   journal sous une autre forme quand Claude travaillait, n'était pas lu, et une balise
   citée ailleurs pouvait tromper la recherche : le journal est maintenant lu entrée par
   entrée.
+- **Dossier d'une conversation reliée à son projet** (« Dossier du projet… ») : l'aperçu,
+  l'archive, les projets récents de « Nouvelle session » et le journal des bascules
+  donnaient encore l'ancien dossier (Bureau, dossier personnel), noté dans les lignes du
+  journal copié ; ils donnent maintenant le projet. Le dossier d'un journal est aussi
+  trouvé quand celui-ci commence par de longs instantanés.
 - Une fenêtre ouverte par « Relancer » n'écrivait plus ses erreurs nulle part : elles vont
   de nouveau dans le journal du bureau.
 
