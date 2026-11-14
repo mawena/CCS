@@ -201,7 +201,7 @@ def _archive_one(journal, now):
     slug = journal.parent.name
     before = _stamp(journal)
     entry = conversations.read_entry(journal)
-    conv = conversations._to_conversation(journal, entry)
+    conv = conversations._to_conversation(journal, entry, sessions.moved_cwd(journal))
     dest = archive_dir() / slug
     _mkdir(dest)
     _gzip_copy(journal, dest / f"{journal.stem}.jsonl.gz")

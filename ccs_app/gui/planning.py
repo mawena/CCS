@@ -1,4 +1,4 @@
-"""Onglet Planning : fenêtres de 5 h de chaque compte et recharges à venir."""
+"""Section Planning de l'Accueil : fenêtres de 5 h de chaque compte et recharges à venir."""
 
 import time
 from datetime import datetime
@@ -9,7 +9,7 @@ from .. import best_time, daemon
 from ..settings import load_settings, save_settings
 from .charts import _fg
 from .accounts import pause_box
-from .common import (account_rgb, caption, card_box, clear, empty_state, now_utc, parse_ts,
+from .common import (PAGE_WIDTH, account_rgb, caption, card_box, clear, empty_state, now_utc, parse_ts,
                      sync_accounts, tag_account)
 from .geometry import span_to_x
 from .tasks_view import TasksView
@@ -158,9 +158,10 @@ class PlanningPage(Gtk.ScrolledWindow):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
         self.window = window
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14,
-                           margin_top=18, margin_bottom=18, margin_start=12, margin_end=12)
-        self.set_child(Adw.Clamp(maximum_size=900, child=self.box))
+                           margin_top=10, margin_bottom=18, margin_start=12, margin_end=12)
+        self.set_child(Adw.Clamp(maximum_size=PAGE_WIDTH, tightening_threshold=PAGE_WIDTH, child=self.box))
         self.moment_hours = 3
+        self.moment_open = False       # « Meilleur moment » replié par défaut, gardé d'un rendu à l'autre
         self.state = {}
         # Une seule instance, gardée d'un rendu à l'autre : `clear(box)` la détache, `render` la
         # remet (sa sélection et son journal ne se perdent pas).
@@ -184,10 +185,10 @@ class PlanningPage(Gtk.ScrolledWindow):
             self.render(self.state)
 
     def moment_card(self, state):
-        """Carte « Meilleur moment pour une grosse tâche » : durée, conseil, frise des 24 h."""
+        """Carte « Meilleur moment pour une grosse tâche », repliable : la conclusion se lit dans
+        l'en-tête ; durée, conseil et frise des 24 h dans le contenu."""
         card = card_box(8)
-        card.append(Gtk.Label(label="Meilleur moment pour une grosse tâche", xalign=0,
-                              css_classes=["heading"]))
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=8)
         choices = Gtk.Box(spacing=0, css_classes=["linked"], halign=Gtk.Align.START)
         first = None
         for h in MOMENT_CHOICES:
@@ -196,26 +197,34 @@ class PlanningPage(Gtk.ScrolledWindow):
             b.set_active(h == self.moment_hours)
             b.connect("toggled", self.choose_hours, h)
             choices.append(b)
-        card.append(choices)
+        body.append(choices)
         res = best_time.compute(state, duration_h=self.moment_hours, now=now_utc())
         if res.best is None:
-            card.append(caption("Aucun compte utilisable." if res.accounts == 0 else
-                                "Aucun quota disponible sur les prochaines 24 h."))
+            lead = ("Aucun compte utilisable" if res.accounts == 0 else
+                    "Aucun quota disponible sur les prochaines 24 h")
         else:
             lead = ("Lance-la maintenant" if res.now_is_best
                     else f"Meilleur départ : {best_time.label(res.best, res.now)}")
-            card.append(Gtk.Label(label=lead, xalign=0, wrap=True, css_classes=["ccs-big-number", "small"]))
-            card.append(caption(res.best.text))
+            body.append(Gtk.Label(label=lead, xalign=0, wrap=True, css_classes=["ccs-big-number", "small"]))
+            body.append(caption(res.best.text))
             frieze = Frieze()
             frieze.set_data(res.curve, res.best, best_time.STEP.total_seconds())
-            card.append(frieze)
+            frieze.set_tooltip_text("Plus la zone est verte, plus le quota cumulé est grand si tu démarres "
+                                    "à cette heure ; trait rouge : meilleur départ. Unité : fenêtres de 5 h "
+                                    "de quota disponible, pas une durée de travail garantie.")
+            body.append(frieze)
             for s in res.alternatives:
-                card.append(caption(f"Sinon {best_time.label(s, res.now)} : {s.text}"))
+                body.append(caption(f"Sinon {best_time.label(s, res.now)} : {s.text}"))
         if res.paused:
-            card.append(caption("Orchestrateur en pause : le calcul suppose que tu lances la tâche toi-même."))
-        card.append(caption("Frise : plus la zone est verte, plus le quota cumulé est grand si tu "
-                            "démarres à cette heure ; trait rouge : meilleur départ. Unité : fenêtres "
-                            "de 5 h de quota disponible, pas une durée de travail garantie."))
+            body.append(caption("Orchestrateur en pause : le calcul suppose que tu lances la tâche toi-même."))
+        head = Gtk.Box(spacing=10)
+        head.append(Gtk.Label(label="Meilleur moment pour une grosse tâche", xalign=0, hexpand=True,
+                              wrap=True, css_classes=["heading"]))
+        head.append(Gtk.Label(label=f"{self.moment_hours} h · {lead}", xalign=1, wrap=True,
+                              css_classes=["dim-label"]))
+        exp = Gtk.Expander(label_widget=head, expanded=self.moment_open, child=body)
+        exp.connect("notify::expanded", lambda e, _p: setattr(self, "moment_open", e.get_expanded()))
+        card.append(exp)
         return card
 
     def render(self, state):
@@ -235,8 +244,8 @@ class PlanningPage(Gtk.ScrolledWindow):
         elif s["enabled"] and o and not o.get("active_now"):
             detail += " · hors plage : rien n'est démarré"
         text.append(caption(detail))
-        text.append(caption("Démarre les fenêtres de 5 h au bon moment, les décale entre comptes "
-                            "et bascule vers le quota qui va expirer."))
+        row.set_tooltip_text("Démarre les fenêtres de 5 h au bon moment, les décale entre comptes "
+                             "et bascule vers le quota qui va expirer.")
         row.append(text)
         sw = Gtk.Switch(active=s["enabled"], valign=Gtk.Align.CENTER)
         sw.connect("notify::active", self.toggle)
@@ -267,28 +276,34 @@ class PlanningPage(Gtk.ScrolledWindow):
             wins = [(parse_ts(w["start"]).timestamp(), parse_ts(w["end"]).timestamp(), w["kind"],
                      used.get(a["name"], 0)) for w in plan if w["name"] == a["name"]]
             rows.append((a["name"], wins, a["name"] in reserve))
+        # Fenêtres de 5 h et prochaines recharges : une seule carte.
         card = card_box(8)
+        card.append(Gtk.Label(label="Fenêtres de 5 h", xalign=0, css_classes=["heading"]))
         timeline = Timeline()
         timeline.set_data(t0, t1, rows)
+        timeline.set_tooltip_text("Plein : fenêtre en cours (partie foncée = quota utilisé) · pointillés : "
+                                  "fenêtres prévues · trait rouge : maintenant · « réserve » : semaine en "
+                                  "avance, compte utilisé en dernier")
         card.append(timeline)
-        card.append(caption("Plein : fenêtre en cours (partie foncée = quota utilisé) · "
-                            "pointillés : fenêtres prévues · trait rouge : maintenant · "
-                            "« réserve » : semaine en avance, compte utilisé en dernier"))
-        self.box.append(card)
-
         ends = sorted((parse_ts(w["end"]), w["name"]) for w in plan if parse_ts(w["end"]).timestamp() > now)
-        recharge = card_box(6)
-        recharge.append(Gtk.Label(label="Recharges à venir", xalign=0, css_classes=["heading"]))
-        if not ends:
-            recharge.append(empty_state("alarm-symbolic", "Aucune fenêtre en cours ni prévue", compact=True))
-        for end_dt, name in ends[:10]:
-            line = Gtk.Box(spacing=8)
-            line.append(tag_account(Gtk.Box(css_classes=["ccs-account-dot", "ccs-dot"], valign=Gtk.Align.CENTER), name))
-            line.append(Gtk.Label(label=f"{end_dt.astimezone():%H:%M}", css_classes=["pct"], width_chars=6, xalign=0))
-            line.append(Gtk.Label(label=f"{name} retrouve 100 % de sa session", xalign=0))
-            recharge.append(line)
-        self.box.append(recharge)
-        self.box.append(self.moment_card(state))
+        if ends:
+            card.append(caption("Prochaines recharges (100 % de la session) :"))
+            flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, column_spacing=18, row_spacing=4,
+                               min_children_per_line=1, max_children_per_line=4,
+                               css_classes=["ccs-accounts-grid"])
+            for end_dt, name in ends[:8]:
+                line = Gtk.Box(spacing=6)
+                line.append(tag_account(Gtk.Box(css_classes=["ccs-account-dot", "ccs-dot"],
+                                                valign=Gtk.Align.CENTER), name))
+                line.append(Gtk.Label(label=f"{end_dt.astimezone():%H:%M}", css_classes=["pct"]))
+                line.append(Gtk.Label(label=name, xalign=0, ellipsize=3))
+                flow.append(line)
+                flow.get_last_child().set_focusable(False)
+            card.append(flow)
+        else:
+            card.append(caption("Aucune fenêtre en cours ni prévue."))
         if not s["enabled"]:
-            self.box.append(caption("Orchestrateur désactivé : seules les fenêtres en cours sont "
-                                    "affichées. Active-le pour enchaîner et décaler les fenêtres."))
+            card.append(caption("Orchestrateur désactivé : seules les fenêtres en cours sont "
+                                "affichées. Active-le pour enchaîner et décaler les fenêtres."))
+        self.box.append(card)
+        self.box.append(self.moment_card(state))

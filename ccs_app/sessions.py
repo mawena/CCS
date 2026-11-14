@@ -90,8 +90,13 @@ def _state(d):
 
 
 def state_label(s):
+    """Libellé de l'état ; une simple fin de réponse (motif « input » ou aucun) n'est pas une
+    question : « a fini de répondre »."""
+    reason = (s.waiting_for or "") if s.state == "waiting" else ""
+    if s.state == "waiting" and (not reason or reason.lower().startswith("input")):
+        return "a fini de répondre"
     label = STATE_LABELS[s.state]
-    return f"{label} ({s.waiting_for})" if s.state == "waiting" and s.waiting_for else label
+    return f"{label} ({reason})" if reason else label
 
 
 def list_sessions():
@@ -228,15 +233,39 @@ def recent_conversations(cwd, limit=8):
     return [Conversation(f.stem, f.stat().st_mtime, journal_title(f) or _first_prompt(f)) for f in files]
 
 
-def _cwd_of(path):
+CWD_SCAN_LINES = 1000
+
+
+def moves_path():
+    """Journaux copiés par conversations.relocate() : {chemin du journal copié: nouveau dossier}."""
+    return core.paths().store / "conversations-moves.json"
+
+
+def moved_cwd(path, moves=None):
+    """Dossier auquel un journal copié a été relié (« Dossier du projet… »), sinon None : ses
+    lignes gardent l'ancien `cwd`, c'est ce dossier-ci qui compte."""
+    if moves is None:
+        moves = core.load_json(moves_path())
+    return moves.get(str(path)) or None
+
+
+def _cwd_of(path, moves=None):
+    """Dossier d'une conversation : celui où elle a été reliée, sinon le premier `cwd` de son
+    journal (cherché sur les CWD_SCAN_LINES premières lignes : un journal peut commencer par
+    de longs instantanés sans `cwd`)."""
+    moved = moved_cwd(path, moves)
+    if moved:
+        return moved
     try:
         with open(path, errors="replace") as fh:
-            for _, raw in zip(range(50), fh):
+            for _, raw in zip(range(CWD_SCAN_LINES), fh):
                 if '"cwd"' in raw:
                     try:
-                        return json.loads(raw).get("cwd")
-                    except ValueError:
+                        cwd = json.loads(raw).get("cwd")
+                    except (ValueError, AttributeError):
                         continue
+                    if cwd:
+                        return cwd
     except OSError:
         pass
     return None
@@ -247,11 +276,11 @@ def recent_projects(limit=8):
     d = projects_dir()
     if not d.is_dir():
         return []
-    out = []
+    out, moves = [], core.load_json(moves_path())
     for proj in sorted((p for p in d.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime,
                        reverse=True):
         files = sorted(proj.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
-        cwd = next((c for c in (_cwd_of(f) for f in files[:3]) if c), None)
+        cwd = next((c for c in (_cwd_of(f, moves) for f in files[:3]) if c), None)
         if cwd and os.path.isdir(cwd):  # projet encore présent sur le disque
             out.append((cwd, files[0].stat().st_mtime))
         if len(out) >= limit:

@@ -37,9 +37,14 @@ BASE_CSS = """
   background-color: alpha(@accent_bg_color, 0.20); color: @window_fg_color;
   border-bottom-right-radius: 4px;
 }
+/* Réponses de Claude en texte plein, sans bulle (comme l'extension VS Code) : les longues
+   réponses se lisent mieux ; seules les demandes de l'utilisateur sont en bulle. */
 .ccs-bubble-claude {
-  background-color: alpha(@window_fg_color, 0.06); color: @window_fg_color;
-  border-bottom-left-radius: 4px;
+  background-color: transparent; color: @window_fg_color; padding: 4px 4px;
+}
+.ccs-todos-bar {
+  background-color: alpha(@window_fg_color, 0.05); border-radius: 10px;
+  border: 1px solid alpha(@window_fg_color, 0.10); padding: 4px 10px;
 }
 
 .ccs-tool-card {
@@ -68,6 +73,10 @@ levelbar.ccs-gauge block, progressbar.ccs-gauge progress { border-radius: 99px; 
 .ccs-gauge-ok block.filled, .ccs-gauge-ok progress { background-color: @success_bg_color; }
 .ccs-gauge-warn block.filled, .ccs-gauge-warn progress { background-color: @warning_bg_color; }
 .ccs-gauge-crit block.filled, .ccs-gauge-crit progress { background-color: @error_bg_color; }
+
+.ccs-accounts-grid > flowboxchild { padding: 0; background: none; outline: none; }
+.ccs-gauge-label { font-weight: 600; }
+expander.ccs-details > title { color: alpha(@card_fg_color, 0.7); font-size: 0.92em; }
 
 .ccs-just-done {
   background-color: alpha(@success_bg_color, 0.22); border-radius: 8px;
@@ -106,7 +115,9 @@ def accounts_css(profiles, chosen):
         out.append(
             f"{k} {{ color: {c}; }}\n"
             f"{k}.ccs-account-dot, {k}.ccs-account-bg {{ background-color: {c}; color: white; }}\n"
-            f"{k}.ccs-card {{ border-top: 3px solid {c}; }}\n"
+            # La couleur du compte borde la carte et teinte son nom et ses jauges, pas tout
+            # son texte (des légendes pâles se lisent mal).
+            f"{k}.ccs-card {{ border-top: 3px solid {c}; color: @card_fg_color; }}\n"
             f"{k}.ccs-chip {{ background-color: alpha({c}, 0.20); color: {c}; }}\n"
             f"{k}.ccs-account-bar {{ border-left: 3px solid {c}; }}\n"
             f"{k} levelbar block.filled, {k} progressbar progress {{ background-color: {c}; }}\n")

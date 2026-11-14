@@ -1,4 +1,4 @@
-"""Onglet Réglages : conseils, conseiller de formule, raccourcis clavier.
+"""Fenêtre Réglages : conseils, conseiller de formule, raccourcis clavier.
 
 Widgets créés sans être affichés (affichage requis, sinon tests sautés). HOME isolé (profils
 `perso` (Pro) et `pro` (Max sans palier)), réglages GNOME simulés : jamais ceux du bureau ;

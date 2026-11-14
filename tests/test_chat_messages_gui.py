@@ -69,6 +69,17 @@ class MessageListTest(unittest.TestCase):
         card.main.emit("clicked")
         self.assertEqual(seen, [("/p/a.py", "a\nb\n", "a\nc\nd\n")])
 
+    def test_tool_detail_built_only_when_opened(self):
+        """Une carte repliée ne construit ni la commande ni le résultat (mémoire)."""
+        ml = MessageList()
+        card = ml.add_tool(proto.ToolUse("t1", "Bash", {"command": "ls -la"}))
+        ml.set_tool_result(proto.ToolResult("t1", "fichier1\nfichier2", False))
+        self.assertIsNone(card.detail.get_first_child())
+        self.assertNotIn("fichier1\nfichier2", labels(card))
+        card.toggle(True)
+        self.assertIn("$ ls -la", labels(card))
+        self.assertTrue(any("fichier1" in t for t in labels(card)))
+
     def test_failed_tool_is_marked_and_opened(self):
         ml = MessageList()
         card = ml.add_tool(proto.ToolUse("t1", "Bash", {"command": "false"}))
@@ -348,6 +359,8 @@ class ToolGroupTest(unittest.TestCase):
         self.assertFalse(cards[1].running)
         self.assertTrue(cards[0].running)
         self.assertIs(ml._tools["t1"], cards[1])
+        self.assertEqual(cards[1].result_text, "contenu")
+        cards[1].toggle(True)                                # détail construit au dépliage
         self.assertIn("contenu", labels(cards[1]))
 
     def test_group_folds_itself_at_the_end(self):

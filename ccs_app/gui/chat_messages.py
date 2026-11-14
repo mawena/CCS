@@ -17,11 +17,12 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
 
-from .. import preview  # noqa: E402
+from .. import chat_protocol as proto, preview  # noqa: E402
 from .markdown_view import MarkdownView  # noqa: E402
 
 PAGE = 50                   # messages d'historique construits à la fois
-RENDER_MS = 90              # un rendu Markdown au plus toutes les 90 ms pendant le flux
+RENDER_MS = 90              # un rendu Markdown au plus toutes les 90 ms pendant le flux…
+RENDER_MAX_MS = 1000        # … espacé si le rendu coûte (4 × sa durée), sans dépasser 1 s
 RESULT_CHARS = 20_000       # résultat d'outil montré (le reste est coupé à l'affichage)
 FOLD_LINES = 14             # un message de l'utilisateur plus long est replié (« Afficher tout »)
 FOLD_CHARS = 1500
@@ -258,11 +259,17 @@ class ToolCard(Gtk.Box):
         self.revealer = Gtk.Revealer(child=self.detail, reveal_child=False,
                                      transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
         self.append(self.revealer)
-        self._fill_detail()
+        self._detail_built = False     # commande et résultat : construits au premier dépliage
 
     # -- états --
 
     def _fill_detail(self):
+        """Commande et résultat (texte sélectionnable, coûteux en mémoire) : seulement quand la
+        carte est dépliée ; la plupart ne le sont jamais."""
+        if not self.revealer.get_reveal_child():
+            self._detail_built = False
+            return
+        self._detail_built = True
         _clear(self.detail)
         command = self.data.get("command") if self.name == "Bash" else None
         if isinstance(command, str) and command:
@@ -295,15 +302,17 @@ class ToolCard(Gtk.Box):
         self.spinner.set_spinning(False)
         self.icon.set_from_icon_name("dialog-error-symbolic" if is_error else "object-select-symbolic")
         self.add_css_class("error" if is_error else "done")
-        self._fill_detail()
         if is_error:
             self.revealer.set_reveal_child(True)
             self.chevron.set_icon_name("pan-down-symbolic")
+        self._fill_detail()
 
     def toggle(self, show=None):
         show = (not self.revealer.get_reveal_child()) if show is None else show
         self.revealer.set_reveal_child(show)
         self.chevron.set_icon_name("pan-down-symbolic" if show else "pan-end-symbolic")
+        if show and not self._detail_built:
+            self._fill_detail()
 
     def _on_main(self, *_):
         if self.edit and self.on_diff:
@@ -463,8 +472,22 @@ class PermissionCard(Gtk.Box):
             row.append(w)
         self.buttons = row
         self.append(row)
+        keys = "1 Autoriser · " + ("2 Toujours · " if rules else "") + "3 Refuser"
+        self.keys_hint = Gtk.Label(label=f"Au clavier, la saisie vide : {keys}", xalign=0,
+                                   css_classes=["caption", "dim-label"])
+        self.append(self.keys_hint)
         self.verdict = Gtk.Label(xalign=0, css_classes=["heading"], visible=False)
         self.append(self.verdict)
+
+    KEY_DECISIONS = {"1": "allow", "2": "always", "3": "deny"}
+
+    def answer_key(self, key):
+        """Réponse au clavier (1, 2, 3, comme l'extension VS Code). Vrai si la touche a servi."""
+        decision = self.KEY_DECISIONS.get(key)
+        if decision is None or self.answered or (decision == "always" and not self.always.get_visible()):
+            return False
+        self._answer(decision)
+        return True
 
     @staticmethod
     def _shown(req, base_dir):
@@ -492,10 +515,139 @@ class PermissionCard(Gtk.Box):
     def resolve(self, decision):
         """Fige la carte : l'autorisation a reçu sa réponse."""
         self.buttons.set_visible(False)
+        self.keys_hint.set_visible(False)
         self.verdict.set_label({"allow": "Autorisé", "always": "Autorisé, et toujours pour cette règle",
                                 "deny": "Refusé", "cancelled": "Annulée"}.get(decision, decision))
         self.verdict.add_css_class("success" if decision in ("allow", "always") else "error")
         self.verdict.set_visible(True)
+
+
+class QuestionCard(Gtk.Box):
+    """Questions à choix de Claude (outil AskUserQuestion) : pour chacune, ses choix (un seul,
+    ou plusieurs si `multiSelect`) et « Autre » en texte libre ; « Envoyer les réponses » les
+    rend à Claude, « Répondre dans le chat » les écarte."""
+
+    OTHER = "Autre…"
+
+    def __init__(self, req, on_submit, on_skip):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10, css_classes=["ccs-permission-card"])
+        self.req, self.on_submit, self.on_skip = req, on_submit, on_skip
+        self.items = proto.question_items(req.input)
+        head = Gtk.Box(spacing=8)
+        head.append(Gtk.Image(icon_name="dialog-question-symbolic"))
+        n = len(self.items)
+        head.append(Gtk.Label(label="Claude te pose une question" if n == 1 else f"Claude te pose {n} questions",
+                              xalign=0, hexpand=True, css_classes=["heading"]))
+        self.append(head)
+        self.choices = []     # par question : (texte, [(bouton, libellé)], bouton « Autre », champ libre)
+        for text, header, options, multi in self.items:
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            if header:
+                box.append(Gtk.Label(label=header, xalign=0, css_classes=["caption", "dim-label"]))
+            box.append(Gtk.Label(label=text, xalign=0, wrap=True, css_classes=["ccs-question"]))
+            group, buttons = None, []
+            for n_opt, (label, desc) in enumerate(options, 1):
+                btn = Gtk.CheckButton(label=f"{n_opt}. {label}", group=None if multi else group)
+                if not multi and group is None:
+                    group = btn
+                child = btn.get_last_child()
+                if isinstance(child, Gtk.Label):
+                    child.set_wrap(True)
+                if desc:
+                    btn.set_tooltip_text(desc)
+                row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+                row.append(btn)
+                if desc:
+                    row.append(Gtk.Label(label=desc, xalign=0, wrap=True, margin_start=28,
+                                         css_classes=["caption", "dim-label"]))
+                box.append(row)
+                buttons.append((btn, label))
+                btn.connect("toggled", lambda *_: self._update())
+            other = Gtk.CheckButton(label=self.OTHER, group=None if multi else group)
+            entry = Gtk.Entry(placeholder_text="Ta réponse", hexpand=True, margin_start=28)
+            entry.connect("changed", lambda e, o=other: (e.get_text().strip() and o.set_active(True), self._update()))
+            entry.connect("activate", lambda *_: self._submit())
+            other.connect("toggled", lambda *_: self._update())
+            box.append(other)
+            box.append(entry)
+            self.choices.append((text, buttons, other, entry))
+            self.append(box)
+        self.send = Gtk.Button(label="Envoyer les réponses", css_classes=["suggested-action"], sensitive=False)
+        self.send.connect("clicked", lambda *_: self._submit())
+        self.skip = Gtk.Button(label="Répondre dans le chat",
+                               tooltip_text="Écarte les questions : Claude attend ta réponse écrite")
+        self.skip.connect("clicked", lambda *_: self._skip())
+        self.buttons = Gtk.Box(spacing=8)
+        self.buttons.append(self.send)
+        self.buttons.append(self.skip)
+        self.append(self.buttons)
+        self.verdict = Gtk.Label(xalign=0, wrap=True, css_classes=["heading"], visible=False)
+        self.append(self.verdict)
+
+    def answers(self):
+        """{texte de la question: libellé, [libellés] ou texte libre} des questions répondues."""
+        out = {}
+        for (text, buttons, other, entry), (_t, _h, _o, multi) in zip(self.choices, self.items):
+            picked = [label for btn, label in buttons if btn.get_active()]
+            free = entry.get_text().strip()
+            if other.get_active() and free:
+                picked.append(free)
+            if picked:
+                out[text] = picked if multi and len(picked) > 1 else picked[0]
+        return out
+
+    def _update(self):
+        self.send.set_sensitive(bool(self.answers()) and not self.answered)
+
+    def _submit(self):
+        answers = self.answers()
+        if not answers or self.answered:
+            return
+        self._close("Réponses envoyées : " + " · ".join(
+            v if isinstance(v, str) else ", ".join(v) for v in answers.values()), True)
+        self.on_submit(self.req.request_id, answers)
+
+    def _skip(self):
+        if self.answered:
+            return
+        self._close("Questions écartées : réponds dans le chat.", False)
+        self.on_skip(self.req.request_id)
+
+    def _close(self, text, ok):
+        for _text, buttons, other, entry in self.choices:
+            for btn, _l in buttons:
+                btn.set_sensitive(False)
+            other.set_sensitive(False)
+            entry.set_sensitive(False)
+        self.buttons.set_visible(False)
+        self.verdict.set_label(text)
+        self.verdict.add_css_class("success" if ok else "dim-label")
+        self.verdict.set_visible(True)
+
+    @property
+    def answered(self):
+        return self.verdict.get_visible()
+
+    def resolve(self, decision):
+        if not self.answered:
+            self._close("Questions annulées.", False)
+
+    def answer_key(self, key):
+        """1, 2, 3… choisissent dans la première question à choix unique sans réponse ; si
+        toutes ont une réponse, la touche envoie."""
+        if self.answered or not key.isdigit():
+            return False
+        for (text, buttons, other, entry), (_t, _h, _o, multi) in zip(self.choices, self.items):
+            if multi or any(btn.get_active() for btn, _l in buttons) or other.get_active():
+                continue
+            n = int(key)
+            if 1 <= n <= len(buttons):
+                buttons[n - 1][0].set_active(True)
+                if all(q in self.answers() for q, *_rest in self.choices):
+                    self._submit()
+                return True
+            return False
+        return False
 
 
 class TodosCard(Gtk.Box):
@@ -529,12 +681,58 @@ class TodosCard(Gtk.Box):
         self.title.set_label(f"Tâches · {done}/{len(items)}")
 
 
+class TodosBar(Gtk.Box):
+    """Liste de tâches de Claude épinglée au-dessus de la saisie (comme l'extension VS Code) :
+    l'en-tête dit où en est Claude (« Tâches 2/5 · Écrire les tests »), un clic déplie la liste.
+    Elle reste visible tant que la liste n'est pas finie ; finie, elle s'efface au message
+    suivant."""
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, css_classes=["ccs-todos-bar"],
+                         visible=False, margin_start=12, margin_end=12, margin_top=4)
+        self.card = TodosCard()
+        self.card.remove_css_class("ccs-card")
+        self.card.title.set_visible(False)
+        head = Gtk.Box(spacing=8)
+        self.spinner = Gtk.Spinner()
+        self.summary = Gtk.Label(xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END)
+        head.append(self.spinner)
+        head.append(self.summary)
+        self.expander = Gtk.Expander(label_widget=head, child=self.card)
+        self.append(self.expander)
+        self.done = False
+
+    def update(self, items):
+        items = list(items or ())
+        self.card.update(items)
+        total = len(items)
+        done = sum(1 for _t, s in items if s == "completed")
+        current = next((t for t, s in items if s == "in_progress"), None)
+        self.done = total > 0 and done == total
+        if self.done:
+            text = f"✓ Tâches terminées · {done}/{total}"
+        elif current:
+            text = f"Tâches {done}/{total} · {' '.join(current.split())}"
+        else:
+            text = f"Tâches {done}/{total}"
+        self.summary.set_label(text)
+        self.spinner.set_visible(current is not None and not self.done)
+        self.spinner.set_spinning(current is not None and not self.done)
+        self.set_visible(total > 0)
+
+    def new_turn(self):
+        """Un nouveau message part : une liste finie n'a plus à rester épinglée."""
+        if self.done:
+            self.set_visible(False)
+
+
 class _Segment:
     """Un morceau de réponse de Claude (une bulle) : texte brut accumulé et rendu différé."""
 
     def __init__(self, bubble, view):
         self.bubble, self.view = bubble, view
         self.text, self.timer, self.closed = "", 0, False
+        self.interval = RENDER_MS
 
 
 # ---- la liste ------------------------------------------------------------------------------
@@ -777,13 +975,19 @@ class MessageList(Gtk.ScrolledWindow):
         seg = self._segment(msg_id)
         seg.text += text
         if not seg.timer:
-            seg.timer = GLib.timeout_add(RENDER_MS, self._render, seg)
+            seg.timer = GLib.timeout_add(seg.interval, self._render, seg)
 
     def _render(self, seg):
         seg.timer = 0
         seg.bubble.set_visible(bool(seg.text.strip()))
         seg.bubble.copy_text = seg.text
-        seg.view.set_text(seg.text)
+        start = time.monotonic()
+        if seg.closed:
+            seg.view.set_text(seg.text)              # rendu exact, une fois, à la fin
+        else:
+            seg.view.set_text_streaming(seg.text)    # pendant le flux : la fin seulement
+            spent_ms = (time.monotonic() - start) * 1000
+            seg.interval = int(min(RENDER_MAX_MS, max(RENDER_MS, 4 * spent_ms)))
         self.scroll_end_if_stuck()
         return False
 
@@ -837,7 +1041,19 @@ class MessageList(Gtk.ScrolledWindow):
             if card.group is not None:
                 card.group.refresh()
 
-    def add_permission(self, req, on_answer):
+    def pending_permission(self):
+        """La plus ancienne demande d'autorisation encore sans réponse, ou None."""
+        return next((card for card in self._perms.values() if not card.answered), None)
+
+    def add_permission(self, req, on_answer, on_questions=None):
+        if req.tool_name == proto.QUESTION_TOOL and on_questions is not None and proto.question_items(req.input):
+            card = QuestionCard(req, on_questions,
+                                lambda rid: on_answer(rid, "deny", "L'utilisateur préfère répondre dans le "
+                                                      "chat : pose-lui la question par écrit et attends sa réponse."))
+            self._perms[req.request_id] = card
+            self._append(card)
+            self.scroll_end_if_stuck()
+            return card
         card = PermissionCard(req, on_answer, self.base_dir)
         self._perms[req.request_id] = card
         self._append(card)

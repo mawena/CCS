@@ -270,7 +270,7 @@ def open_session(ref):
         return False
 
 
-TASKS_ARGS = ("gui", "--page", "planning")  # entrée « Tâches » : onglet Planning
+TASKS_ARGS = ("gui", "--page", "planning")  # entrée « Tâches » : section Planning de l'Accueil
 
 
 def tasks_label(all_tasks):

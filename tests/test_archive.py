@@ -80,6 +80,16 @@ class PassTest(ArchiveTestCase):
         self.assertEqual(item["size"], p.stat().st_size)
         self.assertTrue(p.exists())   # l'original n'est jamais touché
 
+    def test_relocated_conversation_archived_with_its_new_folder(self):
+        desktop = self.home / "Desktop"
+        desktop.mkdir()
+        self.journal("s-bureau", age_days=5, cwd=desktop)
+        first = next(c for c in conversations.scan() if c.session_id == "s-bureau")
+        copy = Path(conversations.relocate(first, str(self.app)).path)
+        os.utime(copy, (NOW - 5 * DAY, NOW - 5 * DAY))
+        item = archive._archive_one(copy, NOW)
+        self.assertEqual(item["cwd"], str(self.app))
+
     def test_recent_conversation_is_not_archived(self):
         self.journal("s1", age_days=0.2)
         self.assertEqual(archive.archive_pass(NOW).archived, [])

@@ -1,4 +1,4 @@
-"""Vue des tâches (onglet Planning) : widgets créés sans être affichés (affichage requis,
+"""Vue des tâches (section Planning de l'Accueil) : widgets créés sans être affichés (affichage requis,
 sinon tests sautés). HOME isolé."""
 
 import json
@@ -58,6 +58,7 @@ class TasksViewTest(HomeTestCase):
         v = self.view()
         self.assertEqual(rows(v), [])
         self.assertTrue(v.empty.get_visible())
+        self.assertFalse(v.list.get_visible())     # pas de cadre vide sous l'en-tête
         self.assertFalse(v.detail.get_visible())
 
     def test_lists_tasks_newest_first_with_state(self):

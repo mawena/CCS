@@ -69,7 +69,7 @@ def cache_path():
 
 def moves_path():
     """Journaux copiés par relocate() : {chemin du journal copié: nouveau dossier}."""
-    return core.paths().store / "conversations-moves.json"
+    return sessions.moves_path()
 
 
 def _new_entry():
@@ -226,7 +226,7 @@ def from_journal(path, cwd=None):
     st = path.stat()
     if not entry or entry.get("size") != st.st_size or entry.get("mtime") != st.st_mtime:
         entry = read_entry(path, entry)
-    return _to_conversation(path, entry, None if entry.get("cwd") else cwd)
+    return _to_conversation(path, entry, sessions.moved_cwd(path) or (None if entry.get("cwd") else cwd))
 
 
 def scan(archived=True):

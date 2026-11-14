@@ -196,8 +196,11 @@ class TabStateTest(HomeTestCase):
 
     def test_indicator(self):
         self.assertEqual(terminal.indicator(self.tab(state="busy")), (True, None, "travaille"))
-        self.assertEqual(terminal.indicator(self.tab(state="waiting")),
+        self.assertEqual(terminal.indicator(self.tab(state="waiting", waiting_for="permission")),
                          (False, "dialog-question-symbolic", "attend ta réponse"))
+        # simple fin de réponse : pas de « ? », Claude n'a rien demandé
+        self.assertEqual(terminal.indicator(self.tab(state="waiting", waiting_for="input")), terminal.DONE)
+        self.assertEqual(terminal.indicator(self.tab(state="waiting")), terminal.DONE)
         self.assertEqual(terminal.indicator(self.tab(state="idle")), (False, None, "au repos"))
         self.assertEqual(terminal.indicator(self.tab(state=None)), (False, None, None))
         self.assertEqual(terminal.indicator(self.tab(running=False, state="busy")),
