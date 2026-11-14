@@ -495,5 +495,56 @@ class MessageListScrollTest(unittest.TestCase):
         win.destroy()
 
 
+
+@unittest.skipUnless(GTK, "tests graphiques : CCS_GUI_TESTS=1 avec xvfb-run")
+class TrimTest(unittest.TestCase):
+    """Longue session : le fil garde un nombre borné de lignes construites."""
+
+    def fill(self, ml, n):
+        for i in range(n):
+            ml.add_tool(proto.ToolUse(f"t{i}", "Bash", {"command": f"echo {i}"}, None))
+            ml.set_tool_result(proto.ToolResult(f"t{i}", "ok", False, None))
+            ml.finish_assistant(f"m{i}", f"réponse {i}")
+
+    def test_old_rows_dropped_and_references_released(self):
+        from ccs_app.gui import chat_messages as cm
+        asked = []
+        ml = MessageList(on_older=lambda: asked.append(1))
+        self.fill(ml, cm.LIVE_MAX)                    # 2 lignes par tour : au-delà du plafond
+        self.assertGreater(ml.row_count(), cm.LIVE_MAX)
+        dropped = ml.trim()
+        self.assertEqual(ml.row_count(), cm.LIVE_KEEP + 1)       # + la ligne « plus anciens »
+        self.assertEqual(dropped, 2 * cm.LIVE_MAX - cm.LIVE_KEEP)
+        self.assertIn(f"{dropped} éléments plus anciens", " ".join(l or "" for l in labels(ml.box)))
+        self.assertTrue(all(v.is_ancestor(ml.box) for v in ml._views))
+        self.assertTrue(all(c.is_ancestor(ml.box) for c in ml._tools.values()))
+        self.assertTrue(all(s.bubble.is_ancestor(ml.box) for s in ml._segs.values()))
+        self.assertNotIn("t0", ml._tools)
+        self.assertIn(f"t{cm.LIVE_MAX - 1}", ml._tools)
+        ml.older_button.emit("clicked")
+        self.assertEqual(asked, [1])
+        self.fill(ml, cm.LIVE_MAX)                    # un second élagage cumule le compte
+        more = ml.trim()
+        self.assertIn(f"{dropped + more} éléments plus anciens", " ".join(l or "" for l in labels(ml.box)))
+
+    def test_nothing_dropped_while_reading_above_or_below_the_cap(self):
+        from ccs_app.gui import chat_messages as cm
+        ml = MessageList()
+        self.fill(ml, 10)
+        self.assertEqual(ml.trim(), 0)
+        self.fill(ml, cm.LIVE_MAX)
+        ml._stick = False                             # on lit plus haut : rien ne bouge
+        self.assertEqual(ml.trim(), 0)
+
+    def test_reset_empties_the_thread(self):
+        ml = MessageList()
+        self.fill(ml, 5)
+        ml.reset()
+        self.assertEqual(ml.row_count(), 0)
+        self.assertEqual((ml._views, ml._tools, ml._segs), ([], {}, {}))
+        ml.add_user("encore", ())
+        self.assertEqual(ml.row_count(), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
