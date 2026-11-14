@@ -1,3 +1,15 @@
+ccs (0.10.1) unstable; urgency=medium
+
+  * Accueil lisible : comptes côte à côte, deux jauges et une ligne d'état.
+  * Chat : questions de Claude (AskUserQuestion) affichées et répondues,
+    tâches épinglées, réponses sans bulle, Maj+Tab et 1/2/3 au clavier.
+  * Plus fluide : rendu de la fin seulement pendant l'écriture, détail des
+    actions au dépliage ; processus nommés ccs-gui, ccs-daemon, ccs-tray.
+  * Corrigés : « ? » sans question, sous-agents finis restés « en cours »,
+    dossier d'une conversation reliée, textes des anciens onglets.
+
+ -- mawena <gamligocharles@gmail.com>  Sat, 14 Nov 2026 11:00:00 +0000
+
 ccs (0.10.0) unstable; urgency=medium
 
   * Chat graphique à la place du terminal Claude : bulles, Markdown, cartes
