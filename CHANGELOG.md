@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [0.10.2] — 2026-11-14
+
 ### Modifié
 
 - **Longues sessions à mémoire bornée.** À la fin d'un tour, au-delà de 300 éléments dans le
@@ -18,6 +20,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 - Les messages retirés du fil n'étaient jamais libérés : des gestionnaires de signal pointaient
   vers leur propre widget (cycle Python ↔ GTK). Ils sont maintenant libérés.
+- Un fichier ouvert juste après un très gros fichier pouvait rester « en chargement » : la
+  mise en page du gros texte passait avant la fin de sa lecture.
 
 ## [0.10.1] — 2026-11-14
 
