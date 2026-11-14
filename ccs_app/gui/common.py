@@ -214,7 +214,9 @@ def in_thread(work, done):
     """Exécute work() hors de l'interface puis done(résultat) dans l'interface."""
     def run():
         result = work()
-        GLib.idle_add(lambda: (done(result), False)[1])
+        # Priorité normale, pas celle d'un idle (200) : la mise en page d'un gros texte
+        # (validation des lignes de GtkTextView, priorité 125) affamerait ce rappel.
+        GLib.idle_add(lambda: (done(result), False)[1], priority=GLib.PRIORITY_DEFAULT)
     threading.Thread(target=run, daemon=True).start()
 
 
