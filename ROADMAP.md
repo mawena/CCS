@@ -258,16 +258,21 @@ Documentation et release :
 - [x] Fil borné dans les longues sessions (élagage + « Afficher » depuis le journal), cycles de widgets cassés, mémoire rendue au système
 - [x] Essai réel par Charles, puis release correctif 0.10.2 (`.deb`, release GitHub, dépôt APT)
 
-## Phase 13 — Propositions (à choisir)
+## Phase 13 — Travailler sans quitter CCS (toutes les propositions retenues le 14/11)
 
-Recommandées :
+Git dans le panneau de gauche (inspiré de GiGit) :
+- [ ] Troisième page **Git** à côté de Fichiers et Feuille de route : graphe des commits façon ungit/GiGit (branches en colonnes, étiquettes de branches et tags, chargement par pages), détail d'un commit (message, auteur, fichiers, diff)
+- [ ] Git sans terminal : branche courante et git flow (démarrer ou finir une feature), indexation, commit avec un message proposé d'après les changements, fetch, pull, push
+
+Le travail de Claude :
 - [ ] **Faire une tâche de la feuille de route** : un bouton sur chaque `- [ ]` l'envoie au chat ouvert (« Fais : … ») ou à la file de tâches de nuit ; la case se coche quand Claude a fini
 - [ ] **Changements de la session** : un volet liste tous les fichiers modifiés par Claude dans la conversation, avec le diff cumulé, « Annuler ce fichier » et « Revenir à avant ce message » (points de reprise)
-- [ ] **Git sans terminal** : branche courante et git flow (démarrer ou finir une feature), commit avec un message proposé d'après les changements, push
-- [ ] **Répondre depuis le téléphone** : boutons Autoriser / Refuser dans la notification ntfy (le service écoute un sujet de réponse protégé par un jeton secret)
-- [ ] **Chercher dans le fil** : Ctrl+F dans le chat, avec saut aux messages et aux cartes trouvés
 
-Autres :
+Le chat :
+- [ ] **Chercher dans le fil** : Ctrl+F dans le chat, avec saut aux messages et aux cartes trouvés
 - [ ] Messages enregistrés : textes réutilisables (« fais la release », « relis et teste »), globaux ou par projet, insérés par `/` ou un menu
 - [ ] Bouton « Compacter » dans l'alerte de contexte lourd, avec le gain estimé
 - [ ] Commande `!` dans la saisie : lance une commande shell dans le dossier du projet, sortie affichée en carte
+
+Loin du PC :
+- [ ] **Répondre depuis le téléphone** : boutons Autoriser / Refuser dans la notification ntfy (le service écoute un sujet de réponse protégé par un jeton secret)
