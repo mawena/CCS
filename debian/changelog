@@ -1,3 +1,14 @@
+ccs (0.10.2) unstable; urgency=medium
+
+  * Longues sessions à mémoire bornée : les plus anciens messages sont
+    retirés du fil (« Afficher » les relit depuis le journal) et la
+    mémoire est rendue au système.
+  * Listes Markdown courtes en un seul label : 4 fois moins de mémoire.
+  * Corrigé : messages retirés du fil jamais libérés (cycle Python/GTK).
+  * Corrigé : fichier ouvert après un très gros fichier resté en chargement.
+
+ -- mawena <gamligocharles@gmail.com>  Sat, 14 Nov 2026 18:00:00 +0000
+
 ccs (0.10.1) unstable; urgency=medium
 
   * Accueil lisible : comptes côte à côte, deux jauges et une ligne d'état.
