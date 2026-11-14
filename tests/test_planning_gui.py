@@ -1,4 +1,4 @@
-"""Onglet Planning : carte « Meilleur moment pour une grosse tâche ».
+"""Section Planning de l'Accueil : carte « Meilleur moment pour une grosse tâche ».
 
 Widgets créés sans être affichés (affichage requis, sinon tests sautés). HOME isolé."""
 
@@ -40,6 +40,14 @@ def labels(widget):
     return out
 
 
+def walk_all(widget):
+    child = widget.get_first_child()
+    while child is not None:
+        yield child
+        yield from walk_all(child)
+        child = child.get_next_sibling()
+
+
 def toggles(widget):
     out, child = [], widget.get_first_child()
     while child is not None:
@@ -73,8 +81,21 @@ class MomentCardTest(HomeTestCase):
         self.assertIn("Meilleur moment pour une grosse tâche", text)
         self.assertIn("Meilleur départ", text)
 
+    def test_moment_card_folded_by_default_and_kept_open(self):
+        from gi.repository import Gtk as G
+        page = self.page()
+        exp = [w for w in walk_all(page.box) if isinstance(w, G.Expander)]
+        self.assertEqual(len(exp), 1)
+        self.assertFalse(exp[0].get_expanded())
+        exp[0].set_expanded(True)
+        page.render(state())                      # nouveau rendu (état relu) : reste ouverte
+        exp = [w for w in walk_all(page.box) if isinstance(w, G.Expander)]
+        self.assertTrue(exp[0].get_expanded())
+
     def test_duration_choices(self):
         page = self.page()
+        page.moment_open = True                   # contenu de la carte repliable visible
+        page.render(state())
         buttons = [b for b in toggles(page.box) if b.get_label().endswith(" h")]
         self.assertEqual([b.get_label() for b in buttons], ["1 h", "2 h", "3 h", "4 h", "6 h", "8 h"])
         self.assertTrue(buttons[2].get_active())

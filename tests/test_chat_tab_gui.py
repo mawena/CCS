@@ -259,6 +259,124 @@ class ChatTabTest(HomeTestCase):
         self.say(tab, "message")                                   # la saisie reste pour la principale
         self.assertIn("message", labels_in(tab.messages))
 
+    def test_finished_subagent_leaves_the_bar(self):
+        """Comme VS Code : un sous-agent fini quitte la barre ; sa carte le rouvre."""
+        tab, _owner = self.make()
+        tab._dispatch(proto.ToolUse("toolu_A", "Task", {"description": "Explorer", "prompt": "…"}, None))
+        tab._dispatch(proto.ToolUse("toolu_B", "Task", {"description": "Relire", "prompt": "…"}, None))
+        a, b = tab.agents["toolu_A"], tab.agents["toolu_B"]
+        tab._dispatch(proto.ToolResult("toolu_A", "fini", False, None))
+        self.assertFalse(a.pill.get_visible())                     # fini : plus dans la barre
+        self.assertTrue(b.pill.get_visible())
+        self.assertTrue(tab.agent_bar.get_visible())
+        tab._dispatch(proto.ToolResult("toolu_B", "fini", False, None))
+        self.assertFalse(tab.agent_bar.get_visible())              # plus personne : barre cachée
+        tab.show_agent("toolu_A")                                  # « Voir le sous-agent » sur sa carte
+        self.assertTrue(a.pill.get_visible())
+        self.assertTrue(tab.agent_bar.get_visible())
+        self.assertIs(tab.view_stack.get_visible_child(), a.view)
+        tab.show_agent(None)
+        self.assertFalse(tab.agent_bar.get_visible())
+
+    def test_background_subagent_ends_with_its_notice(self):
+        tab, _owner = self.make()
+        tab._dispatch(proto.ToolUse("toolu_F", "Agent", {"description": "De fond", "prompt": "…",
+                                                         "run_in_background": True}, None))
+        agent = tab.agents["toolu_F"]
+        tab._dispatch(proto.ToolResult("toolu_F", "Async agent launched", False, None))
+        self.assertFalse(agent.done)                               # lancé, pas fini
+        self.assertTrue(agent.pill.get_visible())
+        line = json.dumps({"type": "user", "message": {"role": "user", "content":
+                           "<task-notification>\n<task-id>abc</task-id>\n<tool-use-id>toolu_F</tool-use-id>\n"
+                           "<status>completed</status>\n<summary>Agent fini</summary>\n</task-notification>"}})
+        for ev in proto.parse_line(line):
+            tab._dispatch(ev)
+        self.assertTrue(agent.done)
+        self.assertFalse(tab.agent_bar.get_visible())
+
+    def test_todos_pinned_above_the_composer(self):
+        """Comme VS Code : la liste de tâches reste visible au-dessus de la saisie."""
+        tab, _owner = self.make(spawn=False)
+        self.assertFalse(tab.todos_bar.get_visible())
+        tab._dispatch(proto.Todos((("Lire", "completed"), ("Écrire les tests", "in_progress"),
+                                   ("Publier", "pending"))))
+        self.assertTrue(tab.todos_bar.get_visible())
+        self.assertEqual(tab.todos_bar.summary.get_label(), "Tâches 1/3 · Écrire les tests")
+        self.assertIsNone(tab.messages._todos)                   # pas dans le fil
+        tab._dispatch(proto.Todos((("Lire", "completed"), ("Écrire les tests", "completed"),
+                                   ("Publier", "completed"))))
+        self.assertIn("terminées", tab.todos_bar.summary.get_label())
+        self.assertTrue(tab.todos_bar.get_visible())
+        tab.todos_bar.new_turn()                                 # message suivant : liste finie effacée
+        self.assertFalse(tab.todos_bar.get_visible())
+
+    def test_shift_tab_cycles_rights(self):
+        tab, _owner = self.make(spawn=False)
+        tab.bar._change(rights="manual")
+        seen = []
+        for _ in range(3):
+            tab.composer.emit("cycle-rights")
+            seen.append(tab.bar.options.rights)
+        self.assertEqual(seen, ["acceptEdits", "plan", "manual"])
+
+    def test_permission_answered_with_number_keys(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        self.assertIsNotNone(tab.composer.permission_keys)
+        self.assertIn("1 Autoriser", tab.composer.placeholder.get_label())
+        card = tab.messages.pending_permission()
+        self.assertFalse(tab._permission_key("9"))               # touche sans rôle : rien
+        self.assertTrue(tab._permission_key("1"))
+        self.assertTrue(card.answered)
+        self.assertTrue(pump_until(lambda: tab.composer.permission_keys is None
+                                   or tab.messages.pending_permission() is not None))
+
+    def test_question_card_sends_answers(self):
+        """Outil AskUserQuestion : une vraie carte de questions, et les réponses rendues à Claude
+        (avant : « The user did not answer the questions »)."""
+        tab, _owner = self.make(spawn=False)
+        sent = []
+        tab.engine.answer_questions = lambda rid, answers: sent.append((rid, answers)) or True
+        qs = {"questions": [
+            {"question": "Quel nom ?", "header": "Nom", "multiSelect": False,
+             "options": [{"label": "Diapason", "description": "se mettre au diapason"}, {"label": "Timbre"}]},
+            {"question": "Quelles sorties ?", "header": "Sorties", "multiSelect": True,
+             "options": [{"label": "Casque"}, {"label": "Bluetooth"}, {"label": "HDMI"}]}]}
+        tab._dispatch(proto.PermissionRequest("q1", "AskUserQuestion", "AskUserQuestion", qs))
+        from ccs_app.gui.chat_messages import QuestionCard
+        card = tab.messages.pending_permission()
+        self.assertIsInstance(card, QuestionCard)
+        self.assertIn("1. Diapason", texts(tab))
+        self.assertIn("question", tab.composer.placeholder.get_label())
+        self.assertFalse(card.send.get_sensitive())
+        self.assertTrue(tab._permission_key("1"))                  # 1 : Diapason
+        card.choices[1][1][0][0].set_active(True)                  # Casque
+        card.choices[1][3].set_text("Dock Dell")                   # Autre : texte libre
+        self.assertEqual(card.answers(), {"Quel nom ?": "Diapason",
+                                          "Quelles sorties ?": ["Casque", "Dock Dell"]})
+        card.send.emit("clicked")
+        self.assertEqual(sent, [("q1", {"Quel nom ?": "Diapason", "Quelles sorties ?": ["Casque", "Dock Dell"]})])
+        self.assertTrue(card.answered)
+
+    def test_answers_reach_the_cli_in_updated_input(self):
+        line = proto.answer_questions("q1", {"questions": [{"question": "Q ?"}]}, {"Q ?": "Oui"})
+        data = json.loads(line)
+        resp = data["response"]["response"]
+        self.assertEqual(resp["behavior"], "allow")
+        self.assertEqual(resp["updatedInput"]["answers"], {"Q ?": "Oui"})
+        self.assertEqual(resp["updatedInput"]["questions"], [{"question": "Q ?"}])
+
+    def test_journal_notices_ignore_quoted_tags(self):
+        """Avis de fin lus dans le journal : entrée de file ou pièce jointe ; une balise citée
+        dans un message de Claude ne compte pas."""
+        notice = "<task-notification>\n<tool-use-id>toolu_BON</tool-use-id>\n<status>completed</status>\n</task-notification>"
+        lines = [json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use", "input":
+                    {"content": "<task-notification><tool-use-id>toolu_FAUX</tool-use-id>"}}]}}),
+                 json.dumps({"type": "queue-operation", "operation": "enqueue", "content": notice})]
+        found = proto.journal_notices(("\n".join(lines)).encode())
+        self.assertEqual([n.tool_id for n in found], ["toolu_BON"])
+
     def test_composer_has_no_hint_line(self):
         # Pas de ligne d'indications sous la saisie : les boutons sont à droite du texte, les
         # indications dans le texte gris de la zone vide et dans l'info-bulle d'Envoyer.

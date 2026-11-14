@@ -1,4 +1,4 @@
-"""Onglet Historique : courbes par compte sur 24 h ou 7 jours, journal des bascules."""
+"""Partie Historique de l'onglet Analyse : courbes par compte sur 24 h ou 7 jours, journal des bascules."""
 
 import sqlite3
 import time
@@ -8,7 +8,7 @@ from gi.repository import Adw, Gdk, Gtk
 
 from .. import switch_log
 from .charts import LineChart
-from .common import account_rgb, caption, card_box, clear, empty_state, sync_accounts
+from .common import account_rgb, caption, card_box, clear, empty_state, sync_accounts, tag_account
 from .geometry import ideal_weekly_series
 
 RANGES = {"24 h": 86400, "7 jours": 7 * 86400}
@@ -231,7 +231,7 @@ class HistoryPage(Gtk.ScrolledWindow):
             weekly_raw = store.samples(name, "weekly_all", t0)
             weekly = [(ts, p) for ts, p, _ in weekly_raw]
             card = card_box(8, account=name)
-            card.append(Gtk.Label(label=name, xalign=0, css_classes=["title-4"]))
+            card.append(tag_account(Gtk.Label(label=name, xalign=0, css_classes=["title-4"]), name))
             if not session and not weekly:
                 card.append(caption("Aucun relevé sur cette période."))
                 self.list.append(card)

@@ -11,7 +11,7 @@ lancée avec `gui --session <réf>`, dans sa propre unité systemd (`systemd-run
 --scope`) pour qu'un redémarrage du service ne ferme pas la fenêtre.
 
 Afficher une tâche (`show_task`) : même mécanisme avec l'action « show-task » (paramètre :
-identifiant de la tâche) ; l'application fermée est lancée sur l'onglet Planning
+identifiant de la tâche) ; l'application fermée est lancée sur la section Planning de l'Accueil
 (`gui --page planning`).
 
 Onglets de la fenêtre (`page_name`) : trois onglets (accueil, sessions, analyse)
@@ -284,8 +284,8 @@ def valid_task_id(task_id):
 
 
 def show_task(task_id, token=None):
-    """Affiche la tâche `task_id` dans l'onglet Planning ; renvoie « action » (application
-    déjà ouverte), « lancement » (application lancée sur la tâche, onglet Planning), ou None
+    """Affiche la tâche `task_id` dans la section Planning de l'Accueil ; renvoie « action » (application
+    déjà ouverte), « lancement » (application lancée sur la tâche, section Planning de l'Accueil), ou None
     (identifiant illisible)."""
     if not valid_task_id(task_id):
         return None

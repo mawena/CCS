@@ -386,8 +386,11 @@ def session_project(session_id):
     root = sessions.projects_dir()
     if not session_id or not root.is_dir():
         return None
-    for path in root.glob(f"*/{session_id}.jsonl"):
-        cwd = sessions._cwd_of(path)
+    moves = core.load_json(sessions.moves_path())
+    # un exemplaire relié à son projet (« Dossier du projet… ») passe avant l'original
+    paths = sorted(root.glob(f"*/{session_id}.jsonl"), key=lambda p: str(p) not in moves)
+    for path in paths:
+        cwd = sessions._cwd_of(path, moves)
         if cwd:
             return sessions.project_name(cwd)
     return None

@@ -239,4 +239,15 @@ Retours de l'essai de Charles (12/11) :
 
 Documentation et release :
 - [x] Documentation (README, guide, architecture, pages man, CHANGELOG, site)
-- [ ] Release mineure 0.10.0, `.deb`, release GitHub et dépôt APT
+- [x] Release mineure 0.10.0, `.deb`, release GitHub et dépôt APT (12/11)
+
+## Correctif 0.10.1 — Accueil lisible, dossier des conversations, documentation
+
+- [x] Accueil : comptes côte à côte, deux jauges et une ligne d'état par carte, « Détails » repliable, texte lisible (plus teinté de la couleur du compte), planning resserré
+- [x] Sous-agents finis retirés de la barre (avis de fin des sous-agents de fond), erreurs d'une fenêtre relancée gardées dans le journal
+- [x] Chat proche de VS Code : tâches épinglées, réponses sans bulle, Maj+Tab pour les droits, 1/2/3 pour les autorisations
+- [x] Interface plus légère : rendu de la fin seulement pendant l'écriture, détail des actions au dépliage, Accueil reconstruit seulement s'il est affiché
+- [x] Questions de Claude (AskUserQuestion) affichées et répondues, « ? » réservé aux vraies demandes, fin des sous-agents de fond lue entrée par entrée dans le journal
+- [x] Dossier d'une conversation : celui où elle est rangée (ou reliée), plus le premier `cwd` du journal (aperçu, archive, projets récents)
+- [x] Documentation et textes : plus d'« onglet Planning / Comptes / Historique / Réglages » (onglets disparus en 0.10.0)
+- [ ] Release correctif 0.10.1, `.deb`, release GitHub et dépôt APT

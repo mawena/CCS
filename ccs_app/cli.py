@@ -5,7 +5,7 @@ import json
 import sys
 import threading
 
-from . import __version__, core
+from . import __version__, core, procname
 
 
 def cmd_print(_args):
@@ -903,7 +903,7 @@ def build_parser():
                      help="affiche cet onglet : accueil, sessions, analyse, ou une partie : "
                           "comptes, planning, historique, terminaux, reglages (fenêtre des réglages)")
     gui.add_argument("--task", metavar="ID", type=_task_ref,
-                     help="affiche cette tâche dans l'onglet Planning : clic sur une notification")
+                     help="affiche cette tâche dans la section Planning de l'Accueil : clic sur une notification")
     gui.add_argument("--new-session", action="store_true",
                      help="ouvre « Nouvelle session… » (dossier, compte, modèle, permissions)")
     gui.set_defaults(func=cmd_gui)
@@ -1038,6 +1038,7 @@ DELEGATED = {"tache": cmd_tache, "taches": cmd_tache, "tasks": cmd_tache,
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    procname.setup(argv)
     # Compatibilité avec l'ancienne option.
     if argv[:1] == ["--print"]:
         argv[0] = "print"

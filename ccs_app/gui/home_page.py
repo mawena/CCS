@@ -1,5 +1,6 @@
-"""Onglet Accueil : cartes des comptes, file de tâches et meilleur moment, fil des derniers
-événements (bascules, tâches finies)."""
+"""Onglet Accueil : en bref et cartes des comptes côte à côte, fil des derniers événements
+(bascules, tâches finies), puis le planning (orchestrateur, file de tâches, fenêtres de 5 h,
+meilleur moment)."""
 
 import time
 
@@ -7,13 +8,12 @@ from gi.repository import Adw, GLib, Graphene, Gtk
 
 from .. import switch_log, tasks
 from .accounts import AccountsPage
-from .common import in_thread
+from .common import PAGE_WIDTH, in_thread
 from .planning import PlanningPage
 
-EVENTS_SHOWN = 8
+EVENTS_SHOWN = 5
 EVENTS_DAYS = 7
-SUBPARTS = ("accounts", "planning", "events")
-WIDTH = 900   # largeur commune de toutes les parties de l'Accueil
+WIDTH = PAGE_WIDTH   # largeur commune de toutes les parties de l'Accueil
 
 
 def recent_events(store, now=None, limit=EVENTS_SHOWN):
@@ -65,11 +65,11 @@ class HomePage(Gtk.ScrolledWindow):
         self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, margin_bottom=18)
         self.section_titles = []
         for title, part in (("Comptes", self.accounts),
-                            ("Derniers événements", Adw.Clamp(maximum_size=WIDTH, child=self.events_card)),
+                            ("Derniers événements", Adw.Clamp(maximum_size=WIDTH, tightening_threshold=WIDTH, child=self.events_card)),
                             ("Planning", self.planning)):
-            label = Gtk.Label(label=title, xalign=0, css_classes=["title-3"], margin_start=12, margin_top=18)
+            label = Gtk.Label(label=title, xalign=0, css_classes=["title-4"], margin_start=14, margin_top=16)
             self.section_titles.append(label)
-            self.body.append(Adw.Clamp(maximum_size=WIDTH, child=label))
+            self.body.append(Adw.Clamp(maximum_size=WIDTH, tightening_threshold=WIDTH, child=label))
             self.body.append(part)
         self.set_child(self.body)
         self.events_card_widget = self.events_card.get_parent()

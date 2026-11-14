@@ -33,7 +33,7 @@ les sources) et les étapes qui suivent la première installation sont dans le
 
 ## Lire l'usage
 
-`ccs usage` (ou l'onglet **Comptes**) affiche pour chaque compte :
+`ccs usage` (ou l'**Accueil**) affiche pour chaque compte :
 
 - **Session (5 h)** : la fenêtre glissante démarre au premier message et se
   réinitialise 5 h plus tard.
@@ -51,7 +51,16 @@ les sources) et les étapes qui suivent la première installation sont dans le
   s'épuisera avant sa réinitialisation.
 
 Le bandeau **Meilleur compte maintenant** et la **capacité restante** (en
-sessions complètes, tous comptes confondus) résument la situation.
+sessions complètes, tous comptes confondus) résument la situation, avec le bouton
+« Utiliser <compte> » et le bouton **Pause**.
+
+Dans l'Accueil, les comptes sont **côte à côte** (jusqu'à trois par ligne, un par
+ligne en fenêtre étroite). Chaque carte montre ses deux jauges principales
+(session de 5 h et semaine tous modèles) et **une seule ligne d'état**, la plus
+importante : erreur du compte, limite de session proche, limite de la semaine
+prévue, sinon « tient jusqu'à la réinitialisation ». Les autres limites (Opus,
+Sonnet…), le rythme de la semaine, la courbe de la session sur 24 h et l'heure du
+relevé sont dans **Détails**, qui reste ouvert d'une actualisation à l'autre.
 
 ## Bascule automatique
 
@@ -80,7 +89,7 @@ bascules](#journal-des-bascules).
 
 ## Orchestrateur
 
-Désactivé par défaut : `ccs orch on`, l'interrupteur de l'onglet **Planning**
+Désactivé par défaut : `ccs orch on`, l'interrupteur de la section **Planning** de l'Accueil
 ou **Réglages → Orchestrateur**.
 
 Pendant la **plage horaire** (8 h → 2 h par défaut, jours réglables ; une plage
@@ -114,13 +123,13 @@ démarrage réussi, rien pendant 5 h ; après 3 échecs, une tentative par heure
 Le décalage s'aligne sur ce que tu as réellement démarré : les fenêtres déjà
 ouvertes passent en premier, puis le compte actif.
 
-**Planning.** `ccs plan` ou l'onglet **Planning** : frise par compte (fenêtre en
+**Planning.** `ccs plan` ou la section **Planning** de l'Accueil : frise par compte (fenêtre en
 cours remplie selon l'usage, fenêtres prévues en pointillés, trait rouge =
 maintenant) et liste des recharges à venir.
 
 ### Meilleur moment pour une grosse tâche
 
-La carte **Meilleur moment pour une grosse tâche** de l'onglet Planning, et
+La carte **Meilleur moment pour une grosse tâche** de la section Planning de l'Accueil, et
 `ccs moment`, répondent à « quand lancer un long travail ? ». L'unité est la
 **fenêtre de 5 h disponible**, pas une durée de travail : la durée choisie
 (1, 2, 3, 4, 6 ou 8 h dans la carte) sert à dire si les fenêtres couvrent la
@@ -167,12 +176,12 @@ Un choix inconnu affiche l'usage et sort avec le code 2. Le service est réveill
 dès que l'état change, pour que l'icône et l'application suivent.
 
 Aussi : menu de l'icône (« Mettre en pause », puis « Reprendre maintenant ») et
-carte **Meilleur compte** de l'onglet Comptes (« Mettre en pause » /
-« Reprendre »). Dans l'en-tête de la fenêtre, « Auto » devient « Auto ⏸ jusqu'à
+bouton **Pause** du bandeau **Meilleur compte** de l'Accueil (« Reprendre » pendant
+la pause). Dans l'en-tête de la fenêtre, « Auto » devient « Auto ⏸ jusqu'à
 14:00 » (« Auto ⏸ en pause » pour une pause sans échéance) ; un clic propose
 « Reprendre maintenant ». `ccs status` affiche « En pause jusqu'à 14:00 :
 bascule automatique et orchestrateur suspendus (ccs pause off pour
-reprendre) » ; l'onglet Planning, l'icône (⏸ devant le pourcentage) et la ligne
+reprendre) » ; la section Planning de l'Accueil, l'icône (⏸ devant le pourcentage) et la ligne
 d'état de Claude Code rappellent aussi la pause.
 
 Pendant une pause, **CCS ne change plus de compte tout seul**, sans exception :
@@ -190,7 +199,7 @@ dite) et envoie « Pause terminée ». L'état est gardé dans
 
 ## Journal des bascules
 
-Section **Journal des bascules** de l'onglet **Historique**, sous les courbes,
+Section **Journal des bascules** de la partie **Historique** de l'onglet Analyse, sous les courbes,
 ou `ccs journal` : chaque changement de compte, de la plus récente à la plus
 ancienne, groupé par jour (*Aujourd'hui*, *Hier*, *Lundi 2 novembre*…), avec
 l'heure, « compte quitté → compte choisi » et la raison en clair :
@@ -304,7 +313,7 @@ L'état est publié dans la clé `quiet` de `state.json` (`active`, `until`,
 
 ## Warm-up à heure fixe
 
-Alternative manuelle à l'orchestrateur. Onglet **Réglages → Warm-up** : pour chaque profil, une heure (HH:MM) et des
+Alternative manuelle à l'orchestrateur. Fenêtre **Réglages → Warm-up** : pour chaque profil, une heure (HH:MM) et des
 jours. À l'heure dite, si la fenêtre de 5 h du compte n'est pas ouverte, CCS
 envoie une requête minimale à Haiku avec ce compte (dans un dossier de
 configuration temporaire : le compte actif n'est pas touché). La fenêtre
@@ -551,7 +560,7 @@ Sessions ; les chats ouverts s'y ajoutent en onglets, voir
 
 `ccs sessions` liste aussi les sessions ouvertes. Chaque carte de session
 (terminal ou VS Code) montre son projet, son état — *travaille*, *attend ta
-réponse* (et pourquoi : permission, question…), *au repos* —, sa durée, son
+réponse* (et pourquoi : permission, question…), *a fini de répondre*, *au repos* —, sa durée, son
 modèle, sa consommation (tokens pondérés de la conversation) et son
 [coût](#coût-dune-conversation). CCS lit les fiches de `~/.claude/sessions` en
 lecture seule et ignore les fichiers `.key`.
@@ -864,8 +873,14 @@ a pas de terminal à regarder.
   clic le déplie et montre les cartes. Une erreur est toujours signalée dans
   l'en-tête (rouge, « 1 erreur »). Une action seule reste une carte ; les
   autorisations, la liste de tâches et les sous-agents ne sont jamais regroupés.
-- La **liste de tâches** de Claude s'affiche en cases à cocher qui se mettent à
-  jour.
+- La **liste de tâches** de Claude est épinglée au-dessus de la saisie, comme dans
+  l'extension VS Code : son en-tête dit où en est Claude (« Tâches 1/3 · Proposer les
+  améliorations »), un clic déplie les cases à cocher. Finie, elle s'efface au message
+  suivant.
+- Les réponses de Claude s'affichent en texte plein, sans bulle ; seules tes demandes
+  sont en bulle.
+- Une **demande d'autorisation** se répond aussi au clavier, la saisie vide : **1**
+  Autoriser, **2** Toujours, **3** Refuser (la saisie le rappelle).
 - Un chat **rouvert** (au démarrage, depuis l'historique, ou migré de l'ancien
   format) montre d'abord la conversation, lue dans son journal, **sans lancer
   `claude`** : le processus ne démarre qu'au premier message envoyé. Si la
@@ -909,6 +924,12 @@ une modification de fichier selon les droits choisis), le chat affiche une
   droits de toute la session : seuls les cas identiques ne redemanderont plus ;
 - **Refuser** : avec un motif facultatif, que Claude reçoit.
 
+Quand Claude te **pose des questions à choix** (outil AskUserQuestion), la carte
+montre chaque question avec ses choix (une case par choix si plusieurs sont permis),
+plus « Autre… » pour répondre en texte libre. Les touches **1**, **2**, **3**… choisissent
+dans la première question sans réponse ; **Envoyer les réponses** les rend à Claude ;
+**Répondre dans le chat** lui demande de reposer la question par écrit.
+
 Les commandes en lecture seule (`ls`, `cat`…) ne demandent rien. Tant qu'une carte
 attend, l'onglet porte un point d'interrogation, le badge de l'onglet Sessions
 compte, et l'alerte « attend ta réponse » part (bureau et, si tu l'as activé,
@@ -917,6 +938,8 @@ téléphone).
 ### Écrire à Claude
 
 - **Entrée** envoie, **Maj+Entrée** va à la ligne.
+- **Maj+Tab** passe aux droits suivants : Demander, Modifications acceptées, Plan
+  (« Tout autoriser » ne se choisit que dans la barre, avec sa confirmation).
 - **`@`** propose les fichiers du projet ; **`/`** propose les commandes (celles
   que Claude Code annonce, plus tes commandes personnalisées et celles des
   plugins). Les commandes réservées au terminal répondent qu'elles ne sont pas
@@ -1248,7 +1271,7 @@ bureau.
 ## File de tâches
 
 Une tâche, c'est un message que Claude exécute **sans fenêtre**, pendant que tu es
-ailleurs. Tu la poses dans l'onglet **Planning** (bouton « Nouvelle tâche ») ou en
+ailleurs. Tu la poses dans la section **Planning** de l'Accueil (bouton « Nouvelle tâche ») ou en
 ligne de commande.
 
 Une tâche a un message, un dossier, un modèle (facultatif), des droits et un moment.

@@ -5,6 +5,70 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [0.10.1] — 2026-11-14
+
+### Modifié
+
+- **Processus nommés CCS.** Dans top, ps, le Moniteur système et le journal, les processus
+  s'appellent `ccs-gui`, `ccs-daemon` et `ccs-tray` (et `ccs` pour les autres commandes) au
+  lieu de `claude-accounts` ou `python3` : nom posé dès le démarrage par `prctl`, ligne de
+  commande par `python3-setproctitle` s'il est installé (recommandé), identifiant de journal
+  `ccs-daemon` pour le service. La commande `claude-accounts` reste valable.
+
+- **Accueil plus lisible.** Les comptes sont côte à côte (jusqu'à trois par ligne,
+  un par ligne en fenêtre étroite) : on les compare d'un coup d'œil. Chaque carte
+  garde ses deux jauges principales (session, semaine) et une seule ligne d'état
+  (erreur, limite proche, limite de la semaine ou « tient ») ; les autres limites,
+  le rythme, la courbe 24 h et l'heure du relevé passent dans « Détails », qui reste
+  ouvert d'une actualisation à l'autre. Le texte des cartes garde la couleur normale :
+  la couleur du compte reste sur le liseré, le nom et les jauges (aussi dans
+  l'onglet Sessions et l'historique).
+- Bandeau du haut en une ligne : sessions disponibles, meilleur compte avec
+  « Utiliser <compte> », bouton « Pause » (l'explication passe en info-bulle).
+- **Sous-agents terminés** : comme dans VS Code, un sous-agent qui a fini quitte la barre
+  des pastilles (elle disparaît quand il ne reste que la conversation principale) ; sa
+  carte dans le fil garde « Voir le sous-agent ». Un sous-agent d'arrière-plan est tenu
+  pour fini à son avis de fin (lu dans le flux, sinon dans le journal de la conversation),
+  et la mise en veille du chat redevient alors possible.
+- **Chat plus proche de l'extension VS Code** : liste de tâches épinglée au-dessus de la
+  saisie (en-tête « Tâches 1/3 · tâche en cours », dépliable, effacée au message suivant
+  une fois finie) ; réponses de Claude en texte plein, sans bulle ; Maj+Tab passe aux
+  droits suivants (Demander → Modifications acceptées → Plan) ; une autorisation se
+  répond au clavier, saisie vide (1 Autoriser, 2 Toujours, 3 Refuser).
+- Planning resserré : frise des fenêtres de 5 h et prochaines recharges dans une
+  même carte, explications en info-bulles, « Meilleur moment » repliable avec sa
+  conclusion dans l'en-tête, file de tâches vide en une ligne.
+
+- **Interface plus légère et plus fluide.** Pendant que Claude écrit, seule la fin de la
+  réponse est réaffichée (avant : toute la réponse en Markdown, toutes les 90 ms, ce qui
+  figeait la fenêtre sur les longues réponses : environ 15 fois moins de travail mesuré), et
+  les rendus s'espacent d'eux-mêmes quand ils coûtent. Le détail d'une action (commande,
+  résultat) n'est construit qu'au dépliage : une carte prend 8 fois moins de mémoire.
+  L'Accueil n'est plus reconstruit chaque minute quand il n'est pas affiché.
+
+### Corrigé
+
+- **Questions de Claude enfin affichées.** Quand Claude posait des questions à choix
+  (outil AskUserQuestion), CCS ne les montrait pas et Claude recevait « The user did not
+  answer the questions ». Le chat affiche maintenant une carte : chaque question avec ses
+  choix (un seul ou plusieurs), « Autre… » pour répondre en texte libre, les touches 1, 2,
+  3… et « Envoyer les réponses » ; « Répondre dans le chat » laisse Claude reposer la
+  question par écrit.
+- **Plus de « ? » quand Claude ne demande rien.** Une simple fin de réponse s'affichait
+  comme une question (onglet, liste des sessions) : elle porte maintenant une coche « a fini
+  de répondre » ; le point d'interrogation est réservé aux vraies demandes.
+- **Sous-agents de fond qui restaient « en cours ».** Leur avis de fin, rangé dans le
+  journal sous une autre forme quand Claude travaillait, n'était pas lu, et une balise
+  citée ailleurs pouvait tromper la recherche : le journal est maintenant lu entrée par
+  entrée.
+- **Dossier d'une conversation reliée à son projet** (« Dossier du projet… ») : l'aperçu,
+  l'archive, les projets récents de « Nouvelle session » et le journal des bascules
+  donnaient encore l'ancien dossier (Bureau, dossier personnel), noté dans les lignes du
+  journal copié ; ils donnent maintenant le projet. Le dossier d'un journal est aussi
+  trouvé quand celui-ci commence par de longs instantanés.
+- Une fenêtre ouverte par « Relancer » n'écrivait plus ses erreurs nulle part : elles vont
+  de nouveau dans le journal du bureau.
+
 ## [0.10.0] — 2026-11-12
 
 ### Ajouté

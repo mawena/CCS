@@ -196,6 +196,16 @@ class ChatBar(Gtk.Box):
         if not self._updating:
             self._change(ultracode=button.get_active())
 
+    CYCLE_RIGHTS = ("manual", "acceptEdits", "plan")   # « Tout autoriser » : jamais au clavier
+
+    def cycle_rights(self):
+        """Maj+Tab dans la saisie : droits suivants, comme l'extension VS Code."""
+        current = self.options.rights or "manual"
+        order = self.CYCLE_RIGHTS
+        nxt = order[(order.index(current) + 1) % len(order)] if current in order else order[0]
+        self._pick_rights(nxt)
+        return nxt
+
     def _pick_rights(self, value):
         if value == self.options.rights:
             return

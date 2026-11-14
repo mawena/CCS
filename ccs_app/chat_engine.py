@@ -95,6 +95,7 @@ class ChatSession:
         self._relaunch_needed = False       # changement refusé en direct : relance au prochain message
         self._activity_at = 0.0             # dernier signe de vie de la CLI (hors result)
         self._background = False            # un sous-agent ou une tâche tourne en arrière-plan
+        self._background_ids = set()        # appels d'outil des sous-agents de fond pas encore finis
         self._requested_stop = False
 
     # ------------------------------------------------------------------ état
@@ -220,6 +221,13 @@ class ChatSession:
         for ev in proto.parse_line(line):
             self._handle_event(proc, ev)
 
+    def background_finished(self, tool_id):
+        """L'avis de fin d'un sous-agent de fond est arrivé : plus rien en arrière-plan (la mise
+        en veille redevient possible) quand tous ont fini."""
+        if tool_id in self._background_ids:
+            self._background_ids.discard(tool_id)
+            self._background = bool(self._background_ids)
+
     def _handle_event(self, proc, ev):
         forward = True
         if not isinstance(ev, (proto.TurnResult, proto.LocalCommand, proto.ControlReply, proto.Status)):
@@ -236,6 +244,9 @@ class ChatSession:
         if isinstance(ev, proto.ToolUse) and ev.name in ("Task", "Agent") \
                 and (ev.input or {}).get("run_in_background"):
             self._background = True   # sous-agent en arrière-plan : jamais de mise en veille
+            self._background_ids.add(ev.tool_id)
+        if isinstance(ev, proto.TaskNotice):
+            self.background_finished(ev.tool_id)
         if isinstance(ev, proto.Init):
             if ev.session_id:
                 self.session_id = ev.session_id
@@ -357,6 +368,18 @@ class ChatSession:
                 return False
             self._requested_stop = True  # la CLI s'arrête (code 1) après le tour interrompu
         return self._control("interrupt")
+
+    def answer_questions(self, request_id, answers):
+        """Réponses de l'utilisateur aux questions de Claude (outil AskUserQuestion)."""
+        with self._lock:
+            req = self._perms.pop(request_id, None)
+            if req is None:
+                return False
+            rest = bool(self._perms)
+        ok = self._write(proto.answer_questions(request_id, req.input, answers))
+        if not rest:
+            self._set_state("busy")
+        return ok
 
     def answer(self, request_id, decision, message=""):
         with self._lock:

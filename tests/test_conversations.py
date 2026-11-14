@@ -297,6 +297,26 @@ class RelocateTest(ConversationsTestCase):
                 again = next(c for c in conv.scan() if c.session_id == "s-1")
             self.assertEqual((again.cwd, again.path), (str(self.app), str(copy)), f"reverse={reverse}")
 
+    def test_relocated_folder_everywhere(self):
+        # Conversation lancée depuis le Bureau puis reliée à son projet : l'aperçu, les projets
+        # récents et le nom de projet du journal des bascules donnent le projet, pas le Bureau
+        # (le journal copié garde l'ancien `cwd` dans ses lignes).
+        from ccs_app import switch_log
+        desktop = self.home / "Desktop"
+        desktop.mkdir()
+        self.journal(str(desktop), "s-3", [prompt("travail sur App", str(desktop))], mtime=NOW - 600)
+        first = next(c for c in conv.scan() if c.session_id == "s-3")
+        copy = conv.relocate(first, str(self.app)).path
+        self.assertEqual(conv.from_journal(copy).cwd, str(self.app))
+        self.assertEqual(sessions._cwd_of(copy), str(self.app))
+        self.assertIn(str(self.app), [c for c, _ in sessions.recent_projects()])
+        self.assertEqual(switch_log.session_project("s-3"), "App")
+
+    def test_first_cwd_found_after_a_long_preamble(self):
+        rows = [{"type": "file-history-snapshot", "snapshot": {}}] * 120 + [prompt("x", str(self.app))]
+        p = self.journal(str(self.app), "s-4", rows)
+        self.assertEqual(sessions._cwd_of(p), str(self.app))
+
     def test_original_newer_than_the_copy_wins(self):
         # La conversation a continué dans l'ancien dossier après la copie : l'activité récente
         # l'emporte (la copie est périmée).

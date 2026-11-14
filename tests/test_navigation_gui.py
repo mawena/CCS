@@ -55,6 +55,22 @@ class NavigationTest(HomeTestCase):
         self.assertIn("gui", cmd)
         close.assert_called_once()
 
+    def test_home_rebuilt_only_when_shown(self):
+        """Le rechargement de chaque minute ne reconstruit pas l'Accueil caché."""
+        calls = []
+        real = self.win.home.render
+        self.win.home.render = lambda *a: calls.append(a)
+        try:
+            self.win.stack.set_visible_child_name("analysis")
+            self.win.reload()
+            self.assertEqual(calls, [])
+            self.win.stack.set_visible_child_name("home")    # en y revenant : à jour
+            self.assertEqual(len(calls), 1)
+            self.win.reload()
+            self.assertEqual(len(calls), 2)
+        finally:
+            self.win.home.render = real
+
     def test_home_sections_in_order(self):
         titles = [label.get_label() for label in self.win.home.section_titles]
         self.assertEqual(titles, ["Comptes", "Derniers événements", "Planning"])

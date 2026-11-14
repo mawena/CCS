@@ -1,4 +1,4 @@
-"""Fenêtre étroite : l'onglet Historique tient dans 360 px (légende et en-tête du journal
+"""Fenêtre étroite : la partie Historique de l'onglet Analyse tient dans 360 px (légende et en-tête du journal
 qui passent à la ligne), le filtre d'origine des Sessions s'abrège sans changer la liste.
 
 Widgets créés sans être affichés (affichage requis, sinon tests sautés) ; HOME isolé."""

@@ -94,6 +94,9 @@ def tag_account(widget, name):
     return widget
 
 
+PAGE_WIDTH = 1100   # largeur des pages de l'Accueil (trois cartes de compte côte à côte)
+
+
 def card_box(spacing=8, account=None, flat=False):
     """Carte arrondie `.ccs-card` (liseré de la couleur du compte si `account`)."""
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=spacing, css_classes=["ccs-card"])

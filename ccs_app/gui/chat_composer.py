@@ -27,7 +27,24 @@ FILE_TOKEN = re.compile(r"(?:^|\s)@([^\s@]*)$")
 COMMAND_TOKEN = re.compile(r"^/([^\s/]*)$")
 
 # Indications dans le texte gris de la zone vide (plus de ligne à part sous la saisie).
-HINT_IDLE = "Écris à Claude…  (@ fichiers · / commandes)"
+HINT_IDLE = "Écris à Claude…  (@ fichiers · / commandes · Maj+Tab : droits)"
+HINT_PERMISSION = "Claude attend ton accord : 1 Autoriser · 2 Toujours · 3 Refuser — ou écris"
+AZERTY_DIGITS = "&é\"'(-è_ç"   # rangée du haut d'un clavier français, sans Maj : 1 à 9
+
+
+def digit_key(keyval):
+    """« 1 » à « 9 » pour une touche chiffre (rangée du haut, pavé numérique, ou rangée du haut
+    d'un clavier AZERTY sans Maj), sinon None."""
+    char = chr(Gdk.keyval_to_unicode(keyval) or 0)
+    if char in "123456789" and char != "\0":
+        return char
+    # les lettres (é, è, ç) ne comptent pas : « écris… » ne doit jamais répondre « Toujours »
+    if char and char in AZERTY_DIGITS and not char.isalpha():
+        return str(AZERTY_DIGITS.index(char) + 1)
+    return None
+
+
+HINT_QUESTION = "Claude te pose une question : 1, 2, 3… choisissent — ou écris ta réponse"
 HINT_BUSY = "Claude travaille — écris quand même, Entrée envoie · Échap arrête"
 SEND_TIP = "Envoyer (Entrée) · Maj+Entrée : nouvelle ligne"
 
@@ -49,6 +66,8 @@ class Composer(Gtk.Box):
     __gsignals__ = {
         "send": (GObject.SignalFlags.RUN_FIRST, None, (str, object)),
         "stop": (GObject.SignalFlags.RUN_FIRST, None, ()),
+        # Maj+Tab : droits suivants (Demander → Modifications acceptées → Plan), comme VS Code
+        "cycle-rights": (GObject.SignalFlags.RUN_FIRST, None, ()),
         "queue-edit": (GObject.SignalFlags.RUN_FIRST, None, (int, str, str)),
         "queue-move": (GObject.SignalFlags.RUN_FIRST, None, (int, int)),
         "queue-remove": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
@@ -62,6 +81,7 @@ class Composer(Gtk.Box):
         GtkSource.init()
         self.base_dir = base_dir
         self.busy = False
+        self.permission_keys = None   # autorisation en attente : 1, 2, 3 y répondent
         self.images = []                 # [(type MIME, octets)]
         self.files = []                  # fichiers joints (chemins absolus) : `@chemin` à l'envoi
         self._commands = []              # [(nom, description)]
@@ -215,7 +235,20 @@ class Composer(Gtk.Box):
         """Pendant que Claude travaille : bouton Arrêter ; Entrée envoie quand même."""
         self.busy = bool(busy)
         self.stop_button.set_visible(self.busy)
-        self.placeholder.set_label(HINT_BUSY if self.busy else HINT_IDLE)
+        self._update_hint()
+
+    def set_permission_keys(self, handler, question=False):
+        """`handler(touche) -> bool` tant qu'une autorisation (ou une question) attend : 1, 2, 3
+        y répondent quand la saisie est vide. None : plus rien en attente."""
+        self.permission_keys = handler
+        self._question = bool(question)
+        self._update_hint()
+
+    def _update_hint(self):
+        hint = ((HINT_QUESTION if getattr(self, "_question", False) else HINT_PERMISSION)
+                if getattr(self, "permission_keys", None)
+                else HINT_BUSY if self.busy else HINT_IDLE)
+        self.placeholder.set_label(hint)
         self.send_button.set_tooltip_text(SEND_TIP + (" · même pendant que Claude travaille" if self.busy else ""))
 
     def set_enabled(self, enabled):
@@ -513,6 +546,14 @@ class Composer(Gtk.Box):
                 return self._accept()
             if keyval == Gdk.KEY_Escape:
                 self._close_popover()
+                return True
+        if keyval == Gdk.KEY_ISO_Left_Tab or (keyval == Gdk.KEY_Tab and shift):
+            self.emit("cycle-rights")
+            return True
+        handler = getattr(self, "permission_keys", None)
+        if handler and not ctrl and self.buffer.get_char_count() == 0:
+            key = digit_key(keyval)
+            if key and handler(key):
                 return True
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and not shift:
             self.submit()
