@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [0.10.1] — 2026-11-14
+
 ### Modifié
 
 - **Processus nommés CCS.** Dans top, ps, le Moniteur système et le journal, les processus
