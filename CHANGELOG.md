@@ -7,6 +7,12 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ### Modifié
 
+- **Processus nommés CCS.** Dans top, ps, le Moniteur système et le journal, les processus
+  s'appellent `ccs-gui`, `ccs-daemon` et `ccs-tray` (et `ccs` pour les autres commandes) au
+  lieu de `claude-accounts` ou `python3` : nom posé dès le démarrage par `prctl`, ligne de
+  commande par `python3-setproctitle` s'il est installé (recommandé), identifiant de journal
+  `ccs-daemon` pour le service. La commande `claude-accounts` reste valable.
+
 - **Accueil plus lisible.** Les comptes sont côte à côte (jusqu'à trois par ligne,
   un par ligne en fenêtre étroite) : on les compare d'un coup d'œil. Chaque carte
   garde ses deux jauges principales (session, semaine) et une seule ligne d'état

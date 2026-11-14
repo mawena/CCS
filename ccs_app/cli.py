@@ -5,7 +5,7 @@ import json
 import sys
 import threading
 
-from . import __version__, core
+from . import __version__, core, procname
 
 
 def cmd_print(_args):
@@ -1038,6 +1038,7 @@ DELEGATED = {"tache": cmd_tache, "taches": cmd_tache, "tasks": cmd_tache,
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    procname.setup(argv)
     # Compatibilité avec l'ancienne option.
     if argv[:1] == ["--print"]:
         argv[0] = "print"
