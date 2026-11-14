@@ -657,6 +657,8 @@ def remote_actions(session=None, page=None, new_session=False, task=None):
 
 
 def run(session=None, page=None, new_session=False, task=None):
+    GLib.set_prgname(desktop.app_id())
+    GLib.set_application_name("CCS")
     app = App(session, page, new_session, task)
     actions = remote_actions(session, page, new_session, task)
     if actions:
