@@ -105,7 +105,8 @@ class ChatTab(Gtk.Box):
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
         self.messages = MessageList(on_diff=lambda p, o, n: self.emit("show-diff", p, o, n),
                                     on_open=lambda p, line: self.emit("open-file", p, line),
-                                    on_link=self.open_link, base_dir=launch.cwd)
+                                    on_link=self.open_link, base_dir=launch.cwd,
+                                    on_older=self._show_older)
         self.composer = Composer(base_dir=launch.cwd)
         self.bar = ChatBar()
         self.bar.set_options(self.options)
@@ -142,6 +143,7 @@ class ChatTab(Gtk.Box):
         self.engine = chat_engine.ChatSession(
             launch.cwd, launch.session_id, self.options,
             on_event=lambda ev: GLib.idle_add(self._dispatch, ev), claude=claude, environ=environ)
+        self._history_path = history_path
         self._load_history(history_path)
         GLib.timeout_add_seconds(SUSPEND_CHECK_S, self._tick)
 
@@ -164,6 +166,16 @@ class ChatTab(Gtk.Box):
             if messages and not self._closed:
                 self.messages.load_history(messages)
         in_thread(read, show)
+
+    def _show_older(self):
+        """« Afficher » les messages retirés par l'élagage : le fil est relu depuis le journal
+        (les plus anciens se construisent en remontant). Pas pendant un tour : le fil vivant
+        porte la réponse en cours."""
+        if self._engine_busy():
+            self.messages.older_label.set_label("Disponible quand Claude aura fini de répondre.")
+            return
+        self.messages.reset()
+        self._load_history(self._history_path)
 
     # ---- interface attendue par TerminalsPage --------------------------------------------
 
@@ -644,6 +656,7 @@ class ChatTab(Gtk.Box):
             self.messages.add_notice(ev.text or "Claude n'a pas pu finir sa réponse.", "error")
         self.messages.cancel_permissions()
         self._sync_permission_keys()
+        self.messages.trim()                     # longue session : mémoire bornée
         self.engine.request_context()
 
     def _on_context(self, ev):

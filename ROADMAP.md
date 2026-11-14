@@ -251,3 +251,9 @@ Documentation et release :
 - [x] Dossier d'une conversation : celui où elle est rangée (ou reliée), plus le premier `cwd` du journal (aperçu, archive, projets récents)
 - [x] Documentation et textes : plus d'« onglet Planning / Comptes / Historique / Réglages » (onglets disparus en 0.10.0)
 - [x] Release correctif 0.10.1, `.deb`, release GitHub et dépôt APT
+
+## Fluidité (après 0.10.1)
+
+- [x] Listes Markdown courtes en un seul label
+- [x] Fil borné dans les longues sessions (élagage + « Afficher » depuis le journal), cycles de widgets cassés, mémoire rendue au système
+- [ ] Essai réel par Charles, puis release (correctif 0.10.2)

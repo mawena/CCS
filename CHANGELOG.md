@@ -5,6 +5,20 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Modifié
+
+- **Longues sessions à mémoire bornée.** À la fin d'un tour, au-delà de 300 éléments dans le
+  fil, les plus anciens sont retirés (il en reste 200) et la mémoire est rendue au système ;
+  une ligne en tête du fil propose « Afficher », qui relit la conversation depuis son journal.
+  Mesuré : 1000 réponses font plafonner la fenêtre vers 312 Mo au lieu de grimper sans fin.
+- Liste Markdown courte rendue en un seul label : 4 fois moins de mémoire, 35 fois plus rapide
+  à construire ; les éléments longs gardent leur retrait.
+
+### Corrigé
+
+- Les messages retirés du fil n'étaient jamais libérés : des gestionnaires de signal pointaient
+  vers leur propre widget (cycle Python ↔ GTK). Ils sont maintenant libérés.
+
 ## [0.10.1] — 2026-11-14
 
 ### Modifié

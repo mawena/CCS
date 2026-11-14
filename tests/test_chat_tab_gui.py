@@ -449,6 +449,25 @@ class ChatTabTest(HomeTestCase):
         self.assertIsNone(tab.state.pid)
         self.assertEqual(tab.state.session_id, "sess-123")
 
+    def test_show_older_rereads_the_journal(self):
+        # après un élagage (longue session), « Afficher » relit le fil depuis le journal
+        journal = Path(self.tmp) / "conv.jsonl"
+        lines = [{"type": "user", "message": {"role": "user", "content": "question retirée"}},
+                 {"type": "assistant", "message": {"id": "m1", "role": "assistant",
+                                                   "content": [{"type": "text", "text": "réponse retirée"}]}}]
+        journal.write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+        tab, _owner = self.make(session_id="sess-9", history_path=str(journal), spawn=False)
+        self.assertTrue(pump_until(lambda: "réponse retirée" in texts(tab)))
+        tab.messages.reset()
+        tab.messages.add_user("récente", ())
+        tab.engine.state = "busy"
+        tab._show_older()                                         # pendant un tour : rien
+        self.assertIn("récente", texts(tab))
+        tab.engine.state = "idle"
+        tab.messages.older_button.emit("clicked")
+        self.assertTrue(pump_until(lambda: "réponse retirée" in texts(tab)))
+        self.assertNotIn("récente", texts(tab))                   # pas dans ce faux journal
+
     def test_stop_button_interrupts(self):
         tab, _owner = self.make("refus-et-interruption.jsonl")
         self.say(tab, "Lance la commande `touch essai4.txt`. Si elle est refusée, écris alors les nombres.")

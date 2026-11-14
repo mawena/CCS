@@ -21,6 +21,8 @@ from .. import chat_protocol as proto, preview  # noqa: E402
 from .markdown_view import MarkdownView  # noqa: E402
 
 PAGE = 50                   # messages d'historique construits à la fois
+LIVE_MAX = 300              # longue session : au-delà, les plus anciennes lignes du fil sont retirées…
+LIVE_KEEP = 200             # … pour n'en garder que celles-ci (mémoire bornée ; relues du journal à la demande)
 RENDER_MS = 90              # un rendu Markdown au plus toutes les 90 ms pendant le flux…
 RENDER_MAX_MS = 1000        # … espacé si le rendu coûte (4 × sa durée), sans dépasser 1 s
 RESULT_CHARS = 20_000       # résultat d'outil montré (le reste est coupé à l'affichage)
@@ -726,6 +728,45 @@ class TodosBar(Gtk.Box):
             self.set_visible(False)
 
 
+def give_back_memory():
+    """Rend au système la mémoire libérée (glibc garde sinon les pages libérées pour lui) :
+    après un élagage du fil, la fenêtre redescend vraiment."""
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+    return False
+
+
+def release(widget):
+    """Libère un sous-arbre retiré du fil. Un gestionnaire de signal qui pointe vers son widget
+    ou un parent (`self.toggle`…) forme un cycle Python ↔ GTK que ni l'un ni l'autre ne libère :
+    on « dispose » chaque widget et contrôleur, du haut vers le bas, ce qui détruit leurs
+    gestionnaires et casse ces cycles."""
+    order, stack = [], [widget]
+    while stack:
+        w = stack.pop()
+        order.append(w)
+        child = w.get_first_child()
+        while child is not None:
+            stack.append(child)
+            child = child.get_next_sibling()
+    for w in order:                   # parents d'abord : ils détachent leurs enfants
+        controllers = w.observe_controllers()
+        for ctrl in [controllers.get_item(i) for i in range(controllers.get_n_items())]:
+            ctrl.run_dispose()
+        w.run_dispose()
+
+
+def _show_copy(controller, *args):
+    """Survol d'une réponse : montre ou cache son bouton « Copier » (dernier argument)."""
+    bubble = controller.get_widget()
+    button = getattr(bubble, "copy_button", None)
+    if button is not None:
+        button.set_opacity(args[-1])
+
+
 class _Segment:
     """Un morceau de réponse de Claude (une bulle) : texte brut accumulé et rendu différé."""
 
@@ -741,10 +782,12 @@ class MessageList(Gtk.ScrolledWindow):
     """Fil de la conversation. Les widgets sont ajoutés en bas ; l'historique d'un chat rouvert
     se construit par paquets de 50 en remontant."""
 
-    def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None):
+    def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None, on_older=None):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True, hexpand=True)
         install_css()
         self.on_diff, self.on_open, self.on_link = on_diff, on_open, on_link
+        self.on_older = on_older
+        self._dropped = 0         # lignes retirées du haut du fil par trim()
         self.base_dir = base_dir
         self._dark = False
         self._views = []
@@ -766,6 +809,14 @@ class MessageList(Gtk.ScrolledWindow):
         self.busy_row.append(self.busy_spinner)
         self.busy_row.append(self.busy_label)
         self.box.append(self.busy_row)
+        # « N éléments plus anciens retirés… — Afficher » : en tête du fil après un élagage.
+        self.older_label = Gtk.Label(xalign=0, wrap=True, hexpand=True, css_classes=["ccs-subtle"])
+        self.older_button = Gtk.Button(label="Afficher", css_classes=["flat"], valign=Gtk.Align.CENTER)
+        self.older_button.connect("clicked", lambda *_: self.on_older and self.on_older())
+        self.older_row = Gtk.Box(spacing=8, visible=False)
+        self.older_row.append(self.older_label)
+        self.older_row.append(self.older_button)
+        self.box.prepend(self.older_row)
         self.set_child(Adw.Clamp(child=self.box, maximum_size=MAX_WIDTH, tightening_threshold=MAX_WIDTH - 200))
         # « ↓ Nouveaux messages » : posé en surimpression par l'onglet (Gtk.Overlay), visible
         # quand du contenu arrive alors qu'on lit plus haut.
@@ -836,7 +887,7 @@ class MessageList(Gtk.ScrolledWindow):
 
     def _append(self, widget):
         """Ajoute en bas du fil, avant la ligne d'activité."""
-        self.box.insert_child_after(widget, self._last)
+        self.box.insert_child_after(widget, self._last or self.older_row)
         self._last = widget
         self._built += 1
         self._content_added()
@@ -898,11 +949,14 @@ class MessageList(Gtk.ScrolledWindow):
                           halign=Gtk.Align.END, valign=Gtk.Align.START, opacity=0,
                           css_classes=["flat", "circular", "ccs-copy"])
         bubble.copy_text = text
-        copy.connect("clicked", lambda *_b: self._to_clipboard(bubble.copy_text or ""))
+        # Gestionnaires sans référence à la bulle ni au bouton qu'elle contient : un cycle
+        # Python ↔ GTK la garderait en mémoire après son retrait du fil.
+        copy.connect("clicked", lambda btn: self._to_clipboard(
+            getattr(btn.get_parent().get_parent(), "copy_text", "") or ""))
         overlay.add_overlay(copy)
         hover = Gtk.EventControllerMotion()
-        hover.connect("enter", lambda *_a: copy.set_opacity(1))
-        hover.connect("leave", lambda *_a: copy.set_opacity(0))
+        hover.connect("enter", _show_copy, 1)
+        hover.connect("leave", _show_copy, 0)
         bubble.add_controller(hover)
         bubble.copy_button = copy
         bubble.append(overlay)
@@ -1115,7 +1169,68 @@ class MessageList(Gtk.ScrolledWindow):
         return self._built
 
     def row_count(self):
-        return self.box.observe_children().get_n_items() - 1
+        """Lignes du fil (sans la ligne d'activité ; avec « plus anciens » si elle est montrée)."""
+        return self.box.observe_children().get_n_items() - 2 + int(self.older_row.get_visible())
+
+    def _content_rows(self):
+        out, child = [], self.older_row.get_next_sibling()
+        while child is not None and child is not self.busy_row:
+            out.append(child)
+            child = child.get_next_sibling()
+        return out
+
+    def _forget_detached(self):
+        """Oublie les références vers des widgets qui ne sont plus dans le fil (sinon ils
+        restent en mémoire)."""
+        inside = lambda w: w is not None and w.is_ancestor(self.box)
+        self._views = [v for v in self._views if inside(v)]
+        self._segs = {k: s for k, s in self._segs.items() if inside(s.bubble)}
+        self._tools = {k: c for k, c in self._tools.items() if inside(c)}
+        self._perms = {k: c for k, c in self._perms.items() if inside(c)}
+        if not inside(self._todos):
+            self._todos = None
+        if not inside(self._run):
+            self._run = None
+        if not inside(self._last_footer):
+            self._last_footer = None
+
+    def trim(self):
+        """Longue session : au-delà de LIVE_MAX lignes, retire les plus anciennes pour n'en
+        garder que LIVE_KEEP (une longue session faisait grossir la fenêtre de centaines de
+        Mo). Seulement quand on est en bas du fil : on ne retire jamais ce qu'on lit. Une ligne
+        en tête propose de relire la conversation depuis son journal. Renvoie le nombre retiré."""
+        rows = self._content_rows()
+        if len(rows) <= LIVE_MAX or not self._stick:
+            return 0
+        drop = rows[:len(rows) - LIVE_KEEP]
+        for widget in drop:
+            self.box.remove(widget)
+        self._forget_detached()
+        for widget in drop:
+            release(widget)
+        GLib.idle_add(give_back_memory)
+        self._hist, self._hist_pos = [], 0      # l'historique pas encore construit part avec
+        self._dropped += len(drop)
+        self.older_label.set_label(f"{self._dropped} éléments plus anciens retirés de l'affichage pour "
+                                   "garder CCS léger.")
+        self.older_button.set_visible(self.on_older is not None)
+        self.older_row.set_visible(True)
+        self._queue_scroll_end()
+        return len(drop)
+
+    def reset(self):
+        """Vide le fil (avant de le relire depuis le journal)."""
+        for seg in self._segs.values():
+            if seg.timer:
+                GLib.source_remove(seg.timer)
+        for widget in self._content_rows():
+            self.box.remove(widget)
+            release(widget)
+        self._views, self._segs, self._tools, self._perms = [], {}, {}, {}
+        self._todos = self._run = self._last = self._last_footer = None
+        self._hist, self._hist_pos = [], 0
+        self._dropped = 0
+        self.older_row.set_visible(False)
 
     def load_history(self, messages):
         """Montre `messages` (preview.Message) : les derniers d'abord, les plus anciens au
@@ -1173,7 +1288,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._hist_pos = start
         adj = self.get_vadjustment()
         old_upper, old_value = adj.get_upper(), adj.get_value()
-        prev = None
+        prev = self.older_row
         for widget in self._history_widgets(batch):
             self.box.insert_child_after(widget, prev)
             self._built += 1

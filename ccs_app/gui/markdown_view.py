@@ -35,6 +35,16 @@ def stable_end(text):
     return last
 
 
+def _on_activate_link(label, uri):
+    """Lien cliqué dans un label du rendu. Fonction du module, pas `self._activate_link` : un
+    gestionnaire qui pointe vers la vue parente forme un cycle Python ↔ GTK jamais libéré (chaque
+    vue restait en mémoire, même retirée du fil ou refaite pendant le flux)."""
+    view = label.get_ancestor(MarkdownView)
+    if view is not None:
+        return view._activate_link(label, uri)
+    return False
+
+
 class MarkdownView(Gtk.Box):
     """Colonne de widgets : un par bloc Markdown. Le texte est sélectionnable."""
 
@@ -131,7 +141,7 @@ class MarkdownView(Gtk.Box):
         label = Gtk.Label(use_markup=True, label=md.to_pango(spans), xalign=xalign, wrap=True,
                           wrap_mode=Pango.WrapMode.WORD_CHAR, selectable=True, hexpand=True,
                           css_classes=list(css))
-        label.connect("activate-link", self._activate_link)
+        label.connect("activate-link", _on_activate_link)
         return label
 
     def _activate_link(self, label, uri):
@@ -241,7 +251,7 @@ class MarkdownView(Gtk.Box):
             uri = md.escape(block.src).replace('"', "&quot;")
             label = Gtk.Label(use_markup=True, xalign=0.0, wrap=True, selectable=True,
                               label=f'image distante : <a href="{uri}">{md.escape(block.alt) or uri}</a>')
-            label.connect("activate-link", self._activate_link)
+            label.connect("activate-link", _on_activate_link)
             return label
         if not local.is_file():
             return Gtk.Label(label=f"image introuvable : {block.alt or block.src}", xalign=0.0,
