@@ -15,6 +15,24 @@ _HEADING_CLASS = {1: "title-1", 2: "title-2", 3: "title-3"}
 _ALIGN = {"left": 0.0, "center": 0.5, "right": 1.0, None: 0.0}
 
 
+def stable_end(text):
+    """Fin de la partie « terminée » d'un texte en cours d'écriture : juste après la dernière
+    ligne vide hors d'un bloc de code. Les blocs avant ne changeront plus (sauf rares cas :
+    liste espacée), ceux d'après sont encore en train de s'écrire."""
+    fence, offset, last = None, 0, 0
+    for line in text.splitlines(keepends=True):
+        s = line.strip()
+        if fence:
+            if s.startswith(fence):
+                fence = None
+        elif s.startswith("```") or s.startswith("~~~"):
+            fence = s[:3]
+        elif not s and line.endswith("\n") and offset > 0:
+            last = offset + len(line)
+        offset += len(line)
+    return last
+
+
 class MarkdownView(Gtk.Box):
     """Colonne de widgets : un par bloc Markdown. Le texte est sélectionnable."""
 
@@ -24,6 +42,9 @@ class MarkdownView(Gtk.Box):
         self.on_link = on_link
         self._dark = False
         self._buffers = []
+        self._stable = None          # flux : texte déjà rendu en blocs définitifs
+        self._stable_buffers = 0     # flux : tampons de code des blocs définitifs
+        self._tail = []              # flux : widgets du dernier bloc, encore en écriture
         self.set_text(text)
 
     # -- API publique --------------------------------------------------------
@@ -36,7 +57,33 @@ class MarkdownView(Gtk.Box):
             self.remove(child)
             child = nxt
         self._buffers = []
+        self._stable, self._tail = None, []
         for widget in self._build(md.parse(text or "")):
+            self.append(widget)
+
+    def set_text_streaming(self, text):
+        """Pendant que Claude écrit : seuls les blocs encore ouverts (après la dernière ligne
+        vide) sont refaits ; les blocs terminés restent en place. Coût constant au lieu de
+        tout refaire à chaque morceau (une longue réponse figeait l'interface). `set_text`
+        refait le rendu exact à la fin."""
+        text = text or ""
+        cut = stable_end(text)
+        stable = text[:cut]
+        if self._stable is None or not stable.startswith(self._stable):
+            self.set_text("")
+            self._stable, self._stable_buffers = "", 0
+        for widget in self._tail:
+            self.remove(widget)
+        self._tail = []
+        del self._buffers[self._stable_buffers:]
+        new = stable[len(self._stable):]
+        if new.strip():
+            for widget in self._build(md.parse(new)):
+                self.append(widget)
+        self._stable = stable
+        self._stable_buffers = len(self._buffers)
+        self._tail = self._build(md.parse(text[cut:])) if text[cut:].strip() else []
+        for widget in self._tail:
             self.append(widget)
 
     def set_dark(self, dark):

@@ -91,3 +91,39 @@ class MarkdownViewTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StableEndTest(unittest.TestCase):
+    """Partie terminée d'un texte en cours d'écriture (sans GTK)."""
+
+    def test_cut_after_last_blank_line_outside_code(self):
+        from ccs_app.gui.markdown_view import stable_end
+        self.assertEqual(stable_end("para en cours"), 0)
+        text = "# Titre\n\npremier\n\nsecond en cours"
+        self.assertEqual(text[:stable_end(text)], "# Titre\n\npremier\n\n")
+        code = "intro\n\n```py\nx = 1\n\ny = 2\n"          # bloc de code encore ouvert
+        self.assertEqual(code[:stable_end(code)], "intro\n\n")
+        closed = code + "```\n\nfin"
+        self.assertEqual(closed[:stable_end(closed)], code + "```\n\n")
+
+
+@unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
+class StreamingTest(unittest.TestCase):
+    def test_streaming_keeps_finished_blocks_and_ends_like_a_full_render(self):
+        from ccs_app.gui.markdown_view import MarkdownView
+        text = "# Titre\n\nUn **paragraphe**.\n\n- a\n- b\n\n```py\nprint(1)\n```\n\nFin du texte."
+        v = MarkdownView("")
+        first = None
+        for n in range(1, len(text) + 1, 7):
+            v.set_text_streaming(text[:n])
+            if first is None and v._stable:              # le titre est terminé : il ne bouge plus
+                first = children(v)[0]
+        v.set_text_streaming(text)
+        self.assertIs(children(v)[0], first)               # le titre n'a jamais été refait
+        streamed = len(children(v))
+        self.assertEqual(len(v._buffers), 1)               # pas de tampons de code accumulés
+        full = MarkdownView(text)
+        self.assertEqual(streamed, len(children(full)))
+        v.set_text(text)                                   # rendu exact final
+        self.assertEqual(len(children(v)), len(children(full)))
+

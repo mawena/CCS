@@ -175,7 +175,13 @@ class Window(Adw.ApplicationWindow):
 
     def reload(self):
         state = load_state()
-        self.home.render(state, self.store)
+        # L'Accueil (cartes, courbes, planning) n'est reconstruit que s'il est affiché ; sinon
+        # il le sera en y revenant (avant : toutes les minutes, même caché).
+        if self.stack.get_visible_child_name() == "home":
+            self.home.render(state, self.store)
+            self._home_stale = False
+        else:
+            self._home_stale = True
         self.analysis_hub.reload(state, self.store, self.stack.get_visible_child_name() == "analysis")
         self.show_pause()
         self.show_update(state)
@@ -295,6 +301,9 @@ class Window(Adw.ApplicationWindow):
             self.sessions.load()
         if name == "analysis":
             self.analysis_hub.on_shown()
+        if name == "home" and getattr(self, "_home_stale", False):
+            self._home_stale = False
+            self.home.render(load_state(), self.store)
         self.update_badge()
 
     def update_badge(self):

@@ -21,7 +21,8 @@ from .. import preview  # noqa: E402
 from .markdown_view import MarkdownView  # noqa: E402
 
 PAGE = 50                   # messages d'historique construits à la fois
-RENDER_MS = 90              # un rendu Markdown au plus toutes les 90 ms pendant le flux
+RENDER_MS = 90              # un rendu Markdown au plus toutes les 90 ms pendant le flux…
+RENDER_MAX_MS = 1000        # … espacé si le rendu coûte (4 × sa durée), sans dépasser 1 s
 RESULT_CHARS = 20_000       # résultat d'outil montré (le reste est coupé à l'affichage)
 FOLD_LINES = 14             # un message de l'utilisateur plus long est replié (« Afficher tout »)
 FOLD_CHARS = 1500
@@ -258,11 +259,17 @@ class ToolCard(Gtk.Box):
         self.revealer = Gtk.Revealer(child=self.detail, reveal_child=False,
                                      transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
         self.append(self.revealer)
-        self._fill_detail()
+        self._detail_built = False     # commande et résultat : construits au premier dépliage
 
     # -- états --
 
     def _fill_detail(self):
+        """Commande et résultat (texte sélectionnable, coûteux en mémoire) : seulement quand la
+        carte est dépliée ; la plupart ne le sont jamais."""
+        if not self.revealer.get_reveal_child():
+            self._detail_built = False
+            return
+        self._detail_built = True
         _clear(self.detail)
         command = self.data.get("command") if self.name == "Bash" else None
         if isinstance(command, str) and command:
@@ -295,15 +302,17 @@ class ToolCard(Gtk.Box):
         self.spinner.set_spinning(False)
         self.icon.set_from_icon_name("dialog-error-symbolic" if is_error else "object-select-symbolic")
         self.add_css_class("error" if is_error else "done")
-        self._fill_detail()
         if is_error:
             self.revealer.set_reveal_child(True)
             self.chevron.set_icon_name("pan-down-symbolic")
+        self._fill_detail()
 
     def toggle(self, show=None):
         show = (not self.revealer.get_reveal_child()) if show is None else show
         self.revealer.set_reveal_child(show)
         self.chevron.set_icon_name("pan-down-symbolic" if show else "pan-end-symbolic")
+        if show and not self._detail_built:
+            self._fill_detail()
 
     def _on_main(self, *_):
         if self.edit and self.on_diff:
@@ -595,6 +604,7 @@ class _Segment:
     def __init__(self, bubble, view):
         self.bubble, self.view = bubble, view
         self.text, self.timer, self.closed = "", 0, False
+        self.interval = RENDER_MS
 
 
 # ---- la liste ------------------------------------------------------------------------------
@@ -837,13 +847,19 @@ class MessageList(Gtk.ScrolledWindow):
         seg = self._segment(msg_id)
         seg.text += text
         if not seg.timer:
-            seg.timer = GLib.timeout_add(RENDER_MS, self._render, seg)
+            seg.timer = GLib.timeout_add(seg.interval, self._render, seg)
 
     def _render(self, seg):
         seg.timer = 0
         seg.bubble.set_visible(bool(seg.text.strip()))
         seg.bubble.copy_text = seg.text
-        seg.view.set_text(seg.text)
+        start = time.monotonic()
+        if seg.closed:
+            seg.view.set_text(seg.text)              # rendu exact, une fois, à la fin
+        else:
+            seg.view.set_text_streaming(seg.text)    # pendant le flux : la fin seulement
+            spent_ms = (time.monotonic() - start) * 1000
+            seg.interval = int(min(RENDER_MAX_MS, max(RENDER_MS, 4 * spent_ms)))
         self.scroll_end_if_stuck()
         return False
 

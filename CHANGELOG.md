@@ -31,6 +31,13 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   même carte, explications en info-bulles, « Meilleur moment » repliable avec sa
   conclusion dans l'en-tête, file de tâches vide en une ligne.
 
+- **Interface plus légère et plus fluide.** Pendant que Claude écrit, seule la fin de la
+  réponse est réaffichée (avant : toute la réponse en Markdown, toutes les 90 ms, ce qui
+  figeait la fenêtre sur les longues réponses : environ 15 fois moins de travail mesuré), et
+  les rendus s'espacent d'eux-mêmes quand ils coûtent. Le détail d'une action (commande,
+  résultat) n'est construit qu'au dépliage : une carte prend 8 fois moins de mémoire.
+  L'Accueil n'est plus reconstruit chaque minute quand il n'est pas affiché.
+
 ### Corrigé
 
 - Une fenêtre ouverte par « Relancer » n'écrivait plus ses erreurs nulle part : elles vont
