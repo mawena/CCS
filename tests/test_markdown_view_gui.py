@@ -49,6 +49,31 @@ class MarkdownViewTest(unittest.TestCase):
         v.set_dark(True)
         v.set_dark(False)
 
+    def test_short_list_is_one_label(self):
+        # Une ligne de widgets par élément coûtait ~220 Ko par liste de 10 : une liste courte
+        # est un seul label (gras, code et liens gardés).
+        v = self.view("- un **gras**\n- deux `code`\n- [lien](https://exemple.fr)\n")
+        lists = [w for w in walk(v) if isinstance(w, Gtk.Label) and w.has_css_class("ccs-md-list")]
+        self.assertEqual(len(lists), 1)
+        self.assertEqual(lists[0].get_text(), "•\tun gras\n•\tdeux code\n•\tlien")
+        self.assertIn('<a href="https://exemple.fr">', lists[0].get_label())
+        self.assertTrue(lists[0].get_selectable())
+
+    def test_ordered_short_list_numbers(self):
+        v = self.view("3. a\n4. b\n")
+        label = next(w for w in walk(v) if isinstance(w, Gtk.Label) and w.has_css_class("ccs-md-list"))
+        self.assertEqual(label.get_text(), "3.\ta\n4.\tb")
+
+    def test_long_item_keeps_hanging_indent(self):
+        v = self.view("- court\n- " + "mot " * 30 + "\n")
+        self.assertFalse([w for w in walk(v) if isinstance(w, Gtk.Label) and w.has_css_class("ccs-md-list")])
+        self.assertIn("•", [w.get_label() for w in walk(v) if isinstance(w, Gtk.Label)])
+
+    def test_nested_list_keeps_widgets(self):
+        v = self.view("- a\n  - b\n- c\n")
+        labels = [w.get_label() for w in walk(v) if isinstance(w, Gtk.Label)]
+        self.assertIn("•", labels)
+
     def test_task_items_and_table(self):
         v = self.view("- [x] a\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")
         boxes = [w for w in walk(v) if isinstance(w, Gtk.CheckButton)]

@@ -42,6 +42,8 @@ BASE_CSS = """
 .ccs-bubble-claude {
   background-color: transparent; color: @window_fg_color; padding: 4px 4px;
 }
+/* Liste Markdown courte en un seul label : un peu d'air entre les éléments. */
+label.ccs-md-list { line-height: 1.25; }
 .ccs-todos-bar {
   background-color: alpha(@window_fg_color, 0.05); border-radius: 10px;
   border: 1px solid alpha(@window_fg_color, 0.10); padding: 4px 10px;
