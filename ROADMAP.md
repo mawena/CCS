@@ -256,4 +256,4 @@ Documentation et release :
 
 - [x] Listes Markdown courtes en un seul label
 - [x] Fil borné dans les longues sessions (élagage + « Afficher » depuis le journal), cycles de widgets cassés, mémoire rendue au système
-- [ ] Essai réel par Charles, puis release (correctif 0.10.2)
+- [x] Essai réel par Charles, puis release correctif 0.10.2 (`.deb`, release GitHub, dépôt APT)
