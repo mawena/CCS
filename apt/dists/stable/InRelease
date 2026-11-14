@@ -4,35 +4,35 @@ Hash: SHA512
 Architectures: all amd64
 Codename: stable
 Components: main
-Date: Thu, 12 Nov 2026 21:39:34 +0000
+Date: Sat, 14 Nov 2026 11:07:37 +0000
 Description: CCS, comptes Claude Code
 Label: CCS
 Origin: CCS
 Suite: stable
 MD5Sum:
- 4be1f479a8c1b694fa499d43cca41186             9919 main/binary-all/Packages
- 9c2544c49d198e0291bd6ddd892a4210             1651 main/binary-all/Packages.gz
+ bf7b7700d8432ae10973cbd463f1e5af            11640 main/binary-all/Packages
+ 2959b47afcadd746b64745f6fcb192b3             1783 main/binary-all/Packages.gz
  d41d8cd98f00b204e9800998ecf8427e                0 main/binary-amd64/Packages
  4a4dd3598707603b3f76a2378a4504aa               20 main/binary-amd64/Packages.gz
 SHA1:
- b3349156527c081bb6e8991395cdce987ed63a95             9919 main/binary-all/Packages
- 630694f46bd3a0ae519e206a8cf6d7e5c889cc1a             1651 main/binary-all/Packages.gz
+ 73f53fb68f0d035086f19e351d7fe589b3bfb32b            11640 main/binary-all/Packages
+ cf1c02bab977b9b8c876a21a6dd9ea7f7b683685             1783 main/binary-all/Packages.gz
  da39a3ee5e6b4b0d3255bfef95601890afd80709                0 main/binary-amd64/Packages
  a0fddd5458378c1bf3c10dd2f5c060d1347741ed               20 main/binary-amd64/Packages.gz
 SHA256:
- e93e2ef59c5a1b0e839b2864932ee78e660c75053bb50174270d763a137513a9             9919 main/binary-all/Packages
- 202a5543eda7687947b0a38758b58bf890410f421f076736d5567bc3ead4a5c8             1651 main/binary-all/Packages.gz
+ 9aebc53b9c45cee81903b91d22f3f5392f77937d97bdda5ef60d9c0ed5d34eeb            11640 main/binary-all/Packages
+ 421a0c58f08dad8f91197410719184a5ff3c09092e0193d7eceb24e63bf38369             1783 main/binary-all/Packages.gz
  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855                0 main/binary-amd64/Packages
  f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec               20 main/binary-amd64/Packages.gz
 SHA512:
- 816f35774aac5029adb7cc0df7a84b52cb3e99f6de89206b82bd0a0e720794493559d0b76b7624712bcf3bcbb5543fcb24fa3001d42ff16269526555c8f84470             9919 main/binary-all/Packages
- d88237bce62e985fba2094f84696f87aa5b770852c9547d382d880a9414fe9c8bd4013df745b938c024cd8ce2cd9ec7f99fd6b4de0f273f99e192561ac552a1d             1651 main/binary-all/Packages.gz
+ 9d939f790bad3108471543820de1806e6edb034d49162d0086d28a5d41d6ea471dd709410ad3b568d2809f5beff77f8c25fa0671c28ad6db11d5a573f7f2e1db            11640 main/binary-all/Packages
+ a028d30bff4ceebe31237488a3b405d26393ae376f7591c9d048927c9ca9031b096697eebfafa1a11d44a41bb3f4135e1a9a40623b2fc7b259c4f4db6c028ade             1783 main/binary-all/Packages.gz
  cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e                0 main/binary-amd64/Packages
  1b46b9b08d5b338be9d732a1724795b2eab63daffde377218727c90857b79fe6a47bceed495117fcde60f7339812ef75ef4c69f82dd79fb69b6cbf8006b521f2               20 main/binary-amd64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQTSGl59tNNW5Vlh98ZlaKW0Qgqs0gUCavYyFgAKCRBlaKW0Qgqs
-0pfOAQDxzgdb/oFIBvtWz6Eyw4Hjn1EE/P2LkbDxFFZ7DPPhaQEAjG1DDmwWxJT6
-VJrLCGyVfREbfksmqtMWsCLWJ0lPkAQ=
-=s4d+
+iHUEARYKAB0WIQTSGl59tNNW5Vlh98ZlaKW0Qgqs0gUCavhA+QAKCRBlaKW0Qgqs
+0mtpAQDv2/wvnDkm6dmMYFLztgxz3lCpenN/Pthq8tFLpD6QewD6Ar4VH9Hs4b6h
+tVof1yV0+QCuVdyiB+Zr+mu9x2i3EgE=
+=juSH
 -----END PGP SIGNATURE-----
