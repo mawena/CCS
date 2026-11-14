@@ -89,7 +89,7 @@ bascules](#journal-des-bascules).
 
 ## Orchestrateur
 
-Désactivé par défaut : `ccs orch on`, l'interrupteur de l'onglet **Planning**
+Désactivé par défaut : `ccs orch on`, l'interrupteur de la section **Planning** de l'Accueil
 ou **Réglages → Orchestrateur**.
 
 Pendant la **plage horaire** (8 h → 2 h par défaut, jours réglables ; une plage
@@ -123,13 +123,13 @@ démarrage réussi, rien pendant 5 h ; après 3 échecs, une tentative par heure
 Le décalage s'aligne sur ce que tu as réellement démarré : les fenêtres déjà
 ouvertes passent en premier, puis le compte actif.
 
-**Planning.** `ccs plan` ou l'onglet **Planning** : frise par compte (fenêtre en
+**Planning.** `ccs plan` ou la section **Planning** de l'Accueil : frise par compte (fenêtre en
 cours remplie selon l'usage, fenêtres prévues en pointillés, trait rouge =
 maintenant) et liste des recharges à venir.
 
 ### Meilleur moment pour une grosse tâche
 
-La carte **Meilleur moment pour une grosse tâche** de l'onglet Planning, et
+La carte **Meilleur moment pour une grosse tâche** de la section Planning de l'Accueil, et
 `ccs moment`, répondent à « quand lancer un long travail ? ». L'unité est la
 **fenêtre de 5 h disponible**, pas une durée de travail : la durée choisie
 (1, 2, 3, 4, 6 ou 8 h dans la carte) sert à dire si les fenêtres couvrent la
@@ -181,7 +181,7 @@ la pause). Dans l'en-tête de la fenêtre, « Auto » devient « Auto ⏸ jusqu'
 14:00 » (« Auto ⏸ en pause » pour une pause sans échéance) ; un clic propose
 « Reprendre maintenant ». `ccs status` affiche « En pause jusqu'à 14:00 :
 bascule automatique et orchestrateur suspendus (ccs pause off pour
-reprendre) » ; l'onglet Planning, l'icône (⏸ devant le pourcentage) et la ligne
+reprendre) » ; la section Planning de l'Accueil, l'icône (⏸ devant le pourcentage) et la ligne
 d'état de Claude Code rappellent aussi la pause.
 
 Pendant une pause, **CCS ne change plus de compte tout seul**, sans exception :
@@ -199,7 +199,7 @@ dite) et envoie « Pause terminée ». L'état est gardé dans
 
 ## Journal des bascules
 
-Section **Journal des bascules** de l'onglet **Historique**, sous les courbes,
+Section **Journal des bascules** de la partie **Historique** de l'onglet Analyse, sous les courbes,
 ou `ccs journal` : chaque changement de compte, de la plus récente à la plus
 ancienne, groupé par jour (*Aujourd'hui*, *Hier*, *Lundi 2 novembre*…), avec
 l'heure, « compte quitté → compte choisi » et la raison en clair :
@@ -313,7 +313,7 @@ L'état est publié dans la clé `quiet` de `state.json` (`active`, `until`,
 
 ## Warm-up à heure fixe
 
-Alternative manuelle à l'orchestrateur. Onglet **Réglages → Warm-up** : pour chaque profil, une heure (HH:MM) et des
+Alternative manuelle à l'orchestrateur. Fenêtre **Réglages → Warm-up** : pour chaque profil, une heure (HH:MM) et des
 jours. À l'heure dite, si la fenêtre de 5 h du compte n'est pas ouverte, CCS
 envoie une requête minimale à Haiku avec ce compte (dans un dossier de
 configuration temporaire : le compte actif n'est pas touché). La fenêtre
@@ -1271,7 +1271,7 @@ bureau.
 ## File de tâches
 
 Une tâche, c'est un message que Claude exécute **sans fenêtre**, pendant que tu es
-ailleurs. Tu la poses dans l'onglet **Planning** (bouton « Nouvelle tâche ») ou en
+ailleurs. Tu la poses dans la section **Planning** de l'Accueil (bouton « Nouvelle tâche ») ou en
 ligne de commande.
 
 Une tâche a un message, un dossier, un modèle (facultatif), des droits et un moment.

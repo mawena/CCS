@@ -1,8 +1,8 @@
-"""Onglet Réglages : bascule automatique, orchestrateur, alertes, conseils, conseiller de
+"""Fenêtre Réglages : bascule automatique, orchestrateur, alertes, conseils, conseiller de
 formule, intégration, raccourcis clavier, téléphone, sauvegarde, archive, sessions, tâches,
 budgets, warm-up, service.
 
-`render()` recrée tous les groupes à chaque affichage de l'onglet ; chaque changement est
+`render()` recrée tous les groupes à chaque affichage de la fenêtre ; chaque changement est
 enregistré aussitôt (`settings.json`) et réveille le service."""
 
 import re
@@ -718,7 +718,7 @@ class PrefsPage(Adw.PreferencesPage):
         night = self.s["tasks"]["night"]
         g = Adw.PreferencesGroup(
             title="Tâches",
-            description="Messages que Claude traite sans fenêtre (onglet Planning, « ccs tache »), "
+            description="Messages que Claude traite sans fenêtre (section Planning de l'Accueil, « ccs tache »), "
                         "avec le compte actif, une seule à la fois.")
         enabled = self.switch_row("Exécuter les tâches", "Sinon elles restent en file", "tasks", "enabled")
         hours = Adw.ActionRow(title="Plage de nuit", subtitle="Pour les tâches « cette nuit » (peut passer minuit)")

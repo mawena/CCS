@@ -32,8 +32,9 @@ from .terminals import TerminalsPage  # noqa: E402
 APP_ID = desktop.APP_ID
 STALE_S = 600
 DOCTOR_DELAY_S = 4   # bilan de santé du démarrage : après le premier affichage
-# Sous cette largeur, les onglets passent dans la barre du bas : 6 onglets de même largeur
-# tenaient en 1080 px, 7 en 1202 px (mesuré : environ 100 px par onglet) ; 4 onglets, plus une marge.
+# Sous cette largeur, les onglets (Accueil, Sessions, Analyse) passent dans la barre du bas. Seuil
+# mesuré du temps des 4 onglets (6 onglets de même largeur tenaient en 1080 px, 7 en 1202 px :
+# environ 100 px par onglet), plus une marge.
 NARROW_SP = 900
 # Pendant une pause, « Auto ⏸ jusqu'à 14:00 » remplace « Auto » : le seuil monte de la
 # différence de largeur (mesurée), plus cette marge.
@@ -569,7 +570,7 @@ class App(Adw.Application):
     - « show-session » (paramètre : référence de session, cf. attention.parse_session_ref) :
       clic sur une notification, ou `gui --session <réf>` ;
     - « show-task » (paramètre : identifiant de la tâche) : clic sur la notification de fin d'une
-      tâche (onglet Planning, journal de la tâche) ;
+      tâche (section Planning de l'Accueil, journal de la tâche) ;
     - « show-page » (paramètre : nom d'un onglet, cf. desktop.page_name) : `gui --page` ;
     - « new-session » (sans paramètre) : `gui --new-session`."""
 

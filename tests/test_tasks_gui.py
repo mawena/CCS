@@ -1,4 +1,4 @@
-"""Vue des tâches (onglet Planning) : widgets créés sans être affichés (affichage requis,
+"""Vue des tâches (section Planning de l'Accueil) : widgets créés sans être affichés (affichage requis,
 sinon tests sautés). HOME isolé."""
 
 import json

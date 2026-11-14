@@ -1,6 +1,6 @@
-"""File de tâches Claude pour l'onglet Planning : liste, ajout, annulation, journal en direct.
+"""File de tâches Claude pour la section Planning de l'Accueil : liste, ajout, annulation, journal en direct.
 
-`TasksView(on_resume=None, window=None)` est un `Gtk.Box` à placer dans l'onglet Planning :
+`TasksView(on_resume=None, window=None)` est un `Gtk.Box` à placer dans la section Planning de l'Accueil :
 - `on_resume(task)` : rappel fourni par l'application, appelé par « Reprendre dans un onglet »
   (la conversation `task.session_id` dans `task.cwd`) ; sans rappel, le bouton est caché ;
 - `window` : objet avec `toast(texte)` (facultatif) ;

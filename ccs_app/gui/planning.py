@@ -1,4 +1,4 @@
-"""Onglet Planning : fenêtres de 5 h de chaque compte et recharges à venir."""
+"""Section Planning de l'Accueil : fenêtres de 5 h de chaque compte et recharges à venir."""
 
 import time
 from datetime import datetime

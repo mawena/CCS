@@ -1,4 +1,4 @@
-"""Onglet Planning : carte « Meilleur moment pour une grosse tâche ».
+"""Section Planning de l'Accueil : carte « Meilleur moment pour une grosse tâche ».
 
 Widgets créés sans être affichés (affichage requis, sinon tests sautés). HOME isolé."""
 

@@ -1,4 +1,4 @@
-"""Onglet Comptes : cartes `.ccs-card` à la couleur du compte, gros chiffres, écran vide.
+"""Section Comptes de l'Accueil : cartes `.ccs-card` à la couleur du compte, gros chiffres, écran vide.
 
 Widgets créés sans être affichés (affichage requis, sinon tests sautés). HOME isolé."""
 

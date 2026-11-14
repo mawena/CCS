@@ -903,7 +903,7 @@ def build_parser():
                      help="affiche cet onglet : accueil, sessions, analyse, ou une partie : "
                           "comptes, planning, historique, terminaux, reglages (fenêtre des réglages)")
     gui.add_argument("--task", metavar="ID", type=_task_ref,
-                     help="affiche cette tâche dans l'onglet Planning : clic sur une notification")
+                     help="affiche cette tâche dans la section Planning de l'Accueil : clic sur une notification")
     gui.add_argument("--new-session", action="store_true",
                      help="ouvre « Nouvelle session… » (dossier, compte, modèle, permissions)")
     gui.set_defaults(func=cmd_gui)

@@ -89,8 +89,8 @@ Pendant ta plage horaire (par défaut 8 h → 2 h), il applique quatre règles :
 
 Le service se réveille pile à chaque fin de fenêtre. Hors plage horaire, rien
 n'est démarré et aucune bascule anticipée n'a lieu ; la bascule anticipée
-respecte aussi l'interrupteur « bascule automatique ». Tout se règle dans l'onglet **Réglages**, et l'onglet
-**Planning** montre la frise du jour et les recharges à venir.
+respecte aussi l'interrupteur « bascule automatique ». Tout se règle dans la fenêtre **Réglages** (menu ☰), et la section
+**Planning** de l'Accueil montre la frise du jour et les recharges à venir.
 
 ## Mettre en pause
 
@@ -106,7 +106,7 @@ reprend tout de suite.
 Aussi dans le menu de l'icône (« Mettre en pause ») et par le bouton **Pause** du
 bandeau **Meilleur compte** de l'Accueil. Pendant la pause, l'en-tête de la fenêtre affiche
 « Auto ⏸ jusqu'à 14:00 » (un clic propose « Reprendre maintenant ») ;
-`ccs status`, l'onglet Planning, l'icône et la ligne d'état de Claude Code la
+`ccs status`, la section Planning de l'Accueil, l'icône et la ligne d'état de Claude Code la
 rappellent aussi.
 
 ## Conseils
@@ -152,7 +152,7 @@ figurent pas.
 ## Meilleur moment pour une grosse tâche
 
 Une refonte, une migration, une longue session d'agents : **quand la lancer ?**
-La carte « Meilleur moment pour une grosse tâche » de l'onglet **Planning**
+La carte « Meilleur moment pour une grosse tâche » de la section **Planning** de l'Accueil
 (et `ccs moment --duree 3h`) compte, pour chaque heure de départ possible sur
 24 h, les **fenêtres de 5 h** disponibles tous comptes confondus (le reste de la
 fenêtre en cours, une fenêtre neuve à chaque réinitialisation, une fenêtre
@@ -473,7 +473,7 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Alertes** | 80 % et 95 % (avec un bouton « Basculer sur … »), fin de session imminente, semaine épuisée dans 2 jours ou moins, bascule effectuée, tous comptes épuisés, compte réinitialisé, connexion expirée, session terminée ou en attente (avec un rappel après 10 min), pause terminée, nouvelle version, conseil de modèle près des limites, bilan de la semaine. Une fois par seuil et par fenêtre. |
 | **Conseils** | Conseiller de formule (combinaison Pro / Max / Ultra la moins chère pour ton usage, équivalent API), conseil de modèle près des limites, bilan de la semaine. |
 | **Rapport mensuel** | Le mois civil : comptes, activité, tokens, équivalent API, modèles, projets, évolution et tendance ; carte Analyse, notification le 1er du mois, `ccs mois`. |
-| **Meilleur moment** | Quand lancer une grosse tâche : fenêtres de 5 h disponibles par heure de départ, alternatives, frise des 24 h (onglet Planning, `ccs moment`). |
+| **Meilleur moment** | Quand lancer une grosse tâche : fenêtres de 5 h disponibles par heure de départ, alternatives, frise des 24 h (section Planning de l'Accueil, `ccs moment`). |
 | **Ne pas déranger** | Plage de silence et silence temporaire : notifications retenues puis résumées en une seule ; les sessions qui attendent et les blocages passent toujours. |
 | **Mise à jour en un clic** | Bouton « Installer » du bandeau : téléchargement, SHA-256, `pkexec`, redémarrage de l'application. |
 | **Intégration Claude Code** | Ligne d'état dans chaque session, bascule automatique quand une session est bloquée. |
@@ -484,10 +484,10 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Feuille de route** | Le `ROADMAP.md` du projet dans l'onglet de session : phases, barres de progression, cases cliquables ; la case que Claude coche s'allume. |
 | **Terminal intégré** | Onglets shell (VTE) et sortie de secours des chats ; deux sessions côte à côte, messages en attente, onglets rouverts au redémarrage (chats compris), reprise après une limite, copier/coller, liens, confirmation avant fermeture. |
 | **Conversations** | Historique de toutes les conversations du PC (onglet Sessions), recherche, aperçu, export Markdown, coût, reprise dans l'application, VS Code ou un terminal externe, renommage, projets déplacés. |
-| **Journal des bascules** | Chaque changement de compte avec sa raison en clair, groupé par jour (onglet Historique, `ccs journal`). |
+| **Journal des bascules** | Chaque changement de compte avec sa raison en clair, groupé par jour (partie Historique de l'onglet Analyse, `ccs journal`). |
 | **Raccourcis clavier** | Raccourcis globaux GNOME, même application fermée : ouvrir, sessions, nouvelle session, compte suivant ou meilleur, pause. |
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets ; bilan de la semaine et conseiller de formule. |
-| **File de tâches** | Des tâches pour Claude quand tu n'es pas là : « dès qu'il y a du quota », « cette nuit » ou à une heure. Exécutées sans fenêtre, une à la fois, par la file de Gagarine quand elle existe ; reprise après une limite ; notification à la fin (onglet Planning, `ccs tache`). |
+| **File de tâches** | Des tâches pour Claude quand tu n'es pas là : « dès qu'il y a du quota », « cette nuit » ou à une heure. Exécutées sans fenêtre, une à la fois, par la file de Gagarine quand elle existe ; reprise après une limite ; notification à la fin (section Planning de l'Accueil, `ccs tache`). |
 | **Notifications sur le téléphone** | Optionnel, désactivé par défaut : via ntfy, le nom du projet et l'état (session qui attend, tâche finie, bascule, comptes épuisés), jamais le contenu ; lien et QR code dans les Réglages, `ccs telephone`. |
 | **Archive des conversations** | Claude Code efface les conversations de plus de 30 jours : CCS en garde une copie compressée, cherchable, avec aperçu, export et reprise comme les autres. |
 | **Fiche « où j'en étais »** | En un coup d'œil : dernière demande, début de la dernière réponse, fichiers modifiés, liste de tâches, branche, compte. Lue dans le journal, sans appeler Claude (`ccs fiche <id>`, aperçu d'une conversation). |
@@ -632,7 +632,7 @@ Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisat
 
 ## Configuration
 
-Tout se règle dans l'onglet **Réglages** de l'application — Bascule
+Tout se règle dans la fenêtre **Réglages** (menu ☰) de l'application — Bascule
 automatique, Orchestrateur, Alertes, Ne pas déranger, Conseils, Conseiller de formule,
 Intégration, Terminal intégré, Raccourcis clavier, Warm-up, Service — ou par
 les commandes `ccs auto`, `ccs orch`, `ccs pause`, `ccs integrate`,

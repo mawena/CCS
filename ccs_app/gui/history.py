@@ -1,4 +1,4 @@
-"""Onglet Historique : courbes par compte sur 24 h ou 7 jours, journal des bascules."""
+"""Partie Historique de l'onglet Analyse : courbes par compte sur 24 h ou 7 jours, journal des bascules."""
 
 import sqlite3
 import time

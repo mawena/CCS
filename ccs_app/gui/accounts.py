@@ -1,4 +1,4 @@
-"""Onglet Comptes : meilleur compte, capacité, cartes avec prévisions."""
+"""Section Comptes de l'Accueil : meilleur compte, capacité, cartes avec prévisions."""
 
 import json
 import re
