@@ -369,6 +369,18 @@ class ChatSession:
             self._requested_stop = True  # la CLI s'arrête (code 1) après le tour interrompu
         return self._control("interrupt")
 
+    def answer_questions(self, request_id, answers):
+        """Réponses de l'utilisateur aux questions de Claude (outil AskUserQuestion)."""
+        with self._lock:
+            req = self._perms.pop(request_id, None)
+            if req is None:
+                return False
+            rest = bool(self._perms)
+        ok = self._write(proto.answer_questions(request_id, req.input, answers))
+        if not rest:
+            self._set_state("busy")
+        return ok
+
     def answer(self, request_id, decision, message=""):
         with self._lock:
             req = self._perms.pop(request_id, None)

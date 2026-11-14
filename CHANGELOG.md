@@ -46,6 +46,19 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ### Corrigé
 
+- **Questions de Claude enfin affichées.** Quand Claude posait des questions à choix
+  (outil AskUserQuestion), CCS ne les montrait pas et Claude recevait « The user did not
+  answer the questions ». Le chat affiche maintenant une carte : chaque question avec ses
+  choix (un seul ou plusieurs), « Autre… » pour répondre en texte libre, les touches 1, 2,
+  3… et « Envoyer les réponses » ; « Répondre dans le chat » laisse Claude reposer la
+  question par écrit.
+- **Plus de « ? » quand Claude ne demande rien.** Une simple fin de réponse s'affichait
+  comme une question (onglet, liste des sessions) : elle porte maintenant une coche « a fini
+  de répondre » ; le point d'interrogation est réservé aux vraies demandes.
+- **Sous-agents de fond qui restaient « en cours ».** Leur avis de fin, rangé dans le
+  journal sous une autre forme quand Claude travaillait, n'était pas lu, et une balise
+  citée ailleurs pouvait tromper la recherche : le journal est maintenant lu entrée par
+  entrée.
 - Une fenêtre ouverte par « Relancer » n'écrivait plus ses erreurs nulle part : elles vont
   de nouveau dans le journal du bureau.
 

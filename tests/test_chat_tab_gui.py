@@ -332,6 +332,51 @@ class ChatTabTest(HomeTestCase):
         self.assertTrue(pump_until(lambda: tab.composer.permission_keys is None
                                    or tab.messages.pending_permission() is not None))
 
+    def test_question_card_sends_answers(self):
+        """Outil AskUserQuestion : une vraie carte de questions, et les réponses rendues à Claude
+        (avant : « The user did not answer the questions »)."""
+        tab, _owner = self.make(spawn=False)
+        sent = []
+        tab.engine.answer_questions = lambda rid, answers: sent.append((rid, answers)) or True
+        qs = {"questions": [
+            {"question": "Quel nom ?", "header": "Nom", "multiSelect": False,
+             "options": [{"label": "Diapason", "description": "se mettre au diapason"}, {"label": "Timbre"}]},
+            {"question": "Quelles sorties ?", "header": "Sorties", "multiSelect": True,
+             "options": [{"label": "Casque"}, {"label": "Bluetooth"}, {"label": "HDMI"}]}]}
+        tab._dispatch(proto.PermissionRequest("q1", "AskUserQuestion", "AskUserQuestion", qs))
+        from ccs_app.gui.chat_messages import QuestionCard
+        card = tab.messages.pending_permission()
+        self.assertIsInstance(card, QuestionCard)
+        self.assertIn("1. Diapason", texts(tab))
+        self.assertIn("question", tab.composer.placeholder.get_label())
+        self.assertFalse(card.send.get_sensitive())
+        self.assertTrue(tab._permission_key("1"))                  # 1 : Diapason
+        card.choices[1][1][0][0].set_active(True)                  # Casque
+        card.choices[1][3].set_text("Dock Dell")                   # Autre : texte libre
+        self.assertEqual(card.answers(), {"Quel nom ?": "Diapason",
+                                          "Quelles sorties ?": ["Casque", "Dock Dell"]})
+        card.send.emit("clicked")
+        self.assertEqual(sent, [("q1", {"Quel nom ?": "Diapason", "Quelles sorties ?": ["Casque", "Dock Dell"]})])
+        self.assertTrue(card.answered)
+
+    def test_answers_reach_the_cli_in_updated_input(self):
+        line = proto.answer_questions("q1", {"questions": [{"question": "Q ?"}]}, {"Q ?": "Oui"})
+        data = json.loads(line)
+        resp = data["response"]["response"]
+        self.assertEqual(resp["behavior"], "allow")
+        self.assertEqual(resp["updatedInput"]["answers"], {"Q ?": "Oui"})
+        self.assertEqual(resp["updatedInput"]["questions"], [{"question": "Q ?"}])
+
+    def test_journal_notices_ignore_quoted_tags(self):
+        """Avis de fin lus dans le journal : entrée de file ou pièce jointe ; une balise citée
+        dans un message de Claude ne compte pas."""
+        notice = "<task-notification>\n<tool-use-id>toolu_BON</tool-use-id>\n<status>completed</status>\n</task-notification>"
+        lines = [json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use", "input":
+                    {"content": "<task-notification><tool-use-id>toolu_FAUX</tool-use-id>"}}]}}),
+                 json.dumps({"type": "queue-operation", "operation": "enqueue", "content": notice})]
+        found = proto.journal_notices(("\n".join(lines)).encode())
+        self.assertEqual([n.tool_id for n in found], ["toolu_BON"])
+
     def test_composer_has_no_hint_line(self):
         # Pas de ligne d'indications sous la saisie : les boutons sont à droite du texte, les
         # indications dans le texte gris de la zone vide et dans l'info-bulle d'Envoyer.

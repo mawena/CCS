@@ -31,6 +31,9 @@ INDICATORS = {  # état de la session -> (sablier, icône, infobulle)
     "idle": (False, None, "au repos"),
 }
 STOPPED = (False, "media-playback-stop-symbolic", "arrêtée")
+# Fin de réponse : Claude n'a rien demandé, il attend seulement le message suivant. Pas de « ? »
+# (réservé aux autorisations et aux questions) : une coche « a fini de répondre ».
+DONE = (False, "object-select-symbolic", "a fini de répondre")
 # Reprise automatique après une limite : texte envoyé et garde anti-boucle.
 RESUME_TEXT = "continue"
 RESUME_MAX_PER_HOUR = 3
@@ -237,7 +240,16 @@ def indicator(tab):
     """(sablier, icône, infobulle) de l'onglet."""
     if not tab.running and not (tab.chat and not tab.exit_status):
         return STOPPED  # un chat sans processus (rouvert, en veille) n'est pas « arrêté »
+    if tab.state == "waiting" and not asks_something(tab):
+        return DONE
     return INDICATORS.get(tab.state, (False, None, None))
+
+
+def asks_something(tab):
+    """Vrai si la session attend vraiment une décision (autorisation, question), faux pour
+    une simple fin de réponse (motif « input » ou aucun)."""
+    reason = (tab.waiting_for or "").lower()
+    return bool(reason) and not reason.startswith("input")
 
 
 def needs_confirm(tab):

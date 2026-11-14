@@ -50,6 +50,14 @@ class ListSessionsTest(HomeTestCase):
         self.assertEqual((s.state, s.project), ("idle", "~"))
         self.assertEqual(sessions.state_label(s), "au repos")
 
+    def test_end_of_answer_is_not_a_question(self):
+        import dataclasses
+        fields = {f.name: None for f in dataclasses.fields(sessions.Session)}
+        done = sessions.Session(**{**fields, "state": "waiting", "waiting_for": "input"})
+        self.assertEqual(sessions.state_label(done), "a fini de répondre")
+        ask = sessions.Session(**{**fields, "state": "waiting", "waiting_for": "permission"})
+        self.assertEqual(sessions.state_label(ask), "attend ta réponse (permission)")
+
     def test_missing_dir(self):
         self.assertEqual(sessions.list_sessions(), [])
 

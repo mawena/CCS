@@ -572,14 +572,20 @@ class ChatTab(Gtk.Box):
 
     def _sync_permission_keys(self):
         """1, 2, 3 répondent dans la saisie tant qu'une autorisation attend (comme VS Code)."""
-        pending = self.messages.pending_permission() is not None
-        self.composer.set_permission_keys(self._permission_key if pending else None)
+        card = self.messages.pending_permission()
+        question = card is not None and card.req.tool_name == proto.QUESTION_TOOL and hasattr(card, "answers")
+        self.composer.set_permission_keys(self._permission_key if card is not None else None,
+                                          question=question)
 
     def _on_permission(self, ev):
-        self.messages.add_permission(ev, self._answer)
+        self.messages.add_permission(ev, self._answer, on_questions=self._answer_questions)
         self._sync_permission_keys()
         self.messages.set_busy(False)
         self.attention()
+
+    def _answer_questions(self, request_id, answers):
+        self.engine.answer_questions(request_id, answers)
+        GLib.idle_add(lambda: (self._sync_permission_keys(), False)[1])
 
     def _answer(self, request_id, decision, message=""):
         self.engine.answer(request_id, decision, message)
@@ -604,7 +610,7 @@ class ChatTab(Gtk.Box):
                 with open(path, "rb") as f:
                     f.seek(0, os.SEEK_END)
                     f.seek(max(0, f.tell() - JOURNAL_TAIL))
-                    return proto.task_notices(f.read().decode("utf-8", "replace"))
+                    return proto.journal_notices(f.read())
             except (OSError, TypeError):
                 return []
 

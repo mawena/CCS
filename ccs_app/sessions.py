@@ -90,8 +90,13 @@ def _state(d):
 
 
 def state_label(s):
+    """Libellé de l'état ; une simple fin de réponse (motif « input » ou aucun) n'est pas une
+    question : « a fini de répondre »."""
+    reason = (s.waiting_for or "") if s.state == "waiting" else ""
+    if s.state == "waiting" and (not reason or reason.lower().startswith("input")):
+        return "a fini de répondre"
     label = STATE_LABELS[s.state]
-    return f"{label} ({s.waiting_for})" if s.state == "waiting" and s.waiting_for else label
+    return f"{label} ({reason})" if reason else label
 
 
 def list_sessions():

@@ -311,7 +311,9 @@ def _assistant(ev):
     return out
 
 
-_NOTICE_RE = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)
+# Le corps ne peut pas contenir une autre balise ouvrante : une balise seule (citée dans un
+# texte, un test…) ne s'apparie pas avec une fermeture lointaine.
+_NOTICE_RE = re.compile(r"<task-notification>((?:(?!<task-notification>).)*?)</task-notification>", re.S)
 
 
 def _notice_field(body, tag):
@@ -327,6 +329,44 @@ def task_notices(text):
         tool_id = _notice_field(body, "tool-use-id")
         if tool_id:
             out.append(TaskNotice(tool_id, _notice_field(body, "status"), _notice_field(body, "summary")))
+    return out
+
+
+NOTICE_ENTRY_TYPES = ("user", "queue-operation", "attachment")
+
+
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from _strings(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _strings(v)
+
+
+def journal_notices(data):
+    """Avis de fin dans des lignes de journal (`bytes`, la première peut être tronquée). L'avis
+    arrive en message « user » (Claude au repos) ou, pendant un tour, en entrée de file
+    (`queue-operation`) et en pièce jointe (`attachment`). Les textes sont lus décodés du JSON,
+    jamais en texte brut ; les messages de Claude (outils, code cité) sont ignorés."""
+    out, seen = [], set()
+    for raw in data.split(b"\n"):
+        if b"<task-notification>" not in raw:
+            continue
+        try:
+            ev = json.loads(raw)
+        except ValueError:
+            continue
+        if not isinstance(ev, dict) or ev.get("type") not in NOTICE_ENTRY_TYPES:
+            continue
+        for text in _strings(ev):
+            if "<task-notification>" in text:
+                for n in task_notices(text):
+                    if n.tool_id not in seen:
+                        seen.add(n.tool_id)
+                        out.append(n)
     return out
 
 
@@ -435,6 +475,29 @@ def _permission_reply(request_id, response):
 
 def allow(request_id, input):
     return _permission_reply(request_id, {"behavior": "allow", "updatedInput": input})
+
+
+QUESTION_TOOL = "AskUserQuestion"
+
+
+def question_items(input):
+    """Questions de l'outil AskUserQuestion : [(texte, en-tête, [(libellé, description)],
+    choix multiple)]. Les entrées mal formées sont ignorées."""
+    out = []
+    for q in _dict(input).get("questions") or []:
+        if not isinstance(q, dict) or not _str(q.get("question")).strip():
+            continue
+        options = [(_str(o.get("label")), _str(o.get("description")))
+                   for o in q.get("options") or [] if isinstance(o, dict) and _str(o.get("label")).strip()]
+        out.append((_str(q.get("question")), _str(q.get("header")), options, bool(q.get("multiSelect"))))
+    return out
+
+
+def answer_questions(request_id, input, answers):
+    """Réponses à AskUserQuestion : la CLI les lit dans `updatedInput.answers`, une entrée par
+    texte de question (libellé choisi, liste de libellés pour un choix multiple, ou texte libre).
+    Sans elles, Claude reçoit « The user did not answer the questions »."""
+    return allow(request_id, {**_dict(input), "answers": dict(answers)})
 
 
 def allow_always(request_id, input, suggestions):

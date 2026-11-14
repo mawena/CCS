@@ -29,6 +29,22 @@ COMMAND_TOKEN = re.compile(r"^/([^\s/]*)$")
 # Indications dans le texte gris de la zone vide (plus de ligne à part sous la saisie).
 HINT_IDLE = "Écris à Claude…  (@ fichiers · / commandes · Maj+Tab : droits)"
 HINT_PERMISSION = "Claude attend ton accord : 1 Autoriser · 2 Toujours · 3 Refuser — ou écris"
+AZERTY_DIGITS = "&é\"'(-è_ç"   # rangée du haut d'un clavier français, sans Maj : 1 à 9
+
+
+def digit_key(keyval):
+    """« 1 » à « 9 » pour une touche chiffre (rangée du haut, pavé numérique, ou rangée du haut
+    d'un clavier AZERTY sans Maj), sinon None."""
+    char = chr(Gdk.keyval_to_unicode(keyval) or 0)
+    if char in "123456789" and char != "\0":
+        return char
+    # les lettres (é, è, ç) ne comptent pas : « écris… » ne doit jamais répondre « Toujours »
+    if char and char in AZERTY_DIGITS and not char.isalpha():
+        return str(AZERTY_DIGITS.index(char) + 1)
+    return None
+
+
+HINT_QUESTION = "Claude te pose une question : 1, 2, 3… choisissent — ou écris ta réponse"
 HINT_BUSY = "Claude travaille — écris quand même, Entrée envoie · Échap arrête"
 SEND_TIP = "Envoyer (Entrée) · Maj+Entrée : nouvelle ligne"
 
@@ -221,14 +237,16 @@ class Composer(Gtk.Box):
         self.stop_button.set_visible(self.busy)
         self._update_hint()
 
-    def set_permission_keys(self, handler):
-        """`handler(touche) -> bool` tant qu'une autorisation attend : 1, 2, 3 y répondent quand
-        la saisie est vide. None : plus d'autorisation en attente."""
+    def set_permission_keys(self, handler, question=False):
+        """`handler(touche) -> bool` tant qu'une autorisation (ou une question) attend : 1, 2, 3
+        y répondent quand la saisie est vide. None : plus rien en attente."""
         self.permission_keys = handler
+        self._question = bool(question)
         self._update_hint()
 
     def _update_hint(self):
-        hint = (HINT_PERMISSION if getattr(self, "permission_keys", None)
+        hint = ((HINT_QUESTION if getattr(self, "_question", False) else HINT_PERMISSION)
+                if getattr(self, "permission_keys", None)
                 else HINT_BUSY if self.busy else HINT_IDLE)
         self.placeholder.set_label(hint)
         self.send_button.set_tooltip_text(SEND_TIP + (" · même pendant que Claude travaille" if self.busy else ""))
@@ -534,9 +552,7 @@ class Composer(Gtk.Box):
             return True
         handler = getattr(self, "permission_keys", None)
         if handler and not ctrl and self.buffer.get_char_count() == 0:
-            key = {Gdk.KEY_1: "1", Gdk.KEY_KP_1: "1", Gdk.KEY_2: "2", Gdk.KEY_KP_2: "2",
-                   Gdk.KEY_3: "3", Gdk.KEY_KP_3: "3", Gdk.KEY_ampersand: "1", Gdk.KEY_eacute: "2",
-                   Gdk.KEY_quotedbl: "3"}.get(keyval)
+            key = digit_key(keyval)
             if key and handler(key):
                 return True
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and not shift:

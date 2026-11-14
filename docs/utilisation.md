@@ -560,7 +560,7 @@ Sessions ; les chats ouverts s'y ajoutent en onglets, voir
 
 `ccs sessions` liste aussi les sessions ouvertes. Chaque carte de session
 (terminal ou VS Code) montre son projet, son état — *travaille*, *attend ta
-réponse* (et pourquoi : permission, question…), *au repos* —, sa durée, son
+réponse* (et pourquoi : permission, question…), *a fini de répondre*, *au repos* —, sa durée, son
 modèle, sa consommation (tokens pondérés de la conversation) et son
 [coût](#coût-dune-conversation). CCS lit les fiches de `~/.claude/sessions` en
 lecture seule et ignore les fichiers `.key`.
@@ -923,6 +923,12 @@ une modification de fichier selon les droits choisis), le chat affiche une
   `.claude/settings.local.json`, à la racine du projet. Cela ne change pas les
   droits de toute la session : seuls les cas identiques ne redemanderont plus ;
 - **Refuser** : avec un motif facultatif, que Claude reçoit.
+
+Quand Claude te **pose des questions à choix** (outil AskUserQuestion), la carte
+montre chaque question avec ses choix (une case par choix si plusieurs sont permis),
+plus « Autre… » pour répondre en texte libre. Les touches **1**, **2**, **3**… choisissent
+dans la première question sans réponse ; **Envoyer les réponses** les rend à Claude ;
+**Répondre dans le chat** lui demande de reposer la question par écrit.
 
 Les commandes en lecture seule (`ls`, `cat`…) ne demandent rien. Tant qu'une carte
 attend, l'onglet porte un point d'interrogation, le badge de l'onglet Sessions
