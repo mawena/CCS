@@ -1,3 +1,13 @@
+ccs (0.14.0) unstable; urgency=medium
+
+  * Bureau : page Sessions par machine (ce poste, serveurs), rejoindre un chat
+    en cours, ajouter/retirer un projet, corbeille, panneau Fichiers, Feuille
+    de route et Git pour les chats distants.
+  * Bureau : chat distant rebranché après un redémarrage du serveur ;
+    autorisation donnée ailleurs figée.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 16 Nov 2026 03:00:00 +0000
+
 ccs (0.13.0) unstable; urgency=medium
 
   * Web : ajouter et retirer un projet, supprimer une conversation (corbeille
