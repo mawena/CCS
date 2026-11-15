@@ -3,6 +3,22 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.13.0] — 2026-11-16
+
+### Ajouté
+
+- **Web : gérer projets et conversations.** Dans la liste des sessions :
+  - « + Ajouter » à côté de Projets : dossier existant ou nouveau dossier (`git init` en option,
+    `~` accepté) ;
+  - « ✕ » sur un projet : retiré de la liste, sans rien effacer (il revient si une nouvelle
+    conversation y démarre) ;
+  - « Supprimer » dans le menu « ⋯ » d'une conversation : elle part à la corbeille de CCS
+    (refusé si elle tourne encore), avec « Annuler » juste après ;
+  - « 🗑 Corbeille » en bas de la liste : restaurer une conversation pendant 30 jours ; le
+    service de fond efface ensuite les plus anciennes.
+- Pont : `projects.add`, `projects.remove`, `conversation.trash`, `conversation.trash_list`,
+  `conversation.restore`.
+
 ## [0.12.6] — 2026-11-15
 
 ### Corrigé
