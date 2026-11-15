@@ -71,7 +71,7 @@ class _Doc:
         self.key = key
         self.path = path
         self.title = title
-        self.state = "loading"      # loading, text, too_big, image, binary, missing, diff
+        self.state = "loading"      # loading, text, too_big, image, binary, missing, diff, widget
         self.encoding = "utf-8"
         self.stamp = None
         self.dirty = False
@@ -126,9 +126,12 @@ class FileEditor(Gtk.Box):
     # ---- informations (tests et assemblage) -------------------------------------
 
     def paths(self):
-        return [d.path for d in self._docs.values() if d.state != "diff"]
+        return [d.path for d in self._docs.values() if d.state not in ("diff", "widget")]
 
     def doc(self, path):
+        d = self._docs.get(path) if isinstance(path, str) else None
+        if d is not None and d.state == "widget":
+            return d                     # onglet sur mesure : sa clé n'est pas un chemin
         return self._docs.get(os.path.abspath(os.fspath(path)))
 
     def state(self, path):
@@ -159,7 +162,7 @@ class FileEditor(Gtk.Box):
         page = self.tab_view.get_selected_page()
         for d in self._docs.values():
             if d.page is page:
-                return d.path
+                return d.path if d.state != "widget" else None
         return None
 
     @staticmethod
@@ -180,6 +183,27 @@ class FileEditor(Gtk.Box):
         d.pending_line = line
         self._read_into(d)
         self._watch(d)
+
+    def open_widget(self, key, title, widget, tooltip=None):
+        """Onglet qui porte `widget` (détail d'un commit, historique git, changements de la
+        session…) ; s'il existe déjà, il est sélectionné et garde son contenu."""
+        d = self._docs.get(key)
+        if d is not None:
+            self.tab_view.set_selected_page(d.page)
+            return
+        d = self._new_doc(key, key, title)
+        d.state = "widget"
+        d.readonly = True
+        d.page.set_tooltip(tooltip or title)
+        widget.set_vexpand(True)
+        widget.set_hexpand(True)
+        d.holder.append(widget)
+        d.body = widget
+
+    def close_key(self, key):
+        d = self._docs.get(key)
+        if d is not None:
+            self.tab_view.close_page(d.page)
 
     def _new_doc(self, key, path, title):
         d = _Doc(key, path, title)
@@ -510,7 +534,7 @@ class FileEditor(Gtk.Box):
         d.notice = box
 
     def _on_disk_changed(self, d):
-        if d.closed or d.state == "diff" or d.reading:
+        if d.closed or d.state in ("diff", "widget") or d.reading:
             return
         if not file_tree.changed(d.path, d.stamp) if d.stamp else False:
             return
@@ -635,7 +659,7 @@ class FileEditor(Gtk.Box):
 
     def _on_close_page(self, view, page):
         d = next((x for x in self._docs.values() if x.page is page), None)
-        if d is None or not d.dirty or d.state == "diff":
+        if d is None or not d.dirty or d.state in ("diff", "widget"):
             self._finish_close(d, page, True)
             return True
         dialog = Adw.AlertDialog(heading=f"Enregistrer « {d.title} » ?",
