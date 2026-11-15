@@ -115,15 +115,27 @@ d'application, et permet de les révoquer.
 
 ### 6. Depuis le bureau
 
-Réglages → **Serveurs CCS** → ajouter (adresse, identifiant, mot de passe, code). Les projets
-et conversations du serveur apparaissent dans la page Sessions ; le bouton serveur de cette
-page ouvre un projet distant, en chat ou en terminal. Le titre de l'onglet porte le nom du
-serveur. Réseau coupé : bandeau « Serveur injoignable, reconnexion… », reconnexion
-automatique, messages en attente dans la file.
+Réglages → **Serveurs CCS** → ajouter (adresse, identifiant, mot de passe, code). La page
+Sessions affiche alors une liste de machines : **Ce poste**, puis chaque serveur.
 
-Limites : un chat distant du bureau n'a pas le panneau Fichiers / Feuille de route (version
-web ou `ccs tui`) ; retirer un serveur du bureau ne révoque pas son jeton (version web,
-Réglages → Appareils).
+Sur un serveur :
+1. **En cours** : les chats qui tournent déjà là-bas ; « Rejoindre » les suit en direct
+   (fil rejoué, réponses, autorisations). Un chat déjà ouvert dans un onglet y est affiché.
+2. **Projets** : Chat ou Terminal ; « − » retire le projet de la liste (rien n'est effacé) ;
+   « + » en haut ajoute un dossier existant ou en crée un (`git init` en option, `~` accepté).
+3. **Conversations récentes** : Reprendre ; la corbeille la supprime (restaurable 30 jours,
+   « Annuler » juste après) ; l'icône corbeille du haut liste et restaure.
+
+Sur **Ce poste** : « Ajouter un projet » et « Corbeille » dans la barre, « Retirer de la
+liste… » dans le menu de « Nouvelle session », « Supprimer… » dans le menu « ⋮ ».
+
+L'onglet d'un chat distant porte le nom du serveur et a le panneau de gauche (Fichiers,
+Feuille de route, Git). Réseau coupé : bandeau « Serveur injoignable, reconnexion… »,
+reconnexion automatique, messages en attente dans la file ; après une mise à jour du serveur,
+l'onglet se rebranche seul.
+
+Limite : retirer un serveur du bureau ne révoque pas son jeton (version web, Réglages →
+Appareils).
 
 ## Profils
 

@@ -637,13 +637,26 @@ ccs serveur ajouter ccs.mawena.cloud   # appairage (mot de passe et code) ; ccs 
 ### Depuis le bureau
 
 Réglages → **Serveurs CCS** : ajouter le serveur (adresse, identifiant, mot de passe, code).
-Ses projets et conversations apparaissent alors dans la page Sessions, et le bouton serveur
-de cette page ouvre un projet distant (chat ou terminal). Réseau coupé : un bandeau
-l'indique, la reconnexion est automatique et les messages tapés attendent.
+La page Sessions a alors une liste de machines en haut à gauche : **Ce poste**, puis chaque
+serveur. Sur un serveur :
+- **En cours** : les chats qui tournent (lancés du téléphone, du web ou d'un autre PC) ;
+  « Rejoindre » ouvre l'onglet, rejoue le fil et le suit en direct, autorisations comprises ;
+- **Projets** : Chat, Terminal, « − » pour retirer de la liste ; « + » en haut pour en ajouter
+  un (dossier existant ou nouveau, `git init` en option) ;
+- **Conversations récentes** : Reprendre, ou la corbeille pour la supprimer ;
+- la corbeille du serveur (icône en haut) : restaurer pendant 30 jours.
+
+Sur **Ce poste**, mêmes outils : « Ajouter un projet » et « Corbeille » dans la barre,
+« Retirer de la liste… » dans le menu de « Nouvelle session », « Supprimer… » dans le menu
+« ⋮ » d'une conversation. Un onglet distant a le panneau de gauche (Fichiers, Feuille de route,
+Git) comme un onglet local.
+
+Réseau coupé : un bandeau l'indique, la reconnexion est automatique et les messages tapés
+attendent. Après un redémarrage du serveur (mise à jour), l'onglet se rebranche tout seul ;
+une autorisation donnée ailleurs (web, téléphone) se fige aussi au bureau.
 
 ### Limites à connaître
 
-- Dans le bureau, un chat distant n'a **pas** le panneau Fichiers / Feuille de route : utilise la version web ou `ccs tui`.
 - Retirer un serveur dans le bureau **ne révoque pas** son jeton sur le serveur : fais-le dans la version web, Réglages → Appareils.
 - La Git de la version web liste les derniers commits sans graphe ni avatars, et indexe par fichier et par bloc (pas par ligne) ; git flow, l'annulation d'un fichier et le `.gitignore` restent au bureau.
 
