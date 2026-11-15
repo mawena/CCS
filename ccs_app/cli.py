@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 import threading
 
@@ -141,6 +142,33 @@ def cmd_telephone(args):
     except Exception:  # python3-qrcode absent : le lien suffit
         pass
     print("  Essayer : ccs telephone essai")
+    return 0
+
+
+def cmd_auth_serve(_args):
+    """Service ccs-auth (root, lancé par systemd)."""
+    import asyncio
+    from .server import auth
+    if os.geteuid() != 0:
+        print("ccs auth-serve : réservé au service ccs-auth (root).", file=sys.stderr)
+        return 1
+    asyncio.run(auth.serve())
+    return 0
+
+
+def cmd_totp(args):
+    """Réinitialise le code de double authentification d'un utilisateur (root)."""
+    from .server import totp
+    if os.geteuid() != 0:
+        print("Il faut les droits root : sudo ccs totp reinitialiser <utilisateur>", file=sys.stderr)
+        return 1
+    try:
+        done = totp.reset(args.user)
+    except ValueError:
+        print(f"Nom d'utilisateur invalide : {args.user}", file=sys.stderr)
+        return 1
+    print(f"Code de {args.user} réinitialisé : il en choisira un nouveau à sa prochaine connexion."
+          if done else f"{args.user} n'avait pas de code enregistré.")
     return 0
 
 
@@ -909,6 +937,12 @@ def build_parser():
     gui.set_defaults(func=cmd_gui)
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
+    sub.add_parser("auth-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_auth_serve)
+    tp = sub.add_parser("totp", help="double authentification du serveur CCS (root)")
+    tp_sub = tp.add_subparsers(dest="action", required=True)
+    tr = tp_sub.add_parser("reinitialiser", help="efface le code d'un utilisateur")
+    tr.add_argument("user")
+    tp.set_defaults(func=cmd_totp)
     sub.add_parser("collect", help="collecte immédiate").set_defaults(func=cmd_collect)
     sub.add_parser("status", help="compte actif, meilleur compte, capacité").set_defaults(func=cmd_status)
     sub.add_parser("doctor", help="bilan de santé (code de sortie 1 au moindre problème)").set_defaults(

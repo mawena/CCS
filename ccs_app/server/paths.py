@@ -34,12 +34,18 @@ def auth_socket():
     return run_dir() / "auth.sock"
 
 
+def bridge_dir(user):
+    """Dossier du pont d'un utilisateur : à lui, groupe `ccs-web`, mode 2750 (le pont y crée
+    son socket, `ccs-web` peut s'y connecter mais pas lire la clé)."""
+    return run_dir() / "bridge" / check_user(user)
+
+
 def bridge_socket(user):
-    return run_dir() / "bridge" / f"{check_user(user)}.sock"
+    return bridge_dir(user) / "bridge.sock"
 
 
 def bridge_key(user):
-    return run_dir() / "bridge" / f"{check_user(user)}.key"
+    return bridge_dir(user) / "key"
 
 
 def totp_file(user):

@@ -120,8 +120,8 @@ class PathsTest(unittest.TestCase):
     def test_paths_follow_env(self):
         with mock.patch.dict(os.environ, {"CCS_SERVER_ROOT": "/tmp/racine"}):
             self.assertEqual(paths.auth_socket(), Path("/tmp/racine/run/ccs/auth.sock"))
-            self.assertEqual(paths.bridge_socket("alice"), Path("/tmp/racine/run/ccs/bridge/alice.sock"))
-            self.assertEqual(paths.bridge_key("alice"), Path("/tmp/racine/run/ccs/bridge/alice.key"))
+            self.assertEqual(paths.bridge_socket("alice"), Path("/tmp/racine/run/ccs/bridge/alice/bridge.sock"))
+            self.assertEqual(paths.bridge_key("alice"), Path("/tmp/racine/run/ccs/bridge/alice/key"))
             self.assertEqual(paths.totp_file("alice"), Path("/tmp/racine/var/lib/ccs/totp/alice"))
             self.assertEqual(paths.sessions_file(), Path("/tmp/racine/var/lib/ccs/sessions.json"))
             self.assertEqual(paths.web_config(), Path("/tmp/racine/etc/ccs/web.json"))
