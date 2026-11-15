@@ -3,6 +3,7 @@ vrais petits dépôts temporaires ; un dépôt nu local sert de distant, aucun r
 
 import os
 import subprocess
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -312,6 +313,23 @@ class GitBridgeTest(GitTestCase, unittest.IsolatedAsyncioTestCase):
         await self.call("git.hunk", path="l1.txt", index=0, action="stage", header=d["hunks"][0]["header"])
         staged = subprocess.run(["git", "-C", str(self.repo), "show", ":l1.txt"], capture_output=True).stdout
         self.assertEqual(staged, base.replace(b"caf\xe9", b"th\xe9"))
+
+
+    async def test_network_ops_use_their_own_executor(self):
+        """Fetch, pull et push (jusqu'à 300 s) n'occupent pas le pool commun d'asyncio.to_thread."""
+        seen = []
+
+        def record(root, **_kw):
+            seen.append(threading.current_thread().name)
+        commit_file(self.repo, "a.txt", "un\n")
+        with mock.patch.object(bridge_git.git_repo, "fetch", record), \
+                mock.patch.object(bridge_git.git_repo, "pull", record), \
+                mock.patch.object(bridge_git.git_repo, "push", record):
+            await self.call("git.fetch")
+            await self.call("git.pull")
+            await self.call("git.push")
+        self.assertEqual(len(seen), 3)
+        self.assertTrue(all(n.startswith("ccs-git-reseau") for n in seen), seen)
 
 
 if __name__ == "__main__":

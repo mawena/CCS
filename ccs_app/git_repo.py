@@ -35,15 +35,17 @@ def _env(extra=None):
     return env
 
 
-def run(repo, *args, input=None, env=None, timeout=60, ok_codes=(0,)):
+def run(repo, *args, input=None, env=None, timeout=60, ok_codes=(0,), detach=False):
     """`git -C repo args…` ; sortie standard en octets. Lève `GitError` si le code n'est pas
     dans `ok_codes` (ou si git est introuvable, ou trop long). Sans `input`, l'entrée standard
-    est vide : git ne lit jamais celle de l'appelant."""
+    est vide : git ne lit jamais celle de l'appelant. `detach` : nouvelle session, sans
+    terminal où une invite pourrait s'afficher."""
     argv = ["git", "-c", "core.quotePath=false", "-C", str(repo), *args]
     command = " ".join(["git", *args])
     feed = {"input": input} if input is not None else {"stdin": subprocess.DEVNULL}
     try:
-        proc = subprocess.run(argv, capture_output=True, env=_env(env), timeout=timeout, **feed)
+        proc = subprocess.run(argv, capture_output=True, env=_env(env), timeout=timeout,
+                              start_new_session=detach, **feed)
     except FileNotFoundError:
         raise GitError(command, "La commande git est introuvable.", 127) from None
     except subprocess.TimeoutExpired as e:
@@ -649,16 +651,35 @@ def ignore(repo, relpath):
         f.write(text + entry + "\n")
 
 
-# Jamais de demande de mot de passe : ni terminal, ni fenêtre, ni phrase de passe SSH.
-_NO_PROMPT = {"GIT_ASKPASS": "", "SSH_ASKPASS": "", "GIT_SSH_COMMAND": "ssh -o BatchMode=yes"}
+# Jamais de demande de mot de passe : ni terminal, ni fenêtre (askpass, gestionnaire
+# d'identifiants), ni phrase de passe SSH ; agent SSH et identifiants enregistrés marchent.
+_NO_PROMPT = {"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": "",
+              "SSH_ASKPASS_REQUIRE": "never", "GCM_INTERACTIVE": "never"}
+
+
+def _config(repo, key):
+    try:
+        return _text(run(repo, "config", "--get", key, ok_codes=(0, 1))).strip()
+    except GitError:
+        return ""
+
+
+def _network_env(repo):
+    """Variables de fetch, pull et push : sans invite ; SSH en BatchMode, sauf si l'utilisateur
+    ou le dépôt choisit déjà sa commande SSH (`core.sshCommand` n'est jamais écrasé)."""
+    env = dict(_NO_PROMPT)
+    if not (os.environ.get("GIT_SSH_COMMAND") or os.environ.get("GIT_SSH")
+            or _config(repo, "core.sshCommand")):
+        env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes"
+    return env
 
 
 def fetch(repo):
-    run(repo, "fetch", "--prune", "--quiet", env=_NO_PROMPT, timeout=120)
+    run(repo, "fetch", "--prune", "--quiet", env=_network_env(repo), timeout=120, detach=True)
 
 
 def pull(repo):
-    run(repo, "pull", "--ff-only", "--quiet", timeout=300)
+    run(repo, "pull", "--ff-only", "--quiet", env=_network_env(repo), timeout=300, detach=True)
 
 
 def _remote(repo):
@@ -679,7 +700,7 @@ def push(repo, force=False):
         args += ["--force-with-lease", "--force-if-includes"]
     if b.upstream is None:
         args += ["--set-upstream", _remote(repo), b.name]
-    run(repo, *args, timeout=300)
+    run(repo, *args, env=_network_env(repo), timeout=300, detach=True)
 
 
 FLOW_KINDS = ("feature", "release", "hotfix")

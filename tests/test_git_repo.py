@@ -493,5 +493,45 @@ class BytesAndEolTest(GitTestCase):
             self.assertEqual((self.repo / "f.txt").read_bytes(), want, f"annuler {kind}")
 
 
+class NetworkNoPromptTest(GitTestCase):
+    """Revue phase 14 : fetch, pull et push ne demandent jamais de mot de passe et gardent le
+    `core.sshCommand` du dépôt."""
+
+    def setUp(self):
+        super().setUp()
+        commit_file(self.repo, "a.txt", "a\n")
+        self.remote()
+
+    def network_calls(self):
+        """(env, options) de chaque git fetch / pull / push lancé par les trois fonctions."""
+        with mock.patch("subprocess.run", wraps=subprocess.run) as m:
+            git_repo.push(str(self.repo))
+            git_repo.fetch(str(self.repo))
+            git_repo.pull(str(self.repo))
+        calls = [c for c in m.call_args_list if c.args and c.args[0][5:6] in (["fetch"], ["pull"], ["push"])]
+        self.assertEqual([c.args[0][5] for c in calls], ["push", "fetch", "pull"])
+        return calls
+
+    def test_no_prompt_and_batch_ssh(self):
+        for c in self.network_calls():
+            env = c.kwargs["env"]
+            for k, v in (("GIT_TERMINAL_PROMPT", "0"), ("GIT_ASKPASS", ""), ("SSH_ASKPASS", ""),
+                         ("SSH_ASKPASS_REQUIRE", "never"), ("GCM_INTERACTIVE", "never"),
+                         ("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")):
+                self.assertEqual(env.get(k), v, (c.args[0][5], k))
+            self.assertTrue(c.kwargs.get("start_new_session"), c.args[0][5])   # aucun terminal
+
+    def test_repo_ssh_command_is_kept(self):
+        g(self.repo, "config", "core.sshCommand", "ssh -i /chemin/cle")
+        for c in self.network_calls():
+            self.assertIsNone(c.kwargs["env"].get("GIT_SSH_COMMAND"), c.args[0][5])
+            self.assertEqual(c.kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
+
+    def test_user_ssh_command_is_kept(self):
+        with mock.patch.dict(os.environ, {"GIT_SSH_COMMAND": "ssh -F /chemin/config"}):
+            for c in self.network_calls():
+                self.assertEqual(c.kwargs["env"]["GIT_SSH_COMMAND"], "ssh -F /chemin/config")
+
+
 if __name__ == "__main__":
     unittest.main()

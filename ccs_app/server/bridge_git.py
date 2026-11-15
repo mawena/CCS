@@ -3,11 +3,14 @@ fetch / pull / push, par `git_repo` ; chemins limités par `bridge_data.safe_pat
 
 Tout appel part de `cwd` (le dossier du projet) ; les commandes tournent à la racine du dépôt,
 dans un fil (`asyncio.to_thread`), une à la fois par dépôt. Fetch, pull et push ont le délai de
-`git_repo` (120 s, 300 s, 300 s) ; jamais de demande de mot de passe.
+`git_repo` (120 s, 300 s, 300 s), leur propre exécuteur (ils n'occupent jamais le pool commun)
+et jamais de demande de mot de passe.
 """
 
 import asyncio
+import concurrent.futures
 import dataclasses
+import functools
 import os
 
 from .. import git_repo
@@ -21,6 +24,7 @@ MAX_FILE_BYTES = 2 * 1024 * 1024    # fichier plus gros : diff non calculé (`to
 MAX_STATUS_FILES = 2000    # fichiers renvoyés par git.status au plus (`truncated` au-delà)
 PAGE = 50
 MAX_PATHS = 500
+NET_WORKERS = 4            # fetch / pull / push en même temps au plus (les autres attendent)
 
 
 def _git_error(e):
@@ -50,6 +54,7 @@ class GitApi:
     def __init__(self, bridge):
         self.bridge = bridge
         self._locks = {}
+        self._net = None
         bridge.add_handlers({
             "git.status": self.status, "git.log": self.log, "git.diff": self.diff,
             "git.stage": self.stage, "git.unstage": self.unstage, "git.hunk": self.hunk,
@@ -72,10 +77,16 @@ class GitApi:
     def _lock(self, root):
         return self._locks.setdefault(str(root), asyncio.Lock())
 
-    async def _run(self, root, fn, *args):
+    async def _run(self, root, fn, *args, network=False):
         async with self._lock(root):
             try:
-                return await asyncio.to_thread(fn, root, *args)
+                if not network:
+                    return await asyncio.to_thread(fn, root, *args)
+                if self._net is None:
+                    self._net = concurrent.futures.ThreadPoolExecutor(
+                        NET_WORKERS, thread_name_prefix="ccs-git-reseau")
+                return await asyncio.get_running_loop().run_in_executor(
+                    self._net, functools.partial(fn, root, *args))
             except git_repo.GitError as e:
                 raise _git_error(e) from None
 
@@ -198,16 +209,16 @@ class GitApi:
         return {"id": await self._run(root, lambda r: git_repo.commit(r, message, amend=amend))}
 
     async def fetch(self, _conn, params):
-        await self._run(await self._root(params), git_repo.fetch)
+        await self._run(await self._root(params), git_repo.fetch, network=True)
         return {}
 
     async def pull(self, _conn, params):
-        await self._run(await self._root(params), git_repo.pull)
+        await self._run(await self._root(params), git_repo.pull, network=True)
         return {}
 
     async def push(self, _conn, params):
         force = params.get("force", False)
         if not isinstance(force, bool):
             raise rpc.RpcError("invalide", "Option de push invalide.")
-        await self._run(await self._root(params), lambda r: git_repo.push(r, force=force))
+        await self._run(await self._root(params), lambda r: git_repo.push(r, force=force), network=True)
         return {}
