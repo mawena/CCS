@@ -116,6 +116,49 @@ def read(transcript):
     return snaps
 
 
+@dataclass
+class UserMessage:
+    message_id: str
+    text: str
+    time: str
+
+
+def _user_text(message):
+    content = message.get("content") if isinstance(message, dict) else None
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [b.get("text", "") for b in content
+                 if isinstance(b, dict) and b.get("type") == "text"]
+        return "\n".join(p for p in parts if p)
+    return ""
+
+
+def user_messages(transcript):
+    """Messages de l'utilisateur du journal, dans l'ordre (pas les résultats d'outils, ni les
+    entrées de méta-données) : le k-ième du fil de chat est le k-ième de cette liste."""
+    out = []
+    try:
+        with open(transcript, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if '"user"' not in line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(entry, dict) or entry.get("type") != "user" \
+                        or entry.get("isMeta") or entry.get("isSidechain") \
+                        or not isinstance(entry.get("uuid"), str):
+                    continue
+                text = _user_text(entry.get("message"))
+                if text.strip():
+                    out.append(UserMessage(entry["uuid"], text, str(entry.get("timestamp") or "")))
+    except OSError:
+        return []
+    return out
+
+
 def backup_text(session_id, backup):
     """Contenu d'une copie ; None si le fichier n'existait pas ou si la copie a disparu."""
     if backup.name is None:

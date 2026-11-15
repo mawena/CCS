@@ -22,7 +22,8 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
-from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, preview, roadmap, sessions, settings  # noqa: E402
+from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, file_history, preview  # noqa: E402
+from .. import roadmap, sessions, settings  # noqa: E402
 from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
@@ -109,7 +110,7 @@ class ChatTab(Gtk.Box):
         self.messages = MessageList(on_diff=lambda p, o, n: self.emit("show-diff", p, o, n),
                                     on_open=lambda p, line: self.emit("open-file", p, line),
                                     on_link=self.open_link, base_dir=launch.cwd,
-                                    on_older=self._show_older)
+                                    on_older=self._show_older, on_rewind=self.rewind_from_bubble)
         self.composer = Composer(base_dir=launch.cwd)
         self.bar = ChatBar()
         self.bar.set_options(self.options)
@@ -344,6 +345,73 @@ class ChatTab(Gtk.Box):
             return False
         self.state.sent_at = time.time()
         return True
+
+    # ---- revenir en arrière --------------------------------------------------------------
+
+    def journal_info(self):
+        """(journal, identifiant de session) de la conversation, ou None (pas encore écrite,
+        ou chat d'un serveur distant)."""
+        sid = getattr(self.engine, "session_id", None)
+        if not sid or self.remote:
+            return None
+        return sessions.transcript_path(self.launch.cwd, sid), sid
+
+    def rewind_from_bubble(self, row):
+        """Menu d'une bulle : le k-ième message du fil (compté depuis la fin) est le k-ième du
+        journal ; relu au moment du clic."""
+        info = self.journal_info()
+        k = self.messages.user_index_from_end(row)
+        if info is None or k is None:
+            self.show_notice("Retour en arrière impossible : conversation introuvable.")
+            return
+        in_thread(lambda: file_history.user_messages(info[0]), lambda users: self._rewind_at(users, k))
+
+    def _rewind_at(self, users, k):
+        if k >= len(users):
+            self.show_notice("Retour en arrière impossible : ce message n'est pas dans le journal.")
+            return
+        self.rewind_to(users[len(users) - 1 - k].message_id)
+
+    def rewind_to(self, message_id):
+        """Ouvre la confirmation du retour à l'état d'avant `message_id`."""
+        info = self.journal_info()
+        if info is None:
+            self.show_notice("Retour en arrière impossible : conversation introuvable.")
+            return
+        transcript, sid = info
+
+        def work():
+            snaps = file_history.read(transcript)
+            return None if snaps is None else file_history.rewind_plan(snaps, sid, message_id)
+
+        def show(plan):
+            if plan is None:
+                self.show_notice("Format de l'historique des fichiers inconnu : retour impossible "
+                                 "(voir « ccs doctor »).")
+            elif not plan:
+                self.show_notice("Aucun fichier à remettre : tout est déjà comme avant ce message.")
+            else:
+                self._confirm_rewind(plan, lambda: in_thread(
+                    lambda: file_history.apply(plan), lambda _r: self.show_notice(
+                        f"{len(plan)} fichier(s) remis comme avant ce message.")))
+        in_thread(work, show)
+
+    def _confirm_rewind(self, plan, on_yes):
+        """Liste les fichiers touchés ; ceux modifiés depuis par l'utilisateur sont marqués."""
+        lines = []
+        for step in plan:
+            mark = " (supprimé)" if step.content is None else ""
+            if step.user_edited:
+                mark += " — modifié depuis par toi"
+            lines.append(f"• {step.path}{mark}")
+        d = Adw.AlertDialog(heading="Revenir à avant ce message ?",
+                            body="Ces fichiers seront remis comme avant ce message :\n" + "\n".join(lines)
+                                 + "\nC'est définitif.")
+        d.add_response("cancel", "Annuler")
+        d.add_response("ok", "Revenir en arrière")
+        d.set_response_appearance("ok", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.connect("response", lambda _d, r: on_yes() if r == "ok" else None)
+        d.present(self.get_root())
 
     def do_roadmap_task(self, path, text, phase_title):
         """« Faire maintenant » depuis la feuille de route : demande la tâche à Claude. À la fin du

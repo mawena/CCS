@@ -67,6 +67,22 @@ class ReadTest(FileHistoryCase):
         self.assertIsNone(snaps[0].files[self.f("b.txt")].name)
 
 
+class UserMessagesTest(FileHistoryCase):
+    def test_user_messages_skip_tool_results(self):
+        self.write_journal(
+            json.dumps({"type": "user", "uuid": "u1", "timestamp": "t1",
+                        "message": {"role": "user", "content": "Bonjour"}}),
+            json.dumps({"type": "assistant", "uuid": "a1", "message": {"content": []}}),
+            json.dumps({"type": "user", "uuid": "r1", "message": {
+                "role": "user", "content": [{"type": "tool_result", "content": "ok"}]}}),
+            json.dumps({"type": "user", "uuid": "u2", "timestamp": "t2", "message": {
+                "role": "user", "content": [{"type": "text", "text": "Suite"}]}}),
+            json.dumps({"type": "user", "uuid": "m1", "isMeta": True,
+                        "message": {"role": "user", "content": "méta"}}))
+        got = fh.user_messages(self.journal)
+        self.assertEqual([(m.message_id, m.text) for m in got], [("u1", "Bonjour"), ("u2", "Suite")])
+
+
 class ChangesTest(FileHistoryCase):
     def test_changes_before_conversation(self):
         a, b, c = self.f("a.txt"), self.f("b.txt"), self.f("c.txt")

@@ -576,6 +576,43 @@ class ChatTabTest(HomeTestCase):
         path = self.roadmap_file()
         self.assertFalse(tab.do_roadmap_task(str(path), "inconnue", "Phase 1 — A"))
 
+    def test_rewind_from_bubble_menu(self):
+        from unittest import mock
+        from ccs_app import sessions
+        from ccs_app.gui.chat_messages import open_rewind_menu
+        tab, _owner = self.make(session_id="sess-rw", spawn=False)
+        win = Gtk.Window()
+        win.set_child(tab)
+        win.present()
+        self.addCleanup(win.destroy)
+        target = self.cwd / "a.txt"
+        target.write_text("après\n")
+        copies = Path(self.home) / ".claude" / "file-history" / "sess-rw"
+        copies.mkdir(parents=True)
+        (copies / "h@v1").write_bytes(b"avant\n")
+        journal = sessions.transcript_path(str(self.cwd), "sess-rw")
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text("\n".join([
+            json.dumps({"type": "user", "uuid": "u1", "message": {"role": "user", "content": "premier"}}),
+            json.dumps({"type": "user", "uuid": "u2", "message": {"role": "user", "content": "second"}}),
+            json.dumps({"type": "file-history-snapshot", "messageId": "u2", "isSnapshotUpdate": False,
+                        "snapshot": {"messageId": "u2", "timestamp": "t", "trackedFileBackups": {
+                            str(target): {"backupFileName": "h@v1", "version": 1, "backupTime": "t"}}}}),
+        ]) + "\n")
+        tab.messages.add_user("premier")
+        row = tab.messages.add_user("second")
+        self.assertEqual(tab.messages.user_index_from_end(row), 0)
+        asked = []
+        with mock.patch.object(tab, "_confirm_rewind", lambda plan, yes: asked.append((plan, yes))):
+            open_rewind_menu(row, tab.rewind_from_bubble)
+            row.rewind_button.emit("clicked")
+            self.assertTrue(pump_until(lambda: asked))
+        plan, yes = asked[0]
+        self.assertEqual([(s.path, s.content) for s in plan], [(str(target), b"avant\n")])
+        self.assertEqual(target.read_text(), "après\n")        # rien avant l'accord
+        yes()
+        self.assertTrue(pump_until(lambda: target.read_text() == "avant\n"))
+
 
 if __name__ == "__main__":
     unittest.main()

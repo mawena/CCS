@@ -778,14 +778,29 @@ class _Segment:
 
 # ---- la liste ------------------------------------------------------------------------------
 
+def open_rewind_menu(row, callback):
+    """Menu de la bulle d'un message de l'utilisateur : « Revenir à avant ce message »."""
+    pop = Gtk.Popover()
+    pop.set_parent(row)
+    button = Gtk.Button(label="Revenir à avant ce message", css_classes=["flat"])
+    button.connect("clicked", lambda btn, cb=callback: (btn.get_ancestor(Gtk.Popover).popdown(),
+                                                        cb(btn.get_ancestor(Gtk.Popover).get_parent())))
+    pop.set_child(button)
+    row.rewind_button = button
+    pop.popup()
+    return button
+
+
 class MessageList(Gtk.ScrolledWindow):
     """Fil de la conversation. Les widgets sont ajoutés en bas ; l'historique d'un chat rouvert
     se construit par paquets de 50 en remontant."""
 
-    def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None, on_older=None):
+    def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None, on_older=None,
+                 on_rewind=None):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True, hexpand=True)
         install_css()
         self.on_diff, self.on_open, self.on_link = on_diff, on_open, on_link
+        self.on_rewind = on_rewind    # on_rewind(ligne) : « Revenir à avant ce message »
         self.on_older = on_older
         self._dropped = 0         # lignes retirées du haut du fil par trim()
         self.base_dir = base_dir
@@ -904,7 +919,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._views.append(view)
         return view
 
-    def _user_widget(self, text, images=(), during=False):
+    def _user_widget(self, text, images=(), during=False, on_rewind=None):
         col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         for media_type, data in images or ():
             try:
@@ -938,6 +953,13 @@ class MessageList(Gtk.ScrolledWindow):
         if during:
             outer.append(Gtk.Label(label="envoyé pendant que Claude travaille", xalign=1,
                                    css_classes=["ccs-subtle", "caption"]))
+        outer.is_user = True
+        callback = on_rewind or self.on_rewind
+        if callback is not None:
+            # clic droit : menu de la bulle (sans référence à la ligne : pas de cycle)
+            click = Gtk.GestureClick(button=3)
+            click.connect("pressed", lambda g, _n, _x, _y, cb=callback: open_rewind_menu(g.get_widget(), cb))
+            outer.add_controller(click)
         return outer
 
     def _assistant_widget(self, text=""):
@@ -1006,9 +1028,19 @@ class MessageList(Gtk.ScrolledWindow):
             row.append(button)
         return row
 
-    def add_user(self, text, images=(), during=False):
-        self._append(self._user_widget(text, images, during))
+    def add_user(self, text, images=(), during=False, on_rewind=None):
+        row = self._append(self._user_widget(text, images, during, on_rewind))
         self.scroll_end_if_stuck()
+        return row
+
+    def user_index_from_end(self, row):
+        """Rang de la bulle `row` parmi les messages de l'utilisateur du fil, en comptant depuis
+        le dernier (0) ; None si elle n'y est plus."""
+        users = [w for w in self._content_rows() if getattr(w, "is_user", False)]
+        for i, w in enumerate(reversed(users)):
+            if w is row:
+                return i
+        return None
 
     def _segment(self, msg_id, create=True):
         seg = self._segs.get(msg_id)

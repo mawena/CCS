@@ -21,6 +21,7 @@ from .file_editor import FileEditor
 from .file_panel import FileTree
 from .git_changes import hscroll
 from .git_page import GitPage
+from .session_changes import ChangesPanel
 from .roadmap_view import RoadmapView
 
 ASK_CREATE_TEXT = ("Crée une feuille de route ROADMAP.md pour ce projet "
@@ -81,7 +82,16 @@ class SessionWorkspace(Gtk.Box):
         switcher = Gtk.StackSwitcher(stack=self.left_stack, halign=Gtk.Align.CENTER, margin_top=4,
                                      margin_bottom=4)
         self.left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
-        self.left.append(hscroll(switcher))
+        header = Gtk.Box(spacing=4)
+        header.append(hscroll(switcher))
+        header.get_first_child().set_hexpand(True)
+        self.changes_btn = Gtk.Button(icon_name="document-edit-symbolic", valign=Gtk.Align.CENTER,
+                                      tooltip_text="Changements de la session", margin_end=4)
+        self.changes_btn.add_css_class("flat")
+        self.changes_btn.connect("clicked", lambda _b: self.show_changes())
+        header.append(self.changes_btn)
+        self._changes_panel = None
+        self.left.append(header)
         self.left.append(self.left_stack)
         self.left.set_size_request(MIN_TREE, -1)
         self.left.set_visible(self._panes["tree_visible"])
@@ -353,6 +363,29 @@ class SessionWorkspace(Gtk.Box):
             self.roadmap.toast(f"File de nuit : {e}")
             return
         self.roadmap.toast("Tâche mise dans la file de nuit")
+
+    def show_changes(self):
+        """Volet « Changements » dans la zone de droite (fichiers modifiés par Claude, retour en
+        arrière) pour la conversation de ce chat."""
+        info = self.center.journal_info() if hasattr(self.center, "journal_info") else None
+        if info is None:
+            self.roadmap.toast("Pas encore de conversation à examiner")
+            return
+        panel = self._changes_panel
+        if panel is None or panel.get_parent() is None:
+            panel = ChangesPanel(*info)
+            panel.connect("show-diff", lambda _p, path, old, new: self.show_diff(path, old, new))
+            panel.connect("rewind-requested", self._on_rewind_requested)
+            self._changes_panel = panel
+        else:
+            panel.transcript, panel.session_id = info
+        panel.refresh()
+        self.reveal_editor()
+        self.editor.open_widget("changes", "Changements", panel)
+
+    def _on_rewind_requested(self, _panel, message_id):
+        if hasattr(self.center, "rewind_to"):
+            self.center.rewind_to(message_id)
 
     def _on_insert_reference(self, _tree, relpath):
         if hasattr(self.center, "insert_reference"):

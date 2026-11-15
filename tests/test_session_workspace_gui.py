@@ -30,6 +30,11 @@ if GTK:
         def insert_reference(self, relpath):
             self.refs.append(relpath)
 
+        journal = None
+
+        def journal_info(self):
+            return self.journal
+
         def do_roadmap_task(self, path, text, phase):
             self.done = getattr(self, "done", []) + [(path, text, phase)]
             return True
@@ -167,6 +172,17 @@ class SessionWorkspaceGuiTest(HomeTestCase):
         self.assertEqual(queued[0].when, "nuit")
         self.assertEqual(queued[0].message, roadmap.task_prompt(task, phase))
         self.assertEqual(queued[0].extra["roadmap"]["text"], "faire ça")
+
+    def test_changes_button_opens_panel_in_editor(self):
+        self.chat.journal = (self.project / "j.jsonl", "sess-x")
+        self.ws.changes_btn.emit("clicked")
+        self.assertTrue(self.ws.editor_box.get_visible())
+        self.assertTrue(spin(lambda: self.ws.editor.tab_view.get_n_pages() == 1))
+        self.assertIsNotNone(self.ws._changes_panel)
+
+    def test_changes_button_without_conversation_does_nothing(self):
+        self.ws.changes_btn.emit("clicked")
+        self.assertEqual(self.ws.editor.tab_view.get_n_pages(), 0)
 
     def test_diff_signal_opens_editor(self):
         self.chat.emit("show-diff", str(self.project / "a.py"), "un\n", "deux\n")
