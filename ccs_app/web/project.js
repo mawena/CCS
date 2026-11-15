@@ -36,13 +36,26 @@ export class ProjectScreen {
           el("button", { onclick: () => host.openTerm(cwd) }, "Terminal"))),
       tabs, this.body);
     container.append(this.node);
+    this.offs = [api.on("reconnected", () => this.reload())];
     this.select("conversations");
+  }
+
+  // Feuille de route et Git changent hors de cet écran (Claude, un terminal) : on les relit.
+  reload() {
+    this.roadmap?.load();
+    this.git?.refresh();
+    if (this.convBox && !this.panels.get("conversations")?.hidden) this.loadConversations();
   }
 
   select(id) {
     for (const [k, b] of this.buttons) { b.classList.toggle("active", k === id); b.setAttribute("aria-selected", String(k === id)); }
     for (const [k, p] of this.panels) p.hidden = k !== id;
-    if (this.panels.has(id)) { if (id === "conversations") this.loadConversations(); return; }
+    if (this.panels.has(id)) {
+      if (id === "conversations") this.loadConversations();
+      else if (id === "roadmap") this.roadmap?.load();
+      else if (id === "git") this.git?.refresh();
+      return;
+    }
     const holder = el("div", { class: `project-panel panel-${id}` });
     this.panels.set(id, holder);
     this.body.append(holder);
@@ -76,5 +89,5 @@ export class ProjectScreen {
     draw();
   }
 
-  destroy() { this.git?.destroy?.(); this.node.remove(); }
+  destroy() { for (const off of this.offs) off(); this.git?.destroy?.(); this.node.remove(); }
 }

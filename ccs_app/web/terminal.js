@@ -135,7 +135,14 @@ export class TerminalView {
       if (again) this.term.reset();
       this.term.write(r.output || "");
       this.resize();
-    } catch { this.term.write("\r\n[terminal fermé]\r\n"); this.exited = true; }
+    } catch (e) { if (e?.code !== "hors_ligne") this.gone(); }
+  }
+
+  // Le pont ne connaît plus ce terminal (il a redémarré) : on le dit une fois.
+  gone() {
+    if (this.exited) return;
+    this.term.write("\r\n[terminal fermé]\r\n");
+    this.exited = true;
   }
 
   resize() {

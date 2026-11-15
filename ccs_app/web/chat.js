@@ -15,6 +15,8 @@ import { RoadmapPanel } from "./roadmap.js";
 
 const RIGHTS = [["manual", "Demander"], ["acceptEdits", "Modifications acceptées"], ["plan", "Plan"],
   ["bypassPermissions", "Tout autoriser"]];
+// Maj+Tab : « Tout autoriser » n'en fait pas partie (comme au bureau, il demande une confirmation)
+const CYCLE_RIGHTS = ["manual", "acceptEdits", "plan"];
 const EFFORTS = [["", "Effort par défaut"], ["low", "Faible"], ["medium", "Moyen"], ["high", "Élevé"],
   ["xhigh", "Très élevé"], ["max", "Max"]];
 const DRAWER_TITLES = { files: "Fichiers", roadmap: "Feuille de route", git: "Git", changes: "Changements de la session" };
@@ -48,10 +50,17 @@ function readImage(file) {
 }
 
 export class ChatView {
-  constructor(root, api, { chatId, cwd, title, history }) {
+  // sessionId, options ({ model, effort, ultracode, rights }) : connus à l'ouverture ou au rattachement ;
+  // host : { resume(view) } appelé par « Reprendre la conversation » quand le pont a perdu ce chat.
+  constructor(root, api, { chatId, cwd, title, history, sessionId = null, options = null, host = null }) {
     this.api = api;
     this.chatId = chatId;
     this.cwd = cwd;
+    this.host = host;
+    this.sessionId = sessionId;
+    this.opts = null;            // dernières options connues du moteur (tout est renvoyé à chaque changement)
+    this.optionsReady = false;   // les listes sont remplies avec les vraies options : on peut envoyer
+    this.panels = new Map();     // volets : un panneau par type, gardé d'une ouverture à l'autre
     this.seq = 0;
     this.texts = new Map();      // msg_id → { node, text, timer }
     this.tools = new Map();      // tool_id → carte
@@ -66,7 +75,7 @@ export class ChatView {
     this.filesP = null;          // fichiers du projet (work.files)
     this.heavy = false;
     this.sending = false;
-    this.draftKey = `ccs-draft:${cwd}|${history || chatId}`;
+    this.draftKey = `ccs-draft:${cwd}|${chatId}`;      // identifiant du chat : unique d'un démarrage du pont à l'autre
 
     this.state = el("span", { class: "chat-state", hidden: true }, "");
     this.stopBtn = el("button", { type: "button", class: "small danger stop", hidden: true, onclick: () => this.call("chat.interrupt") }, "Arrêter");
@@ -81,6 +90,7 @@ export class ChatView {
     this.model = el("select", { "aria-label": "Modèle" }, el("option", { value: "" }, "Modèle par défaut"));
     this.context = el("span", { class: "subtle context" }, "");
     this.summary = el("span", { class: "opt-summary subtle" }, "");
+    for (const sel of [this.model, this.effort, this.rights]) sel.disabled = true;     // jusqu'aux vraies options
     this.bar = el("div", { class: "chat-bar", hidden: true }, this.model, this.effort, this.rights);
     this.optBtn = el("button", { type: "button", class: "small flat opt", "aria-expanded": "false", onclick: () => this.toggleOptions() },
       el("strong", {}, "Options"), this.summary);
@@ -144,6 +154,7 @@ export class ChatView {
     this.input.value = this.loadDraft();
     this.grow();
     this.updateSummary();
+    if (options) this.applyOptions(options);
     this.offs.push(api.on("chat.event", (d) => { if (d.chat_id === this.chatId) this.receive(d); }));
     this.offs.push(api.on("work.shell", (d) => { if (d.chat_id === this.chatId) this.shellDone(d); }));
     this.offs.push(api.on("reconnected", () => { this.attach(); this.pollShells(); }));
@@ -151,7 +162,7 @@ export class ChatView {
     this.attach();
   }
 
-  destroy() { for (const off of this.offs) off(); this.node.remove(); }
+  destroy() { this.dead = true; clearTimeout(this.ctxTimer); for (const off of this.offs) off(); for (const { panel } of this.panels.values()) panel.destroy?.(); this.node.remove(); }
 
   // ---- saisie -----------------------------------------------------------------------------
 
@@ -161,8 +172,8 @@ export class ChatView {
     if (e.key === "Enter" && !e.shiftKey && !phone) { e.preventDefault(); this.send(); return; }
     if (e.key === "Tab" && e.shiftKey) {            // comme au bureau : Maj+Tab change les droits
       e.preventDefault();
-      const order = RIGHTS.map(([v]) => v);
-      this.rights.value = order[(order.indexOf(this.rights.value) + 1) % order.length];
+      if (!this.optionsReady) return;
+      this.rights.value = CYCLE_RIGHTS[(CYCLE_RIGHTS.indexOf(this.rights.value) + 1) % CYCLE_RIGHTS.length];   // « Tout autoriser » (hors liste) repart de « Demander »
       this.pushOptions();
       toast(`Droits : ${this.rights.selectedOptions[0].textContent}`);
       return;
@@ -210,9 +221,32 @@ export class ChatView {
     this.summary.textContent = parts.filter(Boolean).join(" · ");
   }
 
+  // Remplit les trois listes avec les options réelles du chat (C2) ; n'écrase rien tant qu'elles manquent.
+  applyOptions(o) {
+    if (!o || typeof o !== "object") return;
+    this.opts = { ...(this.opts || {}), ...o };
+    const set = (sel, value) => {
+      const v = value || "";
+      if (v && ![...sel.options].some((op) => op.value === v)) sel.append(el("option", { value: v }, v));
+      sel.value = v;
+    };
+    if ("model" in o) set(this.model, o.model);
+    if ("effort" in o) set(this.effort, o.effort);
+    if ("rights" in o) set(this.rights, o.rights === "default" ? "manual" : o.rights || "manual");
+    this.markReady();
+  }
+
+  markReady() {
+    this.optionsReady = true;
+    for (const sel of [this.model, this.effort, this.rights]) sel.disabled = false;
+    this.updateSummary();
+  }
+
   pushOptions() {
     this.updateSummary();
-    this.call("chat.options", { options: { model: this.model.value || null, effort: this.effort.value || null, rights: this.rights.value } });
+    if (!this.optionsReady) return;
+    this.opts = { ...(this.opts || {}), model: this.model.value || null, effort: this.effort.value || null, rights: this.rights.value };
+    this.call("chat.options", { options: this.opts });
   }
 
   async addImages(files) {
@@ -351,29 +385,53 @@ export class ChatView {
     this.heavy = over;
   }
 
+  // « Contexte N % » n'arrive qu'en réponse à chat.context : on le demande après chaque tour.
+  requestContext() {
+    clearTimeout(this.ctxTimer);
+    this.ctxTimer = setTimeout(() => {
+      if (!this.dead && !this.stoppedCard) this.api.call("chat.context", { chat_id: this.chatId }).catch(() => {});
+    }, 400);
+  }
+
   // ---- volets ------------------------------------------------------------------------------
 
-  openDrawer(kind, { fresh = false } = {}) {
-    if (!fresh && !this.drawer.hidden && this.drawer.dataset.kind === kind) { this.drawer.hidden = true; return; }
-    clear(this.drawer);
+  // Un panneau par type, gardé d'une ouverture à l'autre : un fichier en cours d'édition ou un message de
+  // commit tapé survivent à la fermeture du volet. Les données (Git, feuille de route, changements) sont relues.
+  openDrawer(kind) {
+    if (!this.drawer.hidden && this.drawer.dataset.kind === kind) { this.drawer.hidden = true; return null; }
+    if (!this.drawerBody) {
+      this.drawerTitle = el("strong", { class: "grow" }, "");
+      this.drawerBody = el("div", { class: "drawer-body" });
+      this.drawer.append(el("div", { class: "drawer-head" }, this.drawerTitle,
+        el("button", { type: "button", class: "small flat", "aria-label": "Fermer", onclick: () => { this.drawer.hidden = true; } }, "×")),
+        this.drawerBody);
+    }
     this.drawer.dataset.kind = kind;
     this.drawer.hidden = false;
-    this.drawer.append(el("div", { class: "drawer-head" },
-      el("strong", { class: "grow" }, DRAWER_TITLES[kind]),
-      el("button", { type: "button", class: "small flat", "aria-label": "Fermer", onclick: () => { this.drawer.hidden = true; } }, "×")));
-    const body = el("div", { class: "drawer-body" });
-    this.drawer.append(body);
-    this.panel = null;
-    if (kind === "files") this.panel = new FilesPanel(body, this.api, this.cwd);
-    else if (kind === "git") new GitPanel(body, this.api, this.cwd);
-    else if (kind === "changes") new ChangesPanel(body, this.api, this.chatId, this.cwd, { openFile: (p) => this.openFile(p), changed: () => { this.filesP = null; } });
-    else new RoadmapPanel(body, this.api, this.cwd, { send: (text) => this.sendText(text) });
+    this.drawerTitle.textContent = DRAWER_TITLES[kind];
+    for (const [k, p] of this.panels) p.holder.hidden = k !== kind;
+    const known = this.panels.get(kind);
+    if (known) {
+      known.panel.refresh?.();
+      if (kind === "roadmap" || kind === "changes") known.panel.load();
+      return known.panel;
+    }
+    const holder = el("div", { class: `drawer-panel drawer-${kind}` });
+    this.drawerBody.append(holder);
+    let panel;
+    if (kind === "files") panel = new FilesPanel(holder, this.api, this.cwd);
+    else if (kind === "git") panel = new GitPanel(holder, this.api, this.cwd);
+    else if (kind === "changes") panel = new ChangesPanel(holder, this.api, this.chatId, this.cwd, { openFile: (p) => this.openFile(p), changed: () => { this.filesP = null; } });
+    else panel = new RoadmapPanel(holder, this.api, this.cwd, { send: (text) => this.sendText(text) });
+    this.panels.set(kind, { holder, panel });
+    return panel;
   }
 
   // Fichier d'un projet cité dans le chat ou dans un diff : volet Fichiers, à la ligne `line`.
-  openFile(path, { line = null } = {}) {
-    this.openDrawer("files", { fresh: true });
-    this.panel.openFile(path, { line });
+  async openFile(path, { line = null } = {}) {
+    let known = this.panels.get("files");
+    if (this.drawer.hidden || this.drawer.dataset.kind !== "files") { this.drawer.hidden = true; this.openDrawer("files"); known = this.panels.get("files"); }
+    return known.panel.openFile(path, { line });
   }
 
   async call(method, params = {}) {
@@ -383,11 +441,65 @@ export class ChatView {
     }
   }
 
-  async attach() {
-    const r = await this.call("chat.attach", { since: this.seq });
+  // Les rattachements se font l'un après l'autre (ouverture puis « reconnected » rapprochés).
+  attach() {
+    this.attachP = (this.attachP || Promise.resolve()).then(() => this.doAttach(), () => this.doAttach());
+    return this.attachP;
+  }
+
+  async fetchAttach(since) {
+    try { return await this.api.call("chat.attach", { chat_id: this.chatId, since }); } catch (e) {
+      if (e.code === "introuvable") this.gone();
+      else if (e.code !== "hors_ligne") this.notice(e.message, "error");
+      return null;
+    }
+  }
+
+  async doAttach() {
+    if (this.dead) return;
+    let r = await this.fetchAttach(this.seq);
     if (!r) return;
-    for (const item of r.events) this.receive(item);
+    // Le pont a redémarré (ou ce numéro ne lui dit rien) : on repart de zéro au lieu de jeter ses réponses.
+    const behind = typeof r.seq === "number" && r.seq < this.seq;
+    const other = Boolean(r.session_id && this.seenSession && r.session_id !== this.seenSession);   // vu par le pont, pas celui d'ouverture (une reprise peut en changer)
+    if (behind || other) {
+      this.resetThread(other);
+      r = await this.fetchAttach(0);
+      if (!r) return;
+    }
+    if (r.session_id) this.sessionId = this.seenSession = r.session_id;
+    if (r.options) this.applyOptions(r.options); else if (!this.optionsReady) this.markReady();   // ancien pont : comme avant
+    this.stoppedCard?.remove();
+    this.stoppedCard = null;
+    for (const item of r.events || []) this.receive(item);
     this.setState(r.state);
+  }
+
+  resetThread(newSession) {
+    this.seq = 0;
+    this.seenSession = null;
+    for (const e of this.texts.values()) clearTimeout(e.timer);
+    for (const m of [this.texts, this.tools, this.perms, this.shells, this.shellEarly]) m.clear();
+    clear(this.thread);
+    this.setTodos([]);
+    this.heavy = false;
+    this.context.textContent = "";
+    if (newSession) this.history = null;
+    else if (this.history) { const path = this.history.path; this.history = { path, loaded: 0, full: false }; this.loadHistory(path); }
+  }
+
+  // Le pont ne connaît plus ce chat (redémarrage après une mise à jour) : on le dit, et on propose de
+  // reprendre la conversation si on connaît son identifiant.
+  gone() {
+    if (this.stoppedCard) return;
+    this.setState("stopped");
+    const resume = this.sessionId && this.host?.resume
+      ? el("button", { type: "button", class: "primary", onclick: () => this.host.resume(this) }, "Reprendre la conversation") : null;
+    this.stoppedCard = this.append(el("div", { class: "notice warning stopped-card", role: "alert" },
+      el("strong", {}, "Ce chat s'est arrêté"),
+      el("span", {}, resume ? "Le pont a redémarré : Claude n'est plus lancé pour cette conversation." : "Le pont a redémarré et on ne retrouve pas sa conversation : ferme cet onglet."),
+      resume));
+    this.host?.stopped?.(this);
   }
 
   // ---- fil ----------------------------------------------------------------------------
@@ -521,13 +633,17 @@ export class ChatView {
     }
     const ev = item.event;
     switch (ev.type) {
-      case "Init": this.sessionId = ev.session_id; break;
-      case "Hello":
+      case "Init": this.sessionId = this.seenSession = ev.session_id; break;
+      case "Hello": {
+        const keep = this.model.value;
         clear(this.model).append(el("option", { value: "" }, "Modèle par défaut"),
           ...(ev.models || []).map((m) => (Array.isArray(m) ? el("option", { value: m[0] }, m[1] || m[0]) : el("option", { value: m }, m))));
+        if (keep && ![...this.model.options].some((o) => o.value === keep)) this.model.append(el("option", { value: keep }, keep));
+        this.model.value = keep;
         this.workP = null;
         this.updateSummary();
         break;
+      }
       case "Status":
         if (ev.permission_mode) { this.rights.value = ev.permission_mode === "default" ? "manual" : ev.permission_mode; this.updateSummary(); }
         break;
@@ -562,6 +678,7 @@ export class ChatView {
         for (const c of this.perms.values()) c.remove();
         this.perms.clear();
         this.filesP = null;          // Claude a pu créer ou supprimer des fichiers
+        this.requestContext();
         break;
       case "Compacted": this.notice("Conversation compactée."); break;
       case "Retrying": this.notice(`Nouvel essai (${ev.attempt}) dans ${Math.round(ev.delay_s)} s…`, "warning"); break;
