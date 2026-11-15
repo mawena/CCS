@@ -179,7 +179,7 @@ def cmd_bridge(args):
         except OSError:
             print("ccs bridge : clé du pont absente (lancé hors de ccs-auth ?)", file=sys.stderr)
             return 1
-    asyncio.run(bridge.Bridge(user, key, local=args.local).serve(sock))
+    asyncio.run(bridge.build(user, key, local=args.local).serve(sock))
     return 0
 
 

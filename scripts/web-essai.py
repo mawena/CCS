@@ -21,7 +21,7 @@ os.environ.setdefault("CCS_SERVER_ROOT", tempfile.mkdtemp(prefix="ccs-web-essai-
 import pyotp  # noqa: E402
 from aiohttp import web as aioweb  # noqa: E402
 
-from ccs_app.server import auth, bridge, bridge_chat, bridge_data, bridge_term, paths, rpc, totp, web  # noqa: E402
+from ccs_app.server import auth, bridge, paths, rpc, totp, web  # noqa: E402
 from ccs_app.server.tokens import TokenStore  # noqa: E402
 
 PORT = 8421
@@ -34,16 +34,15 @@ async def main(connected):
     bridges = {}
 
     async def start_bridge(u):
-        b = bridge.Bridge(u, paths.bridge_key(u).read_bytes(), start_daemon=False, install_claude=False)
+        chat = None
         if FAKE:
             tests = Path(__file__).resolve().parent.parent / "tests"
-            bridge_chat.ChatHub(b, claude=str(tests / "fake_claude.py"), environ={
+            chat = {"claude": str(tests / "fake_claude.py"), "environ": {
                 "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "FAKE_CLAUDE_DELAY_MS": "40",
-                "FAKE_CLAUDE_SCENARIO": str(tests / "fixtures" / "chat" / "permissions-allow-toujours.jsonl")})
-        else:
-            bridge_chat.ChatHub(b)
-        bridge_data.DataApi(b)
-        bridge_term.TermHub(b)
+                "FAKE_CLAUDE_SCENARIO": str(tests / "fixtures" / "chat" / "permissions-allow-toujours.jsonl")}}
+        # même assemblage que le service ccs-bridge@ (bridge.build), seul le faux claude change
+        b = bridge.build(u, paths.bridge_key(u).read_bytes(), start_daemon=False, install_claude=False,
+                         chat=chat)
         await b.start(paths.bridge_socket(u))
         bridges[u] = b
 
