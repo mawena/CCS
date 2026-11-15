@@ -298,9 +298,9 @@ Paquets, contrôles, documentation, release :
 - [x] 20. Trois paquets (`ccs`, `ccs-bureau`, `ccs-serveur`) et le métapaquet `ccs-all` qui les installe tous, services systemd, PAM, installation de Claude Code
 - [x] 21. `ccs doctor` pour le serveur
 - [x] 22. Revue de sécurité
-- [ ] 23. Documentation (README, guide, architecture, man, CHANGELOG, site)
-- [ ] 24. Essai réel sur le VPS (DNS et lnmp par Charles)
-- [ ] 25. Release mineure 0.11.0, trois `.deb`, release GitHub et dépôt APT, mise à jour du VPS
+- [x] 23. Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [x] 24. Essai réel sur le VPS (DNS et lnmp par Charles)
+- [x] 25. Release mineure 0.11.0, quatre `.deb`, release GitHub et dépôt APT, mise à jour du VPS
 
 ## Phase 14 — Travailler sans quitter CCS (0.12.0)
 

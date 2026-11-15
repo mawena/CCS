@@ -29,6 +29,7 @@ def healthy(**over):
         extensions=lambda: {"installed": True, "enabled": True},
         watcher=lambda: True,
         desktop=lambda: "ubuntu:GNOME",
+        bureau=lambda: True,
         tray_running=lambda: True,
         integration=lambda: {"statusline": "ccs", "hook": True},
         profiles=lambda: [profile("perso", active=True)],
@@ -205,6 +206,34 @@ class DesktopTest(unittest.TestCase):
     def test_vte(self):
         c = doctor.check_vte(healthy(vte=lambda: False))
         self.assertEqual((c.statut, c.commande), (AVERTISSEMENT, "sudo apt install gir1.2-vte-3.91"))
+
+
+class BureauAbsentTest(unittest.TestCase):
+    """Sans ccs-bureau (serveur, usage en terminal), l'interface graphique n'est pas vérifiée."""
+
+    GUI = ("Extension AppIndicator", "Indicateur", "Terminal intégré", "Chat graphique")
+
+    def test_server_without_bureau_skips_gui_checks(self):
+        checks = doctor.run_checks(healthy(bureau=lambda: False, desktop=lambda: "", watcher=lambda: False,
+                                           extensions=lambda: None, tray_running=lambda: False,
+                                           vte=lambda: False, gtksource=lambda: False))
+        names = [c.nom for c in checks]
+        for nom in self.GUI + ("Bureau",):
+            self.assertNotIn(nom, names)
+        self.assertEqual(doctor.exit_code(checks), 0)
+
+    def test_graphical_session_without_bureau_suggests_it(self):
+        checks = by_name(doctor.run_checks(healthy(bureau=lambda: False)))
+        c = checks["Bureau"]
+        self.assertEqual((c.statut, c.commande), (AVERTISSEMENT, "sudo apt install ccs-bureau"))
+        for nom in self.GUI:
+            self.assertNotIn(nom, checks)
+
+    def test_bureau_installed_probe(self):
+        self.assertTrue(doctor.bureau_installed())             # arbre des sources : ccs_app/gui présent
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "gui" / "__pycache__").mkdir(parents=True)   # reste après la désinstallation
+            self.assertFalse(doctor.bureau_installed(Path(d)))
 
 
 class SettingsCheckTest(unittest.TestCase):
@@ -503,7 +532,8 @@ class Phase11RealProbesTest(HomeTestCase):
 
 
 GOOD_SERVER = {"auth": "active", "web": "active", "listen": "127.0.0.1:8420", "origin": "https://ccs.mawena.cloud",
-               "listening": "local", "health": True, "cert_days": 80, "members": ["charles"]}
+               "listening": "local", "health": True, "cert_days": 80, "members": ["charles"],
+               "auth_group": "ccs-web"}
 
 
 class ServerChecksTest(unittest.TestCase):
@@ -540,6 +570,22 @@ class ServerChecksTest(unittest.TestCase):
     def test_certificate_soon_expired(self):
         c = self.server_checks(cert_days=5)["Serveur : certificat"]
         self.assertEqual(c.statut, doctor.AVERTISSEMENT)
+
+    def test_auth_socket_wrong_group_blocks_login(self):
+        c = self.server_checks(auth_group="root")["Serveur : connexion"]
+        self.assertEqual((c.statut, c.commande), (doctor.ERREUR, "sudo systemctl restart ccs-auth"))
+        self.assertIn("root", c.detail)
+        c = self.server_checks(auth_group=None)["Serveur : connexion"]
+        self.assertEqual(c.statut, doctor.ERREUR)
+
+    def test_socket_group_probe(self):
+        import grp
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "auth.sock"
+            self.assertIsNone(doctor.socket_group(f))
+            f.write_text("")
+            self.assertEqual(doctor.socket_group(f), grp.getgrgid(os.getgid()).gr_name)
 
     def test_empty_group_gives_adduser(self):
         c = self.server_checks(members=[])["Serveur : groupe ccs"]

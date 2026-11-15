@@ -109,6 +109,13 @@ class StaticTest(unittest.TestCase):
         self.assertIn("term.input", (WEB / "terminal.js").read_text(encoding="utf-8"))
         self.assertIn("ccs add", (WEB / "home.js").read_text(encoding="utf-8"))
 
+    def test_sessions_can_open_any_folder(self):
+        """Comme « Nouvelle session… » du bureau : un dossier encore sans conversation s'ouvre aussi
+        (chat ou terminal) ; l'onglet prend le chemin réel renvoyé par le pont (~ développé)."""
+        sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
+        self.assertIn('"aria-label": "Dossier du projet"', sessions)
+        self.assertIn("r.cwd", sessions)
+
     def test_settings_page_lists_devices(self):
         text = (WEB / "settings.js").read_text(encoding="utf-8")
         self.assertIn("/api/tokens", text)

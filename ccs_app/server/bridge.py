@@ -238,3 +238,15 @@ class Bridge:
         if not await asyncio.to_thread(work):
             raise rpc.RpcError("invalide", f"Valeur refusée pour {path}.")
         return {}
+
+
+def build(user, key, local=False, chat=None, **kwargs):
+    """Pont complet, tel que le lance `ccs bridge` : comptes et réglages, chats, données
+    (projets, fichiers, feuille de route, tâches, analyse) et terminaux. `chat` : options du
+    moteur de chat (`claude`, `environ`), pour le banc d'essai."""
+    from . import bridge_chat, bridge_data, bridge_term
+    b = Bridge(user, key, local=local, **kwargs)
+    bridge_chat.ChatHub(b, **(chat or {}))
+    bridge_data.DataApi(b)
+    bridge_term.TermHub(b)
+    return b

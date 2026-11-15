@@ -71,6 +71,17 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([x["chat_id"] for x in listing], [chat_id])
         self.assertEqual(listing[0]["cwd"], str(self.project))
 
+    async def test_open_expands_home_and_returns_real_cwd(self):
+        """Au téléphone, « ~/Repo/P » plutôt que le chemin complet ; le web reprend le vrai chemin."""
+        proj = Path(os.environ["HOME"]) / "Repo" / "P"
+        proj.mkdir(parents=True)
+        c = await self.client()
+        r = await c.call("chat.open", cwd="~/Repo/P/")
+        self.assertEqual(r["cwd"], str(proj))
+        self.assertEqual((await c.call("chat.list"))["chats"][0]["cwd"], str(proj))
+        with self.assertRaises(rpc.RpcError):
+            await c.call("chat.open", cwd="~/nulle-part")
+
     async def test_reconnect_replays_missed_events(self):
         c = await self.client()
         chat_id = (await c.call("chat.open", cwd=str(self.project)))["chat_id"]

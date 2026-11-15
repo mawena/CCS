@@ -496,9 +496,84 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Alerte de contexte lourd** | Une notification par session quand son contexte dépasse 150 000 tokens (réglable), avec le coût d'un message ; badge dans l'onglet Sessions et la ligne d'état. |
 | **Budget par projet** | Un budget hebdomadaire en équivalent dollars par projet, alertes à 80 % et 100 % ; ne bloque jamais rien (onglet Analyse, `ccs budget`). |
 | **Bilan de santé** | `ccs doctor` : service, versions, barre du haut, intégration, comptes, Claude Code, terminal ; une commande à copier par problème. |
+| **CCS sur un serveur** | Paquet `ccs-serveur` : version web pour le téléphone (`https://ccs.mawena.cloud`), `ccs tui` dans le terminal, bureau GTK connecté ; connexion par compte Ubuntu et double authentification (TOTP), appareil retenu 30 jours (voir plus haut). |
 | **Application** | « CCS » (GTK 4 / libadwaita) : trois onglets (Accueil, Sessions, Analyse), Réglages dans le menu ☰ ; thème clair ou sombre, couleur par compte. |
 | **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge, ⏸ en pause) ; au clic : comptes, recharges, prévisions, sessions, interrupteurs, pause, nouvelle version, journal des bascules, bilan de la semaine. |
 | **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre ; nouvelle version cherchée une fois par jour. |
+
+## CCS sur un serveur (VPS)
+
+CCS peut tourner sur un serveur pour piloter Claude Code sans être devant le PC :
+
+- **depuis le téléphone ou n'importe quel navigateur** : `https://ccs.mawena.cloud` (version web, installable sur l'écran d'accueil) ;
+- **depuis un terminal** : `ccs tui`, par SSH sur le serveur, ou `ccs tui --serveur <nom>` depuis un autre poste ;
+- **depuis l'application GTK du bureau**, connectée aux projets du serveur.
+
+Le même chat, les mêmes sessions : on les retrouve d'un écran à l'autre.
+
+### Installer sur le serveur
+
+```sh
+sudo apt install --no-install-recommends ccs-serveur   # sans les paquets graphiques
+sudo adduser <utilisateur> ccs                          # qui a le droit de se connecter
+```
+
+Seuls les comptes Ubuntu du groupe `ccs` peuvent se connecter ; `root` jamais. Le paquet
+installe Claude Code pour l'utilisateur qui installe (jamais en root ; s'il manque
+encore, le pont le reprend au premier démarrage). Les services `ccs-auth`, `ccs-web` et
+`ccs-bridge@` démarrent seuls.
+
+### Mettre en ligne
+
+1. DNS (Hostinger) : un enregistrement `A`, nom `ccs`, valeur l'adresse IP du serveur.
+2. Le site et le certificat, avec lnmp :
+
+   ```sh
+   sudo lnmp add --id ccs --domain mawena.cloud --sub ccs --proxy 8420
+   sudo lnmp add-ssl ccs
+   ```
+
+3. Si le domaine est autre, `/etc/ccs/web.json` : `listen` (par défaut `127.0.0.1:8420`,
+   à ne pas ouvrir sur Internet) et `origin` (l'adresse du site, par défaut
+   `https://ccs.mawena.cloud`). Puis `sudo systemctl restart ccs-web`.
+
+`ccs doctor` vérifie le tout : services, port, `/api/health`, certificat, groupe `ccs`, Claude Code.
+
+### Première connexion
+
+Ouvre le site, connecte-toi avec ton compte Ubuntu (mot de passe), puis scanne le **QR code**
+avec une application d'authentification (TOTP) et saisis le premier code. Ensuite : mot de
+passe puis code ; la case « Retenir cet appareil 30 jours » dispense du code, jamais du
+mot de passe.
+
+> **Fais cette première connexion juste après l'installation.** Tant qu'aucun code n'est
+> enregistré pour un utilisateur, le premier qui se connecte avec son mot de passe l'inscrit.
+
+Code perdu ou téléphone changé : `sudo ccs totp reinitialiser <utilisateur>` efface le code,
+le prochain accès affiche un nouveau QR code.
+
+### Depuis un terminal
+
+```sh
+ccs tui                        # sur le serveur (par SSH) : projets, chat, feuille de route, comptes
+ccs tui --serveur <nom>        # depuis un autre poste, serveur appairé
+ccs serveur ajouter ccs.mawena.cloud   # appairage (mot de passe et code) ; ccs serveur liste, ccs serveur retirer <nom>
+```
+
+### Depuis le bureau
+
+Réglages → **Serveurs CCS** : ajouter le serveur (adresse, identifiant, mot de passe, code).
+Ses projets et conversations apparaissent alors dans la page Sessions, et le bouton serveur
+de cette page ouvre un projet distant (chat ou terminal). Réseau coupé : un bandeau
+l'indique, la reconnexion est automatique et les messages tapés attendent.
+
+### Limites à connaître
+
+- Dans le bureau, un chat distant n'a **pas** le panneau Fichiers / Feuille de route : utilise la version web ou `ccs tui`.
+- Retirer un serveur dans le bureau **ne révoque pas** son jeton sur le serveur : fais-le dans la version web, Réglages → Appareils.
+- Les pages Git, « Faire une tâche » et le reste de la phase 14 ne sont pas encore dans la version web.
+
+Fonctionnement et sécurité : [docs/architecture.md](docs/architecture.md) ; pas à pas : [docs/utilisation.md](docs/utilisation.md).
 
 ## Installation
 
@@ -535,6 +610,14 @@ Clé de signature « CCS APT (mawena) » (ed25519), empreinte
 `D21A 5E7D B4D3 56E5 5961 F7C6 6568 A5B4 420A ACD2` ; le paquet installe
 lui-même sa source (`/etc/apt/sources.list.d/ccs.sources`) et sa clé
 (`/usr/share/keyrings/ccs.gpg`).
+
+### Les paquets
+
+CCS se découpe en quatre paquets : `ccs` (commandes, service, `ccs tui`), `ccs-bureau`
+(l'application GTK, recommandée par `ccs`), `ccs-serveur` (la version web et l'accès à
+distance, voir [CCS sur un serveur](#ccs-sur-un-serveur-vps)) et `ccs-all`, qui installe les
+trois. Sur un poste de bureau, `sudo apt install ccs-all` suffit ; sur un serveur,
+`sudo apt install --no-install-recommends ccs-serveur`.
 
 ### Après la première installation
 
@@ -626,6 +709,9 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs fiche <id>` | Fiche « où j'en étais » d'une conversation, sans appeler Claude |
 | `ccs sauvegarde [fichier]` / `ccs restaurer <fichier> [--oui]` | Sauvegarde chiffrée (gpg) des comptes et réglages / restauration (alias `backup`, `restore`) |
 | `ccs telephone [essai]` | Notifications sur le téléphone (ntfy) : état et lien d'abonnement, ou message d'essai (alias `ccs phone`) |
+| `ccs tui [--serveur <nom>]` | CCS en plein écran dans le terminal (ce poste, ou un serveur appairé) |
+| `ccs serveur ajouter <adresse> [--nom n]` / `liste` / `retirer <nom>` | Serveurs CCS distants : appairage (mot de passe et code), liste, retrait |
+| `sudo ccs totp reinitialiser <utilisateur>` | Sur le serveur : efface le code de double authentification d'un utilisateur |
 | `ccs gui` | Application graphique |
 
 Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisation.md).
