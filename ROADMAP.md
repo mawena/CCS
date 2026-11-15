@@ -305,6 +305,8 @@ Paquets, contrôles, documentation, release :
 ## Phase 14 — Travailler sans quitter CCS (0.12.0)
 
 Toutes les propositions retenues le 14/11, conception validée le 15/11. Passée en phase 14 le 15/11 : la partie VPS est prioritaire. Travail sur la branche `feature/phase14`.
+Le 15/11, après l'essai sur le VPS : la version web passe au niveau du bureau (tâches 18 à 30) ; ce
+qui concernait le VPS a été fait en phase 13 (0.11.0).
 Conception : `docs/superpowers/specs/2026-11-15-phase-13-design.md`.
 Plan détaillé (tests et interfaces de chaque tâche) : `docs/superpowers/plans/2026-11-15-phase-13.md`.
 
@@ -333,17 +335,22 @@ Le téléphone :
 - [x] 16. Réponses signées et à usage unique (`phone_reply`)
 - [x] 17. Autoriser ou Refuser depuis la notification, réglage « Montrer la commande »
 
-CCS sur le VPS (demandé le 15/11, propositions à choisir, conception à faire) :
-- [ ] **Serveur CCS** : service `ccs-web` installé par le paquet, qui écoute `127.0.0.1:8420` ; il fait tourner les chats sans interface (moteur de chat actuel) et expose une API HTTP + WebSocket (aiohttp, paquet Ubuntu) pour les projets, sessions, chats, autorisations, fichiers, feuille de route et git
-- [ ] **Comptes et connexion** : `ccs utilisateur ajouter <nom>` (mot de passe haché), page de connexion, cookie de session sécurisé, jeton pour le bureau et le terminal, essais limités ; double authentification (code TOTP) recommandée, car une session ouverte fait lancer des commandes sur le VPS
-- [ ] **Version web** : mêmes écrans que le bureau (Accueil, Sessions et chat, Fichiers / Feuille de route / Git, Analyse, Réglages), responsive (une colonne et panneaux en tiroirs sur le téléphone), installable sur l'écran d'accueil du téléphone
-- [ ] **Version terminal** : `ccs tui` plein écran (urwid, paquet Ubuntu) : projets, sessions, chat, autorisations, feuille de route ; en local sur le VPS (par SSH) ou contre un serveur distant
-- [ ] **Bureau connecté au VPS** : Réglages → Serveurs (adresse et identifiants) ; les projets du VPS apparaissent dans Sessions avec le nom du serveur, et le chat, les fichiers, la feuille de route et git se pilotent à distance depuis l'interface GTK
-- [ ] **Paquet pour serveur** : `apt install ccs` sur un VPS sans bureau installe et démarre le service web (interface GTK séparée ou en dépendance recommandée)
-- [ ] **Mise en ligne** (VPS relevé le 15/11 : Ubuntu 24.04, nginx + certbot déjà en place, port 8420 libre) : enregistrement DNS `A ccs → 84.46.246.202` chez Hostinger (DNS `dns-parking.com`), site créé par lnmp (le gestionnaire d'hôtes de Charles : `sudo lnmp add --id ccs --domain mawena.cloud --sub ccs --proxy 8420`, qui écrit le proxy avec WebSocket, puis le certificat Let's Encrypt par `lnmp add-ssl`) ; guide dans le README et contrôle par `ccs doctor`
-- [ ] **Le paquet installe Claude Code** (demandé le 15/11) : à l'installation du `.deb` (bureau comme VPS), s'il manque, l'installeur officiel (`curl -fsSL https://claude.ai/install.sh | bash`) est lancé pour l'utilisateur qui installe (`SUDO_USER` ou `PKEXEC_UID`), jamais en root ; sans réseau, l'installation du paquet n'échoue pas et CCS le reprend à son premier démarrage (service web compris) ; la connexion des comptes reste guidée par `ccs doctor` (le VPS n'a pas de navigateur : lien à ouvrir ailleurs)
+La version web au téléphone (choisie le 15/11 : ergonomie, fonctions du bureau et phase 14 au web) :
+- [ ] 18. Socle du web : toasts et cartes de confirmation à la place d'`alert()` et `confirm()`, chargements et états vides, adresses par chat (`#/sessions/<chat>`, bouton Retour du téléphone), pastille « attend ta réponse », une feuille de style par zone
+- [ ] 19. Chat au téléphone : plein écran, titre lisible, modèle / effort / droits repliés, boutons Fichiers, Feuille de route et Git avec libellés, saisie jamais perdue (brouillon par chat, texte remis si l'envoi échoue)
+- [ ] 20. Sessions : section « En cours » avec l'état de chaque chat, écran Projet (conversations, fichiers, feuille de route, Git, nouveau chat, terminal)
+- [ ] 21. Terminal au téléphone : barre de touches (Échap, Tab, Ctrl, flèches, `|`, `~`), coller
+- [ ] 22. Nouvelle session complète : dossiers récents et dépôts du disque, choix du compte, du modèle et des droits
+- [ ] 23. Conversations : voir plus, aperçu sans ouvrir, renommer, coût
+- [ ] 24. Chat : modifications de Claude en diff lisible, fichier cité ouvert à la ligne, complétion `@fichier` et `/commandes`
+- [ ] 25. Fichiers : aperçu des images, recherche, ouverture à une ligne ; feuille de route sans perte du défilement
+- [ ] 26. Accueil : rythme et prévision des comptes, bilan de santé, tâches de nuit (nouvelle tâche, journal, reprise, suppression)
+- [ ] 27. Réglages : téléphone (ntfy, QR code, essai), réglages du bureau qui manquent (dont `git.*` et « Montrer la commande ») ; Analyse sur d'autres périodes
+- [ ] 28. Phase 14 au web, chat : messages enregistrés, « Compacter », commande `!`, chercher dans le fil
+- [ ] 29. Phase 14 au web : volet « Changements de la session » et « Faire une tâche » de la feuille de route
+- [ ] 30. Phase 14 au web : Git (état, diff, indexation, commit, fetch / pull / push)
 
 Fin de phase :
-- [ ] 18. Documentation (README, guide, architecture, man, CHANGELOG, site)
-- [ ] 19. Essai réel par Charles et corrections
-- [ ] 20. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT
+- [ ] 31. Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [ ] 32. Essai réel par Charles (bureau et VPS) et corrections
+- [ ] 33. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT
