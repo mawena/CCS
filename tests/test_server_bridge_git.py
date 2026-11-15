@@ -274,5 +274,24 @@ class GitBridgeTest(GitTestCase, unittest.IsolatedAsyncioTestCase):
         self.assertFalse((await self.call("git.status"))["truncated"])
 
 
+    async def test_hunk_at_end_of_file_without_newline(self):
+        commit_file(self.repo, "a.txt", "un\ndeux")
+        (self.repo / "a.txt").write_text("un\ntrois")
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        await self.call("git.hunk", path="a.txt", index=0, action="stage", header=d["hunks"][0]["header"])
+        self.assertEqual(g(self.repo, "show", ":a.txt"), "un\ntrois")
+
+    async def test_hunk_keeps_non_utf8_bytes(self):
+        base = b"".join(b"ligne %d\n" % i for i in range(1, 21)) + b"caf\xe9\n"
+        (self.repo / "l1.txt").write_bytes(base)
+        g(self.repo, "add", "l1.txt")
+        g(self.repo, "commit", "-q", "-m", "latin-1")
+        (self.repo / "l1.txt").write_bytes(base.replace(b"caf\xe9", b"th\xe9"))
+        d = (await self.call("git.diff", path="l1.txt", staged=False))["diff"]
+        await self.call("git.hunk", path="l1.txt", index=0, action="stage", header=d["hunks"][0]["header"])
+        staged = subprocess.run(["git", "-C", str(self.repo), "show", ":l1.txt"], capture_output=True).stdout
+        self.assertEqual(staged, base.replace(b"caf\xe9", b"th\xe9"))
+
+
 if __name__ == "__main__":
     unittest.main()

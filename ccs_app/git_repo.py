@@ -225,6 +225,8 @@ class DiffLine:
     text: str
     old_no: object
     new_no: object
+    raw: bytes = None     # octets de la ligne tels que git les donne (correctifs : jamais `text`)
+    no_eol: bool = False  # suivie de « \ No newline at end of file »
 
 
 @dataclass
@@ -305,16 +307,17 @@ def parse_diff(raw):
         if hunk is not None and line[:1] in (b" ", b"+", b"-") and not (
                 line.startswith(b"--- ") and hunk_done(hunk, old_no, new_no)):
             kind = line[:1].decode()
-            text = _text(line[1:])
+            raw = line[1:]
+            text = _text(raw)
             if kind == " ":
-                hunk.lines.append(DiffLine(" ", text, old_no, new_no))
+                hunk.lines.append(DiffLine(" ", text, old_no, new_no, raw))
                 old_no += 1
                 new_no += 1
             elif kind == "-":
-                hunk.lines.append(DiffLine("-", text, old_no, None))
+                hunk.lines.append(DiffLine("-", text, old_no, None, raw))
                 old_no += 1
             else:
-                hunk.lines.append(DiffLine("+", text, None, new_no))
+                hunk.lines.append(DiffLine("+", text, None, new_no, raw))
                 new_no += 1
             continue
         if line.startswith(b"@@"):
@@ -326,8 +329,10 @@ def parse_diff(raw):
                 cur.hunks.append(hunk)
                 old_no, new_no = int(o), int(n)
             continue
-        if line.startswith(b"\\"):
-            continue            # « \ No newline at end of file »
+        if line.startswith(b"\\"):        # « \ No newline at end of file » : ligne précédente
+            if hunk is not None and hunk.lines:
+                hunk.lines[-1].no_eol = True
+            continue
         hunk = None
         if line.startswith(b"new file mode"):
             cur.new_file = True
@@ -518,8 +523,34 @@ def _quote(path):
     return '"' + "".join(out) + '"'
 
 
+_NO_EOL = b"\\ No newline at end of file"
+
+
+def _fix_eol(lines):
+    """`lines` : [type, octets, sans fin de ligne] d'un bloc retouché. De chaque côté du
+    correctif (ancien : contexte et `-`, nouveau : contexte et `+`), seule la dernière ligne
+    peut manquer de saut de ligne : une ligne qui n'est plus la dernière de son côté le
+    retrouve ; une ligne de contexte qui ne l'est plus que d'un côté est dédoublée (`-` et
+    `+`, chacune avec sa fin)."""
+    out = []
+    for i, (kind, raw, no_eol) in enumerate(lines):
+        if no_eol:
+            later = lines[i + 1:]
+            more_old = any(k in " -" for k, _r, _e in later)
+            more_new = any(k in " +" for k, _r, _e in later)
+            if kind == " " and more_old != more_new:
+                out += [["-", raw, not more_old], ["+", raw, not more_new]]
+                continue
+            if (kind == "-" and more_old) or (kind == "+" and more_new) or (more_old and more_new):
+                no_eol = False
+        out.append([kind, raw, no_eol])
+    return out
+
+
 def patch_for(fd, keep, reverse=False):
-    """Correctif ne gardant que les lignes `(bloc, ligne)` de `keep`.
+    """Correctif ne gardant que les lignes `(bloc, ligne)` de `keep`, en octets : les lignes
+    sont recopiées telles que git les a données (fichier qui n'est pas en UTF-8 intact) et
+    « \\ No newline at end of file » est réécrit après la ligne qu'il suit.
 
     Sens direct (indexer) : un `+` non choisi disparaît, un `-` non choisi devient du
     contexte. Sens inverse (`reverse`, appliqué avec `-R` : désindexer, annuler) : un `-` non
@@ -533,17 +564,19 @@ def patch_for(fd, keep, reverse=False):
         lines, chosen = [], False
         for li, l in enumerate(h.lines):
             picked = (hi, li) in keep
+            raw = l.raw if l.raw is not None else l.text.encode("utf-8")
             if l.kind == " ":
-                lines.append(" " + l.text)
+                lines.append([" ", raw, l.no_eol])
             elif picked:
-                lines.append(l.kind + l.text)
+                lines.append([l.kind, raw, l.no_eol])
                 chosen = True
             elif (l.kind == "-") != reverse:
-                lines.append(" " + l.text)      # garde la ligne telle qu'elle est des deux côtés
+                lines.append([" ", raw, l.no_eol])     # garde la ligne telle qu'elle est des deux côtés
         if not chosen:
             continue
-        old_len = sum(1 for x in lines if x[0] in " -")
-        new_len = sum(1 for x in lines if x[0] in " +")
+        lines = _fix_eol(lines)
+        old_len = sum(1 for k, _r, _e in lines if k in " -")
+        new_len = sum(1 for k, _r, _e in lines if k in " +")
         if reverse:
             new_start = h.new_start
             old_start = new_start - delta
@@ -551,8 +584,11 @@ def patch_for(fd, keep, reverse=False):
             old_start = h.old_start
             new_start = old_start + delta
         delta += new_len - old_len
-        body.append(f"@@ -{old_start},{old_len} +{new_start},{new_len} @@")
-        body.extend(lines)
+        body.append(f"@@ -{old_start},{old_len} +{new_start},{new_len} @@".encode())
+        for kind, raw, no_eol in lines:
+            body.append(kind.encode() + raw)
+            if no_eol:
+                body.append(_NO_EOL)
     if not body:
         return b""
     head = [f"diff --git {_quote('a/' + old)} {_quote('b/' + fd.path)}"]
@@ -561,7 +597,7 @@ def patch_for(fd, keep, reverse=False):
     if fd.deleted:
         head.append("deleted file mode 100644")
     head += [f"--- {a}", f"+++ {b}"]
-    return ("\n".join(head + body) + "\n").encode("utf-8")
+    return b"\n".join([h.encode("utf-8") for h in head] + body) + b"\n"
 
 
 def _apply(repo, patch, *flags):

@@ -417,5 +417,81 @@ class SafetyAndLimitsTest(GitTestCase):
         self.assertEqual(len(fd.hunks), 1)
 
 
+def commit_bytes(repo, name, data):
+    (Path(repo) / name).write_bytes(data)
+    g(repo, "add", "--", name)
+    g(repo, "commit", "-q", "-m", f"ajoute {name}")
+
+
+def index_bytes(repo, name):
+    return subprocess.run(["git", "-C", str(repo), "show", f":{name}"], capture_output=True,
+                          check=True).stdout
+
+
+def kind_keys(fd, kind):
+    return {(hi, li) for hi, h in enumerate(fd.hunks) for li, l in enumerate(h.lines) if l.kind == kind}
+
+
+class BytesAndEolTest(GitTestCase):
+    """Revue phase 14 : indexer un bloc garde les octets d'un fichier qui n'est pas en UTF-8 et
+    la fin d'un fichier sans saut de ligne final."""
+
+    def test_stage_hunk_keeps_latin1_bytes(self):
+        base = [b"ligne %d\n" % i for i in range(1, 31)]
+        base[3] = b"caf\xe9 cr\xe8me\n"                 # contexte en Latin-1
+        commit_bytes(self.repo, "l1.txt", b"".join(base))
+        lines = list(base)
+        lines[1] = b"d\xe9but chang\xe9\n"               # bloc 0 : ligne en Latin-1
+        lines[25] = b"fin chang\xe9e\n"                  # bloc 1
+        (self.repo / "l1.txt").write_bytes(b"".join(lines))
+        fd = git_repo.diff(str(self.repo), "l1.txt", staged=False)
+        self.assertEqual(len(fd.hunks), 2)
+        git_repo.stage_lines(str(self.repo), fd, hunk_keys(fd, 0))
+        want = list(base)
+        want[1] = lines[1]
+        self.assertEqual(index_bytes(self.repo, "l1.txt"), b"".join(want))
+        fd = git_repo.diff(str(self.repo), "l1.txt", staged=True)
+        git_repo.unstage_lines(str(self.repo), fd, hunk_keys(fd, 0))
+        self.assertEqual(index_bytes(self.repo, "l1.txt"), b"".join(base))
+
+    def test_hunk_at_end_without_final_newline(self):
+        commit_bytes(self.repo, "f.txt", b"a\nb")
+        (self.repo / "f.txt").write_bytes(b"a\nc")
+        fd = git_repo.diff(str(self.repo), "f.txt", staged=False)
+        self.assertEqual([(l.kind, l.no_eol) for l in fd.hunks[0].lines],
+                         [(" ", False), ("-", True), ("+", True)])
+        git_repo.stage_lines(str(self.repo), fd, hunk_keys(fd, 0))
+        self.assertEqual(index_bytes(self.repo, "f.txt"), b"a\nc")
+        fd = git_repo.diff(str(self.repo), "f.txt", staged=True)
+        git_repo.unstage_lines(str(self.repo), fd, hunk_keys(fd, 0))
+        self.assertEqual(index_bytes(self.repo, "f.txt"), b"a\nb")
+        fd = git_repo.diff(str(self.repo), "f.txt", staged=False)
+        git_repo.discard_lines(str(self.repo), fd, hunk_keys(fd, 0))
+        self.assertEqual((self.repo / "f.txt").read_bytes(), b"a\nb")
+
+    def test_single_lines_around_missing_final_newline(self):
+        """Choix ligne à ligne (bureau) près d'une fin sans saut de ligne : correctif valable,
+        contenu exact."""
+        repo = str(self.repo)
+        commit_bytes(self.repo, "f.txt", b"a\nb")
+        (self.repo / "f.txt").write_bytes(b"a\nc")
+        for kind, want in (("+", b"a\nb\nc"), ("-", b"a\n")):
+            g(self.repo, "reset", "-q")
+            fd = git_repo.diff(repo, "f.txt", staged=False)
+            git_repo.stage_lines(repo, fd, kind_keys(fd, kind))
+            self.assertEqual(index_bytes(self.repo, "f.txt"), want, f"indexer {kind}")
+        for kind, want in (("-", b"a\nb\nc"), ("+", b"a\n")):
+            g(self.repo, "add", "f.txt")
+            fd = git_repo.diff(repo, "f.txt", staged=True)
+            git_repo.unstage_lines(repo, fd, kind_keys(fd, kind))
+            self.assertEqual(index_bytes(self.repo, "f.txt"), want, f"désindexer {kind}")
+        for kind, want in (("+", b"a\n"), ("-", b"a\nb\nc")):
+            g(self.repo, "reset", "-q")
+            (self.repo / "f.txt").write_bytes(b"a\nc")
+            fd = git_repo.diff(repo, "f.txt", staged=False)
+            git_repo.discard_lines(repo, fd, kind_keys(fd, kind))
+            self.assertEqual((self.repo / "f.txt").read_bytes(), want, f"annuler {kind}")
+
+
 if __name__ == "__main__":
     unittest.main()
