@@ -290,3 +290,17 @@ process.exit(0);
         self.assertIn("done: want", (WEB / "roadmap.js").read_text())
         self.assertIn("header: h.header", (WEB / "git.js").read_text())
         self.assertIn("if (r.ok)", (WEB / "sw.js").read_text())
+
+
+class WideScreenTest(unittest.TestCase):
+    def test_thread_and_composer_share_centered_column(self):
+        """Grand écran : le fil et la zone de saisie forment une même colonne centrée (pas de fil
+        calé à gauche avec les messages de l'utilisateur tout à droite de l'écran)."""
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        self.assertRegex(css, r"--chat-column:\s*\d+px")
+        col = r"padding-inline:\s*max\(\d+px,\s*calc\(\(100% - var\(--chat-column\)\) / 2\)\)"
+        for sel in (".thread", ".composer"):
+            rules = re.findall(r"(?:^|\n)([^{}\n]*)\{([^}]*)\}", css)
+            hit = [body for head, body in rules
+                   if sel in [s.strip() for s in head.split(",")] and re.search(col, body)]
+            self.assertTrue(hit, f"{sel} : pas de colonne centrée")
