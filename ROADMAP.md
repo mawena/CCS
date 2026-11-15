@@ -376,10 +376,10 @@ Pont :
 - [ ] 2. Liste des projets : projets ajoutés sans conversation inclus, projets retirés exclus
 - [ ] 3. `conversation.trash` (refusé si le chat tourne), `conversation.trash_list`, `conversation.restore`, purge après 30 jours par le service de fond
 
-Bureau (Projets des serveurs) :
-- [ ] 4. « En cours sur le serveur » (`chat.list`) : rejoindre un chat qui tourne, fil rejoué et suivi en direct, demandes de permission comprises
-- [ ] 5. Un onglet distant se branche dès l'ouverture (plus seulement au premier message envoyé)
-- [ ] 6. Ajouter un projet, retirer un projet, supprimer une conversation, corbeille du serveur
+Bureau (page Sessions) :
+- [ ] 4. Page Sessions par machine : « Ce poste » puis chaque serveur appairé, chacun avec ses sessions en cours, ses projets et ses conversations (état de connexion visible, serveur injoignable sans bloquer le reste)
+- [ ] 5. Rejoindre un chat qui tourne sur un serveur (`chat.list`) : fil rejoué et suivi en direct, demandes de permission comprises ; un onglet distant se branche dès l'ouverture
+- [ ] 6. Ajouter un projet, retirer un projet, supprimer une conversation, corbeille, sur ce poste comme sur un serveur
 
 Web :
 - [ ] 7. Ajouter / retirer un projet, supprimer une conversation, corbeille
