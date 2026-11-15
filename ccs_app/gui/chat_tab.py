@@ -23,7 +23,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, file_history, preview  # noqa: E402
-from .. import roadmap, saved_messages, sessions, settings  # noqa: E402
+from .. import roadmap, saved_messages, sessions, settings, shell_command  # noqa: E402
 from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
@@ -137,6 +137,8 @@ class ChatTab(Gtk.Box):
         self.todos_bar = TodosBar()           # liste de tâches épinglée au-dessus de la saisie
         self.offline_banner = Adw.Banner(title="Serveur injoignable : reconnexion…", revealed=False)
         self._roadmap_task = None             # (chemin, texte, phase) de la tâche lancée d'un clic
+        self._shells = []                     # commandes `!` en cours (ShellRun)
+        self._shell_notes = []                # sorties à joindre au prochain message
         self._context_heavy = False           # contexte au-dessus du seuil (alerte déjà montrée)
         self.task_banner = Gtk.Box(spacing=8, visible=False, margin_start=12, margin_end=12,
                                    margin_top=4, margin_bottom=4)
@@ -247,6 +249,8 @@ class ChatTab(Gtk.Box):
         """Ferme le chat : `claude` s'arrête (stdin fermé, puis SIGTERM, puis SIGKILL), la
         conversation est déjà enregistrée par Claude Code."""
         self._closed = True
+        for run in list(self._shells):
+            run.stop()
         engine = self.engine
         threading.Thread(target=engine.stop, daemon=True).start()
 
@@ -324,17 +328,42 @@ class ChatTab(Gtk.Box):
         """Entrée dans la zone de saisie : envoi tout de suite, même pendant que Claude travaille
         (la CLI le lit en cours de route ou juste après ; la page n'a rien à mettre en file)."""
         self.state.typed_at = time.time()
-        if not self._send(text, images):
+        command = text.strip()[1:].strip() if text.lstrip().startswith("!") and not images else ""
+        if command:
+            self._run_shell(command)        # une commande `!` ne part pas chez Claude
+            return
+        prefix = "".join(self._shell_notes)
+        if not self._send(text, images, prefix=prefix):
             self.composer.restore(text, images)
+        else:
+            self._shell_notes = []
 
-    def _send(self, text, images=()):
+    def _run_shell(self, command):
+        """Commande `!` : lancée dans le dossier du projet, montrée dans une carte ; sa sortie
+        est ajoutée en tête du prochain message envoyé à Claude."""
+        card = self.messages.add_shell_card(command)
+        run = shell_command.ShellRun(command, self.launch.cwd,
+                                     dispatch=lambda f: GLib.idle_add(lambda: (f(), False)[1]))
+        self._shells.append(run)
+
+        def done(code, text, truncated):
+            if run in self._shells:
+                self._shells.remove(run)
+            card.set_output(code, text, truncated)
+            shown = text + ("\n[sortie tronquée]" if truncated else "")
+            self._shell_notes.append(
+                f"J'ai lancé `{command}` dans le dossier du projet (code {code}) :\n```\n{shown}\n```\n\n")
+        card.stop_button.connect("clicked", lambda _b: run.stop())
+        run.start(done)
+
+    def _send(self, text, images=(), prefix=""):
         """Envoie au moteur et montre la bulle ; faux si Claude ne démarre pas. Pendant un tour,
         le message part aussi tout de suite (bulle marquée « envoyé pendant que Claude travaille »)."""
         during = self._engine_busy()
         self.todos_bar.new_turn()
         if not during and not self.state.running:
             self.spawn()
-        if not self.engine.send(text, images):
+        if not self.engine.send(prefix + text, images):
             if not self._engine_busy():
                 self._start_failed("Claude Code n'a pas pu démarrer.")
             return False

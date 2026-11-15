@@ -1040,6 +1040,40 @@ class MessageList(Gtk.ScrolledWindow):
             row.append(button)
         return row
 
+    def add_shell_card(self, command):
+        """Carte d'une commande `!` : la commande, « Arrêter » tant qu'elle tourne, puis sa sortie
+        (`card.set_output(code, texte, tronquée)`)."""
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, css_classes=["ccs-tool-card"])
+        head = Gtk.Box(spacing=8)
+        head.append(Gtk.Spinner(spinning=True))
+        head.append(Gtk.Label(label="$ " + command, xalign=0, hexpand=True, selectable=True,
+                              ellipsize=Pango.EllipsizeMode.END, css_classes=["monospace"]))
+        card.status = Gtk.Label(label="", css_classes=["ccs-subtle"])
+        card.stop_button = Gtk.Button(label="Arrêter", css_classes=["flat", "destructive-action"])
+        head.append(card.status)
+        head.append(card.stop_button)
+        card.append(head)
+        card.output = Gtk.Label(xalign=0, selectable=True, wrap=True, wrap_mode=Pango.WrapMode.CHAR,
+                                css_classes=["monospace", "ccs-code-box"], visible=False)
+        card.scroll = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True,
+                                         max_content_height=320, visible=False, child=card.output)
+        card.append(card.scroll)
+
+        def set_output(code, text, truncated=False):
+            head.get_first_child().set_spinning(False)
+            card.stop_button.set_visible(False)
+            note = " — sortie tronquée" if truncated else ""
+            card.status.set_label(("code " + str(code) if code is not None else "arrêtée") + note)
+            card.output.set_label(text if text.strip() else "(aucune sortie)")
+            card.output.set_visible(True)
+            card.scroll.set_visible(True)
+            self.scroll_end_if_stuck()
+        card.set_output = set_output
+        card.command = command
+        self._append(card)
+        self.scroll_end_if_stuck()
+        return card
+
     def add_user(self, text, images=(), during=False, on_rewind=None):
         row = self._append(self._user_widget(text, images, during, on_rewind))
         self.scroll_end_if_stuck()

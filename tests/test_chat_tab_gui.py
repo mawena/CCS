@@ -689,5 +689,41 @@ class ChatTabTest(HomeTestCase):
         send.assert_called_once_with("/compact")
 
 
+    def test_bang_not_sent_to_claude(self):
+        from unittest import mock
+        tab, _owner = self.make()
+        with mock.patch.object(tab.engine, "send", return_value=True) as send:
+            self.say(tab, "!echo salut-du-shell")
+            self.assertTrue(pump_until(lambda: any("salut-du-shell" in t and "$" not in t for t in texts(tab))))
+            send.assert_not_called()
+        self.assertNotIn("!echo salut-du-shell", texts(tab))        # pas de bulle d'utilisateur
+        self.assertTrue(any(t == "$ echo salut-du-shell" for t in texts(tab)))
+        self.assertTrue(any(t.startswith("code 0") for t in texts(tab)))
+
+    def test_next_message_carries_output(self):
+        from unittest import mock
+        tab, _owner = self.make()
+        self.say(tab, "!echo résultat-42")
+        self.assertTrue(pump_until(lambda: tab._shell_notes))
+        with mock.patch.object(tab.engine, "send", return_value=True) as send:
+            self.say(tab, "que penses-tu de ça ?")
+        sent = send.call_args.args[0]
+        self.assertTrue(sent.startswith("J'ai lancé `echo résultat-42` dans le dossier du projet (code 0) :\n```\n"))
+        self.assertIn("résultat-42", sent)
+        self.assertTrue(sent.endswith("```\n\nque penses-tu de ça ?"))
+        self.assertIn("que penses-tu de ça ?", texts(tab))          # la bulle ne montre que le texte saisi
+        self.assertEqual(tab._shell_notes, [])                       # joint une seule fois
+
+    def test_shell_card_stop_button(self):
+        tab, _owner = self.make()
+        self.say(tab, "!sleep 60")
+        card = next(w for w in descendants(tab.messages.box) if hasattr(w, "stop_button"))
+        self.assertTrue(card.stop_button.get_visible())
+        start = time.monotonic()
+        card.stop_button.emit("clicked")
+        self.assertTrue(pump_until(lambda: not card.stop_button.get_visible(), 5))
+        self.assertLess(time.monotonic() - start, 4)
+
+
 if __name__ == "__main__":
     unittest.main()
