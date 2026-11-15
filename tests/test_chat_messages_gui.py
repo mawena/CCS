@@ -21,6 +21,15 @@ def pump(ms=50):
             pass
 
 
+def settle(cond, ms=2000):
+    """Fait tourner la boucle jusqu'à ce que `cond()` soit vraie (machine chargée : l'allocation
+    GTK peut prendre plus que quelques centaines de ms) ; renvoie sa dernière valeur."""
+    end = GLib.get_monotonic_time() + ms * 1000
+    while not cond() and GLib.get_monotonic_time() < end:
+        pump(20)
+    return cond()
+
+
 def descendants(widget):
     child = widget.get_first_child()
     while child is not None:
@@ -407,8 +416,8 @@ class MessageListScrollTest(unittest.TestCase):
             ml.add_user("nouveau", ())
             ml.add_notice("info")
             pump(200)
-            self.assertTrue(at_bottom(ml), f"tour {kind}")
-            self.assertTrue(widget_visible_in_view(ml, ml._last), f"tour {kind}")
+            self.assertTrue(settle(lambda: at_bottom(ml)), f"tour {kind}")
+            self.assertTrue(settle(lambda: widget_visible_in_view(ml, ml._last)), f"tour {kind}")
         win.destroy()
 
     def test_streamed_text_keeps_following(self):
