@@ -520,15 +520,24 @@ class ChatTab(Gtk.Box):
             self.show_notice("Retour en arrière impossible : conversation introuvable.")
             return
         transcript, sid = info
+        no_snapshot = object()
 
         def work():
             snaps = file_history.read(transcript)
-            return None if snaps is None else file_history.rewind_plan(snaps, sid, message_id)
+            if snaps is None:
+                return None
+            try:
+                return file_history.rewind_plan(snaps, sid, message_id)
+            except file_history.NoSnapshot:
+                return no_snapshot
 
         def show(plan):
             if plan is None:
                 self.show_notice("Format de l'historique des fichiers inconnu : retour impossible "
                                  "(voir « ccs doctor »).")
+            elif plan is no_snapshot:
+                self.show_notice("Retour en arrière impossible : Claude Code n'a pas gardé "
+                                 "d'instantané des fichiers pour ce message.")
             elif not plan:
                 self.show_notice("Aucun fichier à remettre : tout est déjà comme avant ce message.")
             else:

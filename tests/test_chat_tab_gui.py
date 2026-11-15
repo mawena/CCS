@@ -613,6 +613,22 @@ class ChatTabTest(HomeTestCase):
         yes()
         self.assertTrue(pump_until(lambda: target.read_text() == "avant\n"))
 
+    def test_rewind_to_message_without_snapshot_explains(self):
+        from unittest import mock
+        from ccs_app import sessions
+        tab, _owner = self.make(session_id="sess-rw0", spawn=False)
+        journal = sessions.transcript_path(str(self.cwd), "sess-rw0")
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text(json.dumps({"type": "file-history-snapshot", "messageId": "u2",
+                                       "isSnapshotUpdate": False, "snapshot": {
+                                           "messageId": "u2", "timestamp": "t",
+                                           "trackedFileBackups": {}}}) + "\n")
+        notices = []
+        with mock.patch.object(tab, "show_notice", notices.append):
+            tab.rewind_to("u1")                                  # u1 : aucun instantané
+            self.assertTrue(pump_until(lambda: notices))
+        self.assertIn("instantané", notices[0])
+
     def test_ctrl_f_opens_search_bar_and_finds(self):
         tab, _owner = self.make(spawn=False)
         tab.messages.add_user("Salut Éléphant", ())
