@@ -170,16 +170,18 @@ class GitApi:
         return {}
 
     async def hunk(self, _conn, params):
-        """Indexe ou désindexe un seul bloc (`index`) d'un fichier : toutes ses lignes changées."""
+        """Indexe ou désindexe un seul bloc (`index`) d'un fichier : toutes ses lignes changées,
+        seulement s'il porte encore l'en-tête `@@ … @@` affiché (`header`), sinon `conflit`."""
         root, path = await self._root(params), _rel(params.get("path"))
-        action, index = params.get("action"), params.get("index")
-        if action not in ("stage", "unstage") or not isinstance(index, int) or isinstance(index, bool):
+        action, index, header = params.get("action"), params.get("index"), params.get("header")
+        if (action not in ("stage", "unstage") or not isinstance(index, int) or isinstance(index, bool)
+                or index < 0 or not isinstance(header, str)):
             raise rpc.RpcError("invalide", "Bloc ou action invalide.")
 
         def work(r):
             fd = git_repo.diff(r, path, staged=action == "unstage", max_bytes=MAX_FILE_BYTES)
-            if fd is None or not 0 <= index < len(fd.hunks):
-                raise rpc.RpcError("invalide", "Ce bloc n'existe plus : recharge le fichier.")
+            if fd is None or index >= len(fd.hunks) or fd.hunks[index].header != header:
+                raise rpc.RpcError("conflit", "Le fichier a changé : actualise.")
             keep = {(index, li) for li, line in enumerate(fd.hunks[index].lines) if line.kind != " "}
             (git_repo.stage_lines if action == "stage" else git_repo.unstage_lines)(r, fd, keep)
         await self._run(root, work)

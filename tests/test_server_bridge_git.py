@@ -133,17 +133,38 @@ class GitBridgeTest(GitTestCase, unittest.IsolatedAsyncioTestCase):
         (self.repo / "a.txt").write_text("".join(lines))
         d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
         self.assertEqual(len(d["hunks"]), 2)
-        await self.call("git.hunk", path="a.txt", index=1, action="stage")
+        await self.call("git.hunk", path="a.txt", index=1, action="stage", header=d["hunks"][1]["header"])
         staged = g(self.repo, "diff", "--cached")
         self.assertIn("CHANGE2", staged)
         self.assertNotIn("CHANGE1", staged)
-        await self.call("git.hunk", path="a.txt", index=0, action="stage")
-        await self.call("git.hunk", path="a.txt", index=0, action="unstage")
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        await self.call("git.hunk", path="a.txt", index=0, action="stage", header=d["hunks"][0]["header"])
+        d = (await self.call("git.diff", path="a.txt", staged=True))["diff"]
+        await self.call("git.hunk", path="a.txt", index=0, action="unstage", header=d["hunks"][0]["header"])
         staged = g(self.repo, "diff", "--cached")
         self.assertNotIn("CHANGE1", staged)
         self.assertIn("CHANGE2", staged)
-        await self.fails("invalide", "git.hunk", path="a.txt", index=9, action="stage")
-        await self.fails("invalide", "git.hunk", path="a.txt", index=0, action="jeter")
+        h = d["hunks"][0]["header"]
+        await self.fails("conflit", "git.hunk", path="a.txt", index=9, action="stage", header=h)
+        await self.fails("invalide", "git.hunk", path="a.txt", index=0, action="jeter", header=h)
+        await self.fails("invalide", "git.hunk", path="a.txt", index=-1, action="stage", header=h)
+
+    async def test_hunk_checks_shown_header(self):
+        """C5 : le bloc indexé est celui qui a été montré, sinon `conflit`."""
+        base = "".join(f"l{i}\n" for i in range(40))
+        commit_file(self.repo, "a.txt", base)
+        lines = base.splitlines(keepends=True)
+        lines[1] = "CHANGE1\n"
+        lines[38] = "CHANGE2\n"
+        (self.repo / "a.txt").write_text("".join(lines))
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        shown = d["hunks"][1]["header"]
+        lines.insert(20, "AJOUT\n")                       # le fichier change avant le clic
+        (self.repo / "a.txt").write_text("".join(lines))
+        e = await self.fails("conflit", "git.hunk", path="a.txt", index=1, action="stage", header=shown)
+        self.assertEqual(e.message, "Le fichier a changé : actualise.")
+        self.assertEqual(g(self.repo, "diff", "--cached"), "")
+        await self.fails("invalide", "git.hunk", path="a.txt", index=1, action="stage")   # sans en-tête
 
     # ---- commit ----------------------------------------------------------------------
 
