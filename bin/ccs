@@ -418,6 +418,9 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
                            compte par projet : liste, compte d'un dossier, association
   ccs raccourcis [status|on|off [action…]|set <action> <raccourci>]
                            raccourcis clavier globaux du bureau GNOME (alias : shortcuts)
+  ccs tui [--serveur NOM]  CCS en plein écran dans le terminal (ici, ou sur un serveur appairé)
+  ccs serveur ajouter|liste|retirer
+                           serveurs CCS distants : appairage (mot de passe Ubuntu + code), liste
   ccs doctor               bilan de santé : service, version, bureau, comptes, Claude Code
                            (code de sortie 1 au moindre problème)
   ccs gui                  ouvre l'application graphique
@@ -458,6 +461,10 @@ main() {
     silence|quiet) exec "$CA" silence "$@" ;;
     mise-a-jour|maj) exec "$CA" mise-a-jour "$@" ;;
     journal) exec "$CA" journal "$@" ;;
+    tui) exec "$CA" tui "$@" ;;
+    serveur|server) exec "$CA" serveur "$@" ;;
+    totp) exec "$CA" totp "$@" ;;
+    bridge|web-serve|auth-serve|shell-distant) exec "$CA" "$cmd" "$@" ;;
     projet) exec "$CA" projet "$@" ;;
     raccourcis|shortcuts) exec "$CA" raccourcis "$@" ;;
     orch|orchestrateur) exec "$CA" orch "$@" ;;

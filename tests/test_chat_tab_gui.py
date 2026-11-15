@@ -119,6 +119,27 @@ class ChatTabTest(HomeTestCase):
         self.tabs.append(tab)
         return tab, owner
 
+    def test_remote_tab_title_has_server(self):
+        made = []
+
+        class FakeRemote:
+            def __init__(self, cwd, session_id, options, on_event):
+                made.append(cwd)
+                self.cwd, self.session_id, self.state, self.pid, self.started_at = cwd, session_id, "stopped", None, None
+                self.effort = None
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+        launch = terminal.claude_launch("/srv/projet-distant", None, "Projet")
+        tab = ChatTab(FakeOwner(), launch, engine_factory=FakeRemote, remote="vps")
+        self.assertEqual(made, ["/srv/projet-distant"])
+        self.assertEqual(tab.display_title(), "Projet · vps")
+        tab.remote_state("offline")
+        self.assertTrue(tab.offline_banner.get_revealed())
+        tab.remote_state("reconnected")
+        self.assertFalse(tab.offline_banner.get_revealed())
+        tab._closed = True
+
     def say(self, tab, text):
         tab.composer.set_text(text)
         tab.composer.submit()

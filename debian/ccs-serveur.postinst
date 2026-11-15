@@ -1,0 +1,27 @@
+#!/bin/sh
+# ccs-serveur : groupe « ccs » (qui a le droit de se connecter), utilisateur système ccs-web,
+# configuration par défaut. Les services sont activés et démarrés par #DEBHELPER#.
+set -e
+
+case "$1" in
+  configure)
+    if ! getent group ccs >/dev/null; then
+      addgroup --system ccs >/dev/null
+    fi
+    if ! getent passwd ccs-web >/dev/null; then
+      adduser --system --group --no-create-home --home /nonexistent ccs-web >/dev/null
+    fi
+    mkdir -p /etc/ccs
+    if [ ! -f /etc/ccs/web.json ]; then
+      printf '{"listen": "127.0.0.1:8420", "origin": "https://ccs.mawena.cloud"}\n' > /etc/ccs/web.json
+      chmod 0644 /etc/ccs/web.json
+    fi
+    if [ -z "$(getent group ccs | cut -d: -f4)" ]; then
+      echo "CCS : ajoute les comptes autorisés au groupe « ccs » : sudo adduser <utilisateur> ccs"
+    fi
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

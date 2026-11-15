@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#3584e4">
+<meta name="color-scheme" content="light dark">
+<title>CCS</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/ccs.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/ccs-192.png">
+<link rel="stylesheet" href="/vendor/xterm/xterm.css">
+<link rel="stylesheet" href="/style.css">
+<script src="/vendor/xterm/xterm.js"></script>
+<script src="/vendor/xterm/addon-fit.js"></script>
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<div id="banner" class="banner" role="status" hidden></div>
+
+<main id="login" class="login" hidden>
+  <form id="login-form" class="card login-card" autocomplete="on">
+    <div class="login-head">
+      <img src="/icons/ccs.svg" alt="" class="login-logo">
+      <h1>CCS</h1>
+    </div>
+    <p class="subtle">Connecte-toi avec ton compte Ubuntu.</p>
+    <div id="login-credentials">
+      <label>Identifiant
+        <input name="user" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      </label>
+      <label>Mot de passe
+        <input name="password" type="password" autocomplete="current-password" required>
+      </label>
+    </div>
+    <div id="login-enroll" class="enroll" hidden>
+      <p>Première connexion : scanne ce QR code avec ton application de codes (Aegis, Google Authenticator…), puis saisis le code affiché.</p>
+      <img id="login-qr" class="qr" alt="QR code de la double authentification">
+      <p class="subtle">Ou saisis cette clé à la main : <code id="login-secret"></code></p>
+    </div>
+    <label id="login-code-field" hidden>Code à 6 chiffres
+      <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6">
+    </label>
+    <label class="check"><input name="remember" type="checkbox"> Retenir cet appareil 30 jours</label>
+    <p id="login-message" class="message" role="alert"></p>
+    <button type="submit" class="primary" id="login-submit">Se connecter</button>
+  </form>
+</main>
+
+<div id="shell" class="shell" hidden>
+  <header class="topbar">
+    <span class="brand"><img src="/icons/ccs.svg" alt=""> CCS</span>
+    <nav id="nav" class="nav" aria-label="Navigation"></nav>
+    <button id="logout" class="flat" type="button" title="Se déconnecter">Déconnexion</button>
+  </header>
+  <section id="view" class="view"></section>
+</div>
+</body>
+</html>

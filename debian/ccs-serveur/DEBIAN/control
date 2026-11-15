@@ -1,0 +1,16 @@
+Package: ccs-serveur
+Source: ccs
+Version: 0.10.2
+Architecture: all
+Maintainer: mawena <gamligocharles@gmail.com>
+Installed-Size: 488
+Depends: ccs (= 0.10.2), python3-aiohttp, python3-pyotp, python3-qrcode, libpam0g, adduser, systemd
+Section: utils
+Priority: optional
+Description: CCS server: drive Claude Code from a browser, phone or terminal
+ Runs CCS on a server (VPS): a web interface (responsive, for phones) and an
+ API for the desktop application and `ccs tui`. Users log in with their
+ Ubuntu account (PAM, members of the "ccs" group, never root) and a
+ mandatory TOTP code. Services: ccs-auth (root, minimal), ccs-web
+ (unprivileged, 127.0.0.1:8420, behind a reverse proxy) and one bridge per
+ logged-in user.
