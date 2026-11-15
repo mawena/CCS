@@ -25,6 +25,7 @@ CSP = ("default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe
 SESSION, DEVICE = "ccs_session", "ccs_device"
 RECHECK_S = 300          # une session expirée ou révoquée ferme ses WebSocket au plus tard après ce délai
 CLOSED_BY_AUTH = 4001
+BRIDGE_LOST = 1012       # connexion au pont perdue : le navigateur se reconnecte
 
 
 def load_config(path=None):
@@ -257,13 +258,20 @@ def make_app(auth, bridges, config):
         watcher = asyncio.ensure_future(recheck())
         tasks = set()
         stopped = asyncio.ensure_future(stop.wait())
+        bridge_down = asyncio.ensure_future(bridge.wait_closed())
         try:
             while True:
                 receiving = asyncio.ensure_future(ws.receive())
-                await asyncio.wait({receiving, stopped}, return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.wait({receiving, stopped, bridge_down}, return_when=asyncio.FIRST_COMPLETED)
                 if stop.is_set():
                     receiving.cancel()
                     await ws.close(code=CLOSED_BY_AUTH, message=b"session terminee")
+                    break
+                if bridge_down.done():
+                    # sans pont derrière, le WebSocket ne servirait plus : le navigateur se reconnecte
+                    receiving.cancel()
+                    log.warning("connexion au pont de %s perdue", user)
+                    await ws.close(code=BRIDGE_LOST, message=b"pont deconnecte")
                     break
                 msg = receiving.result()
                 if msg.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED, WSMsgType.ERROR):
@@ -281,6 +289,7 @@ def make_app(auth, bridges, config):
         finally:
             watcher.cancel()
             stopped.cancel()
+            bridge_down.cancel()
             for t in tasks:
                 t.cancel()
             open_ws.get(token, {}).pop(ws, None)
