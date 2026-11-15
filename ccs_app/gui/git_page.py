@@ -326,7 +326,7 @@ class GitPage(Gtk.Box):
 
     def pull(self):
         root = self.root
-        self._op(lambda: git_repo.pull(root))
+        self._op(lambda: git_repo.pull(root, prompt=True))
 
     def push(self, force=False):
         root = self.root
@@ -339,10 +339,10 @@ class GitPage(Gtk.Box):
             d.add_response("ok", "Pousser de force")
             d.set_response_appearance("ok", Adw.ResponseAppearance.DESTRUCTIVE)
             d.connect("response", lambda _d, r: r == "ok" and
-                      self._op(lambda: git_repo.push(root, force=True)))
+                      self._op(lambda: git_repo.push(root, force=True, prompt=True)))
             d.present(self.get_root())
             return
-        self._op(lambda: git_repo.push(root))
+        self._op(lambda: git_repo.push(root, prompt=True))
 
     def _flow_start(self, kind):
         entry = Gtk.Entry(placeholder_text="nom", activates_default=True)

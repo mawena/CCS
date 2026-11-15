@@ -532,6 +532,23 @@ class NetworkNoPromptTest(GitTestCase):
             for c in self.network_calls():
                 self.assertEqual(c.kwargs["env"]["GIT_SSH_COMMAND"], "ssh -F /chemin/config")
 
+    def test_desktop_pull_and_push_keep_the_session_password_window(self):
+        """Le bureau (prompt=True) garde la fenêtre de mot de passe de la session (askpass) ;
+        toujours sans terminal."""
+        session = {"SSH_ASKPASS": "/usr/bin/ssh-askpass", "GIT_ASKPASS": "/usr/bin/git-askpass"}
+        with mock.patch.dict(os.environ, session), \
+                mock.patch("subprocess.run", wraps=subprocess.run) as m:
+            git_repo.push(str(self.repo), prompt=True)
+            git_repo.pull(str(self.repo), prompt=True)
+        calls = [c for c in m.call_args_list if c.args and c.args[0][5:6] in (["pull"], ["push"])]
+        self.assertEqual(len(calls), 2)
+        for c in calls:
+            env = c.kwargs["env"]
+            self.assertEqual(env["SSH_ASKPASS"], "/usr/bin/ssh-askpass", c.args[0][5])
+            self.assertEqual(env["GIT_ASKPASS"], "/usr/bin/git-askpass", c.args[0][5])
+            self.assertNotIn("BatchMode", env.get("GIT_SSH_COMMAND", ""), c.args[0][5])
+            self.assertTrue(c.kwargs.get("start_new_session"), c.args[0][5])
+
 
 if __name__ == "__main__":
     unittest.main()

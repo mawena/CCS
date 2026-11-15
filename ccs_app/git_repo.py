@@ -664,9 +664,12 @@ def _config(repo, key):
         return ""
 
 
-def _network_env(repo):
+def _network_env(repo, prompt=False):
     """Variables de fetch, pull et push : sans invite ; SSH en BatchMode, sauf si l'utilisateur
-    ou le dépôt choisit déjà sa commande SSH (`core.sshCommand` n'est jamais écrasé)."""
+    ou le dépôt choisit déjà sa commande SSH (`core.sshCommand` n'est jamais écrasé). `prompt` :
+    le bureau garde la fenêtre de mot de passe de la session (askpass)."""
+    if prompt:
+        return None
     env = dict(_NO_PROMPT)
     if not (os.environ.get("GIT_SSH_COMMAND") or os.environ.get("GIT_SSH")
             or _config(repo, "core.sshCommand")):
@@ -678,8 +681,8 @@ def fetch(repo):
     run(repo, "fetch", "--prune", "--quiet", env=_network_env(repo), timeout=120, detach=True)
 
 
-def pull(repo):
-    run(repo, "pull", "--ff-only", "--quiet", env=_network_env(repo), timeout=300, detach=True)
+def pull(repo, prompt=False):
+    run(repo, "pull", "--ff-only", "--quiet", env=_network_env(repo, prompt), timeout=300, detach=True)
 
 
 def _remote(repo):
@@ -689,9 +692,10 @@ def _remote(repo):
     return "origin" if "origin" in remotes else remotes[0]
 
 
-def push(repo, force=False):
+def push(repo, force=False, prompt=False):
     """Pousse la branche courante (premier push : crée la branche distante). Forcé :
-    `--force-with-lease --force-if-includes`, qui refuse d'écraser un commit distant pas vu."""
+    `--force-with-lease --force-if-includes`, qui refuse d'écraser un commit distant pas vu.
+    `prompt` : voir `_network_env`."""
     b = branch(repo)
     if b.name is None:
         raise GitError("git push", "HEAD est détachée : aucune branche à pousser.", 1)
@@ -700,7 +704,7 @@ def push(repo, force=False):
         args += ["--force-with-lease", "--force-if-includes"]
     if b.upstream is None:
         args += ["--set-upstream", _remote(repo), b.name]
-    run(repo, *args, env=_network_env(repo), timeout=300, detach=True)
+    run(repo, *args, env=_network_env(repo, prompt), timeout=300, detach=True)
 
 
 FLOW_KINDS = ("feature", "release", "hotfix")
