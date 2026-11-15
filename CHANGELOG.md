@@ -3,7 +3,7 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
-## [Non publié]
+## [0.12.0] — 2026-11-15
 
 ### Ajouté
 
@@ -36,6 +36,25 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - Pont : modules `bridge_work`, `bridge_admin` et `bridge_git` (méthodes `work.*`,
   `doctor.run`, `tasks.log`, `phone.*`, `git.*`…) et méthodes de plus dans `bridge_data` et
   `bridge_term`.
+
+### Corrigé
+
+- **Web** : un onglet restauré n'affiche plus de messages en double (le journal s'arrête là où
+  commence le tampon du pont) ; rouvrir une conversation déjà ouverte montre aussi ses anciens
+  messages. Onglets recalés sur le pont après une reconnexion (arrêt, reprise, options réelles),
+  appels sans doublon, Maj+Tab sans « Tout autoriser ».
+- **Pont** : identifiants de chat et de terminal uniques d'un démarrage à l'autre ; une réponse
+  trop grosse échoue seule, la connexion reste ; diffs et états Git plafonnés, `git.diff` reste
+  dans le dépôt, l'indexation d'un bloc garde les octets exacts ; annuler un fichier ou revenir
+  en arrière est refusé si le fichier a changé depuis l'affichage ou pendant que Claude
+  travaille ; chat et terminal limités aux dossiers permis ; renommage limité aux journaux de
+  Claude Code ; la commande `!` ne reste plus bloquée par un processus en arrière-plan.
+- **Git** : fetch, pull et push du serveur ne demandent jamais de mot de passe ; le bureau garde
+  sa fenêtre de mot de passe pour pull et push.
+- **Bureau** : un retour en arrière vers un message sans copie des fichiers est expliqué ; les
+  messages enregistrés communs masqués par un projet sont gardés.
+- **Chat** : les copies de fichiers de Claude Code sont activées (volet « Changements de la
+  session » et retour en arrière).
 
 ## [0.11.0] — 2026-11-15
 
