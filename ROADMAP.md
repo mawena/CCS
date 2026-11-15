@@ -263,17 +263,44 @@ Documentation et release :
 Demandée le 15/11, prioritaire. Piloter CCS depuis Internet (`https://ccs.mawena.cloud`,
 surtout depuis le téléphone), depuis un terminal sur le VPS, et depuis l'application GTK du
 bureau. Conception : `docs/superpowers/specs/2026-11-15-phase-13-vps-design.md`.
+Plan détaillé : `docs/superpowers/plans/2026-11-15-phase-13-vps.md`.
+Choix de Charles : connexion par les comptes Ubuntu seulement (PAM, groupe `ccs`, `root` refusé),
+double authentification obligatoire, architecture sur le modèle de Cockpit, mise en ligne par lnmp.
 
-- [ ] **Serveur CCS** : service `ccs-web` installé par le paquet, qui écoute `127.0.0.1:8420` ; il fait tourner les chats sans interface (moteur de chat actuel) et expose une API HTTP + WebSocket (aiohttp, paquet Ubuntu) pour les projets, sessions, chats, autorisations, fichiers, feuille de route et git
-- [ ] **Connexion par les comptes Ubuntu** (choix de Charles le 15/11) : identifiant et mot de passe Ubuntu vérifiés par PAM, uniquement (pas de comptes propres à CCS) ; chaque connexion travaille sous cet utilisateur Unix (ses projets, ses comptes Claude) par un petit service privilégié qui vérifie et lance, le serveur web exposé ne tournant jamais en root ; `root` refusé, seuls les membres du groupe `ccs` admis ; cookie de session sécurisé, jeton révocable pour le bureau et le terminal, essais limités ; **double authentification obligatoire** (choix du 15/11) : code TOTP à 6 chiffres, QR code à scanner à la première connexion, appareil retenu 30 jours, réinitialisation par `sudo ccs totp reinitialiser <utilisateur>` sur le VPS
-- [ ] **Version web** : mêmes écrans que le bureau (Accueil, Sessions et chat, Fichiers / Feuille de route / Git, Analyse, Réglages), responsive (une colonne et panneaux en tiroirs sur le téléphone), installable sur l'écran d'accueil du téléphone
-- [ ] **Version terminal** : `ccs tui` plein écran (urwid, paquet Ubuntu) : projets, sessions, chat, autorisations, feuille de route ; en local sur le VPS (par SSH) ou contre un serveur distant
-- [ ] **Bureau connecté au VPS** : Réglages → Serveurs (adresse et identifiants) ; les projets du VPS apparaissent dans Sessions avec le nom du serveur, et le chat, les fichiers, la feuille de route et git se pilotent à distance depuis l'interface GTK
-- [ ] **Paquet pour serveur** : `apt install ccs` sur un VPS sans bureau installe et démarre le service web (interface GTK séparée ou en dépendance recommandée)
-- [ ] **Mise en ligne** (VPS relevé le 15/11 : Ubuntu 24.04, nginx + certbot déjà en place, port 8420 libre) : enregistrement DNS `A ccs → 84.46.246.202` chez Hostinger (DNS `dns-parking.com`), site créé par lnmp (le gestionnaire d'hôtes de Charles : `sudo lnmp add --id ccs --domain mawena.cloud --sub ccs --proxy 8420`, qui écrit le proxy avec WebSocket, puis le certificat Let's Encrypt par `lnmp add-ssl`) ; guide dans le README et contrôle par `ccs doctor`
-- [ ] **Le paquet installe Claude Code** (demandé le 15/11) : à l'installation du `.deb` (bureau comme VPS), s'il manque, l'installeur officiel (`curl -fsSL https://claude.ai/install.sh | bash`) est lancé pour l'utilisateur qui installe (`SUDO_USER` ou `PKEXEC_UID`), jamais en root ; sans réseau, l'installation du paquet n'échoue pas et CCS le reprend à son premier démarrage (service web compris) ; la connexion des comptes reste guidée par `ccs doctor` (le VPS n'a pas de navigateur : lien à ouvrir ailleurs)
-- [ ] Documentation (README, guide, architecture, man, CHANGELOG, site)
-- [ ] Release mineure 0.11.0, `.deb`, release GitHub et dépôt APT, installation sur le VPS
+Briques du serveur :
+- [ ] 1. Protocole JSON par lignes sur socket Unix
+- [ ] 2. Codes TOTP et limite des essais (5 échecs en 15 min → 15 min de refus)
+- [ ] 3. Sessions (12 h sans activité, 7 jours au plus), appareils retenus 30 jours, jetons d'application
+- [ ] 4. Vérification des comptes Ubuntu par PAM, groupe `ccs`, `root` refusé
+- [ ] 5. Service `ccs-auth` : connexion, inscription du code par QR code, tickets des ponts
+
+Le pont (un par utilisateur) :
+- [ ] 6. Serveur du pont, ticket, comptes Claude et réglages
+- [ ] 7. Chats dans le pont, rejouables après une coupure, partagés entre appareils
+- [ ] 8. Projets, fichiers, feuille de route, analyse et tâches (chemins limités au dossier de l'utilisateur)
+- [ ] 9. Terminaux shell
+- [ ] 10. Service de fond lancé par le pont, Claude Code installé s'il manque
+
+Serveur web et version web :
+- [ ] 11. Service `ccs-web` (127.0.0.1:8420) : connexion, relais WebSocket, en-têtes de sécurité
+- [ ] 12. Version web : charpente, connexion avec code, navigation responsive, installable sur le téléphone
+- [ ] 13. Accueil, Analyse, Réglages (dont Appareils)
+- [ ] 14. Sessions et chat
+- [ ] 15. Fichiers, Feuille de route, terminal (xterm.js)
+
+Terminal et bureau :
+- [ ] 16. Client commun (local ou par le web) et appairage (`ccs serveur ajouter`)
+- [ ] 17. `ccs tui` plein écran
+- [ ] 18. Bureau : Réglages → Serveurs
+- [ ] 19. Bureau : projets et chats du serveur dans l'application, shell distant
+
+Paquets, contrôles, documentation, release :
+- [ ] 20. Trois paquets (`ccs`, `ccs-bureau`, `ccs-serveur`), services systemd, PAM, installation de Claude Code
+- [ ] 21. `ccs doctor` pour le serveur
+- [ ] 22. Revue de sécurité
+- [ ] 23. Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [ ] 24. Essai réel sur le VPS (DNS et lnmp par Charles)
+- [ ] 25. Release mineure 0.11.0, trois `.deb`, release GitHub et dépôt APT, mise à jour du VPS
 
 ## Phase 14 — Travailler sans quitter CCS (0.12.0)
 
