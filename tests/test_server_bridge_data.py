@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -75,6 +76,18 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
         r = await self.c.call("files.list", root=str(self.project), rel="src")
         self.assertEqual(r["entries"], [])
         await self.refused("files.list", root=str(self.project), rel="../..")
+
+    async def test_files_list_can_hide_git_ignored(self):
+        subprocess.run(["git", "init", "-q", str(self.project)], check=True)
+        (self.project / ".gitignore").write_text("build/\n*.log\n")
+        (self.project / "build").mkdir()
+        (self.project / "x.log").write_text("x\n")
+        names = {e["name"] for e in (await self.c.call("files.list", root=str(self.project)))["entries"]}
+        self.assertTrue({"build", "x.log"} <= names)
+        r = await self.c.call("files.list", root=str(self.project), hide_ignored=True)
+        names = {e["name"] for e in r["entries"]}
+        self.assertFalse({"build", "x.log"} & names)
+        self.assertIn("a.txt", names)
 
     async def test_write_conflict(self):
         p = self.project / "a.txt"
