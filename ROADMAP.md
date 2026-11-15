@@ -275,11 +275,11 @@ Briques du serveur :
 - [x] 5. Service `ccs-auth` : connexion, inscription du code par QR code, tickets des ponts
 
 Le pont (un par utilisateur) :
-- [ ] 6. Serveur du pont, ticket, comptes Claude et réglages
-- [ ] 7. Chats dans le pont, rejouables après une coupure, partagés entre appareils
-- [ ] 8. Projets, fichiers, feuille de route, analyse et tâches (chemins limités au dossier de l'utilisateur)
-- [ ] 9. Terminaux shell
-- [ ] 10. Service de fond lancé par le pont, Claude Code installé s'il manque
+- [x] 6. Serveur du pont, ticket, comptes Claude et réglages
+- [x] 7. Chats dans le pont, rejouables après une coupure, partagés entre appareils
+- [x] 8. Projets, fichiers, feuille de route, analyse et tâches (chemins limités au dossier de l'utilisateur)
+- [x] 9. Terminaux shell
+- [x] 10. Service de fond lancé par le pont, Claude Code installé s'il manque
 
 Serveur web et version web :
 - [ ] 11. Service `ccs-web` (127.0.0.1:8420) : connexion, relais WebSocket, en-têtes de sécurité
