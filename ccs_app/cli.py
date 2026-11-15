@@ -238,6 +238,23 @@ def cmd_serveur(args):
     return 1
 
 
+def cmd_tui(args):
+    """CCS en plein écran dans le terminal : en local, ou vers un serveur appairé."""
+    from .remote import client, servers
+    from .tui import app
+    if args.serveur:
+        server = servers.get(args.serveur)
+        if server is None:
+            print(f"Serveur inconnu : {args.serveur}. Appaire-le d'abord : ccs serveur ajouter <adresse>",
+                  file=sys.stderr)
+            return 1
+        transport, label = client.WebTransport(server), server.name
+    else:
+        transport, label = client.LocalTransport(), "local"
+    app.run(transport, label)
+    return 0
+
+
 def cmd_totp(args):
     """Réinitialise le code de double authentification d'un utilisateur (root)."""
     from .server import totp
@@ -1021,6 +1038,9 @@ def build_parser():
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
     sub.add_parser("auth-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_auth_serve)
     sub.add_parser("web-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_web_serve)
+    tu = sub.add_parser("tui", help="CCS en plein écran dans le terminal")
+    tu.add_argument("--serveur", help="nom ou adresse d'un serveur appairé (sinon : cette machine)")
+    tu.set_defaults(func=cmd_tui)
     sv = sub.add_parser("serveur", help="serveurs CCS distants (appairage, liste, retrait)")
     sv_sub = sv.add_subparsers(dest="action", required=True)
     sva = sv_sub.add_parser("ajouter", help="appaire ce poste avec un serveur CCS")
