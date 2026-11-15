@@ -354,3 +354,37 @@ Fin de phase :
 - [x] 31. Documentation (README, guide, architecture, man, CHANGELOG, site)
 - [x] 32. Essai réel par Charles (bureau et VPS) et corrections
 - [x] 33. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT
+
+## Correctif 0.12.1 — essais réels sur le VPS (branche `hotfix/0.12.1`)
+
+- [x] Changements et retour en arrière : chemins relatifs (`realParentDir`) et copie `@v1` non citée de Claude Code 2.1.3xx
+- [x] Web : fil et saisie du chat dans une colonne centrée sur grand écran
+- [x] Web : boutons radio des questions à leur taille, libellés à gauche
+- [ ] Essais de Charles : page Git du web, Autoriser / Refuser (web et ntfy)
+- [ ] Release 0.12.1 (CHANGELOG, `.deb`, tag, release GitHub, dépôt APT depuis le PC)
+
+## Phase 15 — Le serveur depuis le bureau, comme Remote Control (0.13.0)
+
+Demandée le 15/11. Depuis l'application de bureau des postes de Charles : voir les chats qui
+tournent sur le VPS et les piloter en direct ; ajouter et supprimer projets et sessions.
+Choix de Charles : session supprimée → corbeille CCS restaurable 30 jours ; projet supprimé →
+seulement retiré de la liste (dossier et conversations gardés) ; projet ajouté → dossier
+existant ou nouveau (git init en option) ; au bureau et au web.
+
+Pont :
+- [ ] 1. `projects.add` (dossier existant ou créé, git init en option, chemins permis seulement) et `projects.remove` (retiré de la liste, rien d'effacé)
+- [ ] 2. Liste des projets : projets ajoutés sans conversation inclus, projets retirés exclus
+- [ ] 3. `conversation.trash` (refusé si le chat tourne), `conversation.trash_list`, `conversation.restore`, purge après 30 jours par le service de fond
+
+Bureau (Projets des serveurs) :
+- [ ] 4. « En cours sur le serveur » (`chat.list`) : rejoindre un chat qui tourne, fil rejoué et suivi en direct, demandes de permission comprises
+- [ ] 5. Un onglet distant se branche dès l'ouverture (plus seulement au premier message envoyé)
+- [ ] 6. Ajouter un projet, retirer un projet, supprimer une conversation, corbeille du serveur
+
+Web :
+- [ ] 7. Ajouter / retirer un projet, supprimer une conversation, corbeille
+
+Fin de phase :
+- [ ] 8. Documentation (README, guide, CHANGELOG)
+- [ ] 9. Essai réel par Charles depuis son PC
+- [ ] 10. Release mineure 0.13.0
