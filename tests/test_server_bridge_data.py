@@ -203,6 +203,28 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("text", r)
         await self.refused("conversation.cost", path="/etc/passwd")
 
+    async def test_conversation_rename_only_claude_journals(self):
+        """Constat 12 : seulement un `<session_id>.jsonl` sous le dossier des projets de Claude Code."""
+        bashrc = self.home / ".bashrc"
+        bashrc.write_text("export A=1\n")
+        await self.refused("conversation.rename", session_id="abc", title="x", path=str(bashrc))
+        other = self.home / "notes" / "abc.jsonl"
+        other.parent.mkdir()
+        other.write_text("{}\n")
+        await self.refused("conversation.rename", session_id="abc", title="x", path=str(other))
+        d = self.home / ".claude" / "projects" / "-p"
+        d.mkdir(parents=True)
+        journal = d / "abc.jsonl"
+        journal.write_text('{"type":"user","message":{"content":"salut"}}\n')
+        await self.refused("conversation.rename", session_id="autre", title="x", path=str(journal))
+        os.symlink(bashrc, d / "lien.jsonl")
+        await self.refused("conversation.rename", session_id="lien", title="x", path=str(d / "lien.jsonl"))
+        (d / "notes.txt").write_text("x\n")
+        await self.refused("conversation.rename", session_id="notes.txt", title="x", path=str(d / "notes.txt"))
+        self.assertEqual(bashrc.read_text(), "export A=1\n")
+        self.assertNotIn("custom-title", other.read_text())
+        self.assertNotIn("custom-title", journal.read_text())
+
     async def test_roadmap_task_prompt(self):
         r = await self.c.call("roadmap.read", cwd=str(self.project))
         t = r["phases"][0]["tasks"][0]

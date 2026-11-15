@@ -163,9 +163,14 @@ class DataApi:
         return await asyncio.to_thread(work)
 
     async def rename(self, _conn, params):
+        """Titre ajouté au journal : seulement `<session_id>.jsonl` sous le dossier des projets
+        de Claude Code (liens suivis), jamais un autre fichier du dossier personnel."""
         path, session_id = safe_path(params.get("path")), params.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             raise rpc.RpcError("invalide", "Conversation inconnue.")
+        projects = os.path.realpath(sessions.projects_dir())
+        if path.name != f"{session_id}.jsonl" or str(path) == projects or not _under(str(path), projects):
+            raise rpc.RpcError("refuse", "Ce fichier n'est pas un journal de conversation.")
         try:
             title = await asyncio.to_thread(conversations.rename, session_id, params.get("title"), None, str(path))
         except ValueError as e:
