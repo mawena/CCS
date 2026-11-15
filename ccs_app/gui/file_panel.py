@@ -89,14 +89,20 @@ def _list_dir(root, dirpath, show_ignored, marks):
 
 class FileTree(Gtk.Box):
     """Arbre des fichiers de `root`. `on_open(path)` est appelé pour un fichier
-    activé. Signal `insert-reference(relpath)` : « Insérer @chemin »."""
+    activé. Signal `insert-reference(relpath)` : « Insérer @chemin ».
+
+    `source` (facultatif, `RemoteFiles` d'une session distante) : `git_marks(root)` et
+    `list_dir(root, dossier, show_ignored, marks)` à la place du disque ; pas de suivi du
+    disque (l'espace de session rafraîchit), pas d'ouverture dans les applications locales."""
 
     __gsignals__ = {"insert-reference": (GObject.SignalFlags.RUN_FIRST, None, (str,))}
 
-    def __init__(self, root, on_open, show_ignored=False):
+    def __init__(self, root, on_open, show_ignored=False, source=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         _install_css()
         self.root = os.path.abspath(os.fspath(root))
+        self.source = source
+        self.remote = bool(getattr(source, "remote", False))
         self.on_open = on_open
         self._show_ignored = bool(show_ignored)
         self._marks = {}
@@ -128,7 +134,7 @@ class FileTree(Gtk.Box):
         self._build_menu()
         self.connect("destroy", self._on_destroy)
         git_dir = os.path.join(self.root, ".git")
-        if os.path.isdir(git_dir):
+        if not self.remote and os.path.isdir(git_dir):
             self._watch(git_dir)
 
     # ---- modèle -------------------------------------------------------------
@@ -146,7 +152,7 @@ class FileTree(Gtk.Box):
         return self._store_for(node.path) if node.is_dir else None
 
     def _watch(self, dirpath):
-        if dirpath in self._monitors:
+        if dirpath in self._monitors or self.remote:
             return
         try:
             mon = Gio.File.new_for_path(dirpath).monitor_directory(
@@ -177,9 +183,12 @@ class FileTree(Gtk.Box):
         dirs = list(self._stores)
         show = self._show_ignored
 
+        source = self.source
+        list_dir = source.list_dir if source is not None else _list_dir
+
         def work():
-            marks = file_tree.git_marks(self.root)
-            return marks, {d: _list_dir(self.root, d, show, marks) for d in dirs}
+            marks = (source or file_tree).git_marks(self.root)
+            return marks, {d: list_dir(self.root, d, show, marks) for d in dirs}
 
         in_thread(work, self._apply)
 
@@ -337,8 +346,9 @@ class FileTree(Gtk.Box):
         menu.append("Ouvrir", "fichiers.open")
         menu.append("Copier le chemin", "fichiers.copy")
         menu.append("Insérer @chemin dans le message", "fichiers.insert")
-        menu.append("Ouvrir avec l'application par défaut", "fichiers.default-app")
-        menu.append("Afficher dans Fichiers", "fichiers.show")
+        if not self.remote:     # le fichier est sur le serveur : pas d'application locale
+            menu.append("Ouvrir avec l'application par défaut", "fichiers.default-app")
+            menu.append("Afficher dans Fichiers", "fichiers.show")
         self._menu_model = menu
         self._popover = Gtk.PopoverMenu.new_from_model(menu)
         self._popover.set_has_arrow(False)
@@ -370,7 +380,7 @@ class FileTree(Gtk.Box):
             self.emit("insert-reference", self._menu_node.relpath)
 
     def _launcher(self):
-        if self._menu_node is None:
+        if self._menu_node is None or self.remote:
             return None
         return Gtk.FileLauncher.new(Gio.File.new_for_path(self._menu_node.path))
 

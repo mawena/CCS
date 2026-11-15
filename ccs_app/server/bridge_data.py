@@ -283,6 +283,7 @@ class DataApi:
         folder = safe_path(os.path.join(str(root), rel)) if rel else root
         if not _under(str(folder), str(root)):
             raise rpc.RpcError("refuse", "Chemin refusé.")
+        hide_ignored = params.get("hide_ignored") is True
 
         def work():
             marks = file_tree.git_marks(str(root))
@@ -297,6 +298,10 @@ class DataApi:
                 relpath = os.path.relpath(e.path, root)
                 out.append({"name": e.name, "path": relpath, "dir": e.is_dir(follow_symlinks=False),
                             "mark": marks.get(relpath, "")})
+            if hide_ignored and out:    # `hide_ignored` : sans ce que git ignore (bureau)
+                probe = {e["path"] + ("/" if e["dir"] else ""): e for e in out}
+                hidden = file_tree.ignored(str(root), probe)
+                out = [e for p, e in probe.items() if p not in hidden]
             out.sort(key=lambda x: (not x["dir"], x["name"].lower()))
             return {"entries": out, "truncated": len(items) > MAX_LIST}
         return await asyncio.to_thread(work)

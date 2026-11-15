@@ -65,7 +65,7 @@ def connection(server, dispatch):
 
 
 class RemoteChatEngine:
-    def __init__(self, conn, cwd, session_id=None, options=None, on_event=None):
+    def __init__(self, conn, cwd, session_id=None, options=None, on_event=None, chat_id=None):
         self.conn = conn
         self.cwd = str(cwd)
         self.session_id = session_id
@@ -81,6 +81,11 @@ class RemoteChatEngine:
         self._opening = False
         self._then = []
         self._own = set()           # nonces de nos envois : leur écho du pont est ignoré
+        if chat_id:                 # rejoindre un chat qui tourne déjà : fil rejoué, puis direct
+            self.chat_id = chat_id
+            self.started_at = time.time()
+            self.conn.register(self)
+            self.resync()
 
     # ---- ouverture et événements ---------------------------------------------------------
 
@@ -121,6 +126,12 @@ class RemoteChatEngine:
         if error is None:
             for item in result.get("events") or []:
                 self.receive(item)
+        elif getattr(error, "code", "") == "introuvable" and self.chat_id is not None:
+            # Le pont a redémarré (mise à jour) : son chat a disparu. On se rebranche sur la
+            # conversation (celle qu'un autre appareil a rouverte, ou une reprise).
+            self.conn.unregister(self)
+            self.chat_id, self.seq = None, 0
+            self._open(lambda: None)
 
     def receive(self, item):
         seq = item.get("seq") or 0
@@ -128,7 +139,8 @@ class RemoteChatEngine:
             return
         self.seq = max(self.seq, seq)
         ev = events.from_json(item.get("event") or {})
-        if isinstance(ev, events.PermissionSettled):
+        if isinstance(ev, events.PermissionSettled):   # réglée ici ou ailleurs : la carte se fige
+            self._emit(ev)
             return
         if isinstance(ev, chat_engine.UserSent) and ev.nonce in self._own:
             self._own.discard(ev.nonce)

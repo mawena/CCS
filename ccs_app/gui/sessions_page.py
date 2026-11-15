@@ -35,6 +35,9 @@ from .project_account_dialog import MENU_LABEL, account_action, account_label, c
     load_associations, paused_now
 from ..settings import load_settings
 from .project_list import ProjectList
+from . import manage_dialogs
+from ..remote import servers
+from ..remote.manage import LocalOps
 from .session_cards import SessionCards, pair, stamp
 
 REFRESH_S = 15
@@ -84,7 +87,17 @@ class SessionsPage(Adw.BreakpointBin):
 
     def build(self):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        bar = Gtk.Box(spacing=8, margin_top=12, margin_bottom=8, margin_start=12, margin_end=12)
+        outer = Gtk.Box(spacing=8, margin_top=12, margin_bottom=8, margin_start=12, margin_end=12)
+        # Machine affichée : « Ce poste » puis chaque serveur CCS appairé (liste masquée sans serveur).
+        self.machine_names = []
+        self.machine_drop = Gtk.DropDown(model=Gtk.StringList.new(["Ce poste"]), valign=Gtk.Align.CENTER,
+                                         tooltip_text="Machine : ce poste ou un serveur CCS (VPS…)",
+                                         visible=False)
+        self.machine_drop.connect("notify::selected", lambda *_: self.on_machine())
+        outer.append(self.machine_drop)
+        bar = Gtk.Box(spacing=8, hexpand=True)
+        self.local_bar = bar
+        outer.append(bar)
         self.sidebar_btn = Gtk.ToggleButton(icon_name="sidebar-show-symbolic", valign=Gtk.Align.CENTER,
                                             tooltip_text="Afficher ou masquer la liste des projets")
         bar.append(self.sidebar_btn)
@@ -106,11 +119,12 @@ class SessionsPage(Adw.BreakpointBin):
         for b in (self.new_btn, self.new_icon):
             b.connect("clicked", lambda *_: self.window.new_session())
             bar.append(b)
-        self.servers_btn = Gtk.Button(icon_name="network-server-symbolic", valign=Gtk.Align.CENTER,
-                                      tooltip_text="Projets des serveurs CCS (VPS…)")
-        self.servers_btn.connect("clicked", lambda *_: self.open_servers())
-        bar.append(self.servers_btn)
-        root.append(bar)
+        for icon, tip, fn in (("folder-new-symbolic", "Ajouter un projet sur ce poste", self.add_project),
+                              ("user-trash-symbolic", "Corbeille : conversations supprimées", self.open_trash)):
+            b = Gtk.Button(icon_name=icon, valign=Gtk.Align.CENTER, tooltip_text=tip)
+            b.connect("clicked", lambda _b, f=fn: f())
+            bar.append(b)
+        root.append(outer)
         self.vte_hint = caption(terminal.VTE_HINT)
         self.vte_hint.set_margin_start(12)
         self.vte_hint.set_margin_end(12)
@@ -136,7 +150,10 @@ class SessionsPage(Adw.BreakpointBin):
         self.clamp = Adw.Clamp(maximum_size=900, tightening_threshold=600, child=content)
         self.scroller.set_child(self.clamp)
         self.split.set_content(self.scroller)
-        root.append(self.split)
+        self.machines = Gtk.Stack(vexpand=True, transition_type=Gtk.StackTransitionType.CROSSFADE)
+        self.machines.add_named(self.split, "local")
+        self.remote_views = {}
+        root.append(self.machines)
         self.set_child(root)
 
         # Fenêtre étroite : liste des projets repliée (en surimpression, bouton ☰) ; plus
@@ -168,7 +185,8 @@ class SessionsPage(Adw.BreakpointBin):
                 ("folder", "s", lambda v: sessions.open_folder(v.get_string())),
                 ("rename", "(ss)", lambda v: self.rename(*v.unpack())),
                 ("preview", "(ss)", lambda v: self.preview(*v.unpack())),
-                ("new", "s", lambda v: self.window.new_session(v.get_string()))):
+                ("new", "s", lambda v: self.window.new_session(v.get_string())),
+                ("remove", "s", lambda v: self.remove_project(v.get_string()))):
             a = Gio.SimpleAction.new(name, GLib.VariantType.new(kind))
             a.connect("activate", lambda _a, v, h=handler: h(v))
             actions.add_action(a)
@@ -181,7 +199,8 @@ class SessionsPage(Adw.BreakpointBin):
         conv_actions = Gio.SimpleActionGroup()
         for name, handler in (("preview", self.window.preview), ("copy", cl.copy_command),
                               ("folder", cl.open_folder), ("relocate", cl.choose_folder),
-                              ("rename", cl.rename), ("external", lambda c: cl.resume(c, "external"))):
+                              ("rename", cl.rename), ("external", lambda c: cl.resume(c, "external")),
+                              ("trash", self.trash_conversation)):
             a = Gio.SimpleAction.new(name, GLib.VariantType.new("s"))
             a.connect("activate", lambda _a, v, h=handler: self.with_conv(v.get_string(), h))
             conv_actions.add_action(a)
@@ -203,6 +222,7 @@ class SessionsPage(Adw.BreakpointBin):
 
     def load(self):
         """Relit les sessions ouvertes et l'historique (onglet affiché, renommage…)."""
+        self.load_machines()
         self.load_sessions()
         self.load_history()
 
@@ -428,10 +448,80 @@ class SessionsPage(Adw.BreakpointBin):
         self.conv_list.render(v.conversations, v.total, v.filtering, v.selected.cwd is hub.ALL, self.compact,
                               empty_all, force)
 
-    def open_servers(self):
-        from .remote_dialog import RemoteProjectsDialog
-        from .terminals import gui_dispatch
-        RemoteProjectsDialog(self.window, gui_dispatch).present(self)
+    # ---- machines : ce poste et les serveurs CCS -------------------------------------
+
+    def load_machines(self):
+        """Liste des machines à jour (serveur appairé ou retiré dans les Réglages)."""
+        try:
+            names = [srv.name for srv in servers.load()]
+        except Exception:  # noqa: BLE001 — fichier des serveurs illisible : ce poste seulement
+            names = []
+        if names == self.machine_names:
+            return
+        current = self.current_machine()
+        self.machine_names = names
+        self.machine_drop.set_model(Gtk.StringList.new(["Ce poste", *names]))
+        self.machine_drop.set_selected(names.index(current) + 1 if current in names else 0)
+        self.machine_drop.set_visible(bool(names))
+        self.on_machine()
+
+    def current_machine(self):
+        i = self.machine_drop.get_selected()
+        return self.machine_names[i - 1] if 0 < i <= len(self.machine_names) else None
+
+    def on_machine(self):
+        name = self.current_machine()
+        self.local_bar.set_visible(name is None)
+        if name is None:
+            self.machines.set_visible_child_name("local")
+            return
+        view = self.remote_views.get(name)
+        if view is None:
+            server = servers.get(name)
+            if server is None:
+                return
+            from .remote_machine import RemoteMachineView
+            from .terminals import gui_dispatch
+            view = RemoteMachineView(self.window, server, gui_dispatch)
+            self.remote_views[name] = view
+            self.machines.add_named(view, f"srv:{name}")
+        self.machines.set_visible_child(view)
+
+    def show_machine(self, name):
+        """Affiche un serveur (ou ce poste avec None) ; faux s'il n'est pas appairé."""
+        self.load_machines()
+        if name is not None and name not in self.machine_names:
+            return False
+        self.machine_drop.set_selected(0 if name is None else self.machine_names.index(name) + 1)
+        return True
+
+    # ---- gestion sur ce poste : ajouter, retirer, corbeille --------------------------
+
+    @property
+    def local_ops(self):
+        if getattr(self, "_local_ops", None) is None:
+            from .terminals import gui_dispatch
+            self._local_ops = LocalOps(gui_dispatch)
+        return self._local_ops
+
+    def add_project(self):
+        manage_dialogs.add_project(self, self.local_ops, self.window.toast,
+                                   lambda cwd: (self.load_history(), self.select(cwd)))
+
+    def remove_project(self, cwd):
+        name = os.path.basename(cwd.rstrip("/")) or cwd
+        manage_dialogs.remove_project(self, self.local_ops, self.window.toast, cwd, name,
+                                      lambda: (self.choose(hub.ALL) if self.selected == cwd else None,
+                                               self.load_history()))
+
+    def trash_conversation(self, conv):
+        title = self.titles.get(conv.session_id) or conv.title or conv.first_prompt or ""
+        manage_dialogs.trash_conversation(self, self.local_ops, self.window.toast,
+                                          {"path": conv.path, "session_id": conv.session_id, "cwd": conv.cwd,
+                                           "title": title}, self.load_history)
+
+    def open_trash(self):
+        manage_dialogs.TrashDialog(self.local_ops, self.window.toast, self.load_history).present(self)
 
     def render_header(self):
         e = self.view.selected
@@ -493,7 +583,8 @@ class SessionsPage(Adw.BreakpointBin):
         entries = [("Avec des options…", "sess.new", cwd)]
         if embedded:
             entries.append(("Dans un terminal externe", "sess.external", pair(e.cwd)))
-        entries += [("Terminal ici", "sess.terminal", cwd), ("Ouvrir le dossier", "sess.folder", cwd)]
+        entries += [("Terminal ici", "sess.terminal", cwd), ("Ouvrir le dossier", "sess.folder", cwd),
+                    ("Retirer de la liste…", "sess.remove", cwd)]
         for label, action, target in entries:
             item = Gio.MenuItem.new(label, None)
             item.set_action_and_target_value(action, target)

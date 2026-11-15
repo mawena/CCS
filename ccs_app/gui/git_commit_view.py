@@ -148,10 +148,11 @@ class CommitView(Gtk.Box):
         "commit-activated": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
     }
 
-    def __init__(self, repo, cid):
+    def __init__(self, repo, cid, git=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.repo = repo
         self.cid = cid
+        self.git = git if git is not None else git_repo   # source distante : `remote.workspace`
         self._commit = None
         self._diffs = []
         self._parent_buttons = []
@@ -182,7 +183,7 @@ class CommitView(Gtk.Box):
 
     def _read(self):
         try:
-            return git_repo.show(self.repo, self.cid)
+            return self.git.show(self.repo, self.cid)
         except git_repo.GitError as e:
             return e
 

@@ -331,6 +331,76 @@ class GitBridgeTest(GitTestCase, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(seen), 3)
         self.assertTrue(all(n.startswith("ccs-git-reseau") for n in seen), seen)
 
+    # ---- pour le bureau (espace de session distant) ------------------------------------
+
+    async def test_log_gives_parents_email_and_limit(self):
+        first = commit_file(self.repo, "a.txt", "un\n")
+        second = commit_file(self.repo, "b.txt", "deux\n")
+        r = await self.call("git.log")
+        top = r["commits"][0]
+        self.assertEqual(top["id"], second)
+        self.assertEqual(top["parents"], [first])
+        self.assertEqual(top["email"], "test@example.org")
+        many_commits(self.repo, 80, branch="autre")
+        r = await self.call("git.log", limit=70)
+        self.assertEqual(len(r["commits"]), 70)
+        self.assertTrue(r["more"])
+        r = await self.call("git.log", limit=5000)                # borné
+        self.assertLessEqual(len(r["commits"]), bridge_git.MAX_LOG)
+        await self.fails("invalide", "git.log", limit=0)
+
+    async def test_refs(self):
+        cid = commit_file(self.repo, "a.txt", "un\n")
+        g(self.repo, "tag", "v1")
+        refs = {(r["name"], r["kind"]): r["target"] for r in (await self.call("git.refs"))["refs"]}
+        self.assertEqual(refs[("main", "branch")], cid)
+        self.assertEqual(refs[("v1", "tag")], cid)
+        self.assertEqual(refs[("HEAD", "head")], cid)
+
+    async def test_show_commit(self):
+        first = commit_file(self.repo, "a.txt", "un\n")
+        (self.repo / "a.txt").write_text("un\ndeux\n")
+        (self.repo / "b.txt").write_text("b\n")
+        g(self.repo, "add", "a.txt", "b.txt")
+        g(self.repo, "commit", "-q", "-m", "sujet", "-m", "le corps")
+        r = await self.call("git.show", id="HEAD")
+        c = r["commit"]
+        self.assertEqual((c["subject"], c["body"].strip(), c["parents"]), ("sujet", "le corps", [first]))
+        self.assertEqual(c["email"], "test@example.org")
+        self.assertEqual([f["path"] for f in r["files"]], ["a.txt", "b.txt"])
+        self.assertIn("+", [l["kind"] for h in r["files"][0]["hunks"] for l in h["lines"]])
+        await self.fails("invalide", "git.show", id="--output=/tmp/x")
+        await self.fails("invalide", "git.show", id="")
+        await self.fails("git", "git.show", id="0123456789abcdef")
+
+    async def test_stage_and_unstage_chosen_lines(self):
+        base = "".join(f"l{i}\n" for i in range(10))
+        commit_file(self.repo, "a.txt", base)
+        lines = base.splitlines(keepends=True)
+        lines[2] = "CHANGE1\n"
+        lines[3] = "CHANGE2\n"
+        (self.repo / "a.txt").write_text("".join(lines))
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        h = d["hunks"][0]
+        keep = [[0, i] for i, l in enumerate(h["lines"]) if l["text"] in ("l2", "CHANGE1")]
+        await self.call("git.lines", path="a.txt", action="stage", lines=keep, headers=[h["header"]])
+        staged = g(self.repo, "diff", "--cached")
+        self.assertIn("+CHANGE1", staged)
+        self.assertNotIn("CHANGE2", staged)
+        d = (await self.call("git.diff", path="a.txt", staged=True))["diff"]
+        h = d["hunks"][0]
+        keep = [[0, i] for i, l in enumerate(h["lines"]) if l["kind"] != " "]
+        await self.call("git.lines", path="a.txt", action="unstage", lines=keep, headers=[h["header"]])
+        self.assertEqual(g(self.repo, "diff", "--cached"), "")
+        await self.fails("conflit", "git.lines", path="a.txt", action="stage", lines=[[0, 1]],
+                         headers=["@@ -1 +1 @@"])
+        await self.fails("invalide", "git.lines", path="a.txt", action="jeter", lines=[[0, 1]],
+                         headers=[h["header"]])
+        await self.fails("invalide", "git.lines", path="a.txt", action="stage", lines=[],
+                         headers=[h["header"]])
+        await self.fails("invalide", "git.lines", path="a.txt", action="stage", lines=[[0, "x"]],
+                         headers=[h["header"]])
+
 
 if __name__ == "__main__":
     unittest.main()

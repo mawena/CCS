@@ -38,6 +38,28 @@ class NavigationTest(HomeTestCase):
     def tab(self):
         return self.win.stack.get_visible_child_name()
 
+    def test_sessions_page_switches_between_this_pc_and_servers(self):
+        """Page Sessions : « Ce poste » puis chaque serveur appairé ; la liste des machines
+        n'apparaît qu'avec un serveur, et un serveur affiche sa propre vue."""
+        from types import SimpleNamespace
+        from ccs_app.gui import remote_machine, sessions_page
+        page = self.win.sessions
+        page.load_machines()
+        self.assertFalse(page.machine_drop.get_visible())
+        srv = SimpleNamespace(name="vps", url="https://ccs.example", user="c", token="t")
+        conn = SimpleNamespace(listeners=set(), state="online", call=lambda *a, **k: None)
+        with mock.patch.object(sessions_page.servers, "load", return_value=[srv]), \
+                mock.patch.object(sessions_page.servers, "get", return_value=srv), \
+                mock.patch.object(remote_machine.remote_engine, "connection", return_value=conn):
+            page.load_machines()
+            self.assertTrue(page.machine_drop.get_visible())
+            self.assertTrue(page.show_machine("vps"))
+            self.assertIsInstance(page.machines.get_visible_child(), remote_machine.RemoteMachineView)
+            self.assertFalse(page.local_bar.get_visible())
+            self.assertTrue(page.show_machine(None))
+            self.assertIs(page.machines.get_visible_child(), page.split)
+            self.assertTrue(page.local_bar.get_visible())
+
     def test_restart_banner_when_a_new_version_is_installed(self):
         from ccs_app.gui import app
         self.assertFalse(self.win.restart_banner.get_revealed())

@@ -384,16 +384,16 @@ Pont :
 - [x] 3. `conversation.trash` (refusé si le chat tourne), `conversation.trash_list`, `conversation.restore`, purge après 30 jours par le service de fond
 
 Bureau (page Sessions) :
-- [ ] 4. Page Sessions par machine : « Ce poste » puis chaque serveur appairé, chacun avec ses sessions en cours, ses projets et ses conversations (état de connexion visible, serveur injoignable sans bloquer le reste)
-- [ ] 5. Rejoindre un chat qui tourne sur un serveur (`chat.list`) : fil rejoué et suivi en direct, demandes de permission comprises ; un onglet distant se branche dès l'ouverture
-- [ ] 6. Ajouter un projet, retirer un projet, supprimer une conversation, corbeille, sur ce poste comme sur un serveur
-- [ ] 6b. Session distante : panneau de gauche (Fichiers, Feuille de route, Git) comme pour une session locale
+- [x] 4. Page Sessions par machine : « Ce poste » puis chaque serveur appairé, chacun avec ses sessions en cours, ses projets et ses conversations (état de connexion visible, serveur injoignable sans bloquer le reste)
+- [x] 5. Rejoindre un chat qui tourne sur un serveur (`chat.list`) : fil rejoué et suivi en direct, demandes de permission comprises ; un onglet distant se branche dès l'ouverture
+- [x] 6. Ajouter un projet, retirer un projet, supprimer une conversation, corbeille, sur ce poste comme sur un serveur
+- [x] 6b. Session distante : panneau de gauche (Fichiers, Feuille de route, Git) comme pour une session locale
 
 Web :
 - [x] 7. Ajouter un projet (dossier existant ou nouveau, git init, `~` accepté), le retirer de la liste, supprimer une conversation (corbeille, « Annuler »), Corbeille avec Restaurer
 
 Fin de phase :
 - [x] 8a. Documentation de la partie web (README, CHANGELOG) et release 0.13.0
-- [ ] 8. Documentation de la partie bureau (README, guide, CHANGELOG)
+- [x] 8. Documentation de la partie bureau (README, guide, CHANGELOG)
 - [ ] 9. Essai réel par Charles depuis son PC
 - [ ] 10. Release mineure 0.14.0 (bureau)

@@ -52,11 +52,15 @@ def _fetch_minutes():
 
 
 class GitPage(Gtk.Box):
-    """`GitPage(cwd, open_in_editor, on_layout)`."""
+    """`GitPage(cwd, open_in_editor, on_layout, git=None)`. `git` : la source (le module
+    `git_repo` par défaut ; `RemoteGit` pour une session distante : pas de suivi du disque, pas
+    de git flow, rafraîchie par la minuterie)."""
 
-    def __init__(self, cwd, open_in_editor, on_layout):
+    def __init__(self, cwd, open_in_editor, on_layout, git=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, vexpand=True, hexpand=True)
         self.root = os.fspath(cwd)
+        self.git = git if git is not None else git_repo
+        self.remote = bool(getattr(self.git, "remote", False))
         self._open_in_editor = open_in_editor
         self._on_layout = on_layout
         self._layout = _saved_layout() if _saved_layout() in ("A", "B", "C") else "A"
@@ -78,10 +82,10 @@ class GitPage(Gtk.Box):
         self.empty = Adw.StatusPage(icon_name="folder-symbolic", title="Pas un dépôt git")
         self.stack.add_named(self.empty, "empty")
 
-        self.changes = ChangesView(self.root)
+        self.changes = ChangesView(self.root, git=self.git)
         self.changes.connect("error", lambda _c, e: self.show_error(e))
         self.changes.connect("changed", lambda _c: self._schedule_reload())
-        self.graph = GraphView("cards" if self._layout == "C" else "compact")
+        self.graph = GraphView("cards" if self._layout == "C" else "compact", git=self.git)
         self.graph.connect("commit-activated", lambda _g, cid: self.open_commit(cid))
         self.graph.set_size_request(-1, 160)
         self.split = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL, wide_handle=True,
@@ -162,7 +166,7 @@ class GitPage(Gtk.Box):
         while (c := self._flow_box.get_first_child()) is not None:
             self._flow_box.remove(c)
         ok = bool(self._flow_ok)
-        reason = None if ok else "git flow n'est pas installé"
+        reason = None if ok else getattr(self.git, "FLOW_UNAVAILABLE", "git flow n'est pas installé")
         for kind in git_repo.FLOW_KINDS:
             start = Gtk.Button(label=f"Démarrer une {kind}…" if kind != "hotfix"
                                else "Démarrer un hotfix…")
@@ -205,19 +209,19 @@ class GitPage(Gtk.Box):
     # ---- ouverture dans la zone de droite -----------------------------------------------
 
     def open_commit(self, cid):
-        view = CommitView(self.root, cid)
+        view = CommitView(self.root, cid, git=self.git)
         view.connect("commit-activated", lambda _v, parent: self.open_commit(parent))
         self._open_in_editor(f"commit:{cid}", f"Commit {cid[:7]}", view)
 
     def open_history(self):
-        graph = GraphView("cards")
+        graph = GraphView("cards", git=self.git)
         graph.load(self.root)
         detail = Gtk.Box(vexpand=True, hexpand=True)
         paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL, wide_handle=True,
                           shrink_start_child=False, shrink_end_child=False)
 
         def show(_g, cid):
-            view = CommitView(self.root, cid)
+            view = CommitView(self.root, cid, git=self.git)
             view.connect("commit-activated", lambda _v, parent: (graph.select(parent),
                                                                  show(None, parent)))
             while (c := detail.get_first_child()) is not None:
@@ -244,16 +248,19 @@ class GitPage(Gtk.Box):
         self.refresh(full=True)
 
     def refresh(self, full=False):
-        root = self.root
+        root, git = self.root, self.git
 
         def work():
-            if not git_repo.is_repo(root):
+            forget = getattr(git, "forget", None)
+            if forget is not None:
+                forget(root)        # source distante : l'état gardé n'est pas réutilisé ici
+            if not git.is_repo(root):
                 return None
             try:
-                br = git_repo.branch(root)
+                br = git.branch(root)
             except git_repo.GitError:
                 br = None
-            return br, (git_repo.flow_available() if self._flow_ok is None else self._flow_ok)
+            return br, (git.flow_available() if self._flow_ok is None else self._flow_ok)
 
         def done(res):
             if self._closed or root != self.root:
@@ -322,11 +329,11 @@ class GitPage(Gtk.Box):
     def fetch(self):
         self._last_fetch = time.monotonic()
         root = self.root
-        self._op(lambda: git_repo.fetch(root))
+        self._op(lambda: self.git.fetch(root))
 
     def pull(self):
         root = self.root
-        self._op(lambda: git_repo.pull(root, prompt=True))
+        self._op(lambda: self.git.pull(root, prompt=True))
 
     def push(self, force=False):
         root = self.root
@@ -339,10 +346,10 @@ class GitPage(Gtk.Box):
             d.add_response("ok", "Pousser de force")
             d.set_response_appearance("ok", Adw.ResponseAppearance.DESTRUCTIVE)
             d.connect("response", lambda _d, r: r == "ok" and
-                      self._op(lambda: git_repo.push(root, force=True, prompt=True)))
+                      self._op(lambda: self.git.push(root, force=True, prompt=True)))
             d.present(self.get_root())
             return
-        self._op(lambda: git_repo.push(root, prompt=True))
+        self._op(lambda: self.git.push(root, prompt=True))
 
     def _flow_start(self, kind):
         entry = Gtk.Entry(placeholder_text="nom", activates_default=True)
@@ -356,7 +363,7 @@ class GitPage(Gtk.Box):
         def response(_d, r):
             name = entry.get_text().strip()
             if r == "ok" and name:
-                self._op(lambda: git_repo.flow(root, kind, "start", name))
+                self._op(lambda: self.git.flow(root, kind, "start", name))
         d.connect("response", response)
         d.present(self.get_root())
 
@@ -369,7 +376,7 @@ class GitPage(Gtk.Box):
         d.add_response("ok", "Finir")
         d.set_response_appearance("ok", Adw.ResponseAppearance.DESTRUCTIVE)
         d.connect("response", lambda _d, r: r == "ok" and
-                  self._op(lambda: git_repo.flow(root, kind, "finish", name)))
+                  self._op(lambda: self.git.flow(root, kind, "finish", name)))
         d.present(self.get_root())
 
     # ---- fetch automatique --------------------------------------------------------------
@@ -383,12 +390,16 @@ class GitPage(Gtk.Box):
         if minutes > 0 and self._visible() and self._is_repo is not False \
                 and time.monotonic() - self._last_fetch >= minutes * 60:
             self.fetch()
+        elif self.remote and self._visible() and not self._busy_ops:
+            self.refresh()      # pas de suivi du disque à distance
         return True
 
     # ---- suivi du disque ----------------------------------------------------------------
 
     def _watch(self):
         self._stop_watch()
+        if self.remote:
+            return      # le dossier est sur le serveur
         ref = weakref.ref(self)
 
         def changed(_m, file, other, _event):

@@ -783,17 +783,21 @@ class TerminalsPage(Gtk.Box):
 
     # ---- serveurs CCS (chats et shells distants) -----------------------------------------
 
-    def open_remote_chat(self, server, cwd, resume=None, title=None, history=None, present=True):
+    def open_remote_chat(self, server, cwd, resume=None, title=None, history=None, present=True,
+                         chat_id=None):
         """Chat d'un projet d'un serveur CCS : même onglet qu'en local, moteur distant
-        (`RemoteChatEngine`). Pas d'espace de fichiers local (le dossier est sur le serveur) ;
-        ces onglets ne sont pas rouverts au démarrage."""
+        (`RemoteChatEngine`, `chat_id` : un chat qui tourne déjà sur le serveur). L'espace de
+        session (arbre, éditeur, feuille de route, Git) lit le dossier du serveur par le pont
+        (`remote.workspace`) ; ces onglets ne sont pas rouverts au démarrage."""
         from ..remote import engine as remote_engine
+        from ..remote.workspace import RemoteWorkspace
         chat_cls, chat_options = _chat_classes()
         conn = remote_engine.connection(server, gui_dispatch)
         launch = terminal.claude_launch(cwd, resume, title or os.path.basename(cwd.rstrip("/")) or cwd)
 
         def factory(cwd_, session_id, options, on_event):
-            return remote_engine.RemoteChatEngine(conn, cwd_, session_id, options, on_event)
+            return remote_engine.RemoteChatEngine(conn, cwd_, session_id, options, on_event,
+                                                  chat_id=chat_id)
 
         def reader(path):
             return remote_messages(conn, path)
@@ -804,6 +808,7 @@ class TerminalsPage(Gtk.Box):
         tab.elsewhere_pid = None
         conn.listeners.add(tab.remote_state)
         tab.remote_state(conn.state)
+        self.install_workspace(tab, remote=RemoteWorkspace(conn.client, server.name))
         tab.page = self.view.append(tab)
         tab.update_page()
         self.update_content()
@@ -823,9 +828,10 @@ class TerminalsPage(Gtk.Box):
         tab.state.remote = server.name
         return tab
 
-    def install_workspace(self, tab):
+    def install_workspace(self, tab, remote=None):
         """Le panneau du chat devient le centre d'un espace de session (arbre, éditeur,
-        feuille de route) ; l'espace est le `panel` de l'onglet (la vue côte à côte l'emprunte)."""
+        feuille de route) ; l'espace est le `panel` de l'onglet (la vue côte à côte l'emprunte).
+        `remote` (`RemoteWorkspace`) : chat d'un serveur, l'espace lit le dossier du serveur."""
         chat = tab.panel
 
         def ask():
@@ -833,7 +839,8 @@ class TerminalsPage(Gtk.Box):
                 tab.state.queue[:] = terminal.queue_add(tab.state.queue, ASK_CREATE_TEXT)
                 self.queue_changed(tab)
         tab.remove(chat)  # le chat n'a plus de parent avant d'entrer dans le Gtk.Paned de l'espace
-        workspace = SessionWorkspace(tab.state.cwd, chat, on_ask_create=ask, layout=self.layout)
+        workspace = SessionWorkspace(tab.state.cwd, chat, on_ask_create=ask, layout=self.layout,
+                                     remote=remote)
         workspace.set_dark(self.dark)
         for name, handler in (("open-file", lambda _t, path, line=0: workspace.open_file(path, line or None)),
                               ("show-diff", lambda _t, path, old, new: workspace.show_diff(path, old, new))):
@@ -1104,7 +1111,7 @@ class TerminalsPage(Gtk.Box):
         """« Dossier du projet… » : l'arbre et la feuille de route de l'onglet partent de ce
         dossier. Une conversation arrêtée est aussi reliée à ce dossier (reprise depuis là)."""
         ws = tab.panel if isinstance(tab.panel, SessionWorkspace) else None
-        if ws is None:
+        if ws is None or ws.remote is not None:     # dossier du serveur : pas de choix local
             return
         dialog = Gtk.FileDialog(title="Dossier du projet",
                                 initial_folder=Gio.File.new_for_path(ws.project_root))

@@ -41,12 +41,18 @@ def gauge(done, total):
 
 
 class RoadmapView(Gtk.Box):
-    """`RoadmapView(cwd, on_ask_create=None, on_do_task=None)`. `on_do_task(task, phase, where)` :
-    bouton ▶ des tâches non cochées ; `where` vaut « chat » ou « nuit »."""
+    """`RoadmapView(cwd, on_ask_create=None, on_do_task=None, source=None)`.
+    `on_do_task(task, phase, where)` : bouton ▶ des tâches non cochées ; `where` vaut « chat »
+    ou « nuit ». `source` (facultatif, `RemoteRoadmap` d'une session distante) :
+    `load(cwd, suivie)` et `toggle(path, line, text)` à la place du disque ; pas de suivi du
+    disque (l'espace de session relit), pas de choix d'un fichier local."""
 
-    def __init__(self, cwd, on_ask_create=None, on_do_task=None):
+    def __init__(self, cwd, on_ask_create=None, on_do_task=None, source=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, vexpand=True, hexpand=True)
         self.cwd = str(cwd)
+        self.source = source
+        self.remote = bool(getattr(source, "remote", False))
+        self._project = None             # dossier de projet (session distante : lu dans le fil)
         self.on_ask_create = on_ask_create
         self.on_do_task = on_do_task
         self.followed = None             # ROADMAP.md choisi ou suivi (prime sur celui de cwd)
@@ -81,6 +87,10 @@ class RoadmapView(Gtk.Box):
         self._loading = True
 
         followed = self.followed
+        if self.source is not None:
+            source, cwd = self.source, self.cwd
+            in_thread(lambda: source.load(cwd, followed), self._loaded)
+            return
 
         def work():
             path = followed if followed is not None and followed.is_file() else roadmap.find(self.cwd)
@@ -128,7 +138,8 @@ class RoadmapView(Gtk.Box):
 
     def _loaded(self, result):
         self._loading = False
-        path, rm = result
+        path, rm = result[:2]
+        self._project = result[2] if len(result) > 2 else None
         before = self.roadmap
         self.path, self.roadmap, self.loaded = path, rm, True
         if before is not None and rm is not None and not self._own_write:
@@ -155,6 +166,8 @@ class RoadmapView(Gtk.Box):
     # ---- suivi du disque ------------------------------------------------------------
 
     def _watch(self):
+        if self.remote:
+            return      # le fichier est sur le serveur
         folder = self.path.parent if self.path else Path(self.cwd)
         if self._monitored == folder:
             return
@@ -214,7 +227,7 @@ class RoadmapView(Gtk.Box):
         self.toasts.set_child(self._empty() if self.roadmap is None else self._content())
 
     def _empty(self):
-        project = roadmap.is_project(self.cwd)
+        project = self._project if self.source is not None else roadmap.is_project(self.cwd)
         page = Adw.StatusPage(
             icon_name="view-list-symbolic", vexpand=True, title="Pas de feuille de route",
             description=("Ce projet n'a pas de ROADMAP.md." if project else
@@ -226,9 +239,12 @@ class RoadmapView(Gtk.Box):
             button.connect("clicked", lambda _b: self.on_ask_create())
             buttons.append(button)
             self.ask_button = button
-        self.choose_button = Gtk.Button(label="Choisir une feuille de route…", css_classes=["pill"])
-        self.choose_button.connect("clicked", self.choose)
-        buttons.append(self.choose_button)
+        self.choose_button = None
+        if not self.remote:     # un fichier du disque local n'a pas de sens à distance
+            self.choose_button = Gtk.Button(label="Choisir une feuille de route…",
+                                            css_classes=["pill"])
+            self.choose_button.connect("clicked", self.choose)
+            buttons.append(self.choose_button)
         page.set_child(buttons)
         return page
 
@@ -315,7 +331,8 @@ class RoadmapView(Gtk.Box):
                 self.toast("La feuille de route a changé, relue")
             self.reload()
 
-        in_thread(lambda: roadmap.toggle(path, task.line, task.text), finish)
+        toggle = self.source.toggle if self.source is not None else roadmap.toggle
+        in_thread(lambda: toggle(path, task.line, task.text), finish)
 
     def _own_done(self):
         self._own_write = False
