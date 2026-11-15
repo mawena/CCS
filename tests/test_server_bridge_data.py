@@ -282,3 +282,57 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProjectsAndTrashBridgeTest(DataBridgeTest):
+    """Phase 15 : ajouter / retirer un projet, corbeille des conversations."""
+
+    async def test_add_existing_and_new_project(self):
+        r = await self.c.call("projects.add", cwd=str(self.project))
+        self.assertEqual(r["cwd"], str(self.project))
+        r = await self.c.call("projects.add", parent=str(self.home), name="neuf", git=True)
+        self.assertTrue((self.home / "neuf" / ".git").is_dir())
+        listed = await self.c.call("projects.list")
+        cwds = [e["cwd"] for e in listed["entries"]]
+        self.assertIn(str(self.home / "neuf"), cwds)
+        await self.c.call("projects.remove", cwd=str(self.home / "neuf"))
+        listed = await self.c.call("projects.list")
+        self.assertNotIn(str(self.home / "neuf"), [e["cwd"] for e in listed["entries"]])
+        self.assertTrue((self.home / "neuf").is_dir())          # rien n'est effacé
+
+    async def test_add_refused(self):
+        await self.refused("projects.add", cwd="/etc")
+        await self.refused("projects.add", parent="/tmp", name="x")
+        for bad in ("../x", "a/b", "", ".."):
+            with self.assertRaises(rpc.RpcError):
+                await self.c.call("projects.add", parent=str(self.home), name=bad)
+        with self.assertRaises(rpc.RpcError):
+            await self.c.call("projects.add", parent=str(self.home), name="projet")   # existe
+
+    async def test_trash_and_restore(self):
+        from ccs_app import sessions
+        sid = "0f0e0d0c-aaaa-bbbb-cccc-000000000002"
+        j = sessions.transcript_path(str(self.project), sid)
+        j.parent.mkdir(parents=True)
+        j.write_text('{"type":"user"}\n')
+        await self.refused("conversation.trash", path=str(self.project / "a.txt"), session_id="a")
+        r = await self.c.call("conversation.trash", path=str(j), session_id=sid, title="T",
+                              cwd=str(self.project))
+        self.assertFalse(j.exists())
+        items = (await self.c.call("conversation.trash_list"))["items"]
+        self.assertEqual([(i["tid"], i["title"]) for i in items], [(r["tid"], "T")])
+        await self.c.call("conversation.restore", tid=r["tid"])
+        self.assertTrue(j.is_file())
+
+    async def test_trash_refused_while_running(self):
+        from ccs_app import sessions
+        sid = "0f0e0d0c-aaaa-bbbb-cccc-000000000003"
+        j = sessions.transcript_path(str(self.project), sid)
+        j.parent.mkdir(parents=True)
+        j.write_text("{}\n")
+        with mock.patch.object(bridge_data.sessions, "list_sessions",
+                               return_value=[mock.Mock(session_id=sid)]):
+            with self.assertRaises(rpc.RpcError) as cm:
+                await self.c.call("conversation.trash", path=str(j), session_id=sid)
+        self.assertEqual(cm.exception.code, "occupe")
+        self.assertTrue(j.exists())

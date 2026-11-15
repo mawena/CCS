@@ -13,9 +13,10 @@ recherche et un filtre d'origine communs.
   session désignée par une notification (« <pid>:<identifiant> »).
 """
 
+import os
 from dataclasses import dataclass
 
-from . import attention, conversations, project_accounts, sessions
+from . import attention, conversations, project_accounts, project_list, sessions
 
 ALL = None                       # entrée « Tous les projets »
 ALL_LABEL = "Tous les projets"
@@ -105,10 +106,15 @@ def _labels(cwds, home):
 
 
 def build(convs, found, selected=ALL, query="", origin=None, titles=None, suggestions=None,
-          associations=(), home=None):
+          associations=(), home=None, listing=None):
     """Tout ce que l'onglet affiche, d'après l'historique (`convs`, de conversations.scan),
-    les sessions ouvertes (`found`) et le projet choisi (dossier, ou ALL)."""
+    les sessions ouvertes (`found`) et le projet choisi (dossier, ou ALL). `listing` :
+    (ajoutés, retirés) de `project_list.load()`."""
     suggestions = suggestions or {}
+    added, removed = listing or ({}, {})
+    gone = project_list.hidden(removed, convs, found)
+    if gone:
+        convs = [c for c in convs if c.cwd not in gone]
     filtering = bool(query.strip()) or bool(origin)
     shown_convs = filter_conversations(convs, query, origin)
     shown_sessions = filter_sessions(found, query, origin, titles=titles)
@@ -131,6 +137,10 @@ def build(convs, found, selected=ALL, query="", origin=None, titles=None, sugges
     for s in shown_sessions:
         stats[s.cwd][2] += 1
         stats[s.cwd][3] += s.state == "waiting"
+    for cwd, when in added.items():
+        if cwd not in stats and not filtering:
+            stats[cwd] = [0, 0, 0, 0, when]
+            exists[cwd] = os.path.isdir(cwd)
 
     if selected is not ALL and selected not in stats:
         selected = ALL   # projet disparu (plus de conversation ni de session)

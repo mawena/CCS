@@ -10,12 +10,14 @@ import asyncio
 import base64
 import dataclasses
 import os
+import re
+import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .. import (conversations, core, costs, file_tree, pause, preview, project_accounts, roadmap,
-               session_hub, sessions, tasks, transcripts)
+from .. import (conversations, core, costs, file_tree, pause, preview, project_accounts,
+               project_list, roadmap, session_hub, sessions, tasks, transcripts, trash)
 from ..store import Store
 from . import rpc
 
@@ -71,9 +73,16 @@ def _stamp(path):
     return [s[0], s[1]]
 
 
+_FOLDER_NAME = re.compile(r"[^/\0]{1,120}")
+
+
 class DataApi:
     def __init__(self, bridge):
+        self.bridge = bridge
         bridge.add_handlers({
+            "projects.add": self.project_add, "projects.remove": self.project_remove,
+            "conversation.trash": self.trash, "conversation.trash_list": self.trash_list,
+            "conversation.restore": self.restore,
             "projects.list": self.projects, "conversation.messages": self.messages,
             "files.list": self.files_list, "files.read": self.files_read,
             "files.write": self.files_write, "roadmap.read": self.roadmap_read,
@@ -94,11 +103,80 @@ class DataApi:
         def work():
             convs = conversations.scan()
             found = sessions.list_sessions()
-            view = session_hub.build(convs, found, selected=selected, query=query)
+            view = session_hub.build(convs, found, selected=selected, query=query,
+                                     listing=project_list.load())
             return {"entries": _plain(view.entries), "sessions": _plain(view.sessions),
                     "conversations": _plain(view.conversations[:MAX_CONVERSATIONS]),
                     "total": view.total, "projects": view.projects}
         return await asyncio.to_thread(work)
+
+    async def project_add(self, _conn, params):
+        """Projet ajouté à la liste : `cwd` existant, ou `parent` + `name` créé (avec `git` :
+        `git init`). Seulement sous les dossiers permis."""
+        name = params.get("name")
+        if name is not None:
+            if not isinstance(name, str) or not _FOLDER_NAME.fullmatch(name) or name in (".", ".."):
+                raise rpc.RpcError("invalide", "Nom de dossier refusé.")
+            parent = safe_path(params.get("parent"))
+            if not parent.is_dir():
+                raise rpc.RpcError("introuvable", "Dossier parent introuvable.")
+            target = safe_path(str(parent / name))
+            try:
+                target.mkdir()
+            except FileExistsError:
+                raise rpc.RpcError("invalide", "Ce dossier existe déjà.") from None
+            except OSError as e:
+                raise rpc.RpcError("erreur", f"Création impossible : {e.strerror}.") from None
+            if params.get("git"):
+                await asyncio.to_thread(subprocess.run, ["git", "init", "-q", str(target)],
+                                        capture_output=True, timeout=30)
+        else:
+            target = safe_path(params.get("cwd"))
+            if not target.is_dir():
+                raise rpc.RpcError("introuvable", "Dossier introuvable.")
+        return {"cwd": await asyncio.to_thread(project_list.add, str(target))}
+
+    async def project_remove(self, _conn, params):
+        """Retiré de la liste seulement : le dossier et les conversations restent."""
+        cwd = params.get("cwd")
+        if not isinstance(cwd, str) or not os.path.isabs(cwd):
+            raise rpc.RpcError("invalide", "Dossier invalide.")
+        return {"cwd": await asyncio.to_thread(project_list.remove, cwd)}
+
+    def _running(self, session_id):
+        hub = getattr(self.bridge, "hubs", {}).get("chat")
+        if hub and any(c.engine.session_id == session_id and c.engine.state != "stopped"
+                       for c in hub.chats.values()):
+            return True
+        return any(s.session_id == session_id for s in sessions.list_sessions())
+
+    async def trash(self, _conn, params):
+        """Conversation à la corbeille (30 jours) ; refusé si elle tourne encore."""
+        path, session_id = params.get("path"), params.get("session_id")
+        if not isinstance(session_id, str) or not session_id or not isinstance(path, str) \
+                or not trash.transcript_ok(path, session_id):
+            raise rpc.RpcError("refuse", "Ce fichier n'est pas un journal de conversation.")
+        if await asyncio.to_thread(self._running, session_id):
+            raise rpc.RpcError("occupe", "Cette conversation tourne : arrête-la d'abord.")
+        title = params.get("title") if isinstance(params.get("title"), str) else ""
+        cwd = params.get("cwd") if isinstance(params.get("cwd"), str) else ""
+        try:
+            tid = await asyncio.to_thread(trash.put, path, session_id, cwd, title[:200])
+        except trash.TrashError as e:
+            raise rpc.RpcError("introuvable", str(e)) from None
+        return {"tid": tid}
+
+    async def trash_list(self, _conn, _params):
+        items = await asyncio.to_thread(trash.items)
+        return {"items": [{k: m.get(k) for k in ("tid", "id", "cwd", "title", "trashed_at")}
+                          for m in items], "days": trash.DAYS}
+
+    async def restore(self, _conn, params):
+        try:
+            meta = await asyncio.to_thread(trash.restore, params.get("tid"))
+        except trash.TrashError as e:
+            raise rpc.RpcError("invalide", str(e)) from None
+        return {"session_id": meta.get("id"), "cwd": meta.get("cwd")}
 
     async def messages(self, _conn, params):
         path = safe_path(params.get("path"))

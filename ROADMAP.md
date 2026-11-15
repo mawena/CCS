@@ -372,9 +372,9 @@ seulement retiré de la liste (dossier et conversations gardés) ; projet ajout�
 existant ou nouveau (git init en option) ; au bureau et au web.
 
 Pont :
-- [ ] 1. `projects.add` (dossier existant ou créé, git init en option, chemins permis seulement) et `projects.remove` (retiré de la liste, rien d'effacé)
-- [ ] 2. Liste des projets : projets ajoutés sans conversation inclus, projets retirés exclus
-- [ ] 3. `conversation.trash` (refusé si le chat tourne), `conversation.trash_list`, `conversation.restore`, purge après 30 jours par le service de fond
+- [x] 1. `projects.add` (dossier existant ou créé, git init en option, chemins permis seulement) et `projects.remove` (retiré de la liste, rien d'effacé)
+- [x] 2. Liste des projets : projets ajoutés sans conversation inclus, projets retirés exclus
+- [x] 3. `conversation.trash` (refusé si le chat tourne), `conversation.trash_list`, `conversation.restore`, purge après 30 jours par le service de fond
 
 Bureau (page Sessions) :
 - [ ] 4. Page Sessions par machine : « Ce poste » puis chaque serveur appairé, chacun avec ses sessions en cours, ses projets et ses conversations (état de connexion visible, serveur injoignable sans bloquer le reste)
