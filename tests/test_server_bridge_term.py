@@ -69,6 +69,14 @@ class TermBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cm.exception.code, "refuse")
         self.assertEqual((await self.c.call("term.list"))["terms"], [])
 
+    async def test_ids_unique_across_bridge_restarts(self):
+        """C1 : `t<boot>-<n>`, boot tiré au hasard à la création du hub."""
+        tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]
+        self.assertRegex(tid, r"^t[0-9a-f]{6}-1$")
+        self.assertEqual(tid, f"t{self.hub.boot}-1")
+        other = bridge_term.TermHub(bridge.Bridge("bob", None, local=True, start_daemon=False, install_claude=False))
+        self.assertNotEqual(other.boot, self.hub.boot)
+
     async def test_resize(self):
         tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]
         await self.c.call("term.resize", term_id=tid, cols=100, rows=40)
