@@ -143,6 +143,46 @@ class RemoteEngineTest(unittest.TestCase):
         self.assertNotIn(eng.chat_id, (None, old))
         self.assertIn(eng.chat_id, [c["chat_id"] for c in self.sync.call_sync("chat.list")["chats"]])
 
+    def test_resumed_conversation_follows_chat_running_elsewhere(self):
+        """Bureau : « Reprendre » une conversation que le web fait tourner : l'onglet suit le chat
+        en direct dès l'ouverture, sans attendre d'y écrire (et sans rejouer l'historique déjà lu)."""
+        tel = engine.RemoteChatEngine(self.conn, str(self.project), None, ChatOptions(), on_event=lambda e: None)
+        tel.send("du web")
+        deadline = time.time() + 20
+        while (tel.chat_id is None or tel.session_id is None or tel.state != "permission") and time.time() < deadline:
+            time.sleep(0.05)
+        col = Collector()
+        desk = engine.RemoteChatEngine(self.conn, str(self.project), tel.session_id, ChatOptions(), on_event=col)
+        while desk.chat_id is None and time.time() < deadline:
+            time.sleep(0.05)
+        self.assertEqual(desk.chat_id, tel.chat_id)
+        req = [e for e in col.events if isinstance(e, proto.PermissionRequest)]
+        self.assertEqual(req, [])                       # déjà dans l'historique : pas rejoué
+        self.sync.call_sync("chat.send", chat_id=tel.chat_id, text="encore du web", nonce="w2")
+        self.assertTrue(col.wait(chat_engine.UserSent))
+
+    def test_resumed_conversation_joins_when_opened_elsewhere_later(self):
+        """Onglet du bureau ouvert d'abord, le web ouvre la même conversation ensuite : le bureau
+        s'y branche quand même."""
+        first = engine.RemoteChatEngine(self.conn, str(self.project), None, ChatOptions(), on_event=lambda e: None)
+        first.send("pour créer la conversation")
+        deadline = time.time() + 20
+        while (first.session_id is None or first.state != "permission") and time.time() < deadline:
+            time.sleep(0.05)
+        sid = first.session_id
+        self.sync.call_sync("chat.close", chat_id=first.chat_id)
+        first.stop()
+        col = Collector()
+        with mock.patch.object(engine, "LOOK_S", 0.2):
+            desk = engine.RemoteChatEngine(self.conn, str(self.project), sid, ChatOptions(), on_event=col)
+            time.sleep(0.5)
+            self.assertIsNone(desk.chat_id)                 # rien d'ouvert ailleurs pour l'instant
+            web = self.sync.call_sync("chat.open", cwd=str(self.project), session_id=sid)
+            while desk.chat_id is None and time.time() < deadline:
+                time.sleep(0.05)
+        self.assertEqual(desk.chat_id, web["chat_id"])
+        desk.stop()
+
     def test_methods_exist_like_local(self):
         local = [m for m in ("send", "answer", "answer_questions", "interrupt", "set_options", "request_context",
                              "suspend_if_idle", "background_finished", "stop")]
