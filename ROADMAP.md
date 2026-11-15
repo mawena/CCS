@@ -367,8 +367,8 @@ Fin de phase :
 - [x] Web au téléphone : une seule barre en haut, saisie plus large (0.12.5)
 - [x] Web : installer CCS comme une application (Chrome, iPhone) (0.12.6)
 - [x] Releases 0.12.1 à 0.12.6 (paquets construits sur le VPS, releases GitHub)
-- [ ] Dépôt APT signé à jour (`make apt` depuis le PC de Charles)
-- [ ] Essais de Charles : page Git du web, Autoriser / Refuser (web et ntfy)
+- [x] Dépôt APT signé à jour (`make apt` depuis le PC de Charles)
+- [x] Essais de Charles : page Git du web, Autoriser / Refuser (web et ntfy)
 
 ## Phase 15 — Le serveur depuis le bureau, comme Remote Control (0.13.0 : pont et web ; 0.14.0 : bureau)
 
