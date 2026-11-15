@@ -336,10 +336,14 @@ def parse_diff(raw):
             cur.path = _unquote(line[len(b"rename to "):])
         elif line.startswith(b"Binary files ") or line.startswith(b"GIT binary patch"):
             cur.binary = True
-        elif line.startswith(b"--- ") and line[4:] != b"/dev/null":
-            cur.old_path = cur.old_path or _strip_prefix(_unquote(line[4:]))
-        elif line.startswith(b"+++ ") and line[4:] != b"/dev/null":
-            cur.path = _strip_prefix(_unquote(line[4:]))
+        elif line.startswith((b"--- ", b"+++ ")):
+            # git termine par une tabulation un nom qui contient des espaces
+            name = line[4:].rstrip(b"\t")
+            if name != b"/dev/null":
+                if line.startswith(b"--- "):
+                    cur.old_path = cur.old_path or _strip_prefix(_unquote(name))
+                else:
+                    cur.path = _strip_prefix(_unquote(name))
     for f in files:
         if f.old_path == f.path:
             f.old_path = None
@@ -386,3 +390,244 @@ def show(repo, cid):
     if not commits:
         raise GitError(f"git show {cid}", "Commit introuvable.", 1)
     return commits[0], parse_diff(patch)
+
+
+# ---- écritures -----------------------------------------------------------------------
+
+def _has_head(repo):
+    try:
+        run(repo, "rev-parse", "--verify", "-q", "HEAD")
+        return True
+    except GitError:
+        return False
+
+
+def stage_file(repo, path):
+    run(repo, "add", "-A", "--", path)
+
+
+def unstage_file(repo, path):
+    if _has_head(repo):
+        run(repo, "reset", "-q", "HEAD", "--", path)
+    else:
+        run(repo, "rm", "-q", "--cached", "--", path)
+
+
+def _abs(repo, path):
+    return os.path.join(toplevel(repo) or str(repo), path)
+
+
+def discard_file(repo, fs):
+    """Remet un fichier dans son état du dernier commit (non suivi ou ajouté : supprimé).
+    L'interface demande toujours confirmation avant."""
+    if fs.staged == "?":
+        target = _abs(repo, fs.path)
+        if os.path.isdir(target) and not os.path.islink(target):
+            raise GitError(f"supprimer {fs.path}", "C'est un dossier : rien n'est supprimé.", 1)
+        os.remove(target)
+    elif fs.staged == "A":
+        run(repo, "rm", "-q", "-f", "--cached", "--", fs.path)
+        try:
+            os.remove(_abs(repo, fs.path))
+        except FileNotFoundError:
+            pass
+    elif fs.staged not in (".", "?"):
+        run(repo, "restore", "--source=HEAD", "--staged", "--worktree", "--", fs.path)
+        if fs.orig_path:
+            run(repo, "restore", "--source=HEAD", "--staged", "--worktree", "--", fs.orig_path)
+    else:
+        run(repo, "restore", "--worktree", "--", fs.path)
+
+
+def _quote(path):
+    """Chemin pour un en-tête de correctif : entre guillemets à la C s'il le faut."""
+    raw = path.encode("utf-8")
+    if all(32 < b < 127 and b not in (34, 92) for b in raw):
+        return path
+    out = []
+    for b in raw:
+        if b == 34:
+            out.append('\\"')
+        elif b == 92:
+            out.append("\\\\")
+        elif 32 <= b < 127:
+            out.append(chr(b))
+        else:
+            out.append("\\%03o" % b)
+    return '"' + "".join(out) + '"'
+
+
+def patch_for(fd, keep, reverse=False):
+    """Correctif ne gardant que les lignes `(bloc, ligne)` de `keep`.
+
+    Sens direct (indexer) : un `+` non choisi disparaît, un `-` non choisi devient du
+    contexte. Sens inverse (`reverse`, appliqué avec `-R` : désindexer, annuler) : un `-` non
+    choisi disparaît, un `+` non choisi devient du contexte. Blocs sans ligne choisie omis ;
+    en-têtes recalculés (`git apply --recount` les recompte aussi)."""
+    old = fd.old_path or fd.path
+    a = "/dev/null" if fd.new_file else _quote("a/" + old)
+    b = "/dev/null" if fd.deleted else _quote("b/" + fd.path)
+    body, delta = [], 0
+    for hi, h in enumerate(fd.hunks):
+        lines, chosen = [], False
+        for li, l in enumerate(h.lines):
+            picked = (hi, li) in keep
+            if l.kind == " ":
+                lines.append(" " + l.text)
+            elif picked:
+                lines.append(l.kind + l.text)
+                chosen = True
+            elif (l.kind == "-") != reverse:
+                lines.append(" " + l.text)      # garde la ligne telle qu'elle est des deux côtés
+        if not chosen:
+            continue
+        old_len = sum(1 for x in lines if x[0] in " -")
+        new_len = sum(1 for x in lines if x[0] in " +")
+        if reverse:
+            new_start = h.new_start
+            old_start = new_start - delta
+        else:
+            old_start = h.old_start
+            new_start = old_start + delta
+        delta += new_len - old_len
+        body.append(f"@@ -{old_start},{old_len} +{new_start},{new_len} @@")
+        body.extend(lines)
+    if not body:
+        return b""
+    head = [f"diff --git {_quote('a/' + old)} {_quote('b/' + fd.path)}"]
+    if fd.new_file:
+        head.append("new file mode 100644")
+    if fd.deleted:
+        head.append("deleted file mode 100644")
+    head += [f"--- {a}", f"+++ {b}"]
+    return ("\n".join(head + body) + "\n").encode("utf-8")
+
+
+def _apply(repo, patch, *flags):
+    if patch:
+        run(repo, "apply", "--recount", "--whitespace=nowarn", *flags, "-", input=patch)
+
+
+def stage_lines(repo, fd, keep):
+    _apply(repo, patch_for(fd, keep), "--cached")
+
+
+def unstage_lines(repo, fd, keep):
+    _apply(repo, patch_for(fd, keep, reverse=True), "--cached", "-R")
+
+
+def discard_lines(repo, fd, keep):
+    _apply(repo, patch_for(fd, keep, reverse=True), "-R")
+
+
+def commit(repo, message, amend=False):
+    """Commit de l'index (hooks et signature selon la configuration) ; renvoie son id."""
+    if not message.strip():
+        raise GitError("git commit", "Le message du commit est vide.", 1)
+    args = ["commit", "-q", "--cleanup=strip", "-F", "-"]
+    if amend:
+        args.append("--amend")
+    run(repo, *args, input=message.encode("utf-8"), timeout=300)
+    return _text(run(repo, "rev-parse", "HEAD")).strip()
+
+
+def last_message(repo):
+    return _text(run(repo, "log", "-1", "--format=%B")).strip()
+
+
+def ignore(repo, relpath):
+    """Ajoute `/relpath` au .gitignore de la racine (sans doublon)."""
+    path = os.path.join(toplevel(repo) or str(repo), ".gitignore")
+    entry = "/" + relpath.lstrip("/")
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except FileNotFoundError:
+        text = ""
+    if entry in (l.strip() for l in text.splitlines()):
+        return
+    if text and not text.endswith("\n"):
+        text += "\n"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text + entry + "\n")
+
+
+# Jamais de demande de mot de passe : ni terminal, ni fenêtre, ni phrase de passe SSH.
+_NO_PROMPT = {"GIT_ASKPASS": "", "SSH_ASKPASS": "", "GIT_SSH_COMMAND": "ssh -o BatchMode=yes"}
+
+
+def fetch(repo):
+    run(repo, "fetch", "--prune", "--quiet", env=_NO_PROMPT, timeout=120)
+
+
+def pull(repo):
+    run(repo, "pull", "--ff-only", "--quiet", timeout=300)
+
+
+def _remote(repo):
+    remotes = _text(run(repo, "remote")).split()
+    if not remotes:
+        raise GitError("git push", "Ce dépôt n'a pas de dépôt distant.", 1)
+    return "origin" if "origin" in remotes else remotes[0]
+
+
+def push(repo, force=False):
+    """Pousse la branche courante (premier push : crée la branche distante). Forcé :
+    `--force-with-lease --force-if-includes`, qui refuse d'écraser un commit distant pas vu."""
+    b = branch(repo)
+    if b.name is None:
+        raise GitError("git push", "HEAD est détachée : aucune branche à pousser.", 1)
+    args = ["push", "--quiet"]
+    if force:
+        args += ["--force-with-lease", "--force-if-includes"]
+    if b.upstream is None:
+        args += ["--set-upstream", _remote(repo), b.name]
+    run(repo, *args, timeout=300)
+
+
+FLOW_KINDS = ("feature", "release", "hotfix")
+
+
+def flow_available():
+    try:
+        return subprocess.run(["git", "flow", "version"], capture_output=True, env=_env(),
+                              timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def flow(repo, kind, action, name=None):
+    """`git flow <kind> start|finish [name]` ; finir une release ou un hotfix pose le tag avec
+    le message `name`, sans ouvrir d'éditeur."""
+    if kind not in FLOW_KINDS or action not in ("start", "finish"):
+        raise ValueError(f"git flow {kind} {action} : non pris en charge")
+    args = ["flow", kind, action]
+    if action == "finish" and kind in ("release", "hotfix"):
+        args += ["-m", name or ""]
+    if name:
+        args.append(name)
+    run(repo, *args, env={"GIT_MERGE_AUTOEDIT": "no", "GIT_EDITOR": "true"}, timeout=300)
+
+
+_VERBS = {"A": "ajoute", "M": "modifie", "D": "supprime", "R": "renomme", "C": "copie",
+          "T": "modifie"}
+
+
+def propose_message(repo):
+    """Message de commit proposé d'après les seuls fichiers indexés (sans appel à Claude) ;
+    vide si rien n'est indexé."""
+    staged = [s for s in status(repo) if s.staged not in (".", "?")]
+    if not staged:
+        return ""
+    paths = [s.path for s in staged]
+    if all(p.endswith(".md") or p.startswith("docs/") for p in paths):
+        kind = "docs"
+    elif all(p.startswith("tests/") for p in paths):
+        kind = "test"
+    else:
+        kind = "chore"
+    if len(staged) == 1:
+        title = f"{kind}: {_VERBS.get(staged[0].staged, 'modifie')} {staged[0].path}"
+    else:
+        title = f"{kind}: {len(staged)} fichiers"
+    return title + "\n\n" + "\n".join(f"- {s.staged} {s.path}" for s in staged)

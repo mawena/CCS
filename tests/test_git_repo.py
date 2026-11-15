@@ -204,5 +204,214 @@ class ReadTest(GitTestCase):
         self.assertEqual([f.path for f in files], ["a.txt"])
 
 
+def thirty(repo, name="f.txt"):
+    """Fichier de 30 lignes commité, puis deux blocs modifiés (lignes 2 et 25)."""
+    lines = [f"ligne {i}\n" for i in range(1, 31)]
+    commit_file(repo, name, "".join(lines))
+    lines[1] = "deux\n"
+    lines[24] = "vingt-cinq\n"
+    (Path(repo) / name).write_text("".join(lines), encoding="utf-8")
+
+
+def hunk_keys(fd, h):
+    return {(h, i) for i, l in enumerate(fd.hunks[h].lines) if l.kind != " "}
+
+
+class WriteTest(GitTestCase):
+    def test_stage_unstage_file(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        (self.repo / "a.txt").write_text("b\n")
+        git_repo.stage_file(str(self.repo), "a.txt")
+        self.assertEqual(git_repo.status(str(self.repo))[0].staged, "M")
+        git_repo.unstage_file(str(self.repo), "a.txt")
+        st = git_repo.status(str(self.repo))[0]
+        self.assertEqual((st.staged, st.unstaged), (".", "M"))
+
+    def test_unstage_in_empty_repo(self):
+        (self.repo / "a.txt").write_text("a\n")
+        git_repo.stage_file(str(self.repo), "a.txt")
+        git_repo.unstage_file(str(self.repo), "a.txt")
+        self.assertEqual(git_repo.status(str(self.repo))[0].staged, "?")
+
+    def test_stage_lines_partial(self):
+        thirty(self.repo)
+        fd = git_repo.diff(str(self.repo), "f.txt", staged=False)
+        git_repo.stage_lines(str(self.repo), fd, hunk_keys(fd, 0))
+        cached = g(self.repo, "diff", "--cached")
+        self.assertIn("+deux", cached)
+        self.assertNotIn("vingt-cinq", cached)
+        self.assertIn("+vingt-cinq", g(self.repo, "diff"))
+
+    def test_stage_single_added_line_keeps_old(self):
+        thirty(self.repo)
+        fd = git_repo.diff(str(self.repo), "f.txt", staged=False)
+        plus = next(i for i, l in enumerate(fd.hunks[0].lines) if l.kind == "+")
+        git_repo.stage_lines(str(self.repo), fd, {(0, plus)})
+        staged = g(self.repo, "show", ":f.txt").splitlines()
+        self.assertEqual(staged[1:3], ["ligne 2", "deux"])
+
+    def test_stage_lines_odd_name(self):
+        thirty(self.repo, "a b é.txt")
+        fd = git_repo.diff(str(self.repo), "a b é.txt", staged=False)
+        git_repo.stage_lines(str(self.repo), fd, hunk_keys(fd, 1))
+        cached = git_repo.diff(str(self.repo), "a b é.txt", staged=True)
+        self.assertEqual(cached.path, "a b é.txt")
+        self.assertEqual([l.text for l in cached.hunks[0].lines if l.kind == "+"], ["vingt-cinq"])
+
+    def test_unstage_lines(self):
+        thirty(self.repo)
+        git_repo.stage_file(str(self.repo), "f.txt")
+        fd = git_repo.diff(str(self.repo), "f.txt", staged=True)
+        git_repo.unstage_lines(str(self.repo), fd, hunk_keys(fd, 0))
+        cached = g(self.repo, "diff", "--cached")
+        self.assertNotIn("deux", cached)
+        self.assertIn("+vingt-cinq", cached)
+
+    def test_discard_lines_keeps_other_hunk(self):
+        thirty(self.repo)
+        fd = git_repo.diff(str(self.repo), "f.txt", staged=False)
+        git_repo.discard_lines(str(self.repo), fd, hunk_keys(fd, 1))
+        text = (self.repo / "f.txt").read_text().splitlines()
+        self.assertEqual((text[1], text[24]), ("deux", "ligne 25"))
+
+    def test_discard_untracked(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        (self.repo / "neuf.txt").write_text("x\n")
+        fs = next(s for s in git_repo.status(str(self.repo)) if s.path == "neuf.txt")
+        git_repo.discard_file(str(self.repo), fs)
+        self.assertFalse((self.repo / "neuf.txt").exists())
+
+    def test_discard_staged_and_added(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        (self.repo / "a.txt").write_text("b\n")
+        (self.repo / "n.txt").write_text("n\n")
+        g(self.repo, "add", "-A")
+        for fs in git_repo.status(str(self.repo)):
+            git_repo.discard_file(str(self.repo), fs)
+        self.assertEqual(git_repo.status(str(self.repo)), [])
+        self.assertEqual((self.repo / "a.txt").read_text(), "a\n")
+        self.assertFalse((self.repo / "n.txt").exists())
+
+    def test_commit_and_amend(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        (self.repo / "b.txt").write_text("b\n")
+        git_repo.stage_file(str(self.repo), "b.txt")
+        cid = git_repo.commit(str(self.repo), "feat: b\n\ncorps")
+        self.assertEqual(cid, g(self.repo, "rev-parse", "HEAD").strip())
+        self.assertEqual(git_repo.last_message(str(self.repo)), "feat: b\n\ncorps")
+        git_repo.commit(str(self.repo), "feat: b corrigé", amend=True)
+        self.assertEqual(len(git_repo.log(str(self.repo))), 2)
+        self.assertEqual(git_repo.last_message(str(self.repo)), "feat: b corrigé")
+
+    def test_commit_empty_message_fails(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        (self.repo / "a.txt").write_text("b\n")
+        git_repo.stage_file(str(self.repo), "a.txt")
+        with self.assertRaises(git_repo.GitError):
+            git_repo.commit(str(self.repo), "   ")
+
+    def test_ignore_no_duplicate(self):
+        commit_file(self.repo, ".gitignore", "*.log")      # pas de saut de ligne final
+        git_repo.ignore(str(self.repo), "build/sortie.bin")
+        git_repo.ignore(str(self.repo), "build/sortie.bin")
+        self.assertEqual((self.repo / ".gitignore").read_text(), "*.log\n/build/sortie.bin\n")
+
+    def test_push_sets_upstream(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        bare = self.remote()
+        git_repo.push(str(self.repo))
+        self.assertIn("main", subprocess.run(["git", "-C", str(bare), "branch"], capture_output=True,
+                                             text=True).stdout)
+        self.assertEqual(git_repo.branch(str(self.repo)).upstream, "origin/main")
+
+    def test_pull_ff_only(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        bare = self.remote()
+        git_repo.push(str(self.repo))
+        other = Path(self.tmp) / "autre"
+        subprocess.run(["git", "clone", "-q", bare.as_uri(), str(other)], check=True)
+        commit_file(other, "b.txt", "b\n")
+        g(other, "push", "-q")
+        git_repo.fetch(str(self.repo))
+        self.assertEqual(git_repo.branch(str(self.repo)).behind, 1)
+        git_repo.pull(str(self.repo))
+        self.assertTrue((self.repo / "b.txt").exists())
+
+    def test_force_push_refuses_unseen_remote_commit(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        bare = self.remote()
+        git_repo.push(str(self.repo))
+        other = Path(self.tmp) / "autre"
+        subprocess.run(["git", "clone", "-q", bare.as_uri(), str(other)], check=True)
+        commit_file(other, "b.txt", "b\n")
+        g(other, "push", "-q")
+        commit_file(self.repo, "c.txt", "c\n")
+        with self.assertRaises(git_repo.GitError):
+            git_repo.push(str(self.repo), force=True)
+
+    def test_force_push_after_amend(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        self.remote()
+        git_repo.push(str(self.repo))
+        git_repo.commit(str(self.repo), "réécrit", amend=True)
+        with self.assertRaises(git_repo.GitError):
+            git_repo.push(str(self.repo))
+        git_repo.push(str(self.repo), force=True)
+        self.assertEqual(git_repo.branch(str(self.repo)).ahead, 0)
+
+    def test_fetch_never_prompts(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        g(self.repo, "remote", "add", "origin", "https://127.0.0.1:9/x.git")
+        start = time.monotonic()
+        with self.assertRaises(git_repo.GitError):
+            git_repo.fetch(str(self.repo))
+        self.assertLess(time.monotonic() - start, 10)
+
+    @unittest.skipUnless(git_repo.flow_available(), "git flow absent")
+    def test_flow_feature_start_finish(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        g(self.repo, "flow", "init", "-d")
+        git_repo.flow(str(self.repo), "feature", "start", "essai")
+        self.assertEqual(git_repo.branch(str(self.repo)).name, "feature/essai")
+        commit_file(self.repo, "b.txt", "b\n")
+        git_repo.flow(str(self.repo), "feature", "finish", "essai")
+        self.assertEqual(git_repo.branch(str(self.repo)).name, "develop")
+        self.assertTrue((self.repo / "b.txt").exists())
+
+    @unittest.skipUnless(git_repo.flow_available(), "git flow absent")
+    def test_flow_release_finish_tags(self):
+        commit_file(self.repo, "a.txt", "a\n")
+        g(self.repo, "flow", "init", "-d")
+        git_repo.flow(str(self.repo), "release", "start", "1.0.0")
+        git_repo.flow(str(self.repo), "release", "finish", "1.0.0")
+        self.assertIn("1.0.0", g(self.repo, "tag"))
+
+    def test_flow_bad_kind(self):
+        with self.assertRaises(ValueError):
+            git_repo.flow(str(self.repo), "support", "start", "x")
+
+    def test_propose_message_docs(self):
+        commit_file(self.repo, "README.md", "a\n")
+        (self.repo / "README.md").write_text("b\n")
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs" / "x.md").write_text("x\n")
+        (self.repo / "code.py").write_text("non indexé\n")
+        g(self.repo, "add", "README.md", "docs/x.md")
+        msg = git_repo.propose_message(str(self.repo))
+        self.assertTrue(msg.startswith("docs: "), msg)
+        self.assertIn("- M README.md", msg)
+        self.assertIn("- A docs/x.md", msg)
+        self.assertNotIn("code.py", msg)
+
+    def test_propose_message_single_and_empty(self):
+        commit_file(self.repo, "a.py", "a\n")
+        self.assertEqual(git_repo.propose_message(str(self.repo)), "")
+        (self.repo / "tests").mkdir()
+        (self.repo / "tests" / "t.py").write_text("t\n")
+        g(self.repo, "add", "tests/t.py")
+        self.assertEqual(git_repo.propose_message(str(self.repo)).splitlines()[0],
+                         "test: ajoute tests/t.py")
+
+
 if __name__ == "__main__":
     unittest.main()
