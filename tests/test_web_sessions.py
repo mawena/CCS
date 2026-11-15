@@ -29,6 +29,22 @@ def bridge_methods():
 
 @unittest.skipUnless(NODE, "node absent")
 class SessionsWebTest(unittest.TestCase):
+    def test_empty_stage_centered_without_stretched_button(self):
+        """Aucun chat ouvert : le message occupe la zone et reste centré ; la rangée de boutons ne
+        s'étire pas sur toute la hauteur (bouton « Nouvelle session » géant)."""
+        css = (WEB / "style.css").read_text()
+        self.assertTrue(re.search(r"\.stage > \.state \{[^}]*flex: 1;", css), "état vide pas étendu")
+        state = re.search(r"\n\.state \{([^}]*)\}", css).group(1)
+        self.assertIn("align-content: center", state)
+
+    def test_short_titles_aligned_left(self):
+        """Ligne de projet ou de conversation (bouton en grille) : le `justify-content: center` des
+        boutons ne centre pas un titre court ; une colonne pleine largeur, texte à gauche."""
+        css = (WEB / "sessions.css").read_text()
+        for sel in (".project-open-btn", ".conv-main"):
+            rule = re.search(r"\n" + re.escape(sel) + r" \{([^}]*)\}", css).group(1)
+            self.assertIn("grid-template-columns: minmax(0, 1fr)", rule, sel)
+
     def test_modules_parse(self):
         for name in MINE:
             r = subprocess.run([NODE, "--input-type=module", "--check"], input=source(name),

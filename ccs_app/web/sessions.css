@@ -17,11 +17,11 @@
 .dot.term { background: var(--fg); opacity: 0.55; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 .project-item { padding: 0 4px 0 0; }
-.project-open-btn { display: grid; gap: 2px; justify-items: start; background: transparent; font-weight: 400; text-align: left;
+.project-open-btn { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; justify-items: start; background: transparent; font-weight: 400; text-align: left;
   min-width: 0; padding: 6px 10px; min-height: 52px; }
 .project-open-btn strong, .project-open-btn .subtle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item.conv { flex-direction: row; padding: 0; gap: 0; align-items: stretch; }
-.conv-main { flex: 1; min-width: 0; display: grid; gap: 2px; justify-items: start; background: transparent; font-weight: 400;
+.conv-main { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; justify-items: start; background: transparent; font-weight: 400;
   text-align: left; padding: 6px 4px 6px 10px; min-height: 52px; }
 .conv-title { display: flex; gap: 6px; align-items: center; max-width: 100%; }
 .conv-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
