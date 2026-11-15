@@ -127,3 +127,34 @@ export function errorState(message, retry = null) {
   return el("div", { class: "state error", role: "alert" }, el("p", {}, message),
     retry ? el("button", { class: "small", onclick: retry }, "Réessayer") : null);
 }
+
+// Section redimensionnable à la souris par son bord droit ; la largeur est gardée (localStorage).
+export function resizable(node, key, { min = 200, max = 900 } = {}) {
+  const store = `ccs-width:${key}`;
+  const saved = Number(localStorage.getItem(store));
+  if (saved) node.style.width = `${Math.min(Math.max(saved, min), max)}px`;
+  node.classList.add("resizable");
+  const handle = document.createElement("div");
+  handle.className = "resize-handle";
+  handle.setAttribute("role", "separator");
+  handle.setAttribute("aria-orientation", "vertical");
+  handle.title = "Glisser pour redimensionner (double-clic : taille par défaut)";
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    const left = node.getBoundingClientRect().left;
+    const move = (ev) => { node.style.width = `${Math.min(Math.max(ev.clientX - left, min), max)}px`; };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      document.body.classList.remove("resizing");
+      localStorage.setItem(store, String(Math.round(node.getBoundingClientRect().width)));
+    };
+    document.body.classList.add("resizing");
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+  });
+  handle.addEventListener("dblclick", () => { node.style.width = ""; localStorage.removeItem(store); });
+  node.append(handle);
+  return handle;
+}

@@ -3,6 +3,16 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.12.3] — 2026-11-15
+
+### Corrigé
+
+- **Web : feuille de route dans l'ordre** : les phases suivent l'ordre du fichier, comme au
+  bureau, et la phase en cours s'affiche à l'ouverture.
+- **Web : sections redimensionnables et masquables** : la liste des sessions et le volet
+  (Fichiers, Feuille de route, Git, Changements) s'élargissent en glissant leur bord droit
+  (double-clic : taille par défaut, largeur gardée) ; le bouton ☰ masque ou réaffiche la liste.
+
 ## [0.12.2] — 2026-11-15
 
 ### Corrigé

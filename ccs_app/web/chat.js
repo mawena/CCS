@@ -2,7 +2,7 @@
 // sous-agents), autorisations et questions de Claude, liste de tâches épinglée, barre modèle /
 // effort / droits, saisie avec images. Les événements arrivent numérotés : après une coupure, le
 // chat redemande ce qu'il a manqué (`chat.attach` depuis son dernier numéro).
-import { clear, el, setHtml, toast } from "./dom.js";
+import { clear, el, resizable, setHtml, toast } from "./dom.js";
 import { ChangesPanel } from "./chat-changes.js";
 import { Completer } from "./chat-complete.js";
 import { diffCard, editDiffs } from "./chat-diff.js";
@@ -126,6 +126,7 @@ export class ChatView {
     this.findbar = new FindBar({ blocks: () => [...this.thread.querySelectorAll(".msg, .tool")],
       ensureAll: () => this.loadFullHistory(), onClose: () => this.input.focus() });
     this.drawer = el("aside", { class: "drawer", hidden: true });
+    resizable(this.drawer, "drawer", { min: 240, max: 1000 });
     this.menu = el("div", { class: "chat-menu", hidden: true });
     const items = [
       { label: "Fichiers", run: () => this.openDrawer("files"), phone: true },
