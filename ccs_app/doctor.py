@@ -29,7 +29,7 @@ EXTENSION = "ubuntu-appindicators@ubuntu.com"
 INSTALLED_DIR = "/usr/lib/ccs"
 REFRESH_SOON_S = 3 * 86400          # connexion qui expire bientôt : avertissement
 DAEMON_RESTART_GRACE_S = 600        # le service redémarre seul quand son code change
-CLAUDE_INSTALL = "curl -fsSL https://claude.ai/install.sh | bash"
+from .claude_install import INSTALL as CLAUDE_INSTALL  # noqa: E402
 RESTART = f"systemctl --user restart {SERVICE}"
 SECRET_RE = re.compile(r"sk-ant-[A-Za-z0-9_\-]+|[A-Za-z0-9_\-]{32,}")
 

@@ -13,10 +13,11 @@ import dataclasses
 import hashlib
 import hmac
 import logging
+import subprocess
 import time
 from datetime import datetime, timezone
 
-from .. import core, daemon, pause, settings
+from .. import claude_install, core, daemon, pause, settings
 from . import rpc
 
 log = logging.getLogger("ccs.bridge")
@@ -26,13 +27,17 @@ IDLE_STOP = 12 * 3600
 
 class Bridge:
     def __init__(self, user, key, local=False, clock=time.time, start_daemon=True,
-                 install_claude=True):
+                 install_claude=True, popen=subprocess.Popen, daemon_pid=None, installer=None):
         self.user = user
         self.key = key
         self.local = local
         self.clock = clock
         self.start_daemon = start_daemon
         self.install_claude = install_claude
+        self._popen = popen
+        self._daemon_pid = daemon_pid or daemon.running_pid
+        self._installer = installer or claude_install
+        self._daemon_proc = None
         self.clients = set()
         self.busy_checks = []        # fonctions qui disent « un travail est en cours »
         self.close_hooks = []        # appelées à la fermeture d'une connexion
@@ -98,8 +103,33 @@ class Bridge:
                                      on_close=self._on_close)
         await self._server.start_unix(socket_path, 0o600 if self.local else 0o660)
 
+    async def prepare(self):
+        """Sans session graphique (VPS), personne ne lance le service `ccs-daemon` : le pont le
+        lance s'il ne tourne pas. Claude Code est installé s'il manque."""
+        if self.start_daemon and await asyncio.to_thread(self._daemon_pid) is None:
+            try:
+                self._daemon_proc = self._popen([core.ccs_bin(), "daemon"],
+                                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                                start_new_session=True)
+                log.info("service de fond lancé par le pont")
+            except OSError:
+                log.warning("service de fond impossible à lancer")
+        if self.install_claude and not await asyncio.to_thread(self._installer.installed):
+            asyncio.ensure_future(self._install_claude())
+
+    async def _install_claude(self):
+        await self.broadcast("notice", {"text": "Installation de Claude Code en cours…"})
+        ok, text = await asyncio.to_thread(self._installer.install)
+        await self.broadcast("notice", {"text": "Claude Code installé." if ok else
+                                        f"Claude Code n'a pas pu s'installer : {text}"})
+
     async def stop(self):
         self._stop.set()
+        if self._daemon_proc is not None:
+            if self._daemon_proc.poll() is None:
+                self._daemon_proc.terminate()
+                await asyncio.to_thread(self._daemon_proc.wait, 10)
+            self._daemon_proc = None
         if self._server is not None:
             await self._server.close()
             self._server = None
@@ -111,6 +141,7 @@ class Bridge:
 
     async def serve(self, socket_path):
         await self.start(socket_path)
+        await self.prepare()
         log.info("pont de %s prêt sur %s", self.user, socket_path)
         while not self._stop.is_set():
             try:

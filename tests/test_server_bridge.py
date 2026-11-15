@@ -1,5 +1,6 @@
 """Pont par utilisateur : ticket obligatoire, comptes Claude, réglages, arrêt au repos."""
 
+import asyncio
 import hashlib
 import hmac
 import os
@@ -138,6 +139,71 @@ class BridgeTest(unittest.IsolatedAsyncioTestCase):
         self.bridge.busy_checks.append(lambda: True)       # un chat en cours
         self.clock.t += bridge.IDLE_STOP + 1
         self.assertFalse(self.bridge.should_stop())
+
+
+class Proc:
+    def __init__(self):
+        self.terminated = False
+
+    def poll(self):
+        return None
+
+    def terminate(self):
+        self.terminated = True
+
+    def wait(self, timeout=None):
+        return 0
+
+
+class PrepareTest(unittest.IsolatedAsyncioTestCase):
+    def make(self, pid, installed=True):
+        self.started = []
+        self.installs = []
+
+        def popen(argv, **kw):
+            self.started.append(argv)
+            self.proc = Proc()
+            return self.proc
+        installer = mock.Mock()
+        installer.installed.return_value = installed
+        installer.install.side_effect = lambda: (self.installs.append(1), (True, "ok"))[1]
+        return bridge.Bridge("alice", KEY, popen=popen, daemon_pid=lambda: pid, installer=installer)
+
+    async def test_bridge_starts_daemon_when_absent(self):
+        b = self.make(None)
+        await b.prepare()
+        self.assertEqual(self.started[0][-1], "daemon")
+        await b.stop()
+        self.assertTrue(self.proc.terminated)
+
+    async def test_bridge_leaves_running_daemon(self):
+        b = self.make(4242)
+        await b.prepare()
+        self.assertEqual(self.started, [])
+        await b.stop()
+
+    async def test_installs_claude_when_missing_and_notifies(self):
+        b = self.make(4242, installed=False)
+        notices = []
+
+        async def broadcast(event, data):
+            notices.append((event, data["text"]))
+        b.broadcast = broadcast
+        await b.prepare()
+        for _ in range(100):
+            if len(notices) >= 2:
+                break
+            await asyncio.sleep(0.01)
+        self.assertEqual(self.installs, [1])
+        self.assertEqual([e for e, _ in notices], ["notice", "notice"])
+        self.assertIn("Claude Code", notices[0][1])
+        await b.stop()
+
+    async def test_nothing_when_disabled(self):
+        b = bridge.Bridge("alice", KEY, start_daemon=False, install_claude=False,
+                          popen=lambda *a, **k: self.fail("lancé"), daemon_pid=lambda: None)
+        await b.prepare()
+        await b.stop()
 
 
 if __name__ == "__main__":
