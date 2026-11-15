@@ -5,6 +5,16 @@ import { diffBlock, parseUnified, statBadges } from "./chat-diff.js";
 
 const KINDS = { created: "créé", deleted: "supprimé", modified: "modifié" };
 
+// Texte de la confirmation du retour en arrière : fichiers remis (relatifs au projet), puis ceux
+// que le pont laisse de côté (hors des dossiers permis).
+export function rewindBody(plan, cwd) {
+  const rel = (path) => (path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : path);
+  const list = plan.steps.map((s) => `${rel(s.path)}${s.deleted ? " (supprimé)" : ""}${s.user_edited ? " (modifié depuis par toi ?)" : ""}`);
+  const skipped = plan.skipped || [];
+  const rest = skipped.length ? `\n\nLaissés tels quels (hors des dossiers permis) :\n${skipped.join("\n")}` : "";
+  return `${list.join("\n")}${rest}\n\nC'est définitif.`;
+}
+
 export class ChangesPanel {
   // actions : { openFile(chemin absolu), changed() } ; chatId : le chat dont on lit la session.
   constructor(container, api, chatId, cwd, actions = {}) {
@@ -80,9 +90,8 @@ export class ChangesPanel {
     if (!plan.steps.length) { toast("Tout est déjà comme avant ce message."); return; }
     const shown = plan.steps.every((s) => s.sha256 !== undefined);      // champ absent : ancien pont, pas de garde
     const expected = shown ? { expected: plan.steps.map((s) => ({ path: s.path, sha256: s.sha256 })) } : {};
-    const list = plan.steps.map((s) => `${s.path.startsWith(`${this.cwd}/`) ? s.path.slice(this.cwd.length + 1) : s.path}${s.deleted ? " (supprimé)" : ""}${s.user_edited ? " (modifié depuis par toi ?)" : ""}`);
     const ok = await confirmSheet({ title: `Revenir avant ce message ? (${plan.steps.length} fichier${plan.steps.length > 1 ? "s" : ""})`,
-      body: `${list.join("\n")}\n\nC'est définitif.`, confirm: "Revenir en arrière", danger: true });
+      body: rewindBody(plan, this.cwd), confirm: "Revenir en arrière", danger: true });
     if (!ok) return;
     try {
       const r = await this.api.call("work.rewind_apply", { chat_id: this.chatId, message_id: p.message_id, ...expected });

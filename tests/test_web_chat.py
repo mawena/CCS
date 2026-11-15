@@ -259,6 +259,15 @@ process.exit(0);
         r = node("chat-links.js", 'm.findRefs("voir (src/a.py:3) et x/src/a.py", "/p", new Set(["src/a.py"]))')
         self.assertEqual([(x["path"], x["line"], x["index"]) for x in r], [("src/a.py", 3, 6)])
 
+    def test_rewind_body_lists_skipped_files(self):
+        plan = {"steps": [{"path": "/p/a.txt", "deleted": False, "user_edited": False, "sha256": "x"}],
+                "skipped": ["/etc/hors"]}
+        r = node("chat-changes.js", f"m.rewindBody({json.dumps(plan)}, '/p')")
+        self.assertIn("a.txt", r)
+        self.assertNotIn("/p/a.txt", r)
+        self.assertIn("hors des dossiers permis", r)
+        self.assertIn("/etc/hors", r)
+
     def test_roles_in_preview_and_state_fixes(self):
         conv = (WEB / "sessions-conv.js").read_text()
         self.assertIn('"utilisateur"', conv)
