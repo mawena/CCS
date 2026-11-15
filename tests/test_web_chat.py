@@ -304,3 +304,12 @@ class WideScreenTest(unittest.TestCase):
             hit = [body for head, body in rules
                    if sel in [s.strip() for s in head.split(",")] and re.search(col, body)]
             self.assertTrue(hit, f"{sel} : pas de colonne centrée")
+
+    def test_radio_and_checkbox_keep_native_size(self):
+        """Question à choix (web) : les boutons radio ne prennent pas le style des champs de
+        texte (largeur 100 %, grands ronds, libellé repoussé à droite)."""
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        rule = re.search(r'\ninput\[type="checkbox"\], input\[type="radio"\] \{([^}]*)\}', css)
+        self.assertTrue(rule, "pas de règle commune case à cocher / radio")
+        for decl in ("width: 22px", "min-height: 0", "flex: none"):
+            self.assertIn(decl, rule.group(1), decl)
