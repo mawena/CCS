@@ -120,6 +120,104 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("by_project", r)
         self.assertEqual(len(r["by_hour"]), 24)
 
+    # ---- lot « sessions » : dossiers, compte, images, recherche, renommage, coût ----------
+
+    async def test_projects_folders(self):
+        (self.home / "Repo" / "a" / ".git").mkdir(parents=True)
+        (self.home / "Repo" / "node_modules" / "x" / ".git").mkdir(parents=True)
+        (self.home / ".cache" / "z" / ".git").mkdir(parents=True)
+        (self.home / "a" / "b" / "c" / "d" / ".git").mkdir(parents=True)        # 4 niveaux : trop profond
+        r = await self.c.call("projects.folders")
+        paths = [f["path"] for f in r["folders"]]
+        self.assertIn(str(self.home / "Repo" / "a"), paths)
+        self.assertFalse([p for p in paths if "node_modules" in p or "/.cache" in p])
+        self.assertNotIn(str(self.home / "a" / "b" / "c" / "d"), paths)
+        self.assertFalse(r["truncated"])
+
+    async def test_projects_folders_capped(self):
+        for i in range(5):
+            (self.home / "R" / f"p{i}" / ".git").mkdir(parents=True)
+        with mock.patch.object(bridge_data, "MAX_FOLDERS", 3):
+            r = await self.c.call("projects.folders")
+        self.assertEqual(len(r["folders"]), 3)
+        self.assertTrue(r["truncated"])
+
+    async def test_projects_account(self):
+        r = await self.c.call("projects.account", cwd=str(self.project))
+        self.assertEqual(r["active"], "perso")
+        self.assertEqual(sorted(p["name"] for p in r["profiles"]), ["perso", "pro"])
+        self.assertIsNone(r["preferred"])
+        assoc = bridge_data.project_accounts.Association(str(self.project), "pro", True)
+        with mock.patch.object(bridge_data.project_accounts, "all", return_value=[assoc]):
+            r = await self.c.call("projects.account", cwd=str(self.project))
+        self.assertEqual(r["preferred"], "pro")
+        self.assertIn("pro", r["hint"])
+        await self.refused("projects.account", cwd="/etc")
+
+    async def test_files_image(self):
+        png = b"\x89PNG\r\n\x1a\n" + b"0" * 20
+        (self.project / "p.png").write_bytes(png)
+        r = await self.c.call("files.image", path=str(self.project / "p.png"))
+        self.assertEqual(r["mime"], "image/png")
+        import base64
+        self.assertEqual(base64.b64decode(r["data"]), png)
+        (self.project / "big.png").write_bytes(b"0" * (5 * 1024 * 1024 + 1))
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("files.image", path=str(self.project / "big.png"))
+        self.assertEqual(cm.exception.code, "trop_gros")
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("files.image", path=str(self.project / "a.txt"))
+        self.assertEqual(cm.exception.code, "invalide")
+        await self.refused("files.image", path="/etc/passwd")
+
+    async def test_files_search(self):
+        (self.project / "src" / "Lisez.md").write_text("x")
+        (self.project / "node_modules" / "lisez").mkdir(parents=True)
+        (self.project / ".git").mkdir()
+        (self.project / ".git" / "lisez").write_text("x")
+        r = await self.c.call("files.search", root=str(self.project), query="LISEZ")
+        self.assertEqual([e["path"] for e in r["entries"]], ["src/Lisez.md"])
+        r = await self.c.call("files.search", root=str(self.project), query="  ")
+        self.assertEqual(r["entries"], [])
+        with mock.patch.object(bridge_data, "MAX_SEARCH", 1):
+            (self.project / "src" / "lisez2.md").write_text("x")
+            r = await self.c.call("files.search", root=str(self.project), query="lisez")
+        self.assertEqual(len(r["entries"]), 1)
+        self.assertTrue(r["truncated"])
+        await self.refused("files.search", root="/etc", query="a")
+
+    async def test_conversation_rename_and_cost(self):
+        d = self.home / ".claude" / "projects" / "-p"
+        d.mkdir(parents=True)
+        journal = d / "abc.jsonl"
+        journal.write_text('{"type":"user","message":{"content":"salut"}}\n')
+        r = await self.c.call("conversation.rename", session_id="abc", title="  Mon  titre ", path=str(journal))
+        self.assertEqual(r["title"], "Mon titre")
+        self.assertIn("custom-title", journal.read_text())
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("conversation.rename", session_id="abc", title=" ", path=str(journal))
+        self.assertEqual(cm.exception.code, "invalide")
+        await self.refused("conversation.rename", session_id="abc", title="x", path="/etc/passwd")
+        r = await self.c.call("conversation.cost", path=str(journal))
+        self.assertIn("short", r)
+        self.assertIn("text", r)
+        await self.refused("conversation.cost", path="/etc/passwd")
+
+    async def test_roadmap_task_prompt(self):
+        r = await self.c.call("roadmap.read", cwd=str(self.project))
+        t = r["phases"][0]["tasks"][0]
+        r = await self.c.call("roadmap.task_prompt", path=r["path"], text=t["text"], phase=r["phases"][0]["title"])
+        self.assertIn("écrire", r["prompt"])
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("roadmap.task_prompt", path=str(self.project / "ROADMAP.md"), text="inconnue", phase="x")
+        self.assertEqual(cm.exception.code, "introuvable")
+
+    async def test_tasks_add_from_roadmap(self):
+        info = {"path": str(self.project / "ROADMAP.md"), "text": "écrire", "phase": "Phase 1 — Base (0.1.0)"}
+        t = await self.c.call("tasks.add", message="fais", cwd=str(self.project), when="nuit", roadmap=info)
+        self.assertEqual(t["task"]["extra"]["roadmap"], info)
+        await self.c.call("tasks.cancel", id=t["task"]["id"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,1 +1,110 @@
 /* Sessions : liste, écran Projet, fichiers, feuille de route, terminal (lot « sessions » de la phase 14). */
+
+/* ---- liste : bouton, « En cours », projets, conversations ---- */
+.new-session-btn { width: 100%; }
+.running { display: grid; gap: 4px; }
+.running h3 { margin-bottom: 0; }
+.item.run { padding: 0; gap: 0; }
+.item.run.active { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.run-main { flex: 1; min-width: 0; justify-content: flex-start; background: transparent; text-align: left; gap: 10px; font-weight: 400; padding: 0 8px 0 10px; }
+.run-text { display: grid; min-width: 0; }
+.run-text strong, .run-text .subtle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-close { min-width: 44px; padding: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--subtle); }
+.dot.busy { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+.dot.permission { background: var(--warning); }
+.dot.idle { background: var(--success); }
+.dot.term { background: var(--fg); opacity: 0.55; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+.project-item { padding: 0 4px 0 0; }
+.project-open-btn { display: grid; gap: 2px; justify-items: start; background: transparent; font-weight: 400; text-align: left;
+  min-width: 0; padding: 6px 10px; min-height: 52px; }
+.project-open-btn strong, .project-open-btn .subtle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item.conv { flex-direction: row; padding: 0; gap: 0; align-items: stretch; }
+.conv-main { flex: 1; min-width: 0; display: grid; gap: 2px; justify-items: start; background: transparent; font-weight: 400;
+  text-align: left; padding: 6px 4px 6px 10px; min-height: 52px; }
+.conv-title { display: flex; gap: 6px; align-items: center; max-width: 100%; }
+.conv-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-meta { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-more { min-width: 44px; padding: 0; font-size: 1.3em; }
+.badge.open { background: var(--success); flex: none; }
+button.more { width: 100%; }
+
+/* ---- feuilles (nouvelle session, aperçu, renommer, faire une tâche) ---- */
+dialog.sheet.wide { width: min(560px, calc(100vw - 16px)); max-height: calc(100dvh - 24px); overflow: auto; }
+.sheet-choices { display: grid; gap: 8px; margin-top: 12px; }
+.new-sheet { display: grid; gap: 10px; }
+.new-sheet .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.folder-picker { display: grid; gap: 2px; max-height: 190px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
+.folder-picker:empty { display: none; }
+.item.pick { min-height: 44px; }
+.pick-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.account-hint { margin: 0; font-weight: 400; }
+.preview-body { display: grid; gap: 8px; max-height: 55dvh; overflow-y: auto; }
+.pv { display: grid; gap: 2px; }
+.pv.user .pv-text { background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 10px; padding: 6px 10px; }
+.pv-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ---- écran Projet ---- */
+.project { min-width: 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.project[hidden] { display: none; }
+.sessions.project-open .main { display: none; }
+.project-screen { display: flex; flex-direction: column; min-height: 100%; }
+.project-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.project-title { min-width: 160px; }
+.project-title h2 { margin: 0; font-size: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85em; }
+.project-actions { display: flex; gap: 8px; }
+.project-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--line); padding: 0 6px; position: sticky; top: 0; background: var(--bg); z-index: 2; }
+.tab-btn { background: transparent; border-radius: 0; border-bottom: 3px solid transparent; white-space: nowrap; font-weight: 600; }
+.tab-btn.active { border-bottom-color: var(--accent); }
+.project-body { flex: 1; padding: 8px 12px 24px; min-width: 0; }
+.project-panel[hidden] { display: none; }
+.back-project { flex: none; }
+
+/* ---- fichiers ---- */
+.file-search { margin-bottom: 6px; }
+.file-results { display: grid; gap: 2px; }
+.tree-row.found { min-height: 44px; }
+.file-empty { padding: 6px 8px; }
+.file-state:empty { display: none; }
+.file-head { position: sticky; top: 0; background: var(--bg); z-index: 1; padding: 4px 0; }
+.file-text.wrap { white-space: pre-wrap; }
+.file-code { font-family: var(--mono); font-size: 0.85em; overflow: auto; border: 1px solid var(--line); border-radius: 10px; flex: 1; min-height: 40vh; }
+.file-code[hidden], .file-image[hidden] { display: none; }
+.code-line { display: flex; }
+.code-no { flex: none; min-width: 4ch; text-align: right; padding: 0 8px; color: var(--subtle); user-select: none; }
+.code-text { white-space: pre; padding-right: 8px; }
+.file-code.wrap .code-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.code-line.hit { background: color-mix(in srgb, var(--warning) 28%, transparent); }
+.code-line.hit .code-no { color: var(--fg); font-weight: 700; }
+.file-image { display: grid; justify-items: center; padding: 8px; background: var(--soft); border-radius: 10px; overflow: auto; }
+.file-img { max-width: 100%; height: auto; }
+button.on, button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* ---- feuille de route ---- */
+.task-row { display: flex; align-items: flex-start; gap: 4px; }
+.task-row > label { flex: 1; min-width: 0; }
+.task-do { flex: none; min-width: 44px; }
+
+/* ---- terminal : barre de touches ---- */
+.term-wrap { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.term-keys { display: grid; gap: 4px; padding: 6px; border-top: 1px solid var(--line); background: var(--bg); }
+.keys-row { display: flex; gap: 4px; }
+.keys-row .key { min-width: 0; min-height: 44px; flex: 1 1 0; padding: 0 4px; }
+
+@media (max-width: 719px) {
+  .sessions.project-open .side { display: none; }
+  .sessions:not(.project-open) .project { display: none; }
+  .project { grid-column: 1; }
+  .project-head { padding-top: calc(10px + env(safe-area-inset-top)); }
+  .project-actions { width: 100%; }
+  .project-actions button { flex: 1; }
+  .project-body { padding: 8px 8px 24px; }
+  dialog.sheet.wide { margin-bottom: 8px; }
+  .new-sheet .two { grid-template-columns: 1fr; }
+}
+@media (min-width: 720px) {
+  .project-screen { max-width: 980px; }
+  .back-project { display: none; }
+}

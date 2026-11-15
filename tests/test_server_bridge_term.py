@@ -85,6 +85,17 @@ class TermBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("trace-ancienne", r["output"])
         self.assertEqual([t["term_id"] for t in (await self.c.call("term.list"))["terms"]], [tid])
 
+    async def test_list_gives_folder_and_name(self):
+        tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]
+        t = (await self.c.call("term.list"))["terms"][0]
+        self.assertEqual((t["term_id"], t["cwd"]), (tid, self.tmp))
+        self.assertTrue(t["name"])
+
+    async def test_input_error_is_french(self):
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("term.input", term_id="t999", data="x")
+        self.assertEqual(cm.exception.code, "introuvable")
+
     async def test_sweep_closes_abandoned_terms(self):
         tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]
         await self.c.close()

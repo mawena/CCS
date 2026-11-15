@@ -1,8 +1,11 @@
-// Fichiers d'un projet : arbre (chargé dossier par dossier, marques git), fichier ouvert (lecture,
-// édition simple avec enregistrement et conflit signalé, aperçu Markdown rendu par le pont).
-import { clear, el, setHtml } from "./dom.js";
+// Fichiers d'un projet : arbre (chargé dossier par dossier, marques git), recherche par nom,
+// fichier ouvert (lecture, image, ouverture à une ligne, retour à la ligne au choix, édition
+// simple avec enregistrement et conflit signalé, aperçu Markdown rendu par le pont).
+import { clear, confirmSheet, el, errorState, loading, setHtml, toast } from "./dom.js";
 
 const MARKS = { M: "modifié", A: "ajouté", "?": "nouveau", D: "supprimé" };
+const WRAP_KEY = "ccs-file-wrap";
+const CODE_LINES = 5000;        // au-delà, la lecture reste dans la zone de texte (pas de numéros)
 
 export class FilesPanel {
   constructor(container, api, root) {
@@ -10,19 +13,25 @@ export class FilesPanel {
     this.root = root;
     this.node = el("div", { class: "files" });
     this.tree = el("ul", { class: "tree" });
-    this.node.append(this.tree);
+    this.results = el("div", { class: "file-results", hidden: true });
+    this.search = el("input", { type: "search", class: "file-search", placeholder: "Chercher un fichier par nom",
+      "aria-label": "Chercher un fichier", autocapitalize: "off", autocomplete: "off", spellcheck: "false" });
+    this.search.addEventListener("input", () => { clearTimeout(this.timer); this.timer = setTimeout(() => this.find(), 300); });
+    this.browser = el("div", { class: "file-browser" }, this.search, this.results, this.tree);
+    this.node.append(this.browser);
     container.append(this.node);
     this.expand(this.tree, "");
   }
 
   async expand(ul, rel) {
-    clear(ul).append(el("li", { class: "subtle" }, "…"));
+    clear(ul).append(el("li", {}, loading()));
     let r;
     try { r = await this.api.call("files.list", { root: this.root, rel }); } catch (e) {
-      clear(ul).append(el("li", { class: "message" }, e.message));
+      clear(ul).append(el("li", {}, errorState(e.message, () => this.expand(ul, rel))));
       return;
     }
     clear(ul);
+    if (!r.entries.length) ul.append(el("li", { class: "subtle file-empty" }, rel ? "Dossier vide." : "Ce dossier est vide."));
     for (const entry of r.entries) {
       const mark = entry.mark ? el("span", { class: `mark m-${entry.mark === "?" ? "n" : entry.mark}`, title: MARKS[entry.mark] || "" }, entry.mark) : null;
       if (entry.dir) {
@@ -41,11 +50,35 @@ export class FilesPanel {
     if (r.truncated) ul.append(el("li", { class: "subtle" }, "(dossier trop long : liste coupée)"));
   }
 
+  // Recherche par nom dans tout l'arbre (méthode bornée du pont) ; champ vide : retour à l'arbre.
+  async find() {
+    const query = this.search.value.trim();
+    this.results.hidden = !query;
+    this.tree.hidden = Boolean(query);
+    if (!query) return;
+    clear(this.results).append(loading("Recherche…"));
+    let r;
+    try { r = await this.api.call("files.search", { root: this.root, query }); } catch (e) {
+      if (query === this.search.value.trim()) clear(this.results).append(errorState(e.message, () => this.find()));
+      return;
+    }
+    if (query !== this.search.value.trim()) return;           // une frappe plus récente a pris le relais
+    const files = r.entries.filter((e) => !e.dir);
+    clear(this.results);
+    if (!files.length) { this.results.append(el("p", { class: "subtle file-empty" }, `Aucun fichier nommé « ${query} ».`)); return; }
+    for (const f of files) {
+      const dir = f.path.includes("/") ? f.path.slice(0, f.path.lastIndexOf("/")) : "";
+      this.results.append(el("button", { class: "tree-row found", onclick: () => this.open(f.path) },
+        el("span", { class: "grow" }, el("strong", {}, f.name), dir ? el("span", { class: "subtle" }, ` ${dir}`) : null)));
+    }
+    if (r.truncated) this.results.append(el("p", { class: "subtle" }, "Trop de résultats : précise ta recherche."));
+  }
+
   open(relpath, opts = {}) {
-    this.tree.hidden = true;
+    this.browser.hidden = true;
     const holder = el("div", { class: "file-holder" });
     this.node.append(holder);
-    new FileView(holder, this.api, `${this.root}/${relpath}`, () => { holder.remove(); this.tree.hidden = false; }, opts);
+    new FileView(holder, this.api, `${this.root}/${relpath}`, () => { holder.remove(); this.browser.hidden = false; }, opts);
   }
 
   // Fichier cité dans le chat : chemin absolu dans le projet ou relatif ; `line` : ligne à montrer.
@@ -59,36 +92,106 @@ export class FileView {
   constructor(container, api, path, onBack, opts = {}) {
     this.api = api;
     this.path = path;
+    this.line = Number.isInteger(opts.line) && opts.line > 0 ? opts.line : null;
     this.stamp = null;
-    this.text = el("textarea", { class: "file-text", spellcheck: "false", readonly: true });
+    this.dirty = false;
+    this.wrap = localStorage.getItem(WRAP_KEY) === "1";
+    this.text = el("textarea", { class: "file-text", spellcheck: "false", readonly: true, wrap: "off", hidden: true });
+    this.text.addEventListener("input", () => { this.dirty = true; });
+    this.code = el("div", { class: "file-code", hidden: true });
+    this.image = el("div", { class: "file-image", hidden: true });
     this.preview = el("div", { class: "file-preview", hidden: true });
-    this.msg = el("p", { class: "message" });
-    this.editBtn = el("button", { class: "small", onclick: () => this.edit() }, "Modifier");
+    this.state = el("div", { class: "file-state" });
+    this.editBtn = el("button", { class: "small", hidden: true, onclick: () => this.edit() }, "Modifier");
     this.saveBtn = el("button", { class: "small primary", hidden: true, onclick: () => this.save() }, "Enregistrer");
+    this.wrapBtn = el("button", { class: "small flat", hidden: true, title: "Retour à la ligne", "aria-pressed": String(this.wrap),
+      onclick: () => this.toggleWrap() }, "↩");
     const md = /\.(md|markdown)$/i.test(path);
-    const toggle = md ? el("button", { class: "small", onclick: () => this.togglePreview(toggle) }, "Aperçu") : null;
+    this.mdBtn = md ? el("button", { class: "small", hidden: true, onclick: () => this.togglePreview() }, "Aperçu") : null;
+    const back = async () => {
+      if (this.dirty && !await confirmSheet({ title: "Abandonner les modifications ?", body: "Elles ne sont pas enregistrées.",
+        confirm: "Abandonner", danger: true })) return;
+      onBack();
+    };
     container.append(el("div", { class: "file-head" },
-      el("button", { class: "small flat", onclick: onBack }, "←"),
-      el("strong", { class: "grow file-name", title: path }, path.split("/").pop()), toggle, this.editBtn, this.saveBtn),
-      this.msg, this.text, this.preview);
+      el("button", { class: "small flat", "aria-label": "Retour", onclick: back }, "←"),
+      el("strong", { class: "grow file-name", title: path }, path.split("/").pop()), this.wrapBtn, this.mdBtn, this.editBtn, this.saveBtn),
+      this.state, this.text, this.code, this.image, this.preview);
+    this.applyWrap();
     this.load();
   }
 
+  fail(message) {
+    clear(this.state).append(errorState(message, () => this.load()));
+    for (const n of [this.text, this.code, this.image, this.editBtn, this.wrapBtn]) n.hidden = true;
+  }
+
   async load() {
+    clear(this.state).append(loading());
     let r;
-    try { r = await this.api.call("files.read", { path: this.path }); } catch (e) { this.msg.textContent = e.message; return; }
+    try { r = await this.api.call("files.read", { path: this.path }); } catch (e) { this.fail(e.message); return; }
     this.stamp = r.stamp;
+    if (r.kind === "image") { await this.loadImage(); return; }
     if (r.kind !== "text") {
-      this.text.hidden = true;
-      this.editBtn.hidden = true;
-      this.msg.textContent = r.kind === "binary" ? "Fichier binaire : il n'est pas affiché." :
-        r.kind === "image" ? "Image : ouvre-la depuis le bureau." : "Fichier trop gros pour être affiché ici.";
+      clear(this.state).append(el("p", { class: "subtle" }, r.kind === "binary" ? "Fichier binaire : il n'est pas affiché." : "Fichier trop gros pour être affiché ici."));
       return;
     }
+    clear(this.state);
     this.text.value = r.text;
+    this.dirty = false;
+    this.editBtn.hidden = false;
+    this.wrapBtn.hidden = false;
+    if (this.mdBtn) this.mdBtn.hidden = false;
+    const lines = r.text.split("\n");
+    if (this.line && lines.length <= CODE_LINES) this.showCode(lines);
+    else this.text.hidden = false;
+  }
+
+  async loadImage() {
+    let r;
+    try { r = await this.api.call("files.image", { path: this.path }); } catch (e) { this.fail(e.message); return; }
+    clear(this.state);
+    clear(this.image).append(el("img", { src: `data:${r.mime};base64,${r.data}`, alt: this.path.split("/").pop(), class: "file-img" }));
+    this.image.hidden = false;
+  }
+
+  // Lecture à une ligne donnée : numéros de ligne, la ligne cherchée marquée et amenée à l'écran.
+  showCode(lines) {
+    clear(this.code);
+    const hit = this.line;
+    const rows = lines.map((t, i) => el("div", { class: `code-line${i + 1 === hit ? " hit" : ""}`, id: `L${i + 1}` },
+      el("span", { class: "code-no" }, String(i + 1)), el("span", { class: "code-text" }, t || " ")));
+    this.code.append(...rows);
+    this.code.hidden = false;
+    this.text.hidden = true;
+    const target = rows[Math.min(hit, rows.length) - 1];
+    if (target) requestAnimationFrame(() => target.scrollIntoView({ block: "center" }));
+  }
+
+  applyWrap() {
+    this.text.setAttribute("wrap", this.wrap ? "soft" : "off");
+    this.text.classList.toggle("wrap", this.wrap);
+    this.code.classList.toggle("wrap", this.wrap);
+    this.preview.classList.toggle("wrap", this.wrap);
+    this.wrapBtn.setAttribute("aria-pressed", String(this.wrap));
+    this.wrapBtn.classList.toggle("on", this.wrap);
+  }
+
+  toggleWrap() {
+    this.wrap = !this.wrap;
+    localStorage.setItem(WRAP_KEY, this.wrap ? "1" : "0");
+    this.applyWrap();
   }
 
   edit() {
+    if (!this.code.hidden) {                       // de la vue à numéros à la zone de texte, à la même ligne
+      this.code.hidden = true;
+      this.text.hidden = false;
+      const before = this.text.value.split("\n").slice(0, (this.line || 1) - 1).join("\n").length;
+      this.text.setSelectionRange(before, before);
+      const lh = parseFloat(getComputedStyle(this.text).lineHeight) || 18;
+      this.text.scrollTop = Math.max(0, ((this.line || 1) - 3) * lh);
+    }
     this.text.readOnly = false;
     this.text.focus();
     this.editBtn.hidden = true;
@@ -99,24 +202,29 @@ export class FileView {
     try {
       const r = await this.api.call("files.write", { path: this.path, text: this.text.value, stamp: this.stamp });
       this.stamp = r.stamp;
-      this.msg.textContent = "";
+      this.dirty = false;
       this.text.readOnly = true;
       this.saveBtn.hidden = true;
       this.editBtn.hidden = false;
+      toast("Enregistré.", { kind: "success" });
     } catch (e) {
-      this.msg.textContent = e.code === "conflit"
+      toast(e.code === "conflit"
         ? "Le fichier a changé depuis son ouverture (Claude l'a peut-être modifié) : copie tes changements, puis rouvre-le."
-        : e.message;
+        : e.message, { kind: "error", action: e.code === "conflit" ? null : { label: "Réessayer", run: () => this.save() } });
     }
   }
 
-  async togglePreview(btn) {
+  async togglePreview() {
     const show = this.preview.hidden;
     this.preview.hidden = !show;
-    this.text.hidden = show;
-    btn.textContent = show ? "Source" : "Aperçu";
+    this.code.hidden = show || !this.code.children.length;
+    this.text.hidden = show || Boolean(this.code.children.length);
+    this.mdBtn.textContent = show ? "Source" : "Aperçu";
     if (show) {
-      try { setHtml(this.preview, (await this.api.call("chat.render", { markdown: this.text.value })).html); } catch (e) { this.preview.textContent = e.message; }
+      clear(this.preview).append(loading());
+      try { setHtml(this.preview, (await this.api.call("chat.render", { markdown: this.text.value })).html); } catch (e) {
+        clear(this.preview).append(errorState(e.message, () => { this.preview.hidden = true; this.togglePreview(); }));
+      }
     }
   }
 }
