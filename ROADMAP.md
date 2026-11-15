@@ -336,19 +336,19 @@ Le téléphone :
 - [x] 17. Autoriser ou Refuser depuis la notification, réglage « Montrer la commande »
 
 La version web au téléphone (choisie le 15/11 : ergonomie, fonctions du bureau et phase 14 au web) :
-- [ ] 18. Socle du web : toasts et cartes de confirmation à la place d'`alert()` et `confirm()`, chargements et états vides, adresses par chat (`#/sessions/<chat>`, bouton Retour du téléphone), pastille « attend ta réponse », une feuille de style par zone
-- [ ] 19. Chat au téléphone : plein écran, titre lisible, modèle / effort / droits repliés, boutons Fichiers, Feuille de route et Git avec libellés, saisie jamais perdue (brouillon par chat, texte remis si l'envoi échoue)
-- [ ] 20. Sessions : section « En cours » avec l'état de chaque chat, écran Projet (conversations, fichiers, feuille de route, Git, nouveau chat, terminal)
-- [ ] 21. Terminal au téléphone : barre de touches (Échap, Tab, Ctrl, flèches, `|`, `~`), coller
-- [ ] 22. Nouvelle session complète : dossiers récents et dépôts du disque, choix du compte, du modèle et des droits
-- [ ] 23. Conversations : voir plus, aperçu sans ouvrir, renommer, coût
-- [ ] 24. Chat : modifications de Claude en diff lisible, fichier cité ouvert à la ligne, complétion `@fichier` et `/commandes`
-- [ ] 25. Fichiers : aperçu des images, recherche, ouverture à une ligne ; feuille de route sans perte du défilement
-- [ ] 26. Accueil : rythme et prévision des comptes, bilan de santé, tâches de nuit (nouvelle tâche, journal, reprise, suppression)
-- [ ] 27. Réglages : téléphone (ntfy, QR code, essai), réglages du bureau qui manquent (dont `git.*` et « Montrer la commande ») ; Analyse sur d'autres périodes
-- [ ] 28. Phase 14 au web, chat : messages enregistrés, « Compacter », commande `!`, chercher dans le fil
-- [ ] 29. Phase 14 au web : volet « Changements de la session » et « Faire une tâche » de la feuille de route
-- [ ] 30. Phase 14 au web : Git (état, diff, indexation, commit, fetch / pull / push)
+- [x] 18. Socle du web : toasts et cartes de confirmation à la place d'`alert()` et `confirm()`, chargements et états vides, adresses par chat (`#/sessions/<chat>`, bouton Retour du téléphone), pastille « attend ta réponse », une feuille de style par zone
+- [x] 19. Chat au téléphone : plein écran, titre lisible, modèle / effort / droits repliés, boutons Fichiers, Feuille de route et Git avec libellés, saisie jamais perdue (brouillon par chat, texte remis si l'envoi échoue)
+- [x] 20. Sessions : section « En cours » avec l'état de chaque chat, écran Projet (conversations, fichiers, feuille de route, Git, nouveau chat, terminal)
+- [x] 21. Terminal au téléphone : barre de touches (Échap, Tab, Ctrl, flèches, `|`, `~`), coller
+- [x] 22. Nouvelle session complète : dossiers récents et dépôts du disque, choix du compte, du modèle et des droits
+- [x] 23. Conversations : voir plus, aperçu sans ouvrir, renommer, coût
+- [x] 24. Chat : modifications de Claude en diff lisible, fichier cité ouvert à la ligne, complétion `@fichier` et `/commandes`
+- [x] 25. Fichiers : aperçu des images, recherche, ouverture à une ligne ; feuille de route sans perte du défilement
+- [x] 26. Accueil : rythme et prévision des comptes, bilan de santé, tâches de nuit (nouvelle tâche, journal, reprise, suppression)
+- [x] 27. Réglages : téléphone (ntfy, QR code, essai), réglages du bureau qui manquent (dont `git.*` et « Montrer la commande ») ; Analyse sur d'autres périodes
+- [x] 28. Phase 14 au web, chat : messages enregistrés, « Compacter », commande `!`, chercher dans le fil
+- [x] 29. Phase 14 au web : volet « Changements de la session » et « Faire une tâche » de la feuille de route
+- [x] 30. Phase 14 au web : Git (état, diff, indexation, commit, fetch / pull / push)
 
 Fin de phase :
 - [ ] 31. Documentation (README, guide, architecture, man, CHANGELOG, site)
