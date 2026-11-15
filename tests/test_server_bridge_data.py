@@ -98,6 +98,28 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
         empty = await self.c.call("roadmap.read", cwd=str(self.project / "src"))
         self.assertIsNone(empty["path"])
 
+    async def test_roadmap_toggle_to_wanted_state(self):
+        """C3 : `done` est l'état voulu ; déjà dans cet état (autre appareil, double envoi) :
+        rien ne change et pas d'erreur."""
+        r = await self.c.call("roadmap.read", cwd=str(self.project))
+        task = r["phases"][0]["tasks"][0]                      # « écrire », pas cochée
+        args = dict(path=r["path"], line=task["line"], text=task["text"])
+        read = lambda: (self.project / "ROADMAP.md").read_text()
+        self.assertEqual(await self.c.call("roadmap.toggle", done=False, **args), {"changed": False})
+        self.assertIn("- [ ] écrire", read())
+        self.assertEqual(await self.c.call("roadmap.toggle", done=True, **args), {"changed": True})
+        self.assertEqual(await self.c.call("roadmap.toggle", done=True, **args), {"changed": False})
+        self.assertIn("- [x] écrire", read())
+        self.assertEqual(await self.c.call("roadmap.toggle", **args), {"changed": True})   # sans done : bascule
+        self.assertIn("- [ ] écrire", read())
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("roadmap.toggle", done="oui", **args)
+        self.assertEqual(cm.exception.code, "invalide")
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("roadmap.toggle", done=True, path=r["path"], line=task["line"], text="autre")
+        self.assertEqual(cm.exception.code, "conflit")
+        self.assertIn("- [ ] écrire", read())
+
     async def test_projects_list_shape(self):
         r = await self.c.call("projects.list")
         self.assertIn("entries", r)
