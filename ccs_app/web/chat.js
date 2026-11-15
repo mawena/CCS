@@ -69,7 +69,7 @@ export class ChatView {
     this.draftKey = `ccs-draft:${cwd}|${history || chatId}`;
 
     this.state = el("span", { class: "chat-state", hidden: true }, "");
-    this.stopBtn = el("button", { type: "button", class: "danger stop", hidden: true, onclick: () => this.call("chat.interrupt") }, "Arrêter");
+    this.stopBtn = el("button", { type: "button", class: "small danger stop", hidden: true, onclick: () => this.call("chat.interrupt") }, "Arrêter");
     this.thread = el("div", { class: "thread", role: "log", "aria-live": "polite", tabindex: "-1" });
     this.todos = el("div", { class: "todos", hidden: true });
     this.input = el("textarea", { rows: 1, placeholder: "Écris à Claude…", "aria-label": "Message", enterkeyhint: "send",
@@ -93,9 +93,9 @@ export class ChatView {
         onInsert: (t) => this.insert(t) }) }, "★");
     this.form = el("form", { class: "composer" },
       this.todos, this.thumbs,
-      el("div", { class: "composer-row" }, attach, saved, this.input, this.stopBtn, send, this.fileInput),
+      el("div", { class: "composer-row" }, attach, saved, this.input, send, this.fileInput),
       this.bar,
-      el("div", { class: "composer-foot" }, this.optBtn, this.context));
+      el("div", { class: "composer-foot" }, this.optBtn, this.context, this.stopBtn));
     this.form.addEventListener("submit", (e) => { e.preventDefault(); this.send(); });
     this.completer = new Completer({ input: this.input, host: this.form, onChange: () => this.edited(),
       sources: { commands: async () => (await this.workInfo()).commands, files: async () => (await this.fileIndex()).list } });

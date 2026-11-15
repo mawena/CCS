@@ -22,7 +22,7 @@
 /* ---- saisie ---- */
 .composer { position: relative; }
 .composer-row .icon { min-width: 44px; padding: 0 8px; }
-.composer-row .stop { flex: none; }
+.composer-foot .stop { flex: none; margin-left: 4px; }
 .composer-foot { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 .composer-foot .opt { gap: 8px; min-width: 0; max-width: 100%; }
 .composer-foot .opt-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
