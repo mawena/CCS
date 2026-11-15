@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  purge)
+    rm -rf /var/lib/ccs /etc/ccs
+    if getent passwd ccs-web >/dev/null; then
+      deluser --system ccs-web >/dev/null 2>&1 || true
+    fi
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

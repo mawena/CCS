@@ -95,6 +95,7 @@
         <div class="commande"><pre><code id="cmd-verif">ccs doctor</code></pre><button type="button" class="copier" data-cible="cmd-verif">Copier</button></div>
       </li>
     </ol>
+    <p>Quatre paquets : <code>ccs</code> (commandes et <code>ccs tui</code>), <code>ccs-bureau</code> (application GTK), <code>ccs-serveur</code> (version web et accès à distance) et <code>ccs-all</code> qui les installe tous. Sur un serveur : <code>sudo apt install --no-install-recommends ccs-serveur</code>, puis <code>sudo adduser &lt;utilisateur&gt; ccs</code>.</p>
     <p>Sans le dépôt : téléchargez le paquet <code>.deb</code> et sa somme de contrôle sur la page de la <a href="https://github.com/mawena/CCS/releases/latest">dernière version</a>, puis <code>sudo apt install ./ccs_*_all.deb</code>. Le paquet ajoute lui-même le dépôt : les mises à jour suivantes passent ensuite par <code>sudo apt upgrade</code>.</p>
   </section>
 </main>

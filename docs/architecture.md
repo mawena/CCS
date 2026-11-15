@@ -899,6 +899,66 @@ CCS n'envoie jamais pendant un tour.
 - **Dépendances** : `gir1.2-gtksource-5` et `python3-markdown-it` (`Depends`, et
   vérifiées par la ligne « Chat graphique » de `ccs doctor`).
 
+## Phase 13 : CCS sur un serveur (VPS)
+
+Paquet `ccs-serveur`. Trois services, du moins privilégié vers le plus privilégié :
+
+```
+navigateur / téléphone / bureau GTK / ccs tui distant
+        │ HTTPS (nginx, site lnmp) → 127.0.0.1:8420
+  ccs-web      utilisateur système `ccs-web`, sans droits : pages, API, WebSocket
+        │ /run/ccs/auth.sock (0660 root:ccs-web)
+  ccs-auth     root, minuscule : PAM + groupe `ccs` + TOTP, sessions, démarre les ponts
+        │ systemctl start ccs-bridge@<utilisateur>
+  ccs-bridge   sous l'utilisateur connecté : chats, comptes, fichiers, feuille de route,
+               historique, analyse, réglages, terminaux
+        └ /run/ccs/bridge/<utilisateur>.sock
+```
+
+- **ccs-auth** (`ccs_app/server/auth.py`, `pam_auth.py`, `totp.py`) : refuse `root` et tout
+  utilisateur hors du groupe `ccs` sans dire lequel des deux a échoué ; mot de passe par PAM
+  (service `/etc/pam.d/ccs`), puis code TOTP (secret par utilisateur dans
+  `/var/lib/ccs/totp/`, `0600 root` ; enregistré après un premier code juste). 5 échecs par
+  utilisateur ou par IP en 15 min : refus pendant 15 min ; jamais de mot de passe au journal.
+- **ccs-web** (`web.py`) : écoute `127.0.0.1:8420` (réglable dans `/etc/ccs/web.json`, clés
+  `listen` et `origin`), sert l'interface (`/usr/share/ccs/web/`), `/api/login`,
+  `/api/logout`, `/api/totp`, `/api/health` et un WebSocket par client (`/api/ws`).
+- **ccs-bridge** (`bridge*.py`) : réutilise les modules sans GTK (`ChatEngine`, comptes,
+  sessions, fichiers, feuille de route…). Le chat vit dans le pont et survit aux
+  déconnexions. Si le service `ccs-daemon` de l'utilisateur n'est pas actif, le pont fait
+  tourner la même boucle. Arrêté après 12 h sans client ni chat en cours.
+
+### Protocole
+
+JSON par lignes sur les sockets Unix (une ligne = un objet) ; entre `ccs-web` et le pont :
+requêtes, réponses et événements poussés (JSON-RPC). Les événements du chat sont les objets
+de `chat_protocol` sérialisés avec leur type : le bureau reconstruit exactement ce qu'il
+reçoit en local (`RemoteChatEngine`, même interface que `ChatEngine`). Le Markdown est rendu
+dans le pont (HTML nettoyé).
+
+### Ticket HMAC
+
+Après une connexion réussie, `ccs-auth` démarre le pont et remet à `ccs-web` un **ticket** :
+HMAC du jeton de session par la clé du pont, connue seulement de `ccs-auth` et du pont. Le
+pont refuse toute requête sans ticket valide : compromettre `ccs-web` seul ne permet pas de
+piloter un compte. La clé est gardée par root et jamais lue à travers un lien symbolique.
+
+### Sécurité
+
+- **Cookies** `HttpOnly`, `Secure`, `SameSite=Strict` ; session aléatoire de 32 octets dont
+  seule l'empreinte est gardée (`/var/lib/ccs/sessions.json`, `0600 root`) ; expiration
+  après 12 h sans activité et 7 jours au plus ; appareil retenu 30 jours (cookie séparé) :
+  dispense du code, jamais du mot de passe.
+- **En-têtes** : CSP sans script en ligne, `frame-ancestors 'none'`. Le WebSocket et les
+  requêtes d'écriture sont refusés si `Origin` n'est pas le site. `X-Forwarded-For` n'est cru
+  que venant de `127.0.0.1`.
+- **Chemins** : fichiers lus ou écrits seulement dans le dossier personnel de l'utilisateur,
+  `/var/www` et `/srv`.
+- **Jetons d'application** (bureau, `ccs tui --serveur`) : longs, nommés, révocables
+  (Réglages → Appareils de la version web) ; gardés dans `~/.claude-accounts/serveurs.json`
+  (`0600`). Retirer un serveur côté bureau ne les révoque pas.
+- Les WebSocket se ferment (code 4001) à la déconnexion et à l'expiration de la session.
+
 ## Règles de sécurité des jetons
 
 - Tout renouvellement passe par un verrou (`fcntl` sur `.lock`) et relit le

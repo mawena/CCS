@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 import threading
 
@@ -141,6 +142,184 @@ def cmd_telephone(args):
     except Exception:  # python3-qrcode absent : le lien suffit
         pass
     print("  Essayer : ccs telephone essai")
+    return 0
+
+
+def cmd_auth_serve(_args):
+    """Service ccs-auth (root, lancé par systemd)."""
+    import asyncio
+    from .server import auth
+    if os.geteuid() != 0:
+        print("ccs auth-serve : réservé au service ccs-auth (root).", file=sys.stderr)
+        return 1
+    asyncio.run(auth.serve())
+    return 0
+
+
+def cmd_bridge(args):
+    """Pont CCS de l'utilisateur courant (service ccs-bridge@, ou --local)."""
+    import asyncio
+    import logging
+    import pwd
+    from .server import bridge, paths
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    user = pwd.getpwuid(os.getuid()).pw_name
+    local_bin = os.path.join(os.path.expanduser("~"), ".local", "bin")   # Claude Code (installeur officiel)
+    if local_bin not in os.environ.get("PATH", "").split(":"):
+        os.environ["PATH"] = local_bin + ":" + os.environ.get("PATH", "/usr/bin:/bin")
+    if args.local:
+        from .remote.client import default_socket
+        sock = args.socket or default_socket()
+        os.makedirs(os.path.dirname(str(sock)), mode=0o700, exist_ok=True)
+        key = None
+    else:
+        sock = args.socket or paths.bridge_socket(user)
+        try:
+            key = paths.bridge_key(user).read_bytes()
+        except OSError:
+            print("ccs bridge : clé du pont absente (lancé hors de ccs-auth ?)", file=sys.stderr)
+            return 1
+    asyncio.run(bridge.Bridge(user, key, local=args.local).serve(sock))
+    return 0
+
+
+def cmd_web_serve(_args):
+    """Service ccs-web (utilisateur système ccs-web, lancé par systemd)."""
+    import asyncio
+    from .server import web
+    asyncio.run(web.serve())
+    return 0
+
+
+def cmd_serveur(args):
+    """Serveurs CCS connus : appairage (mot de passe Ubuntu + code, une fois), liste, retrait."""
+    import getpass
+    from .remote import servers
+    if args.action == "liste":
+        items = servers.load()
+        if not items:
+            print("Aucun serveur CCS. Ajoute-en un : ccs serveur ajouter <adresse>")
+        for s in items:
+            print(f"{s.name:<28} {s.url}  ({s.user})")
+        return 0
+    if args.action == "retirer":
+        if servers.remove(args.cible):
+            print(f"Serveur {args.cible} retiré (le jeton reste valable sur le serveur : révoque-le dans ses Réglages).")
+            return 0
+        print(f"Serveur inconnu : {args.cible}", file=sys.stderr)
+        return 1
+    try:
+        url = servers.normalize_url(args.cible)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 1
+    name = args.nom or f"ccs sur {os.uname().nodename}"
+    user = input(f"Identifiant Ubuntu sur {url} : ").strip() or getpass.getuser()
+    password = getpass.getpass("Mot de passe : ")
+    result = servers.pair(url, user, password, "", name)
+    if isinstance(result, dict) and result.get("status") == "enroll":
+        from .server import totp
+        print("Première connexion : ajoute ce code dans ton application (Aegis, Google Authenticator…).")
+        print(f"Clé : {result['secret']}")
+        try:
+            import qrcode
+            qr = qrcode.QRCode(border=1)
+            qr.add_data(totp.uri(user, result["secret"], url.split("://", 1)[1]))
+            qr.print_ascii(invert=True)
+        except ImportError:
+            pass
+        result = servers.finish_enroll(url, user, result["pending"], input("Code à 6 chiffres : ").strip(), name)
+    elif isinstance(result, dict) and result.get("status") == "code":
+        result = servers.pair(url, user, password, input("Code à 6 chiffres : ").strip(), name)
+    if isinstance(result, servers.Server):
+        print(f"Serveur {result.name} appairé : ccs tui --serveur {result.name}")
+        return 0
+    if result.get("status") == "blocked":
+        print(f"Trop d'essais : réessaie dans {max(1, result.get('retry_after', 60) // 60)} min.", file=sys.stderr)
+    else:
+        print(result.get("message") or "Appairage refusé.", file=sys.stderr)
+    return 1
+
+
+def cmd_tui(args):
+    """CCS en plein écran dans le terminal : en local, ou vers un serveur appairé."""
+    from .remote import client, servers
+    from .tui import app
+    if args.serveur:
+        server = servers.get(args.serveur)
+        if server is None:
+            print(f"Serveur inconnu : {args.serveur}. Appaire-le d'abord : ccs serveur ajouter <adresse>",
+                  file=sys.stderr)
+            return 1
+        transport, label = client.WebTransport(server), server.name
+    else:
+        transport, label = client.LocalTransport(), "local"
+    app.run(transport, label)
+    return 0
+
+
+def cmd_shell_distant(args):
+    """Relais entre ce terminal et un shell d'un serveur CCS (onglet « Terminal » distant)."""
+    import asyncio
+    import signal
+    import termios
+    import tty
+    from .remote import client, servers, shell
+    server = servers.get(args.serveur)
+    if server is None:
+        print(f"Serveur inconnu : {args.serveur}", file=sys.stderr)
+        return 1
+
+    def size():
+        try:
+            s = os.get_terminal_size(sys.stdout.fileno())
+            return s.columns, s.lines
+        except OSError:
+            return 80, 24
+
+    async def main():
+        c = client.BridgeClient(client.WebTransport(server), retry_delays=())
+        await c.connect()
+        loop = asyncio.get_running_loop()
+        reader = asyncio.StreamReader()
+        await loop.connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin)
+        resized = asyncio.Event()
+        loop.add_signal_handler(signal.SIGWINCH, resized.set)
+
+        def write(data):
+            sys.stdout.buffer.write(data)
+            sys.stdout.buffer.flush()
+        try:
+            return await shell.relay(c, args.cwd, reader, write, size, resized)
+        finally:
+            await c.close()
+
+    saved = termios.tcgetattr(sys.stdin) if sys.stdin.isatty() else None
+    try:
+        if saved is not None:
+            tty.setraw(sys.stdin)
+        return asyncio.run(main())
+    except (client.AuthError, ConnectionError, OSError) as e:
+        print(f"\r\nServeur {server.name} : {e}\r", file=sys.stderr)
+        return 1
+    finally:
+        if saved is not None:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, saved)
+
+
+def cmd_totp(args):
+    """Réinitialise le code de double authentification d'un utilisateur (root)."""
+    from .server import totp
+    if os.geteuid() != 0:
+        print("Il faut les droits root : sudo ccs totp reinitialiser <utilisateur>", file=sys.stderr)
+        return 1
+    try:
+        done = totp.reset(args.user)
+    except ValueError:
+        print(f"Nom d'utilisateur invalide : {args.user}", file=sys.stderr)
+        return 1
+    print(f"Code de {args.user} réinitialisé : il en choisira un nouveau à sa prochaine connexion."
+          if done else f"{args.user} n'avait pas de code enregistré.")
     return 0
 
 
@@ -909,6 +1088,33 @@ def build_parser():
     gui.set_defaults(func=cmd_gui)
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
+    sub.add_parser("auth-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_auth_serve)
+    sub.add_parser("web-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_web_serve)
+    sd = sub.add_parser("shell-distant", help=argparse.SUPPRESS)
+    sd.add_argument("serveur")
+    sd.add_argument("cwd")
+    sd.set_defaults(func=cmd_shell_distant)
+    tu = sub.add_parser("tui", help="CCS en plein écran dans le terminal")
+    tu.add_argument("--serveur", help="nom ou adresse d'un serveur appairé (sinon : cette machine)")
+    tu.set_defaults(func=cmd_tui)
+    sv = sub.add_parser("serveur", help="serveurs CCS distants (appairage, liste, retrait)")
+    sv_sub = sv.add_subparsers(dest="action", required=True)
+    sva = sv_sub.add_parser("ajouter", help="appaire ce poste avec un serveur CCS")
+    sva.add_argument("cible", help="adresse, par exemple ccs.mawena.cloud")
+    sva.add_argument("--nom", help="nom de cet appareil sur le serveur")
+    sv_sub.add_parser("liste", help="serveurs appairés")
+    svr = sv_sub.add_parser("retirer", help="oublie un serveur")
+    svr.add_argument("cible")
+    sv.set_defaults(func=cmd_serveur)
+    br = sub.add_parser("bridge", help=argparse.SUPPRESS)
+    br.add_argument("--socket")
+    br.add_argument("--local", action="store_true")
+    br.set_defaults(func=cmd_bridge)
+    tp = sub.add_parser("totp", help="double authentification du serveur CCS (root)")
+    tp_sub = tp.add_subparsers(dest="action", required=True)
+    tr = tp_sub.add_parser("reinitialiser", help="efface le code d'un utilisateur")
+    tr.add_argument("user")
+    tp.set_defaults(func=cmd_totp)
     sub.add_parser("collect", help="collecte immédiate").set_defaults(func=cmd_collect)
     sub.add_parser("status", help="compte actif, meilleur compte, capacité").set_defaults(func=cmd_status)
     sub.add_parser("doctor", help="bilan de santé (code de sortie 1 au moindre problème)").set_defaults(

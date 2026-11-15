@@ -18,6 +18,7 @@ from .backup_group import BackupGroup
 from . import style
 from .common import account_hex, in_thread, string_factory, sync_accounts
 from .phone_group import PhoneGroup
+from .servers_group import ServersGroup
 from .shortcuts_group import ShortcutsGroup
 
 DAY_LABELS = ["L", "M", "M", "J", "V", "S", "D"]
@@ -104,6 +105,8 @@ class PrefsPage(Adw.PreferencesPage):
         # Recréé à chaque rendu : l'ancien groupe, retiré, cesse seul de suivre GSettings.
         self.add_group(ShortcutsGroup(toast=self.window.toast))
         self.add_group(PhoneGroup(self.s, self.save, toast=self.window.toast))
+        self.add_group(ServersGroup(toast=self.window.toast,
+                                    on_change=getattr(self.window, "servers_changed", None)))
         self.add_group(BackupGroup(toast=self.window.toast))
         self.add_group(self.archive_group())
         self.add_group(self.sessions_group())

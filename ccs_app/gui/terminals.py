@@ -17,6 +17,27 @@ from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
 from .. import alerts, chat_options as chat_options_module, conversations, limit_events, notify, phone, sessions, settings, terminal, terminal_store
 from .common import in_thread
+
+
+def gui_dispatch(fn, *args):
+    """Rappel venu du fil d'un client distant, exécuté dans celui de l'interface."""
+    GLib.idle_add(lambda: (fn(*args), False)[1])
+
+
+def remote_messages(conn, path):
+    """Historique d'une conversation du serveur, au format de `preview.read_messages`."""
+    from .. import preview
+    try:
+        r = conn.client.call_sync("conversation.messages", timeout=30, path=str(path), limit=300)
+    except Exception:  # noqa: BLE001 — serveur injoignable : pas d'historique, le chat reste utilisable
+        return []
+    out = []
+    for m in r.get("messages") or []:
+        tool = m.get("tool")
+        call = preview.ToolCall(**{k: tool.get(k) for k in ("name", "target", "tool_id", "result", "is_error")
+                                   if k in tool}) if isinstance(tool, dict) else None
+        out.append(preview.Message(m.get("role", ""), m.get("text", ""), m.get("ts"), call, m.get("msg_id", "")))
+    return out
 from .session_workspace import ASK_CREATE_TEXT, SessionWorkspace
 from .terminal_split import SplitView
 
@@ -760,6 +781,48 @@ class TerminalsPage(Gtk.Box):
             in_thread(sessions.list_sessions, lambda live: self.check_elsewhere(tab, live))
         return tab
 
+    # ---- serveurs CCS (chats et shells distants) -----------------------------------------
+
+    def open_remote_chat(self, server, cwd, resume=None, title=None, history=None, present=True):
+        """Chat d'un projet d'un serveur CCS : même onglet qu'en local, moteur distant
+        (`RemoteChatEngine`). Pas d'espace de fichiers local (le dossier est sur le serveur) ;
+        ces onglets ne sont pas rouverts au démarrage."""
+        from ..remote import engine as remote_engine
+        chat_cls, chat_options = _chat_classes()
+        conn = remote_engine.connection(server, gui_dispatch)
+        launch = terminal.claude_launch(cwd, resume, title or os.path.basename(cwd.rstrip("/")) or cwd)
+
+        def factory(cwd_, session_id, options, on_event):
+            return remote_engine.RemoteChatEngine(conn, cwd_, session_id, options, on_event)
+
+        def reader(path):
+            return remote_messages(conn, path)
+        tab = chat_cls(self, launch, chat_options.ChatOptions(), history, engine_factory=factory,
+                       remote=server.name, history_reader=reader if history else None)
+        tab.state.chat = True
+        tab.state.remote = server.name
+        tab.elsewhere_pid = None
+        conn.listeners.add(tab.remote_state)
+        tab.remote_state(conn.state)
+        tab.page = self.view.append(tab)
+        tab.update_page()
+        self.update_content()
+        if present:
+            self.present(tab)
+        self.changed(tab)
+        return tab
+
+    def open_remote_shell(self, server, cwd):
+        """Shell d'un serveur CCS : le terminal lance `ccs shell-distant`, qui relaie."""
+        from .. import core
+        name = os.path.basename(cwd.rstrip("/")) or cwd
+        launch = terminal.Launch("shell", os.path.expanduser("~"),
+                                 (core.ccs_bin(), "shell-distant", server.name, cwd), {},
+                                 f"Terminal · {name} · {server.name}")
+        tab = self.open(launch)
+        tab.state.remote = server.name
+        return tab
+
     def install_workspace(self, tab):
         """Le panneau du chat devient le centre d'un espace de session (arbre, éditeur,
         feuille de route) ; l'espace est le `panel` de l'onglet (la vue côte à côte l'emprunte)."""
@@ -1006,7 +1069,7 @@ class TerminalsPage(Gtk.Box):
     def records(self):
         """(onglets à enregistrer, indice de celui affiché) ; ceux de la dernière fois restent
         tant que la proposition de les rouvrir n'a pas de réponse."""
-        tabs = self.tabs()
+        tabs = [t for t in self.tabs() if not getattr(t.state, "remote", None)]   # distants : pas rouverts
         page = self.view.get_selected_page()
         current = [self.record_of(t) for t in tabs]
         selected = next((i for i, t in enumerate(tabs) if page is not None and t.page is page), None)

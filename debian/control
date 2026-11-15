@@ -14,19 +14,17 @@ Depends: ${misc:Depends},
          procps,
          python3 (>= 3.10),
          python3-gi,
-         gir1.2-gtk-4.0,
-         gir1.2-adw-1 (>= 1.5),
-         gir1.2-vte-3.91,
-         gir1.2-gtksource-5,
+         gir1.2-glib-2.0,
          python3-markdown-it,
-         gir1.2-gtk-3.0,
-         gir1.2-ayatanaappindicator3-0.1
-Recommends: gnome-terminal | x-terminal-emulator,
+         python3-urwid
+Recommends: ccs-bureau,
+            gnome-terminal | x-terminal-emulator,
             python3-setproctitle,
             python3-qrcode,
             gpg-agent,
-            pinentry-gnome3
-Suggests: gnome-shell-extension-appindicator
+            pinentry-gnome3,
+            curl
+Suggests: ccs-serveur, gnome-shell-extension-appindicator
 Description: multi-account switcher and usage assistant for Claude Code
  CCS keeps several Claude Code accounts on one machine and switches between
  them with a single command, without logging out and in again.
@@ -44,3 +42,57 @@ Description: multi-account switcher and usage assistant for Claude Code
  .
  Includes the `ccs` command, the "CCS" GTK application, a top bar
  indicator and a systemd user service.
+ .
+ This package holds the command line, the usage service, the per-user bridge
+ and the full-screen terminal interface (`ccs tui`). The GTK application is in
+ ccs-bureau, the web server in ccs-serveur.
+
+Package: ccs-bureau
+Architecture: all
+Depends: ${misc:Depends},
+         ccs (= ${binary:Version}),
+         python3-gi,
+         python3-gi-cairo,
+         gir1.2-gtk-4.0,
+         gir1.2-adw-1 (>= 1.5),
+         gir1.2-vte-3.91,
+         gir1.2-gtksource-5,
+         gir1.2-gtk-3.0,
+         gir1.2-ayatanaappindicator3-0.1,
+         python3-aiohttp
+Replaces: ccs (<< 0.11.0)
+Breaks: ccs (<< 0.11.0)
+Description: CCS desktop application (GTK) for several Claude Code accounts
+ The "CCS" GTK application of ccs: accounts and usage, Claude Code chat,
+ files and roadmap of each project, history, analysis, settings, and the
+ top bar indicator. It can also drive the projects of a CCS server (VPS).
+
+Package: ccs-serveur
+Architecture: all
+Depends: ${misc:Depends},
+         ccs (= ${binary:Version}),
+         python3-aiohttp,
+         python3-pyotp,
+         python3-qrcode,
+         libpam0g,
+         adduser,
+         systemd
+Description: CCS server: drive Claude Code from a browser, phone or terminal
+ Runs CCS on a server (VPS): a web interface (responsive, for phones) and an
+ API for the desktop application and `ccs tui`. Users log in with their
+ Ubuntu account (PAM, members of the "ccs" group, never root) and a
+ mandatory TOTP code. Services: ccs-auth (root, minimal), ccs-web
+ (unprivileged, 127.0.0.1:8420, behind a reverse proxy) and one bridge per
+ logged-in user.
+
+Package: ccs-all
+Section: metapackages
+Architecture: all
+Depends: ${misc:Depends},
+         ccs (= ${binary:Version}),
+         ccs-bureau (= ${binary:Version}),
+         ccs-serveur (= ${binary:Version})
+Description: CCS, complete: command line, desktop application and server
+ Metapackage that installs the three CCS packages at once: ccs (command line,
+ usage service, `ccs tui`), ccs-bureau (GTK application) and ccs-serveur (web
+ interface and API, Ubuntu accounts and TOTP login).

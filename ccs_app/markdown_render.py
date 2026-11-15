@@ -76,6 +76,13 @@ def _parser():
     return MarkdownIt("commonmark").enable("table").enable("strikethrough")
 
 
+def to_html(text):
+    """HTML pour la version web : HTML brut du texte échappé (jamais interprété), liens
+    `javascript:` et autres schémas dangereux refusés par markdown-it."""
+    md = MarkdownIt("commonmark", {"html": False}).enable("table").enable("strikethrough")
+    return md.render(text or "")
+
+
 def escape(text):
     """Échappe `&`, `<` et `>` pour Pango."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

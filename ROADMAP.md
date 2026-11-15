@@ -268,37 +268,37 @@ Choix de Charles : connexion par les comptes Ubuntu seulement (PAM, groupe `ccs`
 double authentification obligatoire, architecture sur le modèle de Cockpit, mise en ligne par lnmp.
 
 Briques du serveur :
-- [ ] 1. Protocole JSON par lignes sur socket Unix
-- [ ] 2. Codes TOTP et limite des essais (5 échecs en 15 min → 15 min de refus)
-- [ ] 3. Sessions (12 h sans activité, 7 jours au plus), appareils retenus 30 jours, jetons d'application
-- [ ] 4. Vérification des comptes Ubuntu par PAM, groupe `ccs`, `root` refusé
-- [ ] 5. Service `ccs-auth` : connexion, inscription du code par QR code, tickets des ponts
+- [x] 1. Protocole JSON par lignes sur socket Unix
+- [x] 2. Codes TOTP et limite des essais (5 échecs en 15 min → 15 min de refus)
+- [x] 3. Sessions (12 h sans activité, 7 jours au plus), appareils retenus 30 jours, jetons d'application
+- [x] 4. Vérification des comptes Ubuntu par PAM, groupe `ccs`, `root` refusé
+- [x] 5. Service `ccs-auth` : connexion, inscription du code par QR code, tickets des ponts
 
 Le pont (un par utilisateur) :
-- [ ] 6. Serveur du pont, ticket, comptes Claude et réglages
-- [ ] 7. Chats dans le pont, rejouables après une coupure, partagés entre appareils
-- [ ] 8. Projets, fichiers, feuille de route, analyse et tâches (chemins limités au dossier de l'utilisateur)
-- [ ] 9. Terminaux shell
-- [ ] 10. Service de fond lancé par le pont, Claude Code installé s'il manque
+- [x] 6. Serveur du pont, ticket, comptes Claude et réglages
+- [x] 7. Chats dans le pont, rejouables après une coupure, partagés entre appareils
+- [x] 8. Projets, fichiers, feuille de route, analyse et tâches (chemins limités au dossier de l'utilisateur)
+- [x] 9. Terminaux shell
+- [x] 10. Service de fond lancé par le pont, Claude Code installé s'il manque
 
 Serveur web et version web :
-- [ ] 11. Service `ccs-web` (127.0.0.1:8420) : connexion, relais WebSocket, en-têtes de sécurité
-- [ ] 12. Version web : charpente, connexion avec code, navigation responsive, installable sur le téléphone
-- [ ] 13. Accueil, Analyse, Réglages (dont Appareils)
-- [ ] 14. Sessions et chat
-- [ ] 15. Fichiers, Feuille de route, terminal (xterm.js)
+- [x] 11. Service `ccs-web` (127.0.0.1:8420) : connexion, relais WebSocket, en-têtes de sécurité
+- [x] 12. Version web : charpente, connexion avec code, navigation responsive, installable sur le téléphone
+- [x] 13. Accueil, Analyse, Réglages (dont Appareils)
+- [x] 14. Sessions et chat
+- [x] 15. Fichiers, Feuille de route, terminal (xterm.js)
 
 Terminal et bureau :
-- [ ] 16. Client commun (local ou par le web) et appairage (`ccs serveur ajouter`)
-- [ ] 17. `ccs tui` plein écran
-- [ ] 18. Bureau : Réglages → Serveurs
-- [ ] 19. Bureau : projets et chats du serveur dans l'application, shell distant
+- [x] 16. Client commun (local ou par le web) et appairage (`ccs serveur ajouter`)
+- [x] 17. `ccs tui` plein écran
+- [x] 18. Bureau : Réglages → Serveurs
+- [x] 19. Bureau : projets et chats du serveur dans l'application, shell distant
 
 Paquets, contrôles, documentation, release :
-- [ ] 20. Trois paquets (`ccs`, `ccs-bureau`, `ccs-serveur`), services systemd, PAM, installation de Claude Code
-- [ ] 21. `ccs doctor` pour le serveur
-- [ ] 22. Revue de sécurité
-- [ ] 23. Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [x] 20. Trois paquets (`ccs`, `ccs-bureau`, `ccs-serveur`) et le métapaquet `ccs-all` qui les installe tous, services systemd, PAM, installation de Claude Code
+- [x] 21. `ccs doctor` pour le serveur
+- [x] 22. Revue de sécurité
+- [x] 23. Documentation (README, guide, architecture, man, CHANGELOG, site)
 - [ ] 24. Essai réel sur le VPS (DNS et lnmp par Charles)
 - [ ] 25. Release mineure 0.11.0, trois `.deb`, release GitHub et dépôt APT, mise à jour du VPS
 

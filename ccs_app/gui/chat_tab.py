@@ -20,7 +20,7 @@ import gi
 
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, GLib, GObject, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, preview, sessions, settings  # noqa: E402
 from .. import terminal  # noqa: E402
@@ -84,9 +84,12 @@ class ChatTab(Gtk.Box):
         "tool-used": (GObject.SignalFlags.RUN_FIRST, None, (str, object)),
     }
 
-    def __init__(self, owner, launch, options=None, history_path=None, claude=None, environ=None):
+    def __init__(self, owner, launch, options=None, history_path=None, claude=None, environ=None,
+                 engine_factory=None, remote=None, history_reader=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.owner = owner
+        self.remote = remote                      # nom du serveur CCS d'un chat distant
+        self._history_reader = history_reader
         self.launch = launch
         self.options = options if options is not None else chat_options.from_args(launch.extra_args)
         self.state = terminal.TabState("claude", launch.cwd, launch.title, launch.session_id,
@@ -126,7 +129,8 @@ class ChatTab(Gtk.Box):
                                             margin_end=12, margin_top=6, vscrollbar_policy=Gtk.PolicyType.NEVER,
                                             propagate_natural_height=True)
         self.todos_bar = TodosBar()           # liste de tâches épinglée au-dessus de la saisie
-        for w in (self.agent_bar, self.view_stack, self.todos_bar, self.composer, self.bar):
+        self.offline_banner = Adw.Banner(title="Serveur injoignable : reconnexion…", revealed=False)
+        for w in (self.offline_banner, self.agent_bar, self.view_stack, self.todos_bar, self.composer, self.bar):
             self.panel.append(w)
         self.append(self.panel)
 
@@ -140,9 +144,12 @@ class ChatTab(Gtk.Box):
         self.composer.connect("queue-send-now", lambda _c, i: self.send_message_now(i))
         self.bar.connect("changed", self._on_options)
 
-        self.engine = chat_engine.ChatSession(
-            launch.cwd, launch.session_id, self.options,
-            on_event=lambda ev: GLib.idle_add(self._dispatch, ev), claude=claude, environ=environ)
+        on_event = lambda ev: GLib.idle_add(self._dispatch, ev)  # noqa: E731
+        if engine_factory is not None:      # chat d'un serveur CCS (même interface que le local)
+            self.engine = engine_factory(launch.cwd, launch.session_id, self.options, on_event)
+        else:
+            self.engine = chat_engine.ChatSession(launch.cwd, launch.session_id, self.options,
+                                                  on_event=on_event, claude=claude, environ=environ)
         self._history_path = history_path
         self._load_history(history_path)
         GLib.timeout_add_seconds(SUSPEND_CHECK_S, self._tick)
@@ -153,12 +160,13 @@ class ChatTab(Gtk.Box):
         path = history_path
         if path is None and self.state.session_id:
             path = sessions.transcript_path(self.state.cwd, self.state.session_id)
-        if path is None or not os.path.exists(path):
+        reader = self._history_reader or preview.read_messages
+        if path is None or (self._history_reader is None and not os.path.exists(path)):
             return
 
         def read():
             try:
-                return preview.read_messages(path)
+                return reader(path)
             except (OSError, ValueError):
                 return []
 
@@ -254,10 +262,24 @@ class ChatTab(Gtk.Box):
             self.page.set_needs_attention(True)
             self.owner.update_badge()
 
+    def display_title(self):
+        return f"{self.state.title} · {self.remote}" if self.remote else self.state.title
+
+    def remote_state(self, state):
+        """État de la connexion au serveur d'un chat distant : bandeau pendant une coupure."""
+        if state == "offline":
+            self.offline_banner.set_title("Serveur injoignable : reconnexion…")
+            self.offline_banner.set_revealed(True)
+        elif state == "auth":
+            self.offline_banner.set_title("Le serveur refuse ce PC : appaire-le de nouveau (Réglages → Serveurs CCS).")
+            self.offline_banner.set_revealed(True)
+        elif state in ("online", "reconnected"):
+            self.offline_banner.set_revealed(False)
+
     def update_page(self):
         if self.page is None:
             return
-        self.page.set_title(self.state.title)
+        self.page.set_title(self.display_title())
         where = sessions.project_name(self.state.cwd)
         self.page.set_tooltip("\n".join([self.state.title, f"{where} · {self.state.cwd}"]))
         loading, icon, tooltip = terminal.indicator(self.state)

@@ -12,6 +12,79 @@ Les autres façons d'installer (à la main, `.deb` d'une release GitHub, depuis
 les sources) et les étapes qui suivent la première installation sont dans le
 [README](../README.md#installation).
 
+## CCS sur un serveur et au téléphone
+
+Pas à pas, pour piloter Claude Code d'un VPS Ubuntu depuis le téléphone, un terminal ou le bureau.
+
+### 1. Installer sur le serveur
+
+```sh
+sudo apt install --no-install-recommends ccs-serveur
+sudo adduser <utilisateur> ccs
+```
+
+Le paquet crée le groupe `ccs` (seuls ses membres peuvent se connecter, jamais `root`),
+démarre `ccs-auth`, `ccs-web` et `ccs-bridge@`, et installe Claude Code pour l'utilisateur
+qui installe. `ccs doctor` dit ce qui manque, avec la commande qui le corrige.
+
+### 2. Mettre en ligne
+
+1. Chez Hostinger : enregistrement DNS `A`, nom `ccs`, valeur l'IP du serveur.
+2. Sur le serveur :
+   ```sh
+   sudo lnmp add --id ccs --domain mawena.cloud --sub ccs --proxy 8420
+   sudo lnmp add-ssl ccs
+   ```
+3. Autre domaine : modifie `origin` dans `/etc/ccs/web.json` (et `listen` si le port 8420
+   est pris), puis `sudo systemctl restart ccs-web`.
+4. `ccs doctor` : services, port, `https://ccs.mawena.cloud/api/health`, certificat.
+
+### 3. Première connexion (tout de suite après l'installation)
+
+Tant qu'aucun code n'est enregistré, le premier qui se connecte avec le mot de passe
+l'inscrit : fais-le toi-même, sans attendre.
+
+1. Au téléphone, ouvre `https://ccs.mawena.cloud` ; identifiant et mot de passe Ubuntu.
+2. Scanne le QR code avec une application d'authentification, saisis le premier code.
+3. Coche « Retenir cet appareil 30 jours » pour ne plus avoir à saisir le code sur ce
+   téléphone (le mot de passe reste demandé). Menu du navigateur : « Ajouter à l'écran
+   d'accueil » pour l'installer comme une application.
+
+La session expire après 12 h sans activité, 7 jours au plus. Après 5 échecs en 15 minutes
+(par utilisateur ou par adresse), la connexion est refusée 15 minutes.
+Code perdu : `sudo ccs totp reinitialiser <utilisateur>`.
+
+### 4. Utiliser la version web
+
+Les écrans sont ceux du bureau : Accueil, Sessions (chats et shells, reprise d'une
+conversation), Fichiers et Feuille de route, Analyse, Réglages. Au téléphone, le panneau de
+gauche et le fichier ouvert sont des tiroirs et la saisie reste collée en bas. Les chats
+continuent sur le serveur si on ferme la page. Pour ajouter un compte Claude sur le serveur,
+ouvre un onglet shell et lance `ccs add <nom>` ; ouvre le lien sur le téléphone et colle le
+code dans le terminal. Réglages → Appareils liste les appareils retenus et les jetons
+d'application, et permet de les révoquer.
+
+### 5. Depuis un terminal
+
+- Sur le serveur, par SSH : `ccs tui` (pas de mot de passe : tu es déjà connecté).
+- Depuis un autre poste : `ccs serveur ajouter ccs.mawena.cloud` (mot de passe et code, une
+  fois), puis `ccs tui --serveur ccs.mawena.cloud`. `ccs serveur liste` et
+  `ccs serveur retirer <nom>` gèrent les serveurs appairés.
+- Dans le chat, les autorisations se répondent au clavier : 1 (Autoriser), 2 (Toujours),
+  3 (Refuser).
+
+### 6. Depuis le bureau
+
+Réglages → **Serveurs CCS** → ajouter (adresse, identifiant, mot de passe, code). Les projets
+et conversations du serveur apparaissent dans la page Sessions ; le bouton serveur de cette
+page ouvre un projet distant, en chat ou en terminal. Le titre de l'onglet porte le nom du
+serveur. Réseau coupé : bandeau « Serveur injoignable, reconnexion… », reconnexion
+automatique, messages en attente dans la file.
+
+Limites : un chat distant du bureau n'a pas le panneau Fichiers / Feuille de route (version
+web ou `ccs tui`) ; retirer un serveur du bureau ne révoque pas son jeton (version web,
+Réglages → Appareils).
+
 ## Profils
 
 - `ccs save <nom>` enregistre le compte actuellement connecté dans Claude Code.

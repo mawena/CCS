@@ -45,6 +45,7 @@ def healthy(**over):
                          "index_ok": True},
         phone=lambda: {"enabled": False, "server": "https://ntfy.sh", "channel": False},
         dead_tasks=lambda: [],
+        server=lambda: None,
     )
     values.update(over)
     return Probes(**values)
@@ -489,3 +490,49 @@ class Phase11RealProbesTest(HomeTestCase):
         self.assertEqual(doctor.dead_tasks(), [])
         tasks.update(t.id, pid=2 ** 22 + 12345)
         self.assertEqual(doctor.dead_tasks(), [t.id])
+
+
+GOOD_SERVER = {"auth": "active", "web": "active", "listen": "127.0.0.1:8420", "origin": "https://ccs.mawena.cloud",
+               "listening": "local", "health": True, "cert_days": 80, "members": ["charles"]}
+
+
+class ServerChecksTest(unittest.TestCase):
+    def server_checks(self, **over):
+        info = dict(GOOD_SERVER, **over)
+        checks = doctor.run_checks(healthy(server=lambda: info))
+        return {c.nom: c for c in checks if c.nom.startswith("Serveur")}
+
+    def test_server_checks_skipped_without_package(self):
+        names = [c.nom for c in doctor.run_checks(healthy())]
+        self.assertFalse([n for n in names if n.startswith("Serveur")])
+
+    def test_all_good(self):
+        checks = self.server_checks()
+        self.assertTrue(checks)
+        self.assertTrue(all(c.statut == doctor.OK for c in checks.values()), checks)
+
+    def test_services_down(self):
+        c = self.server_checks(web="failed")["Serveur : services"]
+        self.assertEqual(c.statut, doctor.ERREUR)
+        self.assertIn("systemctl enable --now ccs-auth ccs-web", c.commande)
+
+    def test_public_listening_is_error(self):
+        c = self.server_checks(listening="public")["Serveur : écoute"]
+        self.assertEqual(c.statut, doctor.ERREUR)
+        self.assertIn("/etc/ccs/web.json", c.detail)
+
+    def test_health_failure_gives_lnmp_command(self):
+        c = self.server_checks(health="connexion refusée", cert_days=None)["Serveur : site public"]
+        self.assertEqual(c.statut, doctor.ERREUR)
+        self.assertIn("lnmp add --id ccs --domain mawena.cloud --sub ccs --proxy 8420", c.commande)
+        self.assertIn("lnmp add-ssl ccs", c.commande)
+
+    def test_certificate_soon_expired(self):
+        c = self.server_checks(cert_days=5)["Serveur : certificat"]
+        self.assertEqual(c.statut, doctor.AVERTISSEMENT)
+
+    def test_empty_group_gives_adduser(self):
+        c = self.server_checks(members=[])["Serveur : groupe ccs"]
+        self.assertEqual(c.statut, doctor.ERREUR)
+        self.assertIn("adduser", c.commande)
+        self.assertIn(" ccs", c.commande)

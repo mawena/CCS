@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Construit dist/ccs_<version>_all.deb : tests, paquet, sommes SHA-256, lintian.
+# Construit dist/ccs_<version>_all.deb, ccs-bureau, ccs-serveur et le métapaquet ccs-all : tests (une fois), paquets,
+# sommes SHA-256, lintian.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,9 +19,14 @@ dpkg-buildpackage -us -uc -b
 make clean >/dev/null
 
 mkdir -p dist
-mv -f "../ccs_${deb_version}_all.deb" dist/
+rm -f dist/*.deb
+for pkg in ccs ccs-bureau ccs-serveur ccs-all; do
+  mv -f "../${pkg}_${deb_version}_all.deb" dist/
+done
 rm -f "../ccs_${deb_version}_"*.buildinfo "../ccs_${deb_version}_"*.changes
 (cd dist && sha256sum ./*.deb | sed 's| \./| |' > SHA256SUMS)
 
-lintian --fail-on error "dist/ccs_${deb_version}_all.deb"
-echo "Paquet : dist/ccs_${deb_version}_all.deb"
+for pkg in ccs ccs-bureau ccs-serveur ccs-all; do
+  lintian --fail-on error "dist/${pkg}_${deb_version}_all.deb"
+  echo "Paquet : dist/${pkg}_${deb_version}_all.deb"
+done
