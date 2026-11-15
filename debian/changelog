@@ -1,3 +1,13 @@
+ccs (0.12.1) unstable; urgency=medium
+
+  * Changements de la session et retour en arrière avec Claude Code 2.1.3xx
+    (chemins relatifs, copie d'avant la première modification).
+  * Message envoyé d'un appareil affiché sur tous les autres.
+  * Web : questions à choix lisibles, colonne centrée sur grand écran,
+    actions regroupées et chat plus compact au téléphone.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 18:30:00 +0000
+
 ccs (0.12.0) unstable; urgency=medium
 
   * Page Git du bureau (indexation par fichier, bloc et ligne, commit, fetch,
