@@ -2,6 +2,7 @@
 import { mountAnalysis } from "./analysis.js";
 import { el } from "./dom.js";
 import { mountHome } from "./home.js";
+import { mountSessions } from "./sessions.js";
 import { mountSettings } from "./settings.js";
 
 function placeholder(title) {
@@ -10,7 +11,7 @@ function placeholder(title) {
 
 export const VIEWS = {
   accueil: { title: "Accueil", icon: "⌂", mount: mountHome },
-  sessions: { title: "Sessions", icon: "💬", mount: placeholder("Sessions") },
+  sessions: { title: "Sessions", icon: "💬", mount: mountSessions },
   analyse: { title: "Analyse", icon: "▤", mount: mountAnalysis },
   reglages: { title: "Réglages", icon: "⚙", mount: mountSettings },
 };

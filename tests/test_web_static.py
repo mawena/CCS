@@ -82,6 +82,13 @@ class StaticTest(unittest.TestCase):
         for module in ("./home.js", "./analysis.js", "./settings.js"):
             self.assertIn(module, text)
 
+    def test_chat_handles_every_event_type(self):
+        from ccs_app.server import events
+        text = (WEB / "chat.js").read_text(encoding="utf-8")
+        for name in events.TYPES:
+            self.assertIn(f'"{name}"', text, name)
+        self.assertIn("./sessions.js", (WEB / "views.js").read_text(encoding="utf-8"))
+
     def test_settings_page_lists_devices(self):
         text = (WEB / "settings.js").read_text(encoding="utf-8")
         self.assertIn("/api/tokens", text)

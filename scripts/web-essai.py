@@ -25,6 +25,7 @@ from ccs_app.server import auth, bridge, bridge_chat, bridge_data, bridge_term, 
 from ccs_app.server.tokens import TokenStore  # noqa: E402
 
 PORT = 8421
+FAKE = False
 
 
 async def main(connected):
@@ -34,7 +35,13 @@ async def main(connected):
 
     async def start_bridge(u):
         b = bridge.Bridge(u, paths.bridge_key(u).read_bytes(), start_daemon=False, install_claude=False)
-        bridge_chat.ChatHub(b)
+        if FAKE:
+            tests = Path(__file__).resolve().parent.parent / "tests"
+            bridge_chat.ChatHub(b, claude=str(tests / "fake_claude.py"), environ={
+                "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "FAKE_CLAUDE_DELAY_MS": "40",
+                "FAKE_CLAUDE_SCENARIO": str(tests / "fixtures" / "chat" / "permissions-allow-toujours.jsonl")})
+        else:
+            bridge_chat.ChatHub(b)
         bridge_data.DataApi(b)
         bridge_term.TermHub(b)
         await b.start(paths.bridge_socket(u))
@@ -74,4 +81,7 @@ async def main(connected):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--connecte", action="store_true")
-    asyncio.run(main(parser.parse_args().connecte))
+    parser.add_argument("--faux-claude", action="store_true", help="faux claude des tests (aucun quota)")
+    args = parser.parse_args()
+    FAKE = args.faux_claude
+    asyncio.run(main(args.connecte))
