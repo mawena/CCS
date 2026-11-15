@@ -268,11 +268,11 @@ Choix de Charles : connexion par les comptes Ubuntu seulement (PAM, groupe `ccs`
 double authentification obligatoire, architecture sur le modèle de Cockpit, mise en ligne par lnmp.
 
 Briques du serveur :
-- [ ] 1. Protocole JSON par lignes sur socket Unix
-- [ ] 2. Codes TOTP et limite des essais (5 échecs en 15 min → 15 min de refus)
-- [ ] 3. Sessions (12 h sans activité, 7 jours au plus), appareils retenus 30 jours, jetons d'application
-- [ ] 4. Vérification des comptes Ubuntu par PAM, groupe `ccs`, `root` refusé
-- [ ] 5. Service `ccs-auth` : connexion, inscription du code par QR code, tickets des ponts
+- [x] 1. Protocole JSON par lignes sur socket Unix
+- [x] 2. Codes TOTP et limite des essais (5 échecs en 15 min → 15 min de refus)
+- [x] 3. Sessions (12 h sans activité, 7 jours au plus), appareils retenus 30 jours, jetons d'application
+- [x] 4. Vérification des comptes Ubuntu par PAM, groupe `ccs`, `root` refusé
+- [x] 5. Service `ccs-auth` : connexion, inscription du code par QR code, tickets des ponts
 
 Le pont (un par utilisateur) :
 - [ ] 6. Serveur du pont, ticket, comptes Claude et réglages
