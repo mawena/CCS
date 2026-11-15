@@ -1,10 +1,12 @@
-"""Mise à jour en un clic : télécharge le .deb de la release GitHub, le vérifie, l'installe.
+"""Mise à jour en un clic : télécharge de la release GitHub le .deb de chaque paquet CCS
+installé (ccs, et ccs-bureau, ccs-serveur, ccs-all s'ils sont là : même version exigée),
+les vérifie et les installe ensemble, sans jamais retirer de paquet (`--no-remove`).
 
 Logique sans GTK ; réseau (`opener`), exécution de commandes (`run`) et progression
 (`progress`) sont injectables. Sécurité : seules les URL de téléchargement du dépôt
 mawena/CCS sont acceptées (redirections vers les hôtes de stockage GitHub comprises),
 la somme SHA-256 est vérifiée contre `SHA256SUMS`, puis `dpkg-deb -f` doit confirmer
-`Package: ccs` et la version annoncée, plus récente que l'installée. Toute erreur laisse
+le nom du paquet et la version annoncée, plus récente que l'installée. Toute erreur laisse
 le système intact et nettoie le dossier temporaire (privé, 0700), sauf quand on propose la
 commande `sudo apt install` à copier : le paquet vérifié reste alors disponible.
 """
@@ -21,7 +23,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import __version__, updates
@@ -40,6 +42,8 @@ MAX_DEB = 64 << 20
 CHUNK = 1 << 16
 
 PHASES = ("download", "verify", "install")
+# Même version, mis à jour ensemble : ccs-bureau et ccs-serveur exigent ccs de même version.
+PACKAGES = ("ccs", "ccs-bureau", "ccs-serveur", "ccs-all")
 
 
 class InstallError(Exception):
@@ -57,6 +61,7 @@ class Plan:
     deb_name: str
     deb_url: str
     sums_url: str
+    others: dict = field(default_factory=dict)   # {paquet: (nom du .deb, url)} hors ccs
 
 
 @dataclass
@@ -174,8 +179,8 @@ def download(url, dest, limit, opener=None, progress=None):
 # Release et pièces jointes
 # --------------------------------------------------------------------------
 
-def deb_name(version):
-    return f"ccs_{version}_all.deb"
+def deb_name(version, package="ccs"):
+    return f"{package}_{version}_all.deb"
 
 
 def _asset_url(asset, version):
@@ -203,8 +208,14 @@ def plan_from_release(data):
     if deb_url is None or sums_url is None:
         raise InstallError("Adresse de téléchargement refusée : elle ne vient pas du dépôt "
                            f"{REPO}.")
+    others = {}
+    for pkg in PACKAGES[1:]:
+        asset = by_name.get(deb_name(v, pkg))
+        url = _asset_url(asset, v) if asset else None
+        if url:
+            others[pkg] = (deb_name(v, pkg), url)
     notes = data.get("body") if isinstance(data.get("body"), str) else ""
-    return Plan(v, notes, deb_name(v), deb_url, sums_url)
+    return Plan(v, notes, deb_name(v), deb_url, sums_url, others)
 
 
 def fetch_plan(version=None, opener=None):
@@ -256,8 +267,8 @@ def _run(cmd):
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
-def check_package(path, version, current, run=None):
-    """`dpkg-deb -f` : Package = ccs, Version = annoncée, plus récente que l'installée."""
+def check_package(path, version, current, run=None, package="ccs"):
+    """`dpkg-deb -f` : Package = celui attendu, Version = annoncée, plus récente que l'installée."""
     rc, out = (run or _run)(["dpkg-deb", "-f", str(path), "Package", "Version"])
     if rc != 0:
         raise InstallError("Le fichier téléchargé n'est pas un paquet Debian lisible.")
@@ -266,8 +277,8 @@ def check_package(path, version, current, run=None):
         k, sep, v = line.partition(":")
         if sep:
             fields[k.strip()] = v.strip()
-    if fields.get("Package") != "ccs":
-        raise InstallError("Le paquet téléchargé n'est pas « ccs » : refusé.")
+    if fields.get("Package") != package:
+        raise InstallError(f"Le paquet téléchargé n'est pas « {package} » : refusé.")
     if fields.get("Version") != version:
         raise InstallError(f"Le paquet est en version {fields.get('Version')}, "
                            f"pas {version} : refusé.")
@@ -283,18 +294,27 @@ def is_package_install(run=None, path=None):
     return rc == 0 and out.startswith("ccs:")
 
 
-def install_command(deb_path):
-    """Commande d'installation avec mot de passe (fenêtre polkit)."""
-    return ["pkexec", "apt-get", "install", "-y", str(Path(deb_path).resolve())]
+def installed_packages(run=None):
+    """Paquets CCS installés, « ccs » en tête."""
+    _rc, out = (run or _run)(["dpkg-query", "-W", "-f", "${Package} ${db:Status-Status}\n", *PACKAGES])
+    found = {parts[0] for parts in (line.split() for line in (out or "").splitlines())
+             if len(parts) == 2 and parts[1] == "installed"}
+    return ["ccs"] + [p for p in PACKAGES[1:] if p in found]
 
 
-def manual_command(deb_path):
-    return f"sudo apt install {shlex.quote(str(Path(deb_path).resolve()))}"
+def install_command(deb_paths):
+    """Commande d'installation avec mot de passe (fenêtre polkit). --no-remove : apt-get -y
+    échoue plutôt que de retirer un paquet (ccs-bureau…) pour résoudre les dépendances."""
+    return ["pkexec", "apt-get", "install", "-y", "--no-remove", *(str(Path(d).resolve()) for d in deb_paths)]
 
 
-def _install(deb_path, run):
-    manual = manual_command(deb_path)
-    rc, out = run(install_command(deb_path))
+def manual_command(deb_paths):
+    return "sudo apt install " + " ".join(shlex.quote(str(Path(d).resolve())) for d in deb_paths)
+
+
+def _install(deb_paths, run):
+    manual = manual_command(deb_paths)
+    rc, out = run(install_command(deb_paths))
     if rc is None:
         raise InstallError("pkexec est introuvable : installe le paquet avec la commande "
                            "ci-dessous.", fallback=manual)
@@ -320,27 +340,37 @@ def install(plan=None, current=None, opener=None, run=None, progress=None, tmp_r
         plan = fetch_plan(opener=opener)
     if not updates.is_newer(plan.version, current):
         return Result(True, current, f"CCS {current} est déjà à jour.")
+    packages = installed_packages(run)
+    missing = [p for p in packages[1:] if p not in plan.others]
+    if missing:
+        raise InstallError(f"La version {plan.version} n'a pas de paquet {', '.join(missing)} : mise à "
+                           "jour impossible sans casser l'installation.")
+    wanted = [("ccs", plan.deb_name, plan.deb_url)] + [(p, *plan.others[p]) for p in packages[1:]]
     tmp = tempfile.mkdtemp(prefix="ccs-maj-", dir=tmp_root)
     os.chmod(tmp, 0o700)
     keep = False
     try:
-        deb = os.path.join(tmp, plan.deb_name)
         sums = os.path.join(tmp, "SHA256SUMS")
         note("download", 0.0)
         download(plan.sums_url, sums, MAX_SUMS, opener)
-        download(plan.deb_url, deb, MAX_DEB, opener,
-                 lambda done, total: note("download", done / total if total else None))
+        debs = []
+        for i, (pkg, name, url) in enumerate(wanted):
+            path = os.path.join(tmp, name)
+            download(url, path, MAX_DEB, opener, lambda done, total, i=i: note(
+                "download", (i + done / total) / len(wanted) if total else None))
+            debs.append((pkg, name, path))
         note("download", 1.0)
         note("verify", None)
         try:
             text = Path(sums).read_text(encoding="utf-8")
         except (OSError, ValueError) as e:
             raise InstallError("SHA256SUMS illisible.") from e
-        verify_sum(deb, text, plan.deb_name)
-        check_package(deb, plan.version, current, run)
+        for pkg, name, path in debs:
+            verify_sum(path, text, name)
+            check_package(path, plan.version, current, run, pkg)
         note("install", None)
         try:
-            _install(deb, run)
+            _install([path for _pkg, _name, path in debs], run)
         except InstallError as e:
             keep = e.fallback is not None  # le paquet vérifié reste pour la commande manuelle
             raise

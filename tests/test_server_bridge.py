@@ -144,6 +144,39 @@ class BridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.bridge.should_stop())
 
 
+
+class EntryPointTest(unittest.TestCase):
+    """`ccs bridge` (service ccs-bridge@ du VPS, ou --local) lance le pont complet : le 15/11, il
+    n'avait que les comptes et les réglages (chat, fichiers et terminal : « Méthode inconnue »)."""
+
+    METHODS = ("accounts.state", "settings.get", "chat.open", "chat.send", "projects.list", "files.list",
+               "roadmap.read", "tasks.list", "analysis.report", "term.open", "term.input")
+
+    def test_cmd_bridge_serves_every_module(self):
+        from ccs_app import cli
+        served = []
+
+        async def fake_serve(self_, sock):
+            served.append(self_)
+
+        tmp = tempfile.mkdtemp(prefix="ccs-bridge-cli-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        args = mock.Mock(local=True, socket=os.path.join(tmp, "run", "bridge.sock"))
+        with mock.patch.object(bridge.Bridge, "serve", fake_serve), \
+                mock.patch.dict(os.environ, {"HOME": tmp}):
+            self.assertEqual(cli.cmd_bridge(args), 0)
+        names = set(served[0].handlers())
+        for m in self.METHODS:
+            self.assertIn(m, names)
+
+    def test_build_passes_chat_options(self):
+        b = bridge.build("alice", KEY, start_daemon=False, install_claude=False,
+                         chat={"claude": "/faux/claude"})
+        self.assertIn("term.open", b.handlers())
+        hub = b._handlers["chat.open"].__self__
+        self.assertEqual(hub.claude, "/faux/claude")
+
+
 class Proc:
     def __init__(self):
         self.terminated = False

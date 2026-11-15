@@ -173,6 +173,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .sessions { display: grid; grid-template-columns: 320px 1fr; height: calc(100dvh - 57px); }
 .side { border-right: 1px solid var(--line); overflow-y: auto; padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start; }
 .side h3 { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtle); margin: 10px 0 0; }
+.new-session { display: flex; gap: 6px; align-items: center; }
+.new-session input { flex: 1; min-width: 0; }
 .item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: transparent;
   text-align: left; width: 100%; font-weight: 400; min-height: 44px; }
 .item:hover { background: var(--soft); }

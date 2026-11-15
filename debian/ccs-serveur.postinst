@@ -1,6 +1,7 @@
 #!/bin/sh
 # ccs-serveur : groupe « ccs » (qui a le droit de se connecter), utilisateur système ccs-web,
-# configuration par défaut. Les services sont activés et démarrés par #DEBHELPER#.
+# configuration par défaut. Les services sont activés et démarrés plus bas par debhelper, une
+# fois ccs-web créé (ce mot-clé n'apparaît qu'une fois : debhelper le remplace partout).
 set -e
 
 case "$1" in
@@ -15,6 +16,10 @@ case "$1" in
     if [ ! -f /etc/ccs/web.json ]; then
       printf '{"listen": "127.0.0.1:8420", "origin": "https://ccs.mawena.cloud"}\n' > /etc/ccs/web.json
       chmod 0644 /etc/ccs/web.json
+    fi
+    # mise à jour : les ponts déjà lancés gardent l'ancien code en mémoire
+    if [ -n "$2" ] && [ -d /run/systemd/system ]; then
+      deb-systemd-invoke try-restart 'ccs-bridge@*.service' >/dev/null 2>&1 || true
     fi
     if [ -z "$(getent group ccs | cut -d: -f4)" ]; then
       echo "CCS : ajoute les comptes autorisés au groupe « ccs » : sudo adduser <utilisateur> ccs"

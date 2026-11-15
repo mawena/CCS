@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [0.11.0] — 2026-11-15
+
 ### Ajouté
 
 - **CCS sur un serveur (VPS).** Nouveau paquet `ccs-serveur` : trois services (`ccs-auth`,
@@ -12,12 +14,23 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   (`https://ccs.mawena.cloud`), avec chat, sessions, fichiers, feuille de route, analyse,
   terminaux et réglages. Connexion par les comptes Ubuntu du groupe `ccs` et double
   authentification (TOTP, QR code), appareil retenu 30 jours ; `sudo ccs totp reinitialiser`.
+  « Nouvelle session » ouvre un chat ou un terminal dans n'importe quel dossier (`~/…`
+  accepté), même sans conversation.
 - `ccs tui` : CCS en plein écran dans le terminal, sur la machine ou sur un serveur
   (`--serveur`) ; `ccs serveur ajouter|liste|retirer` pour appairer un poste.
 - Bureau connecté : Réglages → Serveurs CCS, projets et chats du serveur dans la page
   Sessions, terminal distant, reconnexion automatique.
 - Quatre paquets : `ccs`, `ccs-bureau`, `ccs-serveur` et le métapaquet `ccs-all`. Claude Code
-  est installé pour l'utilisateur qui installe, s'il manque. `ccs doctor` vérifie le serveur.
+  est installé pour l'utilisateur qui installe, s'il manque. `ccs doctor` vérifie le serveur ;
+  sans `ccs-bureau`, il ne vérifie plus l'interface graphique (dans une session graphique, il
+  propose d'installer `ccs-bureau`).
+- La mise à jour en un clic installe ensemble tous les paquets CCS présents (`ccs`,
+  `ccs-bureau`, `ccs-serveur`, `ccs-all`) et n'en retire jamais aucun.
+
+### Mise à jour depuis 0.10
+
+- L'application graphique passe dans le paquet `ccs-bureau`. Sur un poste de bureau, mettre à
+  jour par apt plutôt que par le bouton : `sudo apt update && sudo apt install ccs-all`.
 
 ### Sécurité
 

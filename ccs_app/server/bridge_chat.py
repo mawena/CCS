@@ -88,13 +88,15 @@ class ChatHub:
     async def open(self, conn, params):
         self._loop = asyncio.get_running_loop()
         cwd, session_id = params.get("cwd"), params.get("session_id")
+        if isinstance(cwd, str) and cwd.startswith("~"):          # « ~/Repo/P » tapé au téléphone
+            cwd = os.path.normpath(os.path.expanduser(cwd))
         if not isinstance(cwd, str) or not os.path.isabs(cwd) or not os.path.isdir(cwd):
             raise rpc.RpcError("invalide", "Dossier du projet introuvable.")
         if session_id:
             for chat in self.chats.values():
                 if chat.engine.session_id == session_id:
                     chat.conns.add(conn)
-                    return {"chat_id": chat.chat_id, "seq": chat.seq}
+                    return {"chat_id": chat.chat_id, "seq": chat.seq, "cwd": chat.cwd}
         chat = _Chat(f"c{next(self._ids)}", cwd)
         chat.engine = ChatSession(cwd, session_id=session_id or None,
                                   options=_options(params.get("options")),
@@ -102,7 +104,7 @@ class ChatHub:
                                   environ=self.environ)
         chat.conns.add(conn)
         self.chats[chat.chat_id] = chat
-        return {"chat_id": chat.chat_id, "seq": 0}
+        return {"chat_id": chat.chat_id, "seq": 0, "cwd": chat.cwd}
 
     async def list(self, _conn, _params):
         return {"chats": [{"chat_id": c.chat_id, "cwd": c.cwd, "session_id": c.engine.session_id,

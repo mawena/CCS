@@ -49,6 +49,11 @@ class TermBridgeTest(unittest.IsolatedAsyncioTestCase):
         await self.c.call("term.input", term_id=tid, data="pwd\n")
         self.assertTrue(await self.wait(lambda: self.tmp in self.text(tid)))
 
+    async def test_open_expands_home(self):
+        tid = (await self.c.call("term.open", cwd="~", cols=80, rows=24))["term_id"]
+        await self.c.call("term.input", term_id=tid, data="pwd\n")
+        self.assertTrue(await self.wait(lambda: self.tmp in self.text(tid)), self.text(tid))
+
     async def test_resize(self):
         tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]
         await self.c.call("term.resize", term_id=tid, cols=100, rows=40)
