@@ -5,6 +5,34 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Ajouté
+
+- **CCS sur un serveur (VPS).** Nouveau paquet `ccs-serveur` : trois services (`ccs-auth`,
+  `ccs-web`, `ccs-bridge@`) et une version web responsive pour le téléphone
+  (`https://ccs.mawena.cloud`), avec chat, sessions, fichiers, feuille de route, analyse,
+  terminaux et réglages. Connexion par les comptes Ubuntu du groupe `ccs` et double
+  authentification (TOTP, QR code), appareil retenu 30 jours ; `sudo ccs totp reinitialiser`.
+- `ccs tui` : CCS en plein écran dans le terminal, sur la machine ou sur un serveur
+  (`--serveur`) ; `ccs serveur ajouter|liste|retirer` pour appairer un poste.
+- Bureau connecté : Réglages → Serveurs CCS, projets et chats du serveur dans la page
+  Sessions, terminal distant, reconnexion automatique.
+- Quatre paquets : `ccs`, `ccs-bureau`, `ccs-serveur` et le métapaquet `ccs-all`. Claude Code
+  est installé pour l'utilisateur qui installe, s'il manque. `ccs doctor` vérifie le serveur.
+
+### Sécurité
+
+- Aucune partie exposée ne tourne en root : `ccs-web` est sans droits, `ccs-auth` ne fait que
+  PAM, TOTP et sessions. Un ticket HMAC, dont la clé est gardée par root, est exigé par
+  chaque pont : compromettre `ccs-web` seul ne suffit pas à piloter un compte.
+- Cookies `HttpOnly`, `Secure`, `SameSite=Strict`, CSP stricte, `Origin` vérifié, fichiers
+  limités au dossier personnel, `/var/www` et `/srv`, sessions de 12 h (7 jours au plus),
+  5 essais par 15 minutes.
+
+### Limites connues
+
+- Dans le bureau, un chat distant n'a pas le panneau Fichiers / Feuille de route ; retirer un
+  serveur du bureau ne révoque pas son jeton (à faire dans la version web).
+
 ## [0.10.2] — 2026-11-14
 
 ### Modifié
