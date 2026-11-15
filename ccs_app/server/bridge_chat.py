@@ -10,13 +10,16 @@ import collections
 import dataclasses
 import itertools
 import os
+import re
 
 from .. import chat_options, markdown_render
 from ..chat_engine import ChatSession
 from . import events, rpc
+from .bridge_data import safe_path
 
 BUFFER = 2000
 BUSY = ("starting", "busy", "permission")
+_SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")      # nom d'un journal `<id>.jsonl`
 
 
 class _Chat:
@@ -92,6 +95,10 @@ class ChatHub:
             cwd = os.path.normpath(os.path.expanduser(cwd))
         if not isinstance(cwd, str) or not os.path.isabs(cwd) or not os.path.isdir(cwd):
             raise rpc.RpcError("invalide", "Dossier du projet introuvable.")
+        safe_path(cwd)                       # dossier personnel ou dossiers de sites seulement
+        if session_id is not None and session_id != "" and not (
+                isinstance(session_id, str) and _SESSION_ID.fullmatch(session_id)):
+            raise rpc.RpcError("invalide", "Conversation invalide.")
         if session_id:
             for chat in self.chats.values():
                 if chat.engine.session_id == session_id:

@@ -24,7 +24,8 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         env = mock.patch.dict(os.environ, {"HOME": str(home)})
         env.start()
         self.addCleanup(env.stop)
-        self.project = Path(self.tmp) / "projet"
+        self.home = home
+        self.project = home / "projet"              # sous le dossier personnel (dossiers permis)
         self.project.mkdir()
         self.sock = Path(self.tmp) / "b.sock"
         self.bridge = bridge.Bridge("alice", None, local=True, start_daemon=False, install_claude=False)
@@ -133,6 +134,25 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cm.exception.code, "introuvable")
         with self.assertRaises(rpc.RpcError):
             await c.call("chat.open", cwd="/dossier/inexistant")
+
+    async def test_open_only_in_allowed_folders(self):
+        """Constat 11 : un chat ouvert sur / permettrait de lister le système."""
+        c = await self.client()
+        outside = Path(self.tmp) / "dehors"
+        outside.mkdir()
+        for bad in ("/", str(outside), str(self.home / ".." / "dehors")):
+            with self.assertRaises(rpc.RpcError) as cm:
+                await c.call("chat.open", cwd=bad)
+            self.assertEqual(cm.exception.code, "refuse", bad)
+        os.symlink("/", self.home / "racine")
+        with self.assertRaises(rpc.RpcError) as cm:
+            await c.call("chat.open", cwd="~/racine")
+        self.assertEqual(cm.exception.code, "refuse")
+        for bad in ("../../x", "a/b", 3):
+            with self.assertRaises(rpc.RpcError) as cm:
+                await c.call("chat.open", cwd=str(self.project), session_id=bad)
+            self.assertEqual(cm.exception.code, "invalide", bad)
+        self.assertEqual((await c.call("chat.list"))["chats"], [])
 
     async def test_busy_check_and_close(self):
         c = await self.client()

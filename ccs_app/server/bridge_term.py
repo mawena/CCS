@@ -21,6 +21,7 @@ import time
 
 from .. import core
 from . import rpc
+from .bridge_data import safe_path
 
 CHUNK = 64 * 1024
 KEEP = 64 * 1024
@@ -98,6 +99,7 @@ class TermHub:
             cwd = os.path.normpath(os.path.expanduser(cwd))
         if not isinstance(cwd, str) or not os.path.isdir(cwd):
             raise rpc.RpcError("invalide", "Dossier introuvable.")
+        safe_path(cwd)                       # dossier personnel ou dossiers de sites seulement
         if params.get("command") is not None:
             argv = command_argv(params.get("command"), params.get("name"))
         else:

@@ -54,6 +54,21 @@ class TermBridgeTest(unittest.IsolatedAsyncioTestCase):
         await self.c.call("term.input", term_id=tid, data="pwd\n")
         self.assertTrue(await self.wait(lambda: self.tmp in self.text(tid)), self.text(tid))
 
+    async def test_open_only_in_allowed_folders(self):
+        """Constat 11 : terminal limité aux dossiers permis, après le développement de « ~ »."""
+        for bad in ("/", "/etc", "relatif"):
+            with self.assertRaises(rpc.RpcError) as cm:
+                await self.c.call("term.open", cwd=bad, cols=80, rows=24)
+            self.assertIn(cm.exception.code, ("refuse", "invalide"), bad)
+        os.symlink("/", os.path.join(self.tmp, "racine"))
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("term.open", cwd="~/racine", cols=80, rows=24)
+        self.assertEqual(cm.exception.code, "refuse")
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("term.open", cwd="/", cols=80, rows=24)
+        self.assertEqual(cm.exception.code, "refuse")
+        self.assertEqual((await self.c.call("term.list"))["terms"], [])
+
     async def test_resize(self):
         tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]
         await self.c.call("term.resize", term_id=tid, cols=100, rows=40)
