@@ -136,6 +136,13 @@ class ShellTest(WorkTest):
         self.assertTrue(p["done"])
         self.assertIn("non", p["output"])
 
+    def test_background_process_does_not_block(self):
+        """Constat 6 : `echo a; sleep 5 &` rend la main quelques secondes après la fin de bash."""
+        self.run_shell("echo a; sleep 5 &")
+        self.assertTrue(self.conn.pushed, "la commande ne rend pas la main")
+        self.assertEqual(self.conn.pushed[0][1]["output"].strip(), "a")
+        self.assertEqual(self.conn.pushed[0][1]["code"], 0)
+
     def test_empty_command_refused(self):
         self.assertEqual(self.fails("work.shell.run", chat_id="c1", command="  ").code, "invalide")
 
