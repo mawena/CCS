@@ -51,6 +51,11 @@ def scan_files(root, limit=FILE_SCAN_MAX):
     return out
 
 
+def _thousands(n):
+    """12 345 → « 12 345 » (espace insécable fine)."""
+    return f"{int(n):,}".replace(",", "\u202f")
+
+
 class _NoTerm:
     """Ce que la page Terminaux attend d'un `tab.term` (changement de police du bureau) : rien."""
 
@@ -132,6 +137,7 @@ class ChatTab(Gtk.Box):
         self.todos_bar = TodosBar()           # liste de tâches épinglée au-dessus de la saisie
         self.offline_banner = Adw.Banner(title="Serveur injoignable : reconnexion…", revealed=False)
         self._roadmap_task = None             # (chemin, texte, phase) de la tâche lancée d'un clic
+        self._context_heavy = False           # contexte au-dessus du seuil (alerte déjà montrée)
         self.task_banner = Gtk.Box(spacing=8, visible=False, margin_start=12, margin_end=12,
                                    margin_top=4, margin_bottom=4)
         self.task_banner.add_css_class("toolbar")
@@ -926,9 +932,19 @@ class ChatTab(Gtk.Box):
         self.engine.request_context()
 
     def _on_context(self, ev):
-        threshold = context_alert.config(settings.load_settings())["threshold_tokens"]
+        cfg = context_alert.config(settings.load_settings())
+        threshold = cfg["threshold_tokens"]
         pct = threshold * 100 / ev.maximum if ev.maximum else None
         self.bar.set_context(ev.percentage, pct)
+        over = ev.total >= threshold
+        if over and not self._context_heavy and cfg["enabled"]:
+            # franchissement du seuil vers le haut : une seule fois, jusqu'à ce que le contexte retombe
+            gain = context_alert.compact_gain(ev.total)
+            self.messages.add_notice(
+                f"Contexte lourd : {_thousands(ev.total)} jetons. Compacter libérerait environ "
+                f"{_thousands(gain)} jetons (estimation).", "warning",
+                action=("Compacter", lambda: self.send_auto("/compact")))
+        self._context_heavy = over
 
     def _on_exited(self, ev):
         self.state.pid = None

@@ -664,6 +664,30 @@ class ChatTabTest(HomeTestCase):
         got = {s.name: s.scope for s in saved_messages.load(str(self.cwd))}
         self.assertEqual(got, {"merci": "global", "ici": "projet"})
 
+    def test_notice_once_per_crossing(self):
+        tab, _owner = self.make(spawn=False)
+        heavy = lambda: [t for t in texts(tab) if t.startswith("Contexte lourd")]   # noqa: E731
+        tab._on_context(chat_engine.ContextUsage(30, 60_000, 200_000))
+        self.assertEqual(heavy(), [])
+        tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+        tab._on_context(chat_engine.ContextUsage(82, 164_000, 200_000))
+        self.assertEqual(len(heavy()), 1)                          # une seule fois
+        self.assertIn("160\u202f000 jetons", heavy()[0])
+        self.assertIn("128\u202f000 jetons", heavy()[0])
+        tab._on_context(chat_engine.ContextUsage(20, 40_000, 200_000))   # après /compact
+        tab._on_context(chat_engine.ContextUsage(81, 162_000, 200_000))
+        self.assertEqual(len(heavy()), 2)                          # nouveau franchissement
+
+    def test_compact_button_sends_command(self):
+        from unittest import mock
+        tab, _owner = self.make(spawn=False)
+        tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+        button = next(w for w in descendants(tab.messages.box)
+                      if isinstance(w, Gtk.Button) and w.get_label() == "Compacter")
+        with mock.patch.object(tab, "send_auto") as send:
+            button.emit("clicked")
+        send.assert_called_once_with("/compact")
+
 
 if __name__ == "__main__":
     unittest.main()
