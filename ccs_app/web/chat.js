@@ -8,6 +8,8 @@ import { Completer } from "./chat-complete.js";
 import { contextAlert } from "./chat-context.js";
 import { diffCard, editDiffs } from "./chat-diff.js";
 import { linkify } from "./chat-links.js";
+import { claudeNode, icon, quoteOf, REPLY_ICON, selectionIn, userNode } from "./chat-message.js";
+import { CLAUDE, ME, compose, oneLine } from "./chat-quote.js";
 import { openSavedSheet } from "./chat-saved.js";
 import { FindBar } from "./chat-search.js";
 import { FilesPanel } from "./files.js";
@@ -77,6 +79,9 @@ export class ChatView {
     this.heavy = false;
     this.sending = false;
     this.draftKey = `ccs-draft:${cwd}|${chatId}`;      // identifiant du chat : unique d'un démarrage du pont à l'autre
+    this.quote = null;           // message cité par la prochaine réponse : { author, text }
+    this.quoteKey = `ccs-quote:${cwd}|${chatId}`;
+    this.msgActions = [{ key: "reply", label: "Répondre", icon: REPLY_ICON, run: (msg) => this.replyTo(msg) }];
 
     this.state = el("span", { class: "chat-state", hidden: true }, "");
     this.stopBtn = el("button", { type: "button", class: "small danger stop", hidden: true, onclick: () => this.call("chat.interrupt") }, "Arrêter");
@@ -85,11 +90,13 @@ export class ChatView {
     // rendu après coup (Markdown) agrandit le fil sans passer par append().
     this.follow = true;
     this.thread.addEventListener("scroll", () => { this.follow = this.stuck(); }, { passive: true });
+    this.thread.addEventListener("click", (e) => this.pick(e));
     this.working = el("div", { class: "working", hidden: true, role: "status" }, el("span", { class: "spinner" }), el("span", {}, "Claude travaille…"));
     this.todos = el("div", { class: "todos", hidden: true });
     this.input = el("textarea", { rows: 1, placeholder: "Écris à Claude…", "aria-label": "Message", enterkeyhint: "send",
       autocapitalize: "sentences", autocomplete: "off" });
     this.thumbs = el("div", { class: "thumbs" });
+    this.quoteBar = el("div", { class: "quote-bar", hidden: true });
     this.fileInput = el("input", { type: "file", accept: "image/*", multiple: true, hidden: true });
     this.rights = el("select", { "aria-label": "Droits" }, ...RIGHTS.map(([v, t]) => el("option", { value: v }, t)));
     this.effort = el("select", { "aria-label": "Effort" }, ...EFFORTS.map(([v, t]) => el("option", { value: v }, t)));
@@ -109,7 +116,7 @@ export class ChatView {
       onclick: () => openSavedSheet({ api: this.api, cwd: this.cwd, currentText: () => this.input.value,
         onInsert: (t) => this.insert(t) }) }, "★");
     this.form = el("form", { class: "composer" },
-      this.working, this.todos, this.thumbs,
+      this.working, this.todos, this.thumbs, this.quoteBar,
       el("div", { class: "composer-row" }, attach, saved, this.input, send, this.fileInput),
       this.bar,
       el("div", { class: "composer-foot" }, this.optBtn, this.context, this.stopBtn));
@@ -162,6 +169,7 @@ export class ChatView {
     root.append(this.node);
 
     this.input.value = this.loadDraft();
+    this.loadQuote();
     this.grow();
     this.updateSummary();
     if (options) this.applyOptions(options);
@@ -187,6 +195,7 @@ export class ChatView {
       toast(`Droits : ${this.rights.selectedOptions[0].textContent}`);
       return;
     }
+    if (e.key === "Escape" && this.quote) { e.preventDefault(); this.clearQuote(); return; }
     if (e.key === "Escape" && !this.input.value && !this.stopBtn.hidden) this.call("chat.interrupt");
   }
 
@@ -205,6 +214,62 @@ export class ChatView {
       if (this.input.value) localStorage.setItem(this.draftKey, this.input.value);
       else localStorage.removeItem(this.draftKey);
     } catch { /* stockage plein ou refusé : le brouillon est un confort */ }
+  }
+
+  // ---- répondre en citant un message -------------------------------------------------------
+
+  // Clic dans le fil : déplie une citation, ou montre les actions du message touché (sur un écran
+  // tactile ; à la souris elles apparaissent au survol).
+  pick(e) {
+    const t = e.target;
+    const quoted = t.closest?.(".quoted");
+    if (quoted) { quoted.classList.toggle("open"); return; }
+    if (t.closest?.("a, button, summary, input, select, textarea, label, .msg-actions")) return;
+    const msg = t.closest?.(".msg");
+    if (msg && selectionIn(msg)) return;             // une sélection de texte en cours n'est pas un choix
+    for (const m of this.thread.querySelectorAll(".msg.picked")) if (m !== msg) m.classList.remove("picked");
+    msg?.classList.toggle("picked");
+  }
+
+  replyTo(msg) {
+    const q = quoteOf(msg);
+    if (!q) return;
+    msg.classList.remove("picked");
+    this.setQuote(q);
+    this.input.focus();
+  }
+
+  setQuote(quote, save = true) {
+    this.quote = quote;
+    clear(this.quoteBar).append(
+      el("div", { class: "quote-bar-text", dataset: { author: quote.author === CLAUDE ? "Réponse à Claude" : "Réponse à ton message" } },
+        oneLine(quote.text, 200)),
+      el("button", { type: "button", class: "flat icon", "aria-label": "Annuler la citation", title: "Annuler la citation",
+        onclick: () => { this.clearQuote(); this.input.focus(); } }, "×"));
+    this.quoteBar.hidden = false;
+    if (save) this.saveQuote();
+  }
+
+  clearQuote() {
+    this.quote = null;
+    clear(this.quoteBar);
+    this.quoteBar.hidden = true;
+    this.saveQuote();
+  }
+
+  // Comme le brouillon : la citation en cours survit à un rechargement de la page.
+  saveQuote() {
+    try {
+      if (this.quote) localStorage.setItem(this.quoteKey, JSON.stringify(this.quote));
+      else localStorage.removeItem(this.quoteKey);
+    } catch { /* stockage plein ou refusé : un confort */ }
+  }
+
+  loadQuote() {
+    try {
+      const q = JSON.parse(localStorage.getItem(this.quoteKey) || "null");
+      if (q && typeof q.text === "string" && q.text && [CLAUDE, ME].includes(q.author)) this.setQuote({ author: q.author, text: q.text }, false);
+    } catch { /* citation illisible : ignorée */ }
   }
 
   insert(text) {
@@ -275,18 +340,22 @@ export class ChatView {
   }
 
   // Envoie au pont ; le texte et les images ne sont retirés de la saisie qu'après sa réponse.
-  async deliver(text, images = [], retry = null) {
+  // `quote` ({ author, text }) : message cité, placé en tête du texte envoyé (chat-quote.js).
+  async deliver(text, images = [], retry = null, quote = null) {
     let r = null;
     const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     (this.ownSent ||= new Set()).add(nonce);        // l'écho du pont n'est pas affiché deux fois
-    try { r = await this.api.call("chat.send", { chat_id: this.chatId, text: this.shellNotes.join("") + text, images, shown: text, nonce }); } catch (e) {
+    const notes = this.shellNotes.join("");
+    const shown = quote ? compose(quote.author, quote.text, text) : text;
+    const sent = quote ? compose(quote.author, quote.text, notes + text) : notes + text;
+    try { r = await this.api.call("chat.send", { chat_id: this.chatId, text: sent, images, shown, nonce }); } catch (e) {
       this.ownSent.delete(nonce);
       this.sendFailed(e.message, retry);
       return false;
     }
     if (!r || !r.ok) { this.sendFailed("Claude n'a pas pu démarrer.", retry); return false; }
     this.shellNotes = [];
-    this.userBubble(text, images.length);
+    this.userBubble(shown, images.length);
     return true;
   }
 
@@ -306,9 +375,11 @@ export class ChatView {
     this.sending = true;
     try {
       const images = [...this.images];
-      if (await this.deliver(text, images, () => this.send())) {
+      const quote = this.quote;
+      if (await this.deliver(text, images, () => this.send(), quote)) {
         this.images = [];
         clear(this.thumbs);
+        if (this.quote === quote) this.clearQuote();
         if (this.input.value.trim() === text) {
           this.input.value = "";
           this.grow();
@@ -553,8 +624,7 @@ export class ChatView {
 
   userBubble(text, nImages = 0) {
     this.follow = true;                              // nouveau message : on revient en bas
-    return this.append(el("div", { class: "msg user" }, el("div", { class: "bubble" }, text,
-      nImages ? el("div", { class: "subtle" }, `${nImages} image(s) jointe(s)`) : null)));
+    return this.append(userNode(text, nImages, this.msgActions));
   }
 
   // `action` : { label, run } ajoute un bouton à la note (« Compacter »…).
@@ -577,13 +647,13 @@ export class ChatView {
   assistant(msgId, text, final) {
     let entry = this.texts.get(msgId);
     if (!entry) {
-      entry = { node: this.append(el("div", { class: "msg claude" })), text: "", timer: null };
+      entry = { node: this.append(claudeNode(this.msgActions)), text: "", timer: null };
       this.texts.set(msgId, entry);
     }
-    entry.text = text;
+    entry.text = entry.node.raw = text;
     clearTimeout(entry.timer);
-    if (final) this.render(entry.node, text);
-    else entry.timer = setTimeout(() => this.render(entry.node, entry.text), 250);
+    if (final) this.render(entry.node.content, text);
+    else entry.timer = setTimeout(() => this.render(entry.node.content, entry.text), 250);
   }
 
   toolCard(ev) {
@@ -744,8 +814,8 @@ export class ChatView {
   // ---- historique d'une conversation reprise ----------------------------------------------
 
   historyNode(m) {
-    if (m.role === "utilisateur") return el("div", { class: "msg user" }, el("div", { class: "bubble" }, m.text));
-    if (m.role === "assistant") { const n = el("div", { class: "msg claude" }); this.render(n, m.text); return n; }
+    if (m.role === "utilisateur") return userNode(m.text, 0, this.msgActions);
+    if (m.role === "assistant") { const n = claudeNode(this.msgActions); n.raw = m.text; this.render(n.content, m.text); return n; }
     if (m.role === "outil" && m.tool) {
       return el("details", { class: `tool done${m.tool.is_error ? " error" : ""}` },
         el("summary", {}, el("strong", {}, TOOL_LABELS[m.tool.name] || m.tool.name), " ", el("span", { class: "subtle" }, m.tool.target)),
@@ -809,18 +879,6 @@ function refreshGroup(g) {
 
 // Bloc de code d'une réponse : barre du haut avec la langue et un bouton « Copier », le code dessous
 // (le bouton ne recouvre jamais une longue commande).
-const SVG = "http://www.w3.org/2000/svg";
-function icon(shapes) {                              // petite icône 14 px au trait, construite nœud par nœud
-  const svg = document.createElementNS(SVG, "svg");
-  for (const [k, v] of Object.entries({ viewBox: "0 0 24 24", width: 14, height: 14, fill: "none", stroke: "currentColor",
-    "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) svg.setAttribute(k, v);
-  for (const [tag, attrs] of shapes) {
-    const n = document.createElementNS(SVG, tag);
-    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
-    svg.append(n);
-  }
-  return svg;
-}
 const COPY_ICON = [["rect", { x: 9, y: 9, width: 12, height: 12, rx: 2 }], ["path", { d: "M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" }]];
 const DONE_ICON = [["path", { d: "M20 6 9 17l-5-5" }]];
 
