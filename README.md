@@ -279,7 +279,8 @@ dans l'extension VS Code.
 - **Messages enregistrés** : des textes que tu envoies souvent, communs à tous les projets
   ou propres au projet ; le menu ☆ de la saisie les insère, et `/` les propose aussi.
 - **Compacter** : l'alerte de contexte lourd du chat a un bouton « Compacter » qui envoie
-  `/compact`.
+  `/compact`. Avec le réglage **Compacter automatiquement** (désactivé par défaut), CCS
+  l'envoie tout seul au-delà du seuil, entre deux tours, et le dit dans le fil.
 - **Commande `!`** : un message qui commence par `!` lance la commande dans le dossier du
   projet (elle ne part pas chez Claude). Sa sortie s'affiche dans une carte et s'ajoute en
   tête du prochain message envoyé à Claude.
@@ -534,7 +535,7 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Fiche « où j'en étais »** | En un coup d'œil : dernière demande, début de la dernière réponse, fichiers modifiés, liste de tâches, branche, compte. Lue dans le journal, sans appeler Claude (`ccs fiche <id>`, aperçu d'une conversation). |
 | **Sauvegarde chiffrée** | Comptes (jetons compris), réglages, comptes par projet et budgets dans un seul fichier chiffré par gpg ; restauration avec confirmation (Réglages, `ccs sauvegarde`, `ccs restaurer`). |
 | **Mémoire des sessions** | RAM de chaque session ouverte, total, sessions inactives, bouton « Fermer » avec confirmation ; rien n'est jamais fermé tout seul (onglet Sessions, `ccs sessions`). |
-| **Alerte de contexte lourd** | Une notification par session quand son contexte dépasse 150 000 tokens (réglable), avec le coût d'un message ; badge dans l'onglet Sessions et la ligne d'état. |
+| **Alerte de contexte lourd** | Une notification par session quand son contexte dépasse 150 000 tokens (réglable), avec le coût d'un message ; badge dans l'onglet Sessions et la ligne d'état. En option, **compactage automatique** des chats au-delà du seuil. |
 | **Budget par projet** | Un budget hebdomadaire en équivalent dollars par projet, alertes à 80 % et 100 % ; ne bloque jamais rien (onglet Analyse, `ccs budget`). |
 | **Bilan de santé** | `ccs doctor` : service, versions, barre du haut, intégration, comptes, Claude Code, terminal ; une commande à copier par problème. |
 | **CCS sur un serveur** | Paquet `ccs-serveur` : version web pour le téléphone (`https://ccs.mawena.cloud`), `ccs tui` dans le terminal, bureau GTK connecté ; connexion par compte Ubuntu et double authentification (TOTP), appareil retenu 30 jours (voir plus haut). |
@@ -826,7 +827,8 @@ Depuis la 0.8.0 : file de tâches (`tasks` : `enabled`, plage de la nuit `night.
 `reply_topic` : canal secret des réponses, tiré par CCS), page Git (`git` : `layout`,
 `fetch_minutes`, `avatars`), archive (`archive` : `enabled`, `idle_days`, `max_age_days`),
 sessions inactives (`sessions.idle_hours`), alerte de contexte lourd
-(`context_alert` : `enabled`, `threshold_tokens`), budgets (`budget` : `enabled`,
+(`context_alert` : `enabled`, `threshold_tokens`, `auto_compact` : compactage automatique
+des chats, faux par défaut), budgets (`budget` : `enabled`,
 `alert_pcts`). Une valeur invalide (mauvais type,
 hors bornes, heure impossible) ou un fichier illisible n'empêche rien : la clé
 fautive reprend sa valeur par défaut, le fichier n'est pas modifié, et

@@ -165,6 +165,7 @@ class PrefsPageTest(HomeTestCase):
         self.assertEqual(rows["Supprimer l'archive après (jours)"].get_value(), 0)
         self.assertEqual(rows["Sessions inactives après (h)"].get_value(), 2)
         self.assertEqual(rows["Seuil du contexte lourd (tokens)"].get_value(), 150000)
+        self.assertFalse(rows["Compacter automatiquement"].get_active())      # désactivé par défaut
         self.assertEqual(rows["Tentatives par tâche"].get_value(), 3)
         self.assertTrue(rows["Exécuter les tâches"].get_active())
         self.assertTrue(rows["Alertes de budget"].get_active())
@@ -188,7 +189,10 @@ class PrefsPageTest(HomeTestCase):
         rows["Archiver après (jours d'inactivité)"].set_value(4)
         rows["Supprimer l'archive après (jours)"].set_value(90)
         rows["Sessions inactives après (h)"].set_value(5)
+        self.assertTrue(rows["Compacter automatiquement"].get_sensitive())
+        rows["Compacter automatiquement"].set_active(True)
         rows["Alerte de contexte lourd"].set_active(False)
+        self.assertFalse(rows["Compacter automatiquement"].get_sensitive())   # suit l'alerte
         rows["Seuil du contexte lourd (tokens)"].set_value(200000)
         rows["Exécuter les tâches"].set_active(False)
         rows["Tentatives par tâche"].set_value(5)
@@ -196,7 +200,8 @@ class PrefsPageTest(HomeTestCase):
         saved = self.saved()
         self.assertEqual(saved["archive"], {"enabled": False, "idle_days": 4, "max_age_days": 90})
         self.assertEqual(saved["sessions"]["idle_hours"], 5)
-        self.assertEqual(saved["context_alert"], {"enabled": False, "threshold_tokens": 200000})
+        self.assertEqual(saved["context_alert"],
+                         {"enabled": False, "threshold_tokens": 200000, "auto_compact": True})
         self.assertFalse(saved["tasks"]["enabled"])
         self.assertEqual(saved["tasks"]["max_attempts"], 5)
         self.assertFalse(saved["budget"]["enabled"])

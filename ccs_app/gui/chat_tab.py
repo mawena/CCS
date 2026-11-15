@@ -143,6 +143,7 @@ class ChatTab(Gtk.Box):
         self._shells = []                     # commandes `!` en cours (ShellRun)
         self._shell_notes = []                # sorties à joindre au prochain message
         self._context_heavy = False           # contexte au-dessus du seuil (alerte déjà montrée)
+        self._auto_compact = context_alert.AutoCompact()   # compactage automatique (chat local)
         self.task_banner = Gtk.Box(spacing=8, visible=False, margin_start=12, margin_end=12,
                                    margin_top=4, margin_bottom=4)
         self.task_banner.add_css_class("toolbar")
@@ -721,8 +722,9 @@ class ChatTab(Gtk.Box):
             bridge_events.PermissionSettled: self._on_settled,
             proto.TurnResult: self._on_result,
             proto.LocalCommand: self._on_local,
-            proto.Compacted: lambda e: self.messages.add_notice(
-                f"Conversation compactée ({e.pre_tokens:,} jetons avant).".replace(",", " ")),
+            proto.Compacted: self._on_compacted,
+            bridge_events.Notice: lambda e: self.messages.add_notice(   # note du serveur du chat
+                e.text, e.kind if e.kind in ("warning", "error") else "info"),
             proto.Retrying: lambda e: self.messages.set_busy(
                 True, f"Nouvelle tentative (essai {e.attempt}, dans {e.delay_s:.0f} s)…"),
         }.get(type(ev))
@@ -731,6 +733,8 @@ class ChatTab(Gtk.Box):
         return False
 
     def _on_state(self, ev):
+        if not self.remote:
+            self._auto_note(self._auto_compact.on_state(ev.state))
         st, now = self.state, time.time()
         previous = st.state
         waiting_for = None
@@ -963,6 +967,12 @@ class ChatTab(Gtk.Box):
     def _on_local(self, ev):
         if ev.text and ev.text.strip():
             self.messages.add_notice(ev.text.strip())
+        self.engine.request_context()            # `/compact`, `/clear` : le contexte a changé
+
+    def _on_compacted(self, ev):
+        self._auto_compact.on_compacted()
+        before = f" ({_thousands(ev.pre_tokens)} jetons avant)" if isinstance(ev.pre_tokens, int) else ""
+        self.messages.add_notice(f"Conversation compactée{before}.")
 
     def _check_background(self):
         """Filet : si la CLI ne redonne pas l'avis de fin d'un sous-agent de fond dans son flux,
@@ -994,6 +1004,7 @@ class ChatTab(Gtk.Box):
 
     def _on_result(self, ev):
         self._turn_done = True
+        self._auto_compact.on_turn(ev.ok and not ev.interrupted and not getattr(ev, "is_limit", False))
         self._check_background()
         self._pending = None
         # bilan du tour : durée et coût de CE tour (la CLI donne un total cumulé sur la session)
@@ -1026,6 +1037,14 @@ class ChatTab(Gtk.Box):
         threshold = cfg["threshold_tokens"]
         pct = threshold * 100 / ev.maximum if ev.maximum else None
         self.bar.set_context(ev.percentage, pct)
+        if self.remote:                 # chat d'un serveur : son pont compacte et l'écrit dans le fil
+            auto = getattr(ev, "auto_compact", False)
+        else:
+            auto = context_alert.auto_on(cfg)
+            self._auto_compact_step(cfg, ev.total)
+        if auto:                        # la note du compactage remplace l'alerte et son bouton
+            self._context_heavy = False
+            return
         over = ev.total >= threshold
         if over and not self._context_heavy and cfg["enabled"]:
             # franchissement du seuil vers le haut : une seule fois, jusqu'à ce que le contexte retombe
@@ -1035,6 +1054,23 @@ class ChatTab(Gtk.Box):
                 f"{_thousands(gain)} jetons (estimation).", "warning",
                 action=("Compacter", lambda: self.send_auto("/compact")))
         self._context_heavy = over
+
+    def _auto_compact_step(self, cfg, tokens):
+        """Compactage automatique d'un chat local : au-delà du seuil, `/compact` part tout seul si
+        Claude est au repos (jamais pendant un tour, ni dans une conversation ouverte ailleurs)."""
+        kind = self._auto_compact.measured(cfg, tokens)
+        if kind == "compact":
+            ok = (not getattr(self, "elsewhere_pid", None)
+                  and self.engine.send_if_idle(context_alert.COMPACT_COMMAND))
+            self._auto_compact.sent(ok)
+            if not ok:
+                return
+            self.state.sent_at = time.time()
+        self._auto_note(kind, tokens)
+
+    def _auto_note(self, kind, tokens=0):
+        if kind:
+            self.messages.add_notice(*context_alert.auto_note(kind, tokens))
 
     def _on_exited(self, ev):
         self.state.pid = None

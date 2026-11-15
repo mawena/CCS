@@ -405,8 +405,8 @@ Quand le contexte d'un chat dépasse le seuil du contexte lourd, CCS envoie `/co
 - [x] 1. Réglage `context_alert.auto_compact` (faux par défaut), validé dans `settings.py`
 - [x] 2. Décision commune dans `context_alert.py` : compacter seulement entre deux tours (Claude au repos, aucune demande de permission en attente), une seule fois par dépassement, jamais deux fois de suite si le contexte ne redescend pas
 - [x] 3. Chats du serveur (`server/bridge_work.py`) : envoi automatique, même sans navigateur ouvert
-- [ ] 4. Chat du bureau : même comportement pour les chats locaux
-- [ ] 5. Note dans le fil (« Compactage automatique : contexte de N jetons ») à la place de l'alerte avec bouton
-- [ ] 6. Case « Compacter automatiquement » dans les réglages du web et du bureau
-- [ ] 7. Tests des modules touchés
+- [x] 4. Chat du bureau : même comportement pour les chats locaux
+- [x] 5. Note dans le fil (« Compactage automatique : contexte de N jetons ») à la place de l'alerte avec bouton
+- [x] 6. Case « Compacter automatiquement » dans les réglages du web et du bureau
+- [x] 7. Tests des modules touchés
 - [ ] 8. Documentation (README, CHANGELOG) et release mineure 0.15.0, dépôt APT compris
