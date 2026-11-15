@@ -3,6 +3,16 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.12.2] — 2026-11-15
+
+### Corrigé
+
+- **Web : le fil suit les nouveaux messages** : il descend tout seul quand Claude répond, même
+  pendant le rendu du texte, sauf si tu es remonté lire plus haut.
+- **Web : « Claude travaille… »** affiché en bas à gauche, au-dessus de la zone de saisie,
+  comme au bureau.
+- **Web : bouton Copier** sur chaque bloc de code des réponses.
+
 ## [0.12.1] — 2026-11-15
 
 ### Corrigé
