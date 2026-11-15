@@ -6,6 +6,7 @@ chats ouverts et les relance après une reconnexion."""
 import base64
 import dataclasses
 import secrets
+import threading
 import time
 
 from .. import chat_engine
@@ -13,6 +14,9 @@ from ..server import events
 from . import client as remote_client
 
 _CONNECTIONS = {}
+
+
+LOOK_S = 5          # conversation reprise pas encore ouverte ailleurs : nouveau coup d'œil
 
 
 class RemoteConnection:
@@ -81,11 +85,35 @@ class RemoteChatEngine:
         self._opening = False
         self._then = []
         self._own = set()           # nonces de nos envois : leur écho du pont est ignoré
+        self._stopped = False
         if chat_id:                 # rejoindre un chat qui tourne déjà : fil rejoué, puis direct
-            self.chat_id = chat_id
-            self.started_at = time.time()
-            self.conn.register(self)
-            self.resync()
+            self._join(chat_id)
+        elif session_id:            # conversation reprise : la suivre si elle tourne (ou tournera) ailleurs
+            self._look()
+
+    def _look(self):
+        if self.chat_id is None and not self._opening and not self._stopped:
+            self.conn.call("chat.list", callback=self._listed)
+
+    def _join(self, chat_id, seq=0):
+        self.chat_id, self.seq = chat_id, seq
+        self.started_at = time.time()
+        self.conn.register(self)
+        self.resync()
+
+    def _listed(self, result, error):
+        """Chat de cette conversation déjà ouvert sur le serveur (web, téléphone) : on s'y branche
+        à partir de maintenant (l'historique est déjà lu dans le journal)."""
+        if self.chat_id is not None or self._opening or self._stopped:
+            return
+        for c in (result or {}).get("chats") or [] if error is None else []:
+            if c.get("session_id") == self.session_id:
+                self._join(c["chat_id"], c.get("seq") or 0)
+                return
+        # Pas encore ouverte ailleurs : on regarde de nouveau un peu plus tard (le web peut l'ouvrir).
+        timer = threading.Timer(LOOK_S, self._look)
+        timer.daemon = True
+        timer.start()
 
     # ---- ouverture et événements ---------------------------------------------------------
 
@@ -111,6 +139,8 @@ class RemoteChatEngine:
             self._emit(chat_engine.ProcessExited(1, f"Serveur {self.conn.label} : {getattr(error, 'message', error)}"))
             return
         self.chat_id = result["chat_id"]
+        if self.session_id:          # conversation reprise : son historique est déjà lu (journal)
+            self.seq = max(self.seq, result.get("seq") or 0)
         self.started_at = time.time()
         self.conn.register(self)
         self.resync()
@@ -192,4 +222,5 @@ class RemoteChatEngine:
 
     def stop(self, grace_s=5):
         """Fermer l'onglet ne coupe pas le chat sur le serveur : on se détache seulement."""
+        self._stopped = True
         self.conn.unregister(self)
