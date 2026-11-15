@@ -20,7 +20,7 @@ import gi
 
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, file_history, preview  # noqa: E402
 from .. import roadmap, sessions, settings  # noqa: E402
@@ -142,7 +142,8 @@ class ChatTab(Gtk.Box):
             self.task_banner.append(w)
         self.task_check.connect("clicked", lambda _b: self._check_task_box())
         self.task_later.connect("clicked", lambda _b: self.task_banner.set_visible(False))
-        for w in (self.offline_banner, self.agent_bar, self.view_stack, self.todos_bar,
+        self._build_search()
+        for w in (self.offline_banner, self.search_bar, self.agent_bar, self.view_stack, self.todos_bar,
                   self.task_banner, self.composer, self.bar):
             self.panel.append(w)
         self.append(self.panel)
@@ -169,12 +170,14 @@ class ChatTab(Gtk.Box):
 
     # ---- historique ----------------------------------------------------------------------
 
-    def _load_history(self, history_path):
+    def _load_history(self, history_path, then=None):
         path = history_path
         if path is None and self.state.session_id:
             path = sessions.transcript_path(self.state.cwd, self.state.session_id)
         reader = self._history_reader or preview.read_messages
         if path is None or (self._history_reader is None and not os.path.exists(path)):
+            if then is not None:
+                then()
             return
 
         def read():
@@ -186,6 +189,8 @@ class ChatTab(Gtk.Box):
         def show(messages):
             if messages and not self._closed:
                 self.messages.load_history(messages)
+            if then is not None and not self._closed:
+                then()
         in_thread(read, show)
 
     def _show_older(self):
@@ -345,6 +350,84 @@ class ChatTab(Gtk.Box):
             return False
         self.state.sent_at = time.time()
         return True
+
+    # ---- chercher dans le fil (Ctrl+F) ---------------------------------------------------
+
+    def _build_search(self):
+        self.search_bar = Gtk.SearchBar()
+        self.search_entry = Gtk.SearchEntry(hexpand=True, placeholder_text="Chercher dans la conversation")
+        self.find_label = Gtk.Label(label="", width_chars=14)
+        self.find_label.add_css_class("dim-label")
+        prev = Gtk.Button(icon_name="go-up-symbolic", tooltip_text="Précédent (Maj+Entrée)",
+                          css_classes=["flat"])
+        nxt = Gtk.Button(icon_name="go-down-symbolic", tooltip_text="Suivant (Entrée)",
+                         css_classes=["flat"])
+        box = Gtk.Box(spacing=6)
+        for w in (self.search_entry, self.find_label, prev, nxt):
+            box.append(w)
+        self.search_bar.set_child(box)
+        self.search_bar.connect_entry(self.search_entry)
+        self.search_entry.connect("search-changed", self._find_changed)
+        self.search_entry.connect("activate", lambda _e: self.find_step(1))
+        prev.connect("clicked", lambda _b: self.find_step(-1))
+        nxt.connect("clicked", lambda _b: self.find_step(1))
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self._find_key)
+        self.search_entry.add_controller(keys)
+        self.search_bar.connect("notify::search-mode-enabled", self._find_mode)
+        shortcuts = Gtk.ShortcutController()
+        shortcuts.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string("<Control>f"),
+                                            action=Gtk.CallbackAction.new(
+                                                lambda *_a: (self.open_find(), True)[1])))
+        self.add_controller(shortcuts)
+
+    def open_find(self):
+        self.search_bar.set_search_mode(True)
+        self.search_entry.grab_focus()
+
+    def _find_mode(self, bar, _p):
+        if not bar.get_search_mode():
+            self.messages.find_clear()
+            self.find_label.set_label("")
+
+    def _find_key(self, _ctrl, keyval, _code, state):
+        if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and state & Gdk.ModifierType.SHIFT_MASK:
+            self.find_step(-1)
+            return True
+        return False
+
+    def _find_changed(self, entry):
+        query = entry.get_text()
+        if not query.strip():
+            self.messages.find_clear()
+            self.find_label.set_label("")
+        elif self.messages.trimmed():
+            # fil élagué : relire le journal d'abord (comme « Afficher »), sauf pendant un tour
+            if self._engine_busy():
+                self.find_label.set_label("Disponible quand Claude aura fini de répondre.")
+                self._run_find(query, keep_label=True)
+            else:
+                self.messages.reset()
+                self._load_history(self._history_path, then=lambda: self._run_find(query))
+        else:
+            self._run_find(query)
+
+    def _run_find(self, query, keep_label=False):
+        if query != self.search_entry.get_text():
+            return                                  # la saisie a changé depuis
+        n = self.messages.find(query)
+        if keep_label:
+            return
+        self.find_label.set_label(f"{self.messages.find_position()} / {n}" if n else "Aucun résultat")
+
+    def find_step(self, direction):
+        if direction > 0:
+            self.messages.find_next()
+        else:
+            self.messages.find_prev()
+        n = self.messages.find_count()
+        if n:
+            self.find_label.set_label(f"{self.messages.find_position()} / {n}")
 
     # ---- revenir en arrière --------------------------------------------------------------
 

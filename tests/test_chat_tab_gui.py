@@ -613,6 +613,47 @@ class ChatTabTest(HomeTestCase):
         yes()
         self.assertTrue(pump_until(lambda: target.read_text() == "avant\n"))
 
+    def test_ctrl_f_opens_search_bar_and_finds(self):
+        tab, _owner = self.make(spawn=False)
+        tab.messages.add_user("Salut Éléphant", ())
+        tab.messages.add_user("un autre éléphant", ())
+        self.assertFalse(tab.search_bar.get_search_mode())
+        tab.open_find()
+        self.assertTrue(tab.search_bar.get_search_mode())
+        tab.search_entry.set_text("elephant")
+        self.assertTrue(pump_until(lambda: tab.messages.find_count() == 2))
+        self.assertEqual(tab.find_label.get_label(), "1 / 2")
+        tab.find_step(1)
+        self.assertEqual(tab.find_label.get_label(), "2 / 2")
+        tab.search_bar.set_search_mode(False)
+        self.assertEqual(tab.messages.find_count(), 0)
+
+    def test_find_after_trim_reloads(self):
+        journal = Path(self.tmp) / "conv.jsonl"
+        lines = [{"type": "user", "message": {"role": "user", "content": "question retirée"}},
+                 {"type": "assistant", "message": {"id": "m1", "role": "assistant",
+                                                   "content": [{"type": "text", "text": "réponse retirée"}]}}]
+        journal.write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+        tab, _owner = self.make(session_id="sess-9", history_path=str(journal), spawn=False)
+        self.assertTrue(pump_until(lambda: "réponse retirée" in texts(tab)))
+        tab.messages.reset()
+        tab.messages.add_user("récente", ())
+        tab.messages._dropped = 4                                 # comme après un élagage
+        tab.open_find()
+        tab.search_entry.set_text("REPONSE retiree")
+        self.assertTrue(pump_until(lambda: tab.messages.find_count() == 1))
+        self.assertEqual(tab.find_label.get_label(), "1 / 1")
+
+    def test_find_while_busy_keeps_live_thread(self):
+        tab, _owner = self.make(spawn=False)
+        tab.messages.add_user("récente", ())
+        tab.messages._dropped = 4
+        tab.engine.state = "busy"
+        tab.open_find()
+        tab.search_entry.set_text("recente")
+        self.assertTrue(pump_until(lambda: tab.messages.find_count() == 1))
+        self.assertIn("Disponible quand Claude aura fini", tab.find_label.get_label())
+
 
 if __name__ == "__main__":
     unittest.main()
