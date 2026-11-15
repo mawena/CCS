@@ -81,6 +81,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--connecte", action="store_true")
     parser.add_argument("--faux-claude", action="store_true", help="faux claude des tests (aucun quota)")
+    parser.add_argument("--port", type=int, default=PORT, help="port d'écoute (plusieurs essais en même temps)")
     args = parser.parse_args()
     FAKE = args.faux_claude
+    PORT = args.port
     asyncio.run(main(args.connecte))

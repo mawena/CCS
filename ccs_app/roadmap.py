@@ -231,3 +231,20 @@ def newly_done(before, after):
     old = _keyed(before)
     return [task for key, task in _keyed(after).items()
             if task.done and key in old and not old[key].done]
+
+
+def task_prompt(task, phase):
+    """Message qui demande à Claude de faire la tâche (texte copié exactement)."""
+    return (f"Fais la tâche « {task.text} » (phase « {phase.title} ») de ROADMAP.md ; "
+            "coche-la quand elle est finie.")
+
+
+def locate(rm, text, phase_title):
+    """Retrouve une tâche par son texte et sa phase, jamais par son numéro de ligne (le
+    fichier a pu changer). Renvoie `Task` ou None."""
+    if rm is None:
+        return None
+    for phase in rm.phases:
+        if phase.title == phase_title:
+            return next((t for t in phase.tasks if t.text == text), None)
+    return None

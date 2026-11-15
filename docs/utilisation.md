@@ -57,9 +57,49 @@ Code perdu : `sudo ccs totp reinitialiser <utilisateur>`.
 ### 4. Utiliser la version web
 
 Les écrans sont ceux du bureau : Accueil, Sessions (chats et shells, reprise d'une
-conversation), Fichiers et Feuille de route, Analyse, Réglages. Au téléphone, le panneau de
-gauche et le fichier ouvert sont des tiroirs et la saisie reste collée en bas. Les chats
-continuent sur le serveur si on ferme la page. Pour ajouter un compte Claude sur le serveur,
+conversation), Fichiers, Feuille de route et Git, Analyse, Réglages. Au téléphone, le panneau
+de gauche et le fichier ouvert sont des tiroirs et la saisie reste collée en bas. Les chats
+continuent sur le serveur si on ferme la page.
+
+- **Navigation.** Un chat ouvert a sa propre adresse (`#/sessions/<chat>`) : le bouton Retour
+  du téléphone revient à la liste au lieu de quitter le site. Les demandes de confirmation
+  sont des cartes, les résultats des messages brefs (toasts) qui disparaissent seuls.
+- **Accueil.** Chaque compte montre son rythme, sa prévision et un statut lisible ; plus bas,
+  le **Bilan de santé** (lance `ccs doctor` sur le serveur ; sous chaque problème, la commande
+  qui le corrige et un bouton Copier) et les **Tâches de nuit** : nouvelle tâche, liste par
+  état, journal, reprise dans un chat, annulation, suppression.
+- **Sessions.** La section **En cours** donne l'état de chaque chat (« Claude travaille »,
+  « attend ta réponse », « prêt »). Un projet s'ouvre sur l'écran **Projet** : onglets
+  Conversations, Fichiers, Feuille de route et Git, boutons « Nouveau chat » et « Terminal ».
+  **Nouvelle session** propose les dossiers récents, les dépôts git du disque ou un chemin
+  tapé, puis le compte, le modèle et les droits. Choisir un autre compte bascule le compte
+  actif, comme au bureau. Le menu « ⋯ » d'une conversation donne l'aperçu sans l'ouvrir et le
+  renommage ; le coût s'affiche sur la ligne.
+- **Chat.** Modèle, effort et droits sont repliés en haut ; les boutons Fichiers, Feuille de
+  route et Git ouvrent un tiroir. Ce que tu tapes est gardé par chat comme brouillon, et le
+  texte revient dans la zone de saisie si l'envoi échoue. Les modifications de Claude
+  s'affichent en diff coloré, repliable. Un chemin cité (`chemin` ou `chemin:ligne`) qui est
+  un fichier du projet ouvre le volet Fichiers. `@` et `/` complètent comme au bureau. Le
+  menu des messages enregistrés (communs ou par projet), le bouton « Compacter » de l'alerte
+  de contexte lourd, la commande `!` et la recherche dans le fil marchent comme au bureau.
+  Le volet **Changements de la session** montre les fichiers changés par Claude avec leur
+  diff ; annuler un fichier ou revenir à avant un message demande une confirmation.
+- **Terminal.** Sur écran tactile ou étroit, une barre de touches complète le clavier : Échap,
+  Tab, Ctrl (collant), flèches, symboles difficiles à taper, Coller, Copier et la taille du texte.
+- **Fichiers.** Arbre avec marques git, recherche par nom, aperçu des images, ouverture à une
+  ligne, édition simple (conflit signalé). La feuille de route garde son défilement quand
+  tu coches une case ; le bouton « Faire une tâche » envoie la tâche dans ce chat, dans un
+  nouveau chat ou à la file de nuit.
+- **Git.** État de la branche (avance / retard), fichiers modifiés et diff coloré, indexation
+  par fichier et par bloc, commit (avec amend et message proposé), derniers commits par pages
+  de 50, fetch, pull et push. Le push forcé demande une confirmation. Il n'y a ni graphe, ni
+  git flow, ni indexation par ligne : ils restent au bureau (voir [Page Git](#page-git)).
+- **Analyse.** Sur 24 heures, 7, 30 ou 90 jours.
+- **Réglages.** Les réglages du bureau (chacun confirmé par un message bref), dont
+  `git.fetch_minutes`, la disposition et les avatars de la page Git ; le thème (clair, sombre
+  ou automatique, gardé dans le navigateur) ; la section **Téléphone** : interrupteur, serveur
+  ntfy, canal secret, QR code à scanner, événements, « Montrer la commande » et un essai
+  d'envoi ; les appareils connectés. Pour ajouter un compte Claude sur le serveur,
 ouvre un onglet shell et lance `ccs add <nom>` ; ouvre le lien sur le téléphone et colle le
 code dans le terminal. Réglages → Appareils liste les appareils retenus et les jetons
 d'application, et permet de les révoquer.
@@ -1006,7 +1046,8 @@ dans la première question sans réponse ; **Envoyer les réponses** les rend à
 Les commandes en lecture seule (`ls`, `cat`…) ne demandent rien. Tant qu'une carte
 attend, l'onglet porte un point d'interrogation, le badge de l'onglet Sessions
 compte, et l'alerte « attend ta réponse » part (bureau et, si tu l'as activé,
-téléphone).
+téléphone). Sur le téléphone, la notification porte les boutons **Autoriser** et
+**Refuser** (voir [Notifications sur le téléphone](#notifications-sur-le-téléphone)).
 
 ### Écrire à Claude
 
@@ -1037,6 +1078,23 @@ téléphone).
   après sa réponse. La file de messages (voir [Messages en attente](#messages-en-attente))
   ne sert plus qu'à ce que CCS y met lui-même (reprise après une limite, onglets
   rouverts) ; « envoyer maintenant » y marche même pendant un tour.
+
+### Chercher, enregistrer, compacter, lancer une commande
+
+- **Chercher dans le fil** : Ctrl+F ouvre la barre « Chercher dans la conversation »
+  (Entrée : suivant, Maj+Entrée : précédent).
+- **Messages enregistrés** : le menu ☆ de la zone de saisie insère un texte que tu envoies
+  souvent ; tu peux en enregistrer, modifier ou supprimer. Un message est **commun** à tous les projets
+  (`messages.json` dans le dossier de CCS) ou **propre au projet** (`.ccs/messages.json`) ;
+  si un nom existe des deux côtés, celui du projet gagne. Les messages enregistrés sont aussi
+  proposés après `/`, dans la section « Mes messages ».
+- **Compacter** : quand le contexte dépasse le seuil de l'[alerte de contexte
+  lourd](#alerte-de-contexte-lourd), la note du chat porte un bouton **Compacter**, qui envoie
+  `/compact`.
+- **Commande `!`** : un message qui commence par `!` (par exemple `!git status`) lance la
+  commande dans le dossier du projet, par `bash -lc`. Elle ne part pas chez Claude : sa sortie
+  (20 000 caractères au plus) s'affiche dans une carte et s'ajoute en tête de ton prochain
+  message. Une commande peut être arrêtée.
 
 ### Mise en veille après 30 minutes
 
@@ -1134,6 +1192,64 @@ personnel. **Dossier du projet…** (clic droit sur l'onglet) fait partir l'arbr
 fichiers et la feuille de route d'un autre dossier ; si la conversation est arrêtée,
 elle y est aussi reliée, et sa reprise se fait depuis le projet. Ces choix sont
 gardés quand l'onglet est rouvert.
+
+### Faire une tâche
+
+Le bouton ▶ d'une tâche (« Faire cette tâche ») propose deux choix :
+
+- **Faire maintenant** : Claude reçoit la tâche (son texte et celui de sa phase) dans le chat.
+  Quand il finit son tour sans erreur et que la case n'est pas cochée, un bandeau
+  **« Tâche finie ? »** propose de la cocher ;
+- **Mettre dans la file de nuit** : la tâche rejoint la [file de tâches](#file-de-tâches).
+
+### Changements de la session
+
+Le bouton « Changements de la session » (en haut de l'onglet) ouvre un volet dans la zone de
+droite : la liste des **fichiers que Claude a modifiés** depuis le début de la conversation,
+lue dans les copies que Claude Code garde de chaque fichier à chaque message.
+
+- **Voir le diff** d'un fichier ;
+- **Annuler ce fichier** : il retrouve son état d'avant les changements de la session ;
+- **Revenir à avant ce message** : un point de reprise par message que tu as envoyé ; une
+  confirmation liste les fichiers remis en état (ceux que tu as modifiés depuis sont marqués)
+  avant d'écrire, et c'est définitif.
+
+Le format de ces copies n'est pas documenté. S'il change, le volet n'offre plus rien ;
+`ccs doctor` le dit (ligne « Historique des fichiers »).
+
+## Page Git
+
+La page **Git** du panneau de gauche (à côté de Fichiers et de Feuille de route) travaille sur
+le dépôt du projet de l'onglet. Elle appelle la commande `git` de ton système : ta
+configuration, tes clés SSH et tes hooks comptent comme dans un terminal. Hors d'un dépôt, elle
+affiche « Pas un dépôt git ».
+
+- **Changements en cours.** Pour chaque fichier : indexer, désindexer, **voir le diff**. Dans
+  un diff, tu peux choisir des lignes puis **Indexer la sélection**, **Désindexer la sélection**
+  ou **Annuler la sélection** (définitif, avec confirmation). **Tout indexer** indexe tout. Le
+  menu d'un fichier a **Annuler les modifications** et **Ajouter au .gitignore**.
+- **Commit.** Écris le message (ou **Proposer** un message), puis **Commit** (Ctrl+Entrée).
+  **Modifier le dernier commit** fait un amend.
+- **Fetch, Pull, Push.** Le push forcé (**Push forcé…**) demande confirmation et utilise
+  `--force-with-lease --force-if-includes` : il refuse d'écraser un commit distant que tu n'as
+  pas récupéré. Un fetch automatique tourne toutes les `git.fetch_minutes` minutes.
+- **git flow.** Le menu de la branche démarre et finit une `feature`, une `release` ou un
+  `hotfix` ; finir une release ou un hotfix pose le tag. Grisé si git flow n'est pas installé.
+- **Graphe.** Les commits arrivent par pages ; un clic ouvre le détail (message, parents,
+  fichiers, diff). L'avatar de chaque auteur vient de GitHub (adresses `noreply`) ou de
+  Gravatar, gardé en cache ; sans image, ses initiales.
+
+**Trois dispositions** (réglage `git.layout`, `A` par défaut) :
+
+| | Page de gauche | Zone de droite |
+|---|---|---|
+| **A** | changements, puis graphe compact | le commit ou le diff ouvert |
+| **B** | changements seuls | onglet « Historique » : graphe en cartes et détail du commit |
+| **C** | comme A, avec le graphe en cartes ; le panneau de gauche s'élargit | le commit ou le diff ouvert |
+
+Réglages (clé `git` de `~/.claude-accounts/settings.json` ; la fenêtre Réglages du bureau n'a
+pas de commandes pour eux, la version web en a) : `layout` (`A`, `B`, `C`), `fetch_minutes`
+(5 par défaut, 0 = jamais) et `avatars` (`false` : aucune image demandée sur le réseau).
 
 ## Terminal intégré
 
@@ -1413,12 +1529,22 @@ de marcher). Le serveur est `https://ntfy.sh` par défaut ; tu peux mettre le ti
 
 En ligne de commande : `ccs telephone` donne l'état et le lien d'abonnement.
 
+**Autoriser ou refuser depuis le téléphone.** Quand le chat demande une autorisation, la
+notification porte deux boutons, **Autoriser** et **Refuser**. Chaque bouton publie une réponse
+sur un second canal secret (`phone.reply_topic`, tiré par CCS), avec un jeton tiré au hasard
+pour cette seule demande : il ne sert qu'une fois, expire après 10 minutes et disparaît dès
+que tu as répondu sur le PC. Un jeton inconnu, déjà servi ou expiré est ignoré. Par défaut, la
+notification ne dit que le type de demande (« Commande », « Modification de fichier »…) et le
+projet ; l'interrupteur **Montrer la commande** (réglage `phone.show_content`, désactivé par
+défaut) y ajoute la commande ou le fichier exact.
+
 **Quels événements** (chacun a son interrupteur) : une session attend ta réponse, une
 tâche est finie ou échouée, une bascule a eu lieu, tous les comptes sont épuisés.
 
 **Ce qui est envoyé :** le nom du projet (le dernier élément du dossier) et l'état,
-par exemple « projet : tâche finie ». **Ce qui n'est JAMAIS envoyé :** un titre de
-conversation, un message, un chemin complet, un nom de compte.
+par exemple « projet : tâche finie ». **Ce qui n'est JAMAIS envoyé** (sauf si tu actives
+« Montrer la commande », pour la seule demande d'autorisation) : un titre de conversation, un
+message, un chemin complet, un nom de compte.
 
 [Ne pas déranger](#ne-pas-déranger) vaut aussi pour le téléphone, avec la même
 exception : une session qui attend ta réponse passe toujours. L'envoi se fait en
@@ -1545,12 +1671,16 @@ santé…** dans le menu ☰ de l'application) passe tout en revue :
 | Commande claude | `claude` trouvé (`PATH` ou `~/.local/bin`) et sa version |
 | Outils de ccs | `jq` présent |
 | Terminal intégré | VTE pour GTK 4 disponible |
+| Historique des fichiers | Les copies de Claude Code que lit le volet « Changements de la session » ont le format attendu (avertissement sinon : le volet est désactivé) |
 
 Chaque ligne est ✔, ⚠ ou ✖ ; sous chaque problème, **la commande qui le
 corrige**, à copier (par exemple `systemctl --user restart ccs-daemon`,
 `ccs integrate on`, `ccs rm perso && ccs add perso`). Le bilan n'exécute jamais
 rien à ta place. Code de sortie : **0** si tout va bien, **1** au moindre
 avertissement ou erreur.
+
+Dans la version web, la carte **Bilan de santé** de l'Accueil lance le même bilan sur le
+serveur, avec un bouton Copier par commande.
 
 Dans l'application, chaque correctif a son bouton « Copier la commande », et un
 bouton copie tout le bilan. L'application fait aussi le bilan en arrière-plan

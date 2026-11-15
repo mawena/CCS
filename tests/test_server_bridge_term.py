@@ -54,6 +54,29 @@ class TermBridgeTest(unittest.IsolatedAsyncioTestCase):
         await self.c.call("term.input", term_id=tid, data="pwd\n")
         self.assertTrue(await self.wait(lambda: self.tmp in self.text(tid)), self.text(tid))
 
+    async def test_open_only_in_allowed_folders(self):
+        """Constat 11 : terminal limité aux dossiers permis, après le développement de « ~ »."""
+        for bad in ("/", "/etc", "relatif"):
+            with self.assertRaises(rpc.RpcError) as cm:
+                await self.c.call("term.open", cwd=bad, cols=80, rows=24)
+            self.assertIn(cm.exception.code, ("refuse", "invalide"), bad)
+        os.symlink("/", os.path.join(self.tmp, "racine"))
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("term.open", cwd="~/racine", cols=80, rows=24)
+        self.assertEqual(cm.exception.code, "refuse")
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("term.open", cwd="/", cols=80, rows=24)
+        self.assertEqual(cm.exception.code, "refuse")
+        self.assertEqual((await self.c.call("term.list"))["terms"], [])
+
+    async def test_ids_unique_across_bridge_restarts(self):
+        """C1 : `t<boot>-<n>`, boot tiré au hasard à la création du hub."""
+        tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]
+        self.assertRegex(tid, r"^t[0-9a-f]{6}-1$")
+        self.assertEqual(tid, f"t{self.hub.boot}-1")
+        other = bridge_term.TermHub(bridge.Bridge("bob", None, local=True, start_daemon=False, install_claude=False))
+        self.assertNotEqual(other.boot, self.hub.boot)
+
     async def test_resize(self):
         tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]
         await self.c.call("term.resize", term_id=tid, cols=100, rows=40)
@@ -84,6 +107,17 @@ class TermBridgeTest(unittest.IsolatedAsyncioTestCase):
         r = await self.c.call("term.attach", term_id=tid)
         self.assertIn("trace-ancienne", r["output"])
         self.assertEqual([t["term_id"] for t in (await self.c.call("term.list"))["terms"]], [tid])
+
+    async def test_list_gives_folder_and_name(self):
+        tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]
+        t = (await self.c.call("term.list"))["terms"][0]
+        self.assertEqual((t["term_id"], t["cwd"]), (tid, self.tmp))
+        self.assertTrue(t["name"])
+
+    async def test_input_error_is_french(self):
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("term.input", term_id="t999", data="x")
+        self.assertEqual(cm.exception.code, "introuvable")
 
     async def test_sweep_closes_abandoned_terms(self):
         tid = (await self.c.call("term.open", cwd=self.tmp, cols=80, rows=24))["term_id"]

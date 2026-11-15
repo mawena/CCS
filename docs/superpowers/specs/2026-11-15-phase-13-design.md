@@ -1,4 +1,6 @@
-# Phase 13 (0.11.0) — conception
+# Phase 14 (0.12.0) — conception (ex-phase 13)
+
+Passée en phase 14 le 15/11/2026 : la partie VPS (serveur, web, terminal, bureau connecté) est prioritaire et devient la phase 13 (0.11.0).
 
 Choix de Charles le 14 et le 15/11/2026 : toutes les propositions retenues, une seule
 release mineure 0.11.0 à la fin, et une page Git inspirée de GiGit
@@ -16,7 +18,7 @@ autorisation donnée depuis le téléphone.
 
 ## Objectifs, non-objectifs, anti-objectifs
 
-Objectifs : les quatre chantiers ci-dessous, livrés ensemble en 0.11.0.
+Objectifs : les quatre chantiers ci-dessous, livrés ensemble en 0.12.0.
 
 Non-objectifs :
 - Ce que GiGit prévoit pour ses versions 0.2 et 0.3 : merge, rebase, squash,
@@ -199,7 +201,7 @@ rafraîchissements, style du bandeau d'erreur (dans l'esprit du nouveau design 0
 ## Documentation et release
 
 README (page Git, tâches, changements, chat, téléphone), guide, architecture, pages
-man, CHANGELOG, site ; release mineure 0.11.0 (nouvelles fonctions compatibles),
+man, CHANGELOG, site ; release mineure 0.12.0 (nouvelles fonctions compatibles),
 `.deb`, release GitHub et dépôt APT, comme les phases précédentes.
 
 ## Choix faits par Claude (à vérifier par Charles)

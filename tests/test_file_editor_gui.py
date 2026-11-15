@@ -9,7 +9,7 @@ from tests.helpers import gui_ready
 
 GTK = gui_ready()
 if GTK:
-    from gi.repository import GLib
+    from gi.repository import GLib, Gtk
 
     from ccs_app.gui.file_editor import FileEditor
 
@@ -36,6 +36,29 @@ class FileEditorGuiTest(unittest.TestCase):
         self.ed.open(p)
         self.assertTrue(spin(lambda: self.ed.state(p) in ("text", "too_big")))
         return p
+
+    def test_open_widget_once(self):
+        empties = []
+        self.ed.connect("empty", lambda *_: empties.append(1))
+        first = Gtk.Label(label="un")
+        self.ed.open_widget("commit:abc", "Commit abc", first, tooltip="abc")
+        self.ed.open_widget("commit:abc", "Commit abc", Gtk.Label(label="deux"))
+        self.assertEqual(self.ed.tab_view.get_n_pages(), 1)
+        self.assertEqual(self.ed.state("commit:abc"), "widget")
+        self.assertIs(self.ed.tab_view.get_selected_page().get_child().get_first_child(), first)
+        self.assertFalse(self.ed.is_dirty("commit:abc"))
+        self.assertEqual(self.ed.paths(), [])
+        self.ed.check_changes()                    # un widget n'a pas de fichier à surveiller
+        p = self.open_text("a.txt")
+        self.ed.open_widget("commit:abc", "Commit abc", Gtk.Label(label="trois"))
+        self.assertEqual(self.ed.current_path(), None)
+        self.assertEqual(self.ed.tab_view.get_n_pages(), 2)
+        self.ed.close(p)
+        self.assertTrue(spin(lambda: self.ed.tab_view.get_n_pages() == 1))
+        self.ed.close_key("commit:abc")
+        self.assertTrue(spin(lambda: self.ed.tab_view.get_n_pages() == 0))
+        self.assertIsNone(self.ed.state("commit:abc"))
+        self.assertEqual(empties, [1])
 
     def test_open_save_clears_dirty(self):
         p = self.open_text("a.py", "print(1)\n")

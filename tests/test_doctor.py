@@ -47,6 +47,7 @@ def healthy(**over):
         phone=lambda: {"enabled": False, "server": "https://ntfy.sh", "channel": False},
         dead_tasks=lambda: [],
         server=lambda: None,
+        file_history=lambda: (True, "format reconnu"),
     )
     values.update(over)
     return Probes(**values)
@@ -76,6 +77,15 @@ class RunChecksTest(unittest.TestCase):
         self.assertEqual(checks["Extension AppIndicator"].statut, AVERTISSEMENT)
         self.assertIn("D-Bus indisponible", checks["Extension AppIndicator"].detail)
         self.assertEqual(checks["Commande claude"].statut, OK)
+
+
+class FileHistoryCheckTest(unittest.TestCase):
+    def test_doctor_file_history_check(self):
+        ok = by_name(doctor.run_checks(healthy()))["Historique des fichiers"]
+        self.assertEqual((ok.statut, ok.detail), (OK, "format reconnu"))
+        bad = by_name(doctor.run_checks(healthy(file_history=lambda: (False, "format inconnu"))))
+        self.assertEqual(bad["Historique des fichiers"].statut, AVERTISSEMENT)
+        self.assertIn("format inconnu", bad["Historique des fichiers"].detail)
 
 
 class ServiceTest(unittest.TestCase):

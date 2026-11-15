@@ -1,5 +1,7 @@
-// Analyse : usage pondéré par projet, modèle, compte et heure, sur 7 ou 30 jours.
-import { clear, el } from "./dom.js";
+// Analyse : usage pondéré par projet, modèle, compte et heure, sur 1, 7, 30 ou 90 jours.
+import { clear, el, emptyState, errorState, loading } from "./dom.js";
+
+const PERIODS = [[1, "24 heures"], [7, "7 jours"], [30, "30 jours"], [90, "90 jours"]];
 
 function fmt(n) {
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)} G`;
@@ -14,27 +16,41 @@ function bars(title, data, total) {
     ...rows.map(([name, v]) => {
       const fill = el("div", { class: "bar-fill" });
       fill.style.width = `${total ? (100 * v) / total : 0}%`;
-      return el("div", { class: "bar" }, el("span", { class: "bar-name" }, name),
+      return el("div", { class: "bar" }, el("span", { class: "bar-name", title: name }, name),
         el("div", { class: "bar-track" }, fill), el("span", { class: "bar-value" }, `${total ? ((100 * v) / total).toFixed(1) : 0} %`));
     }));
 }
 
 export function mountAnalysis(root, api) {
-  const days = el("select", { "aria-label": "Période" }, el("option", { value: "7" }, "7 derniers jours"),
-    el("option", { value: "30" }, "30 derniers jours"));
+  let days = 7;
+  const tabs = el("div", { class: "seg", role: "group", "aria-label": "Période" });
   const body = el("div", { class: "analysis" });
-  root.append(el("div", { class: "row" }, el("h2", { class: "grow" }, "Analyse"), days), body);
+  root.append(el("div", { class: "page-head" }, el("h2", {}, "Analyse")), tabs, body);
+  let token = 0;
+
+  function drawTabs() {
+    clear(tabs).append(...PERIODS.map(([d, label]) => el("button", { class: "small", "aria-pressed": String(d === days),
+      onclick: () => { days = d; load(); } }, label)));
+  }
 
   async function load() {
-    clear(body).append(el("p", { class: "subtle" }, "Lecture des journaux…"));
+    const mine = ++token;
+    drawTabs();
+    clear(body).append(loading("Lecture des journaux…"));
     let r;
-    try { r = await api.call("analysis.report", { days: Number(days.value) }); } catch (e) {
-      clear(body).append(el("p", { class: "message" }, e.message));
+    try { r = await api.call("analysis.report", { days }); } catch (e) {
+      if (mine === token) clear(body).append(errorState(e.message, load));
       return;
     }
-    if (!r.responses) { clear(body).append(el("div", { class: "card empty" }, "Aucune activité sur la période.")); return; }
+    if (mine !== token) return;                 // une autre période a été choisie entre-temps
+    if (!r.responses) {
+      const actions = days === 30 ? [] : [el("button", { class: "small", onclick: () => { days = 30; load(); } }, "Essayer 30 jours")];
+      clear(body).append(el("div", { class: "card analysis-empty" },
+        emptyState("Aucune activité sur cette période.", ...actions)));
+      return;
+    }
     const peak = Math.max(...r.by_hour, 1);
-    const hours = el("div", { class: "hours" }, ...r.by_hour.map((v, h) => {
+    const hours = el("div", { class: "hours", role: "img", "aria-label": "Usage par heure de la journée" }, ...r.by_hour.map((v, h) => {
       const col = el("div", { class: "hour", title: `${h} h : ${fmt(v)}` });
       col.style.height = `${(100 * v) / peak}%`;
       return col;
@@ -46,6 +62,5 @@ export function mountAnalysis(root, api) {
       bars("Par compte", r.by_account, r.total),
       el("section", { class: "card flat" }, el("h2", {}, "Par heure"), hours));
   }
-  days.addEventListener("change", load);
   load();
 }

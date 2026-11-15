@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from . import __version__, core, daemon, settings
+from . import __version__, core, daemon, file_history as _file_history, settings
 
 OK, AVERTISSEMENT, ERREUR = "ok", "avertissement", "erreur"
 STATUTS = (OK, AVERTISSEMENT, ERREUR)
@@ -388,6 +388,7 @@ class Probes:
     phone: Callable = phone_info
     dead_tasks: Callable = dead_tasks
     server: Callable = server_info
+    file_history: Callable = _file_history.check
     _cache: dict = field(default_factory=dict, repr=False)
 
     def once(self, name, *args):
@@ -699,6 +700,17 @@ def check_tasks(p):
                  f"ccs tache annuler {dead[0]}")
 
 
+def check_file_history(p):
+    """Historique des fichiers de Claude Code (volet « Changements ») : son format n'est pas
+    documenté ; s'il change, le volet n'offre plus rien."""
+    nom = "Historique des fichiers"
+    ok, detail = p.once("file_history")
+    if ok:
+        return Check(nom, OK, detail)
+    return Check(nom, AVERTISSEMENT, detail + " : le volet Changements est désactivé",
+                 None)
+
+
 def check_server(p):
     """Serveur CCS (paquet ccs-serveur) : services, écoute locale, site public, certificat,
     comptes autorisés. Rien si le paquet n'est pas installé."""
@@ -755,7 +767,8 @@ def check_server(p):
 
 CHECKS = (check_service, check_state, check_package, check_daemon_code, check_bureau, check_extension,
           check_tray, check_integration, check_profiles, check_settings, check_claude, check_tools, check_gpg,
-          check_archive, check_phone, check_tasks, check_vte, check_chat_deps, check_server)
+          check_archive, check_phone, check_tasks, check_vte, check_chat_deps, check_file_history,
+          check_server)
 CHECK_NAMES = {check_service: f"Service {SERVICE}", check_state: "Relevés", check_package: "Version installée",
                check_daemon_code: "Code du service", check_bureau: "Bureau",
                check_extension: "Extension AppIndicator",
@@ -764,7 +777,8 @@ CHECK_NAMES = {check_service: f"Service {SERVICE}", check_state: "Relevés", che
                check_claude: "Commande claude", check_tools: "Outils de ccs", check_vte: "Terminal intégré",
                check_gpg: "Chiffrement (gpg)", check_archive: "Archive des conversations",
                check_phone: "Téléphone (ntfy)", check_tasks: "File de tâches",
-               check_chat_deps: "Chat graphique", check_server: "Serveur CCS"}
+               check_chat_deps: "Chat graphique", check_file_history: "Historique des fichiers",
+               check_server: "Serveur CCS"}
 
 
 def run_checks(probes=None):

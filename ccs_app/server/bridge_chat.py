@@ -1,7 +1,8 @@
 """Chats du pont : un `ChatSession` (moteur du chat) par conversation ouverte, qui vit dans le pont (il survit aux
 déconnexions). Chaque événement est numéroté et gardé (2000 par chat) : un appareil qui revient
 demande ce qu'il a manqué depuis son dernier numéro ; tous les appareils attachés reçoivent les
-mêmes événements."""
+mêmes événements. Identifiants `c<boot>-<n>` : `boot` est tiré au hasard à chaque démarrage du
+pont, un identifiant d'avant un redémarrage ne désigne donc jamais un autre chat."""
 
 import asyncio
 import base64
@@ -10,13 +11,18 @@ import collections
 import dataclasses
 import itertools
 import os
+import re
+import secrets
+import time
 
-from .. import chat_options, markdown_render
+from .. import chat_options, markdown_render, sessions
 from ..chat_engine import ChatSession
 from . import events, rpc
+from .bridge_data import safe_path
 
 BUFFER = 2000
 BUSY = ("starting", "busy", "permission")
+_SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")      # nom d'un journal `<id>.jsonl`
 
 
 class _Chat:
@@ -26,7 +32,35 @@ class _Chat:
         self.engine = None
         self.buf = collections.deque(maxlen=BUFFER)
         self.seq = 0
+        self.opened_at = time.time()
         self.conns = set()
+
+
+def transcript_of(cwd, session_id):
+    """Chemin du journal `.jsonl` de la conversation s'il existe, sinon None."""
+    if not session_id:
+        return None
+    for folder in dict.fromkeys((cwd, os.path.realpath(cwd))):
+        path = sessions.transcript_path(folder, session_id)
+        if path.is_file():
+            return str(path)
+    return None
+
+
+def _history_before(chat):
+    """Heure (epoch) depuis laquelle le tampon a tout gardé : l'ouverture du chat, ou son plus vieil
+    événement s'il a débordé. Le client montre le journal d'avant cette heure, sans doublon."""
+    if chat.buf and chat.buf[0]["seq"] > 1:
+        return chat.buf[0]["ts"]
+    return chat.opened_at
+
+
+def _info(chat):
+    """Champs communs de chat.open, chat.attach et chat.list : options du moteur, conversation,
+    journal et heure de début du tampon."""
+    sid = chat.engine.session_id
+    return {"options": dataclasses.asdict(chat.engine.options), "session_id": sid,
+            "path": transcript_of(chat.cwd, sid), "history_before": _history_before(chat)}
 
 
 def _options(raw):
@@ -41,6 +75,7 @@ class ChatHub:
         self.claude = claude
         self.environ = environ
         self.chats = {}
+        self.boot = secrets.token_hex(3)
         self._ids = itertools.count(1)
         self._loop = None
         bridge.busy_checks.append(self.busy)
@@ -71,7 +106,7 @@ class ChatHub:
         if chat.chat_id not in self.chats:
             return
         chat.seq += 1
-        item = {"seq": chat.seq, "event": events.to_json(ev)}
+        item = {"seq": chat.seq, "ts": time.time(), "event": events.to_json(ev)}
         chat.buf.append(item)
         for conn in list(chat.conns):
             if not conn.closed:
@@ -92,30 +127,34 @@ class ChatHub:
             cwd = os.path.normpath(os.path.expanduser(cwd))
         if not isinstance(cwd, str) or not os.path.isabs(cwd) or not os.path.isdir(cwd):
             raise rpc.RpcError("invalide", "Dossier du projet introuvable.")
+        safe_path(cwd)                       # dossier personnel ou dossiers de sites seulement
+        if session_id is not None and session_id != "" and not (
+                isinstance(session_id, str) and _SESSION_ID.fullmatch(session_id)):
+            raise rpc.RpcError("invalide", "Conversation invalide.")
         if session_id:
             for chat in self.chats.values():
                 if chat.engine.session_id == session_id:
                     chat.conns.add(conn)
-                    return {"chat_id": chat.chat_id, "seq": chat.seq, "cwd": chat.cwd}
-        chat = _Chat(f"c{next(self._ids)}", cwd)
+                    return {"chat_id": chat.chat_id, "seq": chat.seq, "cwd": chat.cwd, **_info(chat)}
+        chat = _Chat(f"c{self.boot}-{next(self._ids)}", cwd)
         chat.engine = ChatSession(cwd, session_id=session_id or None,
                                   options=_options(params.get("options")),
                                   on_event=self._on_event(chat), claude=self.claude,
                                   environ=self.environ)
         chat.conns.add(conn)
         self.chats[chat.chat_id] = chat
-        return {"chat_id": chat.chat_id, "seq": 0, "cwd": chat.cwd}
+        return {"chat_id": chat.chat_id, "seq": 0, "cwd": chat.cwd, **_info(chat)}
 
     async def list(self, _conn, _params):
-        return {"chats": [{"chat_id": c.chat_id, "cwd": c.cwd, "session_id": c.engine.session_id,
-                           "state": c.engine.state, "seq": c.seq} for c in self.chats.values()]}
+        return {"chats": [{"chat_id": c.chat_id, "cwd": c.cwd, "state": c.engine.state, "seq": c.seq,
+                           **_info(c)} for c in self.chats.values()]}
 
     async def attach(self, conn, params):
         chat = self._get(params)
         since = params.get("since") if isinstance(params.get("since"), int) else 0
         chat.conns.add(conn)
         return {"events": [i for i in chat.buf if i["seq"] > since], "seq": chat.seq,
-                "state": chat.engine.state, "session_id": chat.engine.session_id}
+                "state": chat.engine.state, **_info(chat)}
 
     async def send(self, _conn, params):
         chat = self._get(params)

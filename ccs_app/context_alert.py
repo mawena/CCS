@@ -20,6 +20,7 @@ from . import core, costs, sessions
 from .alerts import Alert
 
 DEFAULTS = {"enabled": True, "threshold_tokens": 150_000}
+COMPACT_KEEP = 0.2            # part du contexte gardée après `/compact` (moyenne estimée)
 TAIL_BYTES = 256 * 1024
 TAIL_MAX = 4 * 1024 * 1024    # une réponse d'outil énorme peut éloigner le dernier usage
 STATE_FILE = "context-alerts.json"
@@ -38,6 +39,11 @@ def config(settings=None):
     enabled = raw.get("enabled", DEFAULTS["enabled"])
     return {"enabled": enabled if isinstance(enabled, bool) else DEFAULTS["enabled"],
             "threshold_tokens": threshold}
+
+
+def compact_gain(tokens):
+    """Jetons libérés (estimation) par `/compact` d'un contexte de `tokens` jetons."""
+    return tokens - int(tokens * COMPACT_KEEP)
 
 
 # --------------------------------------------------------------------------

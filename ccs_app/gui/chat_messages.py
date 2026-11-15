@@ -15,9 +15,10 @@ import gi
 
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gdk, GLib, Graphene, Gtk, Pango  # noqa: E402
 
 from .. import chat_protocol as proto, preview  # noqa: E402
+from ..conversations import fold  # noqa: E402
 from .markdown_view import MarkdownView  # noqa: E402
 
 PAGE = 50                   # messages d'historique construits à la fois
@@ -55,6 +56,8 @@ KIND_OF = {"Read": "read", "Edit": "edit", "MultiEdit": "edit", "Write": "edit",
 FILE_TOOLS = ("Read", "Edit", "MultiEdit", "Write", "NotebookEdit")
 
 CSS = """
+.ccs-find-hit { background-color: alpha(@warning_bg_color, 0.22); }
+.ccs-find-current { background-color: alpha(@warning_bg_color, 0.55); }
 .ccs-chat-notice { padding: 6px 12px; border-radius: 10px; font-size: 0.92em;
   background-color: alpha(@window_fg_color, 0.06); }
 .ccs-chat-notice.error { background-color: alpha(@error_bg_color, 0.16); }
@@ -778,14 +781,37 @@ class _Segment:
 
 # ---- la liste ------------------------------------------------------------------------------
 
+def _descendants(widget):
+    child = widget.get_first_child()
+    while child is not None:
+        yield child
+        yield from _descendants(child)
+        child = child.get_next_sibling()
+
+
+def open_rewind_menu(row, callback):
+    """Menu de la bulle d'un message de l'utilisateur : « Revenir à avant ce message »."""
+    pop = Gtk.Popover()
+    pop.set_parent(row)
+    button = Gtk.Button(label="Revenir à avant ce message", css_classes=["flat"])
+    button.connect("clicked", lambda btn, cb=callback: (btn.get_ancestor(Gtk.Popover).popdown(),
+                                                        cb(btn.get_ancestor(Gtk.Popover).get_parent())))
+    pop.set_child(button)
+    row.rewind_button = button
+    pop.popup()
+    return button
+
+
 class MessageList(Gtk.ScrolledWindow):
     """Fil de la conversation. Les widgets sont ajoutés en bas ; l'historique d'un chat rouvert
     se construit par paquets de 50 en remontant."""
 
-    def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None, on_older=None):
+    def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None, on_older=None,
+                 on_rewind=None):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True, hexpand=True)
         install_css()
         self.on_diff, self.on_open, self.on_link = on_diff, on_open, on_link
+        self.on_rewind = on_rewind    # on_rewind(ligne) : « Revenir à avant ce message »
         self.on_older = on_older
         self._dropped = 0         # lignes retirées du haut du fil par trim()
         self.base_dir = base_dir
@@ -798,6 +824,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._todos = None
         self._last = None         # dernier widget de contenu (avant la ligne d'activité)
         self._hist, self._hist_pos = [], 0
+        self._hits, self._find_at = [], 0    # recherche dans le fil
         self._built = 0
         self._stick, self._moving = True, False
 
@@ -904,7 +931,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._views.append(view)
         return view
 
-    def _user_widget(self, text, images=(), during=False):
+    def _user_widget(self, text, images=(), during=False, on_rewind=None):
         col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         for media_type, data in images or ():
             try:
@@ -938,6 +965,13 @@ class MessageList(Gtk.ScrolledWindow):
         if during:
             outer.append(Gtk.Label(label="envoyé pendant que Claude travaille", xalign=1,
                                    css_classes=["ccs-subtle", "caption"]))
+        outer.is_user = True
+        callback = on_rewind or self.on_rewind
+        if callback is not None:
+            # clic droit : menu de la bulle (sans référence à la ligne : pas de cycle)
+            click = Gtk.GestureClick(button=3)
+            click.connect("pressed", lambda g, _n, _x, _y, cb=callback: open_rewind_menu(g.get_widget(), cb))
+            outer.add_controller(click)
         return outer
 
     def _assistant_widget(self, text=""):
@@ -1006,9 +1040,134 @@ class MessageList(Gtk.ScrolledWindow):
             row.append(button)
         return row
 
-    def add_user(self, text, images=(), during=False):
-        self._append(self._user_widget(text, images, during))
+    def add_shell_card(self, command):
+        """Carte d'une commande `!` : la commande, « Arrêter » tant qu'elle tourne, puis sa sortie
+        (`card.set_output(code, texte, tronquée)`)."""
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, css_classes=["ccs-tool-card"])
+        head = Gtk.Box(spacing=8)
+        head.append(Gtk.Spinner(spinning=True))
+        head.append(Gtk.Label(label="$ " + command, xalign=0, hexpand=True, selectable=True,
+                              ellipsize=Pango.EllipsizeMode.END, css_classes=["monospace"]))
+        card.status = Gtk.Label(label="", css_classes=["ccs-subtle"])
+        card.stop_button = Gtk.Button(label="Arrêter", css_classes=["flat", "destructive-action"])
+        head.append(card.status)
+        head.append(card.stop_button)
+        card.append(head)
+        card.output = Gtk.Label(xalign=0, selectable=True, wrap=True, wrap_mode=Pango.WrapMode.CHAR,
+                                css_classes=["monospace", "ccs-code-box"], visible=False)
+        card.scroll = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True,
+                                         max_content_height=320, visible=False, child=card.output)
+        card.append(card.scroll)
+
+        def set_output(code, text, truncated=False):
+            head.get_first_child().set_spinning(False)
+            card.stop_button.set_visible(False)
+            note = " — sortie tronquée" if truncated else ""
+            card.status.set_label(("code " + str(code) if code is not None else "arrêtée") + note)
+            card.output.set_label(text if text.strip() else "(aucune sortie)")
+            card.output.set_visible(True)
+            card.scroll.set_visible(True)
+            self.scroll_end_if_stuck()
+        card.set_output = set_output
+        card.command = command
+        self._append(card)
         self.scroll_end_if_stuck()
+        return card
+
+    def add_user(self, text, images=(), during=False, on_rewind=None):
+        row = self._append(self._user_widget(text, images, during, on_rewind))
+        self.scroll_end_if_stuck()
+        return row
+
+    # -- recherche dans le fil (Ctrl+F) --
+
+    def _search_units(self):
+        """(widget, texte) de chaque bulle et carte d'action du fil, dans l'ordre."""
+        out = []
+
+        def walk(widget):
+            if getattr(widget, "is_user", False):
+                out.append((widget, " ".join(
+                    w.get_label() or "" for w in _descendants(widget) if isinstance(w, Gtk.Label))))
+            elif hasattr(widget, "copy_text"):
+                out.append((widget, widget.copy_text or ""))
+            elif isinstance(widget, ToolCard):
+                out.append((widget, f"{tool_label(widget.name)} {widget.name} {widget.target or ''}"))
+            else:
+                child = widget.get_first_child()
+                while child is not None:
+                    walk(child)
+                    child = child.get_next_sibling()
+        for row in self._content_rows():
+            walk(row)
+        return out
+
+    def find(self, query):
+        """Cherche `query` (sans tenir compte des accents ni de la casse) dans le texte des bulles
+        et le titre et la cible des cartes ; met en évidence le premier résultat et y défile.
+        Renvoie le nombre de résultats."""
+        self.find_clear()
+        needle = fold(query or "").strip()
+        if not needle:
+            return 0
+        while self._hist_pos > 0:                 # l'historique pas encore construit se cherche aussi
+            self._load_more()
+        self._hits = [w for w, text in self._search_units() if needle in fold(text)]
+        for w in self._hits:
+            w.add_css_class("ccs-find-hit")
+        if self._hits:
+            self._find_at = 0
+            self._show_hit()
+        return len(self._hits)
+
+    def trimmed(self):
+        """Vrai si l'élagage a retiré des lignes du haut du fil."""
+        return self._dropped > 0
+
+    def find_count(self):
+        return len(self._hits)
+
+    def find_position(self):
+        """Rang (à partir de 1) du résultat en évidence ; 0 s'il n'y en a pas."""
+        return self._find_at + 1 if self._hits else 0
+
+    def find_next(self):
+        if self._hits:
+            self._find_at = (self._find_at + 1) % len(self._hits)
+            self._show_hit()
+
+    def find_prev(self):
+        if self._hits:
+            self._find_at = (self._find_at - 1) % len(self._hits)
+            self._show_hit()
+
+    def find_clear(self):
+        for w in self._hits:
+            w.remove_css_class("ccs-find-hit")
+            w.remove_css_class("ccs-find-current")
+        self._hits, self._find_at = [], 0
+
+    def _show_hit(self):
+        for i, w in enumerate(self._hits):
+            if i == self._find_at:
+                w.add_css_class("ccs-find-current")
+            else:
+                w.remove_css_class("ccs-find-current")
+        target = self._hits[self._find_at]
+        ok, point = target.compute_point(self.box, Graphene.Point().init(0, 0))
+        if ok:
+            adj = self.get_vadjustment()
+            self._stick = False
+            adj.set_value(max(0.0, point.y - adj.get_page_size() / 3))
+
+    def user_index_from_end(self, row):
+        """Rang de la bulle `row` parmi les messages de l'utilisateur du fil, en comptant depuis
+        le dernier (0) ; None si elle n'y est plus."""
+        users = [w for w in self._content_rows() if getattr(w, "is_user", False)]
+        for i, w in enumerate(reversed(users)):
+            if w is row:
+                return i
+        return None
 
     def _segment(self, msg_id, create=True):
         seg = self._segs.get(msg_id)
@@ -1229,6 +1388,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._views, self._segs, self._tools, self._perms = [], {}, {}, {}
         self._todos = self._run = self._last = self._last_footer = None
         self._hist, self._hist_pos = [], 0
+        self._hits, self._find_at = [], 0
         self._dropped = 0
         self.older_row.set_visible(False)
 

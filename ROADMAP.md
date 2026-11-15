@@ -305,6 +305,8 @@ Paquets, contrôles, documentation, release :
 ## Phase 14 — Travailler sans quitter CCS (0.12.0)
 
 Toutes les propositions retenues le 14/11, conception validée le 15/11. Passée en phase 14 le 15/11 : la partie VPS est prioritaire. Travail sur la branche `feature/phase14`.
+Le 15/11, après l'essai sur le VPS : la version web passe au niveau du bureau (tâches 18 à 30) ; ce
+qui concernait le VPS a été fait en phase 13 (0.11.0).
 Conception : `docs/superpowers/specs/2026-11-15-phase-13-design.md`.
 Plan détaillé (tests et interfaces de chaque tâche) : `docs/superpowers/plans/2026-11-15-phase-13.md`.
 
@@ -315,25 +317,40 @@ Page Git (inspirée de GiGit) :
 - [x] 4. Avatars des auteurs en cache, réglages `git.*` et `phone.show_content`
 - [x] 5. Onglet portant un widget quelconque dans la zone de droite
 - [x] 6. Graphe des commits en deux densités (compact, cartes), chargé par pages
-- [ ] 7. Détail d'un commit, changements en cours, indexation par ligne, Commit et Ctrl+Entrée
-- [ ] 8. Page Git dans le panneau de gauche : dispositions A, B et C, bandeau d'erreur, fetch automatique, rafraîchissement
+- [x] 7. Détail d'un commit, changements en cours, indexation par ligne, Commit et Ctrl+Entrée
+- [x] 8. Page Git dans le panneau de gauche : dispositions A, B et C, bandeau d'erreur, fetch automatique, rafraîchissement
 
 Le travail de Claude :
-- [ ] 9. « Faire une tâche » de la feuille de route : chat ou file de nuit, bandeau « Tâche finie ? » si Claude n'a pas coché
-- [ ] 10. Lecture des copies de Claude Code (`file_history`) : changements, plan de retour en arrière
-- [ ] 11. Volet « Changements de la session », annuler un fichier, revenir avant un message, contrôle `ccs doctor`
+- [x] 9. « Faire une tâche » de la feuille de route : chat ou file de nuit, bandeau « Tâche finie ? » si Claude n'a pas coché
+- [x] 10. Lecture des copies de Claude Code (`file_history`) : changements, plan de retour en arrière
+- [x] 11. Volet « Changements de la session », annuler un fichier, revenir avant un message, contrôle `ccs doctor`
 
 Le chat :
-- [ ] 12. Chercher dans le fil (Ctrl+F)
-- [ ] 13. Messages enregistrés, communs ou par projet
-- [ ] 14. Bouton « Compacter » dans l'alerte de contexte lourd
-- [ ] 15. Commande `!` lancée dans le dossier du projet
+- [x] 12. Chercher dans le fil (Ctrl+F)
+- [x] 13. Messages enregistrés, communs ou par projet
+- [x] 14. Bouton « Compacter » dans l'alerte de contexte lourd
+- [x] 15. Commande `!` lancée dans le dossier du projet
 
 Le téléphone :
-- [ ] 16. Réponses signées et à usage unique (`phone_reply`)
-- [ ] 17. Autoriser ou Refuser depuis la notification, réglage « Montrer la commande »
+- [x] 16. Réponses signées et à usage unique (`phone_reply`)
+- [x] 17. Autoriser ou Refuser depuis la notification, réglage « Montrer la commande »
+
+La version web au téléphone (choisie le 15/11 : ergonomie, fonctions du bureau et phase 14 au web) :
+- [x] 18. Socle du web : toasts et cartes de confirmation à la place d'`alert()` et `confirm()`, chargements et états vides, adresses par chat (`#/sessions/<chat>`, bouton Retour du téléphone), pastille « attend ta réponse », une feuille de style par zone
+- [x] 19. Chat au téléphone : plein écran, titre lisible, modèle / effort / droits repliés, boutons Fichiers, Feuille de route et Git avec libellés, saisie jamais perdue (brouillon par chat, texte remis si l'envoi échoue)
+- [x] 20. Sessions : section « En cours » avec l'état de chaque chat, écran Projet (conversations, fichiers, feuille de route, Git, nouveau chat, terminal)
+- [x] 21. Terminal au téléphone : barre de touches (Échap, Tab, Ctrl, flèches, `|`, `~`), coller
+- [x] 22. Nouvelle session complète : dossiers récents et dépôts du disque, choix du compte, du modèle et des droits
+- [x] 23. Conversations : voir plus, aperçu sans ouvrir, renommer, coût
+- [x] 24. Chat : modifications de Claude en diff lisible, fichier cité ouvert à la ligne, complétion `@fichier` et `/commandes`
+- [x] 25. Fichiers : aperçu des images, recherche, ouverture à une ligne ; feuille de route sans perte du défilement
+- [x] 26. Accueil : rythme et prévision des comptes, bilan de santé, tâches de nuit (nouvelle tâche, journal, reprise, suppression)
+- [x] 27. Réglages : téléphone (ntfy, QR code, essai), réglages du bureau qui manquent (dont `git.*` et « Montrer la commande ») ; Analyse sur d'autres périodes
+- [x] 28. Phase 14 au web, chat : messages enregistrés, « Compacter », commande `!`, chercher dans le fil
+- [x] 29. Phase 14 au web : volet « Changements de la session » et « Faire une tâche » de la feuille de route
+- [x] 30. Phase 14 au web : Git (état, diff, indexation, commit, fetch / pull / push)
 
 Fin de phase :
-- [ ] 18. Documentation (README, guide, architecture, man, CHANGELOG, site)
-- [ ] 19. Essai réel par Charles et corrections
-- [ ] 20. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT
+- [x] 31. Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [ ] 32. Essai réel par Charles (bureau et VPS) et corrections
+- [ ] 33. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT

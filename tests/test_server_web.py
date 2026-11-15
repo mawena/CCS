@@ -1,6 +1,7 @@
 """ccs-web : connexion par cookie sécurisé, relais WebSocket vers le pont, en-têtes de sécurité.
 Faux ccs-auth et faux pont : aucun vrai service."""
 
+import asyncio
 import json
 import unittest
 
@@ -46,6 +47,10 @@ class FakeBridgeClient:
         self.on_event = None
         self.calls = []
         self.closed = False
+        self.lost = asyncio.Event()          # posé : la connexion au pont est tombée
+
+    async def wait_closed(self):
+        await self.lost.wait()
 
     async def call(self, method, **params):
         self.calls.append((method, params))
@@ -168,6 +173,21 @@ class WebTest(AioHTTPTestCase):
         self.auth.expired = True
         msg = await ws.receive(timeout=5)
         self.assertEqual((msg.type, msg.data), (WSMsgType.CLOSE, 4001))
+
+    async def test_ws_closed_when_bridge_connection_drops(self):
+        """C6 : si la connexion au pont tombe, le WebSocket du navigateur est fermé (il se
+        reconnecte) au lieu de rester ouvert sans pont derrière."""
+        await self.login()
+        ws = await self.client.ws_connect("/api/ws", headers={"Origin": ORIGIN})
+        bridge = self.bridges.connected[0][3]
+        bridge.lost.set()
+        msg = await ws.receive(timeout=5)
+        self.assertEqual((msg.type, msg.data), (WSMsgType.CLOSE, web.BRIDGE_LOST))
+        for _ in range(50):
+            if bridge.closed:
+                break
+            await asyncio.sleep(0.01)
+        self.assertTrue(bridge.closed)
 
     async def test_ws_oversized_message(self):
         await self.login()

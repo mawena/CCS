@@ -21,6 +21,20 @@ class ValidationTest(HomeTestCase):
         self.assertEqual(s["alerts"]["weekly_report_day"], 0)
         self.assertEqual(s["poll"], {"normal_s": 120, "fast_s": 60})
 
+    def test_git_and_phone_settings(self):
+        d = settings.DEFAULTS
+        self.assertEqual(d["git"], {"layout": "A", "fetch_minutes": 5, "avatars": True})
+        self.assertEqual((d["phone"]["show_content"], d["phone"]["reply_topic"]), (False, ""))
+        s = self.load({"git": {"layout": "C", "fetch_minutes": 0, "avatars": False},
+                       "phone": {"show_content": True}})
+        self.assertEqual(s["git"], {"layout": "C", "fetch_minutes": 0, "avatars": False})
+        self.assertTrue(s["phone"]["show_content"])
+        s = self.load({"git": {"layout": "D", "fetch_minutes": 5.5, "avatars": "oui"},
+                       "phone": {"show_content": "oui", "reply_topic": "a b"}})
+        self.assertEqual(s["git"], d["git"])
+        self.assertEqual((s["phone"]["show_content"], s["phone"]["reply_topic"]), (False, ""))
+        self.assertEqual(self.load({"git": {"fetch_minutes": 1441}})["git"]["fetch_minutes"], 5)
+
     def test_monthly_report_settings(self):
         d = settings.DEFAULTS["alerts"]
         self.assertEqual((d["monthly_report"], d["monthly_report_hour"]), (True, 9))

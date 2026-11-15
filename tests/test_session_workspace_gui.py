@@ -30,6 +30,15 @@ if GTK:
         def insert_reference(self, relpath):
             self.refs.append(relpath)
 
+        journal = None
+
+        def journal_info(self):
+            return self.journal
+
+        def do_roadmap_task(self, path, text, phase):
+            self.done = getattr(self, "done", []) + [(path, text, phase)]
+            return True
+
 
 def spin(until, timeout=8.0):
     ctx = GLib.MainContext.default()
@@ -130,6 +139,50 @@ class SessionWorkspaceGuiTest(HomeTestCase):
     def test_left_stack_choice_is_saved(self):
         self.ws.show_left("feuille")
         self.assertEqual(terminal_store.load_panes()["left"], "feuille")
+
+    def test_layout_c_widens_then_restores(self):
+        base = terminal_store.load_panes()["B"]["tree"]
+        wide = terminal_store.load_panes()["C"]["tree"]
+        self.assertGreater(wide, base)
+        self.ws.git_page.set_layout("C")
+        self.ws.show_left("git")
+        self.assertTrue(spin(lambda: abs(self.ws.outer.get_position() - wide) <= 2))
+        self.ws.show_left("fichiers")
+        self.assertTrue(spin(lambda: abs(self.ws.outer.get_position() - base) <= 2))
+
+    def test_left_page_remembered(self):
+        self.ws.show_left("git")
+        self.assertEqual(terminal_store.load_panes()["left"], "git")
+        ws = SessionWorkspace(self.project, FakeChat())
+        self.addCleanup(ws.close)
+        self.assertEqual(ws.left_stack.get_visible_child_name(), "git")
+
+    def test_roadmap_play_goes_to_chat_or_night_queue(self):
+        from ccs_app import roadmap, tasks
+        (self.project / "ROADMAP.md").write_text("# P\n\n## Phase 1 — A\n- [ ] faire ça\n")
+        self.ws.roadmap.reload()
+        self.assertTrue(spin(lambda: self.ws.roadmap.roadmap is not None))
+        phase = self.ws.roadmap.roadmap.phases[0]
+        task = phase.tasks[0]
+        self.ws._do_task(task, phase, "chat")
+        self.assertEqual(self.chat.done, [(str(self.project / "ROADMAP.md"), "faire ça", "Phase 1 — A")])
+        self.ws._do_task(task, phase, "nuit")
+        queued = tasks.all()
+        self.assertEqual(len(queued), 1)
+        self.assertEqual(queued[0].when, "nuit")
+        self.assertEqual(queued[0].message, roadmap.task_prompt(task, phase))
+        self.assertEqual(queued[0].extra["roadmap"]["text"], "faire ça")
+
+    def test_changes_button_opens_panel_in_editor(self):
+        self.chat.journal = (self.project / "j.jsonl", "sess-x")
+        self.ws.changes_btn.emit("clicked")
+        self.assertTrue(self.ws.editor_box.get_visible())
+        self.assertTrue(spin(lambda: self.ws.editor.tab_view.get_n_pages() == 1))
+        self.assertIsNotNone(self.ws._changes_panel)
+
+    def test_changes_button_without_conversation_does_nothing(self):
+        self.ws.changes_btn.emit("clicked")
+        self.assertEqual(self.ws.editor.tab_view.get_n_pages(), 0)
 
     def test_diff_signal_opens_editor(self):
         self.chat.emit("show-diff", str(self.project / "a.py"), "un\n", "deux\n")

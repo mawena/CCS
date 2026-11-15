@@ -44,7 +44,7 @@ class RemoteEngineTest(unittest.TestCase):
         env = mock.patch.dict(os.environ, {"HOME": str(home)})
         env.start()
         self.addCleanup(env.stop)
-        self.project = Path(self.tmp) / "projet"
+        self.project = home / "projet"            # chat.open : dossiers permis (HOME…)
         self.project.mkdir()
         sock = Path(self.tmp) / "b.sock"
         environ = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "FAKE_CLAUDE_SCENARIO": SCEN}

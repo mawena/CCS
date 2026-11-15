@@ -50,6 +50,7 @@ class Result:
     total: bool = False            # `cost` est celui de toute la conversation (journal de Claude Code)
     error: str | None = None
     code: int | None = None
+    roadmap_unchecked: bool = False   # tâche de la feuille de route restée non cochée
 
 
 # --------------------------------------------------------------------------
@@ -300,7 +301,22 @@ def poll(task, now):
     res.limit = limit and not clean
     if not clean and not res.limit:
         res.error = _error_text(final, code)
+    res.roadmap_unchecked = clean and _roadmap_unchecked(task)
     return res
+
+
+def _roadmap_unchecked(task):
+    """Vrai si la tâche vient de la feuille de route et que sa case n'est pas cochée."""
+    from . import roadmap
+    info = task.extra.get("roadmap")
+    if not isinstance(info, dict):
+        return False
+    try:
+        rm = roadmap.parse(Path(str(info["path"])).read_text(encoding="utf-8", errors="replace"))
+    except (OSError, KeyError):
+        return False
+    found = roadmap.locate(rm, str(info.get("text", "")), str(info.get("phase", "")))
+    return found is not None and not found.done
 
 
 def _error_text(final, code):
