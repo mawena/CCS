@@ -42,6 +42,7 @@ STATE_LABELS = {QUEUED: "En attente", RUNNING: "En cours", WAITING: "À reprendr
 ACTIVE = (QUEUED, RUNNING, WAITING)
 FINISHED = (DONE, FAILED, CANCELLED)
 
+UNCHECKED_TEXT = "case de la feuille de route non cochée"
 SESSION_MAX = 95        # un compte au-delà de ce pourcentage (session ou semaine) n'a plus de quota
 RETRY_S = 300           # attente avant de réessayer quand aucun compte n'est disponible
 NIGHT_DURATION_H = 3.0  # durée supposée d'une tâche de nuit pour choisir le créneau
@@ -214,9 +215,11 @@ def _local_tz():
     return local_tz()
 
 
-def add(message, cwd=None, model=None, rights=DEFAULT_RIGHTS, when="quota", now=None, tz=None):
+def add(message, cwd=None, model=None, rights=DEFAULT_RIGHTS, when="quota", now=None, tz=None,
+        extra=None):
     """Ajoute une tâche en attente et la renvoie. Lève ValueError (message vide, droits ou
-    moment inconnus, dossier inexistant, modèle invalide), OSError."""
+    moment inconnus, dossier inexistant, modèle invalide), OSError. `extra` : données propres à
+    la tâche (ex. `{"roadmap": {"path", "text", "phase"}}` pour une tâche de la feuille de route)."""
     from . import launch_options
     message = (message or "").strip()
     if not message:
@@ -233,7 +236,8 @@ def add(message, cwd=None, model=None, rights=DEFAULT_RIGHTS, when="quota", now=
     not_before = next_occurrence(when, now, tz).timestamp() if TIME_RE.match(when) else None
     with _locked():
         tasks, nxt = _read()
-        task = Task(str(nxt), message, folder, model, rights, when, not_before, QUEUED, now.timestamp())
+        task = Task(str(nxt), message, folder, model, rights, when, not_before, QUEUED, now.timestamp(),
+                    extra=dict(extra or {}))
         tasks.append(task)
         _write(tasks, nxt + 1)
     return task
@@ -412,7 +416,10 @@ def summary(task):
         parts.append(_duration_text(task.duration))
     if task.cost:
         parts.append(f"≈ {costs.format_dollars(task.cost)}")
-    return " · ".join(parts)
+    text = " · ".join(parts)
+    if task.extra.get("roadmap_unchecked"):
+        text = (text + " " if text else "") + "— " + UNCHECKED_TEXT
+    return text
 
 
 def finished_alert(task):
@@ -485,6 +492,8 @@ def _apply_result(task, res, now, cfg):
     changes = {"pid": None, "duration": total, "session_id": res.session_id or task.session_id}
     if task.state != RUNNING:     # annulée pendant ce temps
         return None
+    if getattr(res, "roadmap_unchecked", False):
+        changes["extra"] = {**task.extra, "roadmap_unchecked": True}
     if res.cost:
         changes["cost"] = res.cost if res.total else (task.cost or 0) + res.cost
     if res.limit and not res.cancelled:

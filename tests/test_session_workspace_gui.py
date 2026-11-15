@@ -30,6 +30,10 @@ if GTK:
         def insert_reference(self, relpath):
             self.refs.append(relpath)
 
+        def do_roadmap_task(self, path, text, phase):
+            self.done = getattr(self, "done", []) + [(path, text, phase)]
+            return True
+
 
 def spin(until, timeout=8.0):
     ctx = GLib.MainContext.default()
@@ -147,6 +151,22 @@ class SessionWorkspaceGuiTest(HomeTestCase):
         ws = SessionWorkspace(self.project, FakeChat())
         self.addCleanup(ws.close)
         self.assertEqual(ws.left_stack.get_visible_child_name(), "git")
+
+    def test_roadmap_play_goes_to_chat_or_night_queue(self):
+        from ccs_app import roadmap, tasks
+        (self.project / "ROADMAP.md").write_text("# P\n\n## Phase 1 — A\n- [ ] faire ça\n")
+        self.ws.roadmap.reload()
+        self.assertTrue(spin(lambda: self.ws.roadmap.roadmap is not None))
+        phase = self.ws.roadmap.roadmap.phases[0]
+        task = phase.tasks[0]
+        self.ws._do_task(task, phase, "chat")
+        self.assertEqual(self.chat.done, [(str(self.project / "ROADMAP.md"), "faire ça", "Phase 1 — A")])
+        self.ws._do_task(task, phase, "nuit")
+        queued = tasks.all()
+        self.assertEqual(len(queued), 1)
+        self.assertEqual(queued[0].when, "nuit")
+        self.assertEqual(queued[0].message, roadmap.task_prompt(task, phase))
+        self.assertEqual(queued[0].extra["roadmap"]["text"], "faire ça")
 
     def test_diff_signal_opens_editor(self):
         self.chat.emit("show-diff", str(self.project / "a.py"), "un\n", "deux\n")

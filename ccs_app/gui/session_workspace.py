@@ -16,7 +16,7 @@ import os
 
 from gi.repository import Adw, GLib, GObject, Gtk
 
-from .. import roadmap, settings, terminal_store
+from .. import roadmap, settings, tasks, terminal_store
 from .file_editor import FileEditor
 from .file_panel import FileTree
 from .git_changes import hscroll
@@ -66,7 +66,8 @@ class SessionWorkspace(Gtk.Box):
         # -- gauche : fichiers / feuille de route
         self.tree = FileTree(self.cwd, self.open_file, show_ignored=_show_ignored())
         self.tree.connect("insert-reference", self._on_insert_reference)
-        self.roadmap = RoadmapView(self.cwd, on_ask_create=self.ask_create)
+        self.roadmap = RoadmapView(self.cwd, on_ask_create=self.ask_create,
+                                   on_do_task=self._do_task)
         self.left_stack = Gtk.Stack(vexpand=True, hexpand=True, hhomogeneous=False)
         self.tree_holder = Gtk.Box(vexpand=True, hexpand=True)   # l'arbre change avec le dossier du projet
         self.tree_holder.append(self.tree)
@@ -333,6 +334,25 @@ class SessionWorkspace(Gtk.Box):
             self._on_ask_create()
         elif hasattr(self.center, "send_auto"):
             self.center.send_auto(ASK_CREATE_TEXT)
+
+    def _do_task(self, task, phase, where):
+        """▶ d'une tâche de la feuille de route : dans ce chat, ou dans la file de nuit."""
+        path = self.roadmap.path
+        if path is None:
+            return
+        if where == "chat":
+            if not (hasattr(self.center, "do_roadmap_task")
+                    and self.center.do_roadmap_task(str(path), task.text, phase.title)):
+                self.roadmap.toast("Impossible de lancer la tâche dans ce chat")
+            return
+        try:
+            tasks.add(roadmap.task_prompt(task, phase), cwd=str(path.parent), when="nuit",
+                      extra={"roadmap": {"path": str(path), "text": task.text,
+                                         "phase": phase.title}})
+        except (ValueError, OSError) as e:
+            self.roadmap.toast(f"File de nuit : {e}")
+            return
+        self.roadmap.toast("Tâche mise dans la file de nuit")
 
     def _on_insert_reference(self, _tree, relpath):
         if hasattr(self.center, "insert_reference"):

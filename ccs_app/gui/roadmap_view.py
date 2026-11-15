@@ -41,12 +41,14 @@ def gauge(done, total):
 
 
 class RoadmapView(Gtk.Box):
-    """`RoadmapView(cwd, on_ask_create=None)`."""
+    """`RoadmapView(cwd, on_ask_create=None, on_do_task=None)`. `on_do_task(task, phase, where)` :
+    bouton ▶ des tâches non cochées ; `where` vaut « chat » ou « nuit »."""
 
-    def __init__(self, cwd, on_ask_create=None):
+    def __init__(self, cwd, on_ask_create=None, on_do_task=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, vexpand=True, hexpand=True)
         self.cwd = str(cwd)
         self.on_ask_create = on_ask_create
+        self.on_do_task = on_do_task
         self.followed = None             # ROADMAP.md choisi ou suivi (prime sur celui de cwd)
         self.choose_button = None
         self.path = None                 # ROADMAP.md trouvé, ou None
@@ -258,11 +260,11 @@ class RoadmapView(Gtk.Box):
         row.add_suffix(Gtk.Label(label=f"{phase.done_count}/{phase.total}",
                                  css_classes=["ccs-count"]))
         for task in phase.tasks:
-            row.add_row(self._task_row(task))
+            row.add_row(self._task_row(task, phase))
         self.phase_rows.append((phase, row))
         return row
 
-    def _task_row(self, task):
+    def _task_row(self, task, phase=None):
         row = Adw.ActionRow(title=GLib.markup_escape_text(task.text), title_lines=0)
         check = Gtk.CheckButton(active=task.done, valign=Gtk.Align.CENTER)
         row.add_prefix(check)
@@ -273,8 +275,31 @@ class RoadmapView(Gtk.Box):
         if self._highlight.get(task.line) == task.text:
             row.add_css_class("ccs-just-done")
         row.check = check
+        row.play = None
+        row.do_task = lambda where, task=task, phase=phase: self._do_task(task, phase, where)
+        if self.on_do_task is not None and not task.done and phase is not None:
+            row.play = self._play_button(row)
+            row.add_suffix(row.play)
         self.task_rows[task.line] = row
         return row
+
+    def _play_button(self, row):
+        pop = Gtk.Popover()
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        for label, where in (("Faire maintenant", "chat"), ("Mettre dans la file de nuit", "nuit")):
+            b = Gtk.Button(label=label)
+            b.add_css_class("flat")
+            b.connect("clicked", lambda _b, w=where: (pop.popdown(), row.do_task(w)))
+            box.append(b)
+        pop.set_child(box)
+        button = Gtk.MenuButton(icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER,
+                                tooltip_text="Faire cette tâche", popover=pop)
+        button.add_css_class("flat")
+        return button
+
+    def _do_task(self, task, phase, where):
+        if self.on_do_task is not None and phase is not None:
+            self.on_do_task(task, phase, where)
 
     # ---- clic sur une case ----------------------------------------------------------
 

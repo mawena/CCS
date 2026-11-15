@@ -22,7 +22,7 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
-from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, preview, sessions, settings  # noqa: E402
+from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, preview, roadmap, sessions, settings  # noqa: E402
 from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
@@ -130,7 +130,19 @@ class ChatTab(Gtk.Box):
                                             propagate_natural_height=True)
         self.todos_bar = TodosBar()           # liste de tâches épinglée au-dessus de la saisie
         self.offline_banner = Adw.Banner(title="Serveur injoignable : reconnexion…", revealed=False)
-        for w in (self.offline_banner, self.agent_bar, self.view_stack, self.todos_bar, self.composer, self.bar):
+        self._roadmap_task = None             # (chemin, texte, phase) de la tâche lancée d'un clic
+        self.task_banner = Gtk.Box(spacing=8, visible=False, margin_start=12, margin_end=12,
+                                   margin_top=4, margin_bottom=4)
+        self.task_banner.add_css_class("toolbar")
+        self.task_banner_label = Gtk.Label(label="Tâche finie ?", xalign=0, hexpand=True, wrap=True)
+        self.task_check = Gtk.Button(label="Cocher", css_classes=["suggested-action"])
+        self.task_later = Gtk.Button(label="Pas encore")
+        for w in (self.task_banner_label, self.task_check, self.task_later):
+            self.task_banner.append(w)
+        self.task_check.connect("clicked", lambda _b: self._check_task_box())
+        self.task_later.connect("clicked", lambda _b: self.task_banner.set_visible(False))
+        for w in (self.offline_banner, self.agent_bar, self.view_stack, self.todos_bar,
+                  self.task_banner, self.composer, self.bar):
             self.panel.append(w)
         self.append(self.panel)
 
@@ -332,6 +344,63 @@ class ChatTab(Gtk.Box):
             return False
         self.state.sent_at = time.time()
         return True
+
+    def do_roadmap_task(self, path, text, phase_title):
+        """« Faire maintenant » depuis la feuille de route : demande la tâche à Claude. À la fin du
+        tour, si la case n'est pas cochée, un bandeau propose de la cocher. Faux si la tâche
+        n'existe plus ou si l'envoi est refusé."""
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                rm = roadmap.parse(f.read())
+        except OSError:
+            return False
+        task = roadmap.locate(rm, text, phase_title)
+        phase = next((p for p in rm.phases if p.title == phase_title), None)
+        if task is None or phase is None:
+            return False
+        self.task_banner.set_visible(False)
+        if not self.send_auto(roadmap.task_prompt(task, phase)):
+            return False
+        self._roadmap_task = (path, text, phase_title)
+        return True
+
+    def _after_roadmap_turn(self):
+        """Fin d'un tour sans erreur d'une tâche lancée d'un clic : la case est-elle cochée ?"""
+        info, self._roadmap_task = self._roadmap_task, None
+        if info is None:
+            return
+        path, text, phase = info
+
+        def read():
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    return roadmap.locate(roadmap.parse(f.read()), text, phase)
+            except OSError:
+                return None
+
+        def show(task):
+            if task is not None and not task.done and not self._closed:
+                self._roadmap_task = (path, text, phase)
+                self.task_banner_label.set_label(f"Tâche finie ? « {text} »")
+                self.task_banner.set_visible(True)
+        in_thread(read, show)
+
+    def _check_task_box(self):
+        info = self._roadmap_task
+        self.task_banner.set_visible(False)
+        if info is None:
+            return
+        path, text, phase = info
+
+        def work():
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    task = roadmap.locate(roadmap.parse(f.read()), text, phase)
+            except OSError:
+                return False
+            return task is not None and (task.done or roadmap.toggle(path, task.line, task.text))
+        in_thread(work, lambda ok: ok or self.show_notice("La feuille de route a changé : case non cochée."))
+        self._roadmap_task = None
 
     def stop_turn(self):
         """Bouton Arrêter (Échap) : interrompt le tour ; la CLI s'arrête puis repart au message suivant."""
@@ -676,6 +745,10 @@ class ChatTab(Gtk.Box):
                                      "ou change de compte."), "warning")
         elif not ev.ok:
             self.messages.add_notice(ev.text or "Claude n'a pas pu finir sa réponse.", "error")
+        if ev.ok and not ev.interrupted and not getattr(ev, "is_limit", False):
+            self._after_roadmap_turn()
+        else:
+            self._roadmap_task = None
         self.messages.cancel_permissions()
         self._sync_permission_keys()
         self.messages.trim()                     # longue session : mémoire bornée

@@ -527,6 +527,55 @@ class ChatTabTest(HomeTestCase):
         self.assertEqual(tab.state.title, "Autre titre")
         tab.hang_up()
 
+    ROADMAP = "# P\n\n## Phase 1 — A\n- [ ] ma tâche\n- [ ] autre\n"
+
+    def roadmap_file(self, checked=False):
+        path = self.cwd / "ROADMAP.md"
+        path.write_text(self.ROADMAP.replace("- [ ] ma", "- [x] ma") if checked else self.ROADMAP)
+        return path
+
+    def let_claude_finish(self, tab):
+        """Le scénario demande une autorisation : on l'accorde, le tour se termine."""
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        next(iter(tab.messages._perms.values())).allow.emit("clicked")
+        self.assertTrue(pump_until(lambda: tab._turn_done and tab.engine.state == "idle"))
+
+    def test_do_task_banner_when_unchecked(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        path = self.roadmap_file()
+        self.assertTrue(tab.do_roadmap_task(str(path), "ma tâche", "Phase 1 — A"))
+        self.assertTrue(any("Fais la tâche « ma tâche » (phase « Phase 1 — A »)" in t for t in texts(tab)))
+        self.let_claude_finish(tab)
+        self.assertTrue(pump_until(lambda: tab.task_banner.get_visible()))
+        tab.task_check.emit("clicked")
+        self.assertTrue(pump_until(lambda: "- [x] ma tâche" in path.read_text()))
+        self.assertIn("- [ ] autre", path.read_text())          # la bonne case seulement
+        self.assertFalse(tab.task_banner.get_visible())
+
+    def test_do_task_not_yet_hides_banner(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        path = self.roadmap_file()
+        tab.do_roadmap_task(str(path), "ma tâche", "Phase 1 — A")
+        self.let_claude_finish(tab)
+        self.assertTrue(pump_until(lambda: tab.task_banner.get_visible()))
+        tab.task_later.emit("clicked")
+        self.assertFalse(tab.task_banner.get_visible())
+        self.assertIn("- [ ] ma tâche", path.read_text())
+
+    def test_no_banner_when_claude_checked(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        path = self.roadmap_file()
+        self.assertTrue(tab.do_roadmap_task(str(path), "ma tâche", "Phase 1 — A"))
+        self.roadmap_file(checked=True)                          # Claude a coché pendant le tour
+        self.let_claude_finish(tab)
+        pump_until(lambda: False, 0.6)
+        self.assertFalse(tab.task_banner.get_visible())
+
+    def test_do_task_unknown_task_refused(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        path = self.roadmap_file()
+        self.assertFalse(tab.do_roadmap_task(str(path), "inconnue", "Phase 1 — A"))
+
 
 if __name__ == "__main__":
     unittest.main()

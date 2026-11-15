@@ -220,3 +220,24 @@ class FollowTest(unittest.TestCase):
         self.assertTrue(roadmap.is_project(self.proj))
         self.assertTrue(roadmap.is_project(self.proj / "sous-dossier"))   # dans le dépôt
         self.assertFalse(roadmap.is_project(self.home))                   # dossier personnel, Bureau…
+
+
+class DoTaskTest(unittest.TestCase):
+    TEXT = "# P\n\n## Phase 1 — A\n- [ ] tâche « un »\n\n## Phase 2 — B\n- [ ] tâche « un »\n- [x] fin\n"
+
+    def test_task_prompt_exact(self):
+        rm = roadmap.parse(self.TEXT)
+        phase = rm.phases[1]
+        self.assertEqual(
+            roadmap.task_prompt(phase.tasks[0], phase),
+            "Fais la tâche « tâche « un » » (phase « Phase 2 — B ») de ROADMAP.md ; "
+            "coche-la quand elle est finie.")
+
+    def test_locate_after_lines_moved(self):
+        before = roadmap.parse(self.TEXT)
+        moved = roadmap.parse("# P\n\nnouveau texte\n\n" + self.TEXT.split("\n\n", 1)[1])
+        self.assertNotEqual(before.phases[1].tasks[0].line, moved.phases[1].tasks[0].line)
+        got = roadmap.locate(moved, "tâche « un »", "Phase 2 — B")
+        self.assertIs(got, moved.phases[1].tasks[0])      # bonne phase, pas la première
+        self.assertIsNone(roadmap.locate(moved, "inconnue", "Phase 2 — B"))
+        self.assertIsNone(roadmap.locate(None, "x", "y"))
