@@ -29,6 +29,7 @@ def healthy(**over):
         extensions=lambda: {"installed": True, "enabled": True},
         watcher=lambda: True,
         desktop=lambda: "ubuntu:GNOME",
+        bureau=lambda: True,
         tray_running=lambda: True,
         integration=lambda: {"statusline": "ccs", "hook": True},
         profiles=lambda: [profile("perso", active=True)],
@@ -195,6 +196,34 @@ class DesktopTest(unittest.TestCase):
     def test_vte(self):
         c = doctor.check_vte(healthy(vte=lambda: False))
         self.assertEqual((c.statut, c.commande), (AVERTISSEMENT, "sudo apt install gir1.2-vte-3.91"))
+
+
+class BureauAbsentTest(unittest.TestCase):
+    """Sans ccs-bureau (serveur, usage en terminal), l'interface graphique n'est pas vérifiée."""
+
+    GUI = ("Extension AppIndicator", "Indicateur", "Terminal intégré", "Chat graphique")
+
+    def test_server_without_bureau_skips_gui_checks(self):
+        checks = doctor.run_checks(healthy(bureau=lambda: False, desktop=lambda: "", watcher=lambda: False,
+                                           extensions=lambda: None, tray_running=lambda: False,
+                                           vte=lambda: False, gtksource=lambda: False))
+        names = [c.nom for c in checks]
+        for nom in self.GUI + ("Bureau",):
+            self.assertNotIn(nom, names)
+        self.assertEqual(doctor.exit_code(checks), 0)
+
+    def test_graphical_session_without_bureau_suggests_it(self):
+        checks = by_name(doctor.run_checks(healthy(bureau=lambda: False)))
+        c = checks["Bureau"]
+        self.assertEqual((c.statut, c.commande), (AVERTISSEMENT, "sudo apt install ccs-bureau"))
+        for nom in self.GUI:
+            self.assertNotIn(nom, checks)
+
+    def test_bureau_installed_probe(self):
+        self.assertTrue(doctor.bureau_installed())             # arbre des sources : ccs_app/gui présent
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "gui" / "__pycache__").mkdir(parents=True)   # reste après la désinstallation
+            self.assertFalse(doctor.bureau_installed(Path(d)))
 
 
 class SettingsCheckTest(unittest.TestCase):

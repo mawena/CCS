@@ -211,6 +211,13 @@ def claude_version(path):
     return out.strip().splitlines()[0] if rc == 0 and out.strip() else None
 
 
+def bureau_installed(base=None):
+    """Interface graphique présente : paquet ccs-bureau installé, ou arbre des sources.
+    Un dossier gui/ réduit à __pycache__ (reste d'une désinstallation) ne compte pas."""
+    base = Path(base) if base else Path(__file__).resolve().parent
+    return (base / "gui" / "__init__.py").is_file()
+
+
 def vte_available():
     try:
         import gi
@@ -354,6 +361,7 @@ class Probes:
     extensions: Callable = gnome_extensions
     watcher: Callable = watcher_available
     desktop: Callable = lambda: os.environ.get("XDG_CURRENT_DESKTOP", "")
+    bureau: Callable = bureau_installed
     tray_running: Callable = tray_running
     integration: Callable = integration_status
     profiles: Callable = core.list_profiles
@@ -482,8 +490,19 @@ def check_daemon_code(p):
     return Check(nom, OK, f"version {code.version or '?'} ({where})")
 
 
+def check_bureau(p):
+    """Sans ccs-bureau, les vérifications de l'interface graphique sont sautées (serveur, usage en
+    terminal) ; dans une session graphique, l'absence du bureau est signalée."""
+    if p.once("bureau") or not p.once("desktop"):
+        return None
+    return Check("Bureau", AVERTISSEMENT, "interface graphique non installée (paquet ccs-bureau)",
+                 "sudo apt install ccs-bureau")
+
+
 def check_extension(p):
     nom = "Extension AppIndicator"
+    if not p.once("bureau"):
+        return None
     if p.watcher():
         return Check(nom, OK, "les indicateurs s'affichent dans la barre du haut")
     ext = p.extensions()
@@ -503,6 +522,8 @@ def check_extension(p):
 
 def check_tray(p):
     nom = "Indicateur"
+    if not p.once("bureau"):
+        return None
     if p.tray_running():
         return Check(nom, OK, "lancé")
     return Check(nom, AVERTISSEMENT, "non lancé (il démarre normalement avec la session)",
@@ -590,6 +611,8 @@ def check_settings(p):
 
 def check_vte(p):
     nom = "Terminal intégré"
+    if not p.once("bureau"):
+        return None
     if p.vte():
         return Check(nom, OK, "disponible (VTE pour GTK 4)")
     return Check(nom, AVERTISSEMENT, "VTE pour GTK 4 absent : les sessions s'ouvriront dans un terminal "
@@ -599,6 +622,8 @@ def check_vte(p):
 def check_chat_deps(p):
     """Bibliothèques du chat (coloration du code, rendu Markdown)."""
     nom = "Chat graphique"
+    if not p.once("bureau"):
+        return None
     missing = [(name, pkg) for name, pkg, ok in (
         ("GtkSource 5", "gir1.2-gtksource-5", p.once("gtksource")),
         ("markdown_it", "python3-markdown-it", p.once("markdown_it"))) if not ok]
@@ -710,11 +735,12 @@ def check_server(p):
     return out
 
 
-CHECKS = (check_service, check_state, check_package, check_daemon_code, check_extension, check_tray,
-          check_integration, check_profiles, check_settings, check_claude, check_tools, check_gpg,
+CHECKS = (check_service, check_state, check_package, check_daemon_code, check_bureau, check_extension,
+          check_tray, check_integration, check_profiles, check_settings, check_claude, check_tools, check_gpg,
           check_archive, check_phone, check_tasks, check_vte, check_chat_deps, check_server)
 CHECK_NAMES = {check_service: f"Service {SERVICE}", check_state: "Relevés", check_package: "Version installée",
-               check_daemon_code: "Code du service", check_extension: "Extension AppIndicator",
+               check_daemon_code: "Code du service", check_bureau: "Bureau",
+               check_extension: "Extension AppIndicator",
                check_tray: "Indicateur", check_integration: "Intégration Claude Code", check_profiles: "Comptes",
                check_settings: "Réglages",
                check_claude: "Commande claude", check_tools: "Outils de ccs", check_vte: "Terminal intégré",

@@ -19,7 +19,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - Bureau connecté : Réglages → Serveurs CCS, projets et chats du serveur dans la page
   Sessions, terminal distant, reconnexion automatique.
 - Quatre paquets : `ccs`, `ccs-bureau`, `ccs-serveur` et le métapaquet `ccs-all`. Claude Code
-  est installé pour l'utilisateur qui installe, s'il manque. `ccs doctor` vérifie le serveur.
+  est installé pour l'utilisateur qui installe, s'il manque. `ccs doctor` vérifie le serveur ;
+  sans `ccs-bureau`, il ne vérifie plus l'interface graphique (dans une session graphique, il
+  propose d'installer `ccs-bureau`).
 
 ### Sécurité
 
