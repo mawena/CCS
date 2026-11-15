@@ -42,6 +42,17 @@ class ConversationsTestCase(HomeTestCase):
 
 
 class ScanTest(ConversationsTestCase):
+    def test_last_prompt_is_the_reply_not_what_it_quotes(self):
+        from ccs_app import chat_quote as quote
+        cwd = str(self.app)
+        self.journal(cwd, "s-cite", [prompt("propose deux options", cwd),
+                                     prompt(quote.compose("claude", "Option A ou option B ?", "Prends la B"), cwd)])
+        self.journal(cwd, "s-seule", [prompt("bonjour", cwd), prompt(quote.compose("moi", "bonjour"), cwd)])
+        found = {c.session_id: c for c in conv.scan()}
+        self.assertEqual((found["s-cite"].first_prompt, found["s-cite"].last_prompt),
+                         ("propose deux options", "Prends la B"))
+        self.assertEqual(found["s-seule"].last_prompt, "> **Moi :** > bonjour")     # citation seule : rien d'autre
+
     def test_title_priority_and_fields(self):
         cwd = str(self.app)
         vscode_prompt = {"type": "user", "cwd": cwd, "entrypoint": "claude-vscode", "gitBranch": "dev",

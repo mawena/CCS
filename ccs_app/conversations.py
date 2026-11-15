@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
-from . import core, costs, sessions
+from . import chat_quote, core, costs, sessions
 
 CACHE_VERSION = 1
 TITLE_MAX = 80
@@ -135,7 +135,8 @@ def _apply(entry, raw):
         entry["prompts"] += 1
         if entry["first_prompt"] is None:
             entry["first_prompt"] = _one_line(text, PROMPT_MAX)
-        entry["last_prompt"] = _one_line(text, PROMPT_MAX)
+        # réponse à un message cité (chat_quote.py) : la réponse, pas la citation qui la précède
+        entry["last_prompt"] = _one_line(chat_quote.reply_text(text), PROMPT_MAX)
         entry["git_branch"] = d.get("gitBranch") or entry["git_branch"]
     if d.get("cwd"):
         entry["cwd"] = entry["cwd"] or d["cwd"]

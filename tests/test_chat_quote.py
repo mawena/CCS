@@ -2,7 +2,7 @@
 
 import unittest
 
-from ccs_app import quote
+from ccs_app import chat_quote as quote
 
 # Cas communs au bureau et au web (tests/test_web_chat.py les rejoue avec node).
 SAMPLES = [

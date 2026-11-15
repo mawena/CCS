@@ -9,8 +9,9 @@ GTK = gui_ready()
 if GTK:
     from gi.repository import GLib, Gtk
     from ccs_app import chat_protocol as proto
-    from ccs_app import preview
-    from ccs_app.gui.chat_messages import MessageList, PermissionCard, TodosCard, ToolCard, ToolGroup, edit_info
+    from ccs_app import chat_quote as quote, preview
+    from ccs_app.gui.chat_messages import (MessageList, PermissionCard, TodosCard, ToolCard, ToolGroup, edit_info,
+                                           open_bubble_menu, selected_text)
 
 
 def pump(ms=50):
@@ -598,3 +599,98 @@ class FindTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(GTK, "tests graphiques : CCS_GUI_TESTS=1 avec xvfb-run")
+class ReplyTest(unittest.TestCase):
+    """Répondre en citant un message : boutons du fil et bulle qui montre la citation."""
+
+    def setUp(self):
+        self.replies = []
+        self.ml = MessageList(on_reply=lambda author, text: self.replies.append((author, text)))
+        self.win = Gtk.Window()
+        self.win.set_child(self.ml)
+        self.win.present()
+        self.addCleanup(self.win.destroy)
+
+    def test_reply_button_on_an_answer(self):
+        self.ml.finish_assistant("m1", "Deux options :\n\n- A\n- B")
+        bubble = self.ml._segs["m1"].bubble
+        self.assertEqual(bubble.hover_actions.get_opacity(), 0)          # visibles au survol seulement
+        bubble.reply_button.emit("clicked")
+        self.assertEqual(self.replies, [("claude", "Deux options :\n\n- A\n- B")])
+
+    def test_copy_still_works_next_to_reply(self):
+        copied = []
+        self.ml._to_clipboard = copied.append
+        self.ml.finish_assistant("m1", "Voici **la** réponse")
+        self.ml._segs["m1"].bubble.copy_button.emit("clicked")
+        self.assertEqual(copied, ["Voici **la** réponse"])
+
+    def test_streamed_answer_quotes_its_latest_text(self):
+        self.ml.start_assistant("m1")
+        self.ml.append_delta("m1", "Début")
+        self.ml.finish_assistant("m1", "Début et fin")
+        self.ml._segs["m1"].bubble.reply_button.emit("clicked")
+        self.assertEqual(self.replies, [("claude", "Début et fin")])
+
+    def test_long_answer_is_cut(self):
+        self.ml.finish_assistant("m1", "mot " * 600)
+        self.ml._segs["m1"].bubble.reply_button.emit("clicked")
+        self.assertEqual(self.replies, [("claude", quote.excerpt("mot " * 600))])
+        self.assertTrue(self.replies[0][1].endswith("mot […]"))
+
+    def test_selected_passage_is_quoted_alone(self):
+        self.ml.finish_assistant("m1", "Première phrase. Deuxième phrase.")
+        bubble = self.ml._segs["m1"].bubble
+        label = next(w for w in descendants(bubble) if isinstance(w, Gtk.Label) and "Deuxième" in w.get_text())
+        start = label.get_text().index("Deuxième")
+        label.select_region(start, start + len("Deuxième phrase"))
+        self.assertEqual(selected_text(bubble), "Deuxième phrase")
+        bubble.reply_button.emit("clicked")
+        self.assertEqual(self.replies, [("claude", "Deuxième phrase")])
+
+    def test_user_bubble_hover_button_and_menu(self):
+        row = self.ml.add_user("Ajoute un bouton", ())
+        self.assertEqual(row.reply_hover.get_opacity(), 0)
+        row.reply_hover.emit("clicked")
+        open_bubble_menu(row, reply=self.ml._reply_from)
+        row.reply_button.emit("clicked")
+        self.assertEqual(self.replies, [("moi", "Ajoute un bouton")] * 2)
+        self.assertFalse(hasattr(row, "rewind_button"))                  # pas de retour arrière ici
+
+    def test_bubble_shows_the_quote_apart(self):
+        text = quote.compose("claude", "A ou B ?\nChoisis.", "La B")
+        row = self.ml.add_user(text, ())
+        shown = labels(row)
+        self.assertEqual(shown[:3], ["Claude", "A ou B ?\nChoisis.", "La B"])
+        self.assertNotIn("> **Claude :**", " ".join(shown))
+        # répondre à cette réponse : on cite « La B », pas ce qu'elle citait
+        row.reply_hover.emit("clicked")
+        self.assertEqual(self.replies, [("moi", "La B")])
+
+    def test_quote_unfolds_on_click(self):
+        row = self.ml.add_user(quote.compose("moi", "\n".join(f"ligne {i}" for i in range(12)), "suite"), ())
+        box = next(w for w in descendants(row) if getattr(w, "quote_label", None) is not None)
+        self.assertEqual(labels(row)[0], "Toi")
+        self.assertEqual(box.quote_label.get_lines(), 4)
+        gesture = next(c for c in box.observe_controllers() if isinstance(c, Gtk.GestureClick))
+        gesture.emit("released", 1, 0, 0)
+        self.assertEqual(box.quote_label.get_lines(), -1)
+        gesture.emit("released", 1, 0, 0)
+        self.assertEqual(box.quote_label.get_lines(), 4)
+
+    def test_history_shows_the_quote_and_can_be_replied_to(self):
+        self.ml.load_history([preview.Message(preview.ASSISTANT, "A ou B ?", msg_id="m0"),
+                              preview.Message(preview.USER, quote.compose("claude", "A ou B ?", "La B"))])
+        rows = list(self.ml._content_rows())
+        self.assertEqual(labels(rows[1])[:3], ["Claude", "A ou B ?", "La B"])
+        rows[0].reply_button.emit("clicked")
+        self.assertEqual(self.replies, [("claude", "A ou B ?")])
+
+    def test_no_reply_without_a_handler(self):
+        ml = MessageList()                                               # fil d'un sous-agent
+        ml.finish_assistant("m1", "texte")
+        row = ml.add_user("demande", ())
+        self.assertFalse(hasattr(ml._segs["m1"].bubble, "reply_button"))
+        self.assertFalse(hasattr(row, "reply_hover"))

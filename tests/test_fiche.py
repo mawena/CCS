@@ -98,6 +98,13 @@ class BuildTest(FicheTestCase):
         self.assertEqual(f.when, fiche.preview._ts(ts(9)))
         self.assertFalse(f.archived)
 
+    def test_request_that_quotes_a_message_shows_the_reply(self):
+        from ccs_app import chat_quote as quote
+        f = self.build(self.journal(rows=[user("propose deux options", 0), assistant([text("A ou B ?")], 1),
+                                          user(quote.compose("claude", "A ou B ?", "Prends la B"), 2),
+                                          assistant([text("ok")], 3)]), with_account=False)
+        self.assertEqual(f.last_request, "Prends la B")
+
     def test_tool_results_are_never_the_request(self):
         f = self.build(self.journal(rows=[user("seule demande", 0), tool_result(1, "SORTIE D'OUTIL"),
                                           assistant([text("ok")], 2)]), with_account=False)

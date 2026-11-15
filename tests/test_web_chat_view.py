@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ccs_app import quote
+from ccs_app import chat_quote as quote
 from ccs_app.server import web
 
 WEB = Path(web.WEB_DIR)
@@ -270,6 +270,27 @@ quoted.querySelector(".quoted-text").click();
 out = { first, second, third, open: quoted.classList.contains("open"), picked: msgs(view)[2].classList.contains("picked") };
 """)
         self.assertEqual(out, {"first": [True, False], "second": [False, True], "third": False, "open": True, "picked": False})
+
+
+@unittest.skipUnless(NODE, "node absent")
+class ConversationPreviewTest(unittest.TestCase):
+    def test_preview_shows_the_quote_apart(self):
+        out = run("""
+history = [{ role: "assistant", text: "A ou B ?" },
+           { role: "utilisateur", text: "> **Claude :**\\n> A ou B ?\\n\\nLa B" },
+           { role: "utilisateur", text: "sans citation" }];
+const { convRow } = await import("./sessions-conv.js");
+const conv = { session_id: "s1", path: "/j.jsonl", cwd: "/p", title: "Titre", updated_at: 0, folder_exists: true };
+const row = convRow(conv, { api, opened: new Set(), resume() {}, changed() {} });
+document.body.append(row);
+row.querySelector(".conv-more").click();
+document.body.querySelectorAll("dialog button").find((b) => b.textContent === "Aperçu").click();
+await settle();
+const pv = document.body.querySelectorAll(".pv");
+out = pv.map((n) => [n.className, n.querySelector(".quoted")?.dataset.author || null, n.querySelector(".pv-text").textContent]);
+""")
+        self.assertEqual(out, [["pv claude", None, "A ou B ?"], ["pv user", "Claude", "A ou B ?La B"],
+                               ["pv user", None, "sans citation"]])
 
 
 @unittest.skipUnless(NODE, "node absent")

@@ -17,6 +17,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("GtkSource", "5")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, GtkSource, Pango  # noqa: E402
 
+from .. import chat_quote  # noqa: E402
 from ..saved_messages import SCOPES, Saved  # noqa: E402
 from .chat_messages import install_css  # noqa: E402
 
@@ -91,6 +92,8 @@ class Composer(Gtk.Box):
         self.saved = []                  # messages enregistrés (`Saved`)
         self.saved_buttons = {}          # nom → bouton « insérer » du menu ☆
         self._files = lambda: []
+        self.quote = None                # message cité par le prochain envoi : (auteur, texte)
+        self.sent_quote = None           # la citation du message en cours d'envoi (signal `send`)
         self._token = None               # (type, début, fin) de la complétion en cours
         self._queue_shown = None
 
@@ -100,6 +103,19 @@ class Composer(Gtk.Box):
         self.thumbs = Gtk.Box(spacing=8, visible=False, margin_start=2, margin_top=2)
         card.append(Gtk.ScrolledWindow(child=self.thumbs, vscrollbar_policy=Gtk.PolicyType.NEVER,
                                        hscrollbar_policy=Gtk.PolicyType.AUTOMATIC, propagate_natural_height=True))
+        # Message cité (« Répondre » sur un message du fil) : au-dessus du texte, avec « Annuler »
+        self.quote_bar = Gtk.Box(spacing=6, visible=False, css_classes=["ccs-quote-bar"], margin_bottom=2)
+        quote_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True, valign=Gtk.Align.CENTER)
+        self.quote_title = Gtk.Label(xalign=0, css_classes=["ccs-quote-author"])
+        self.quote_label = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, css_classes=["ccs-subtle"])
+        quote_col.append(self.quote_title)
+        quote_col.append(self.quote_label)
+        self.quote_cancel = Gtk.Button(icon_name="window-close-symbolic", css_classes=["flat", "circular"],
+                                       valign=Gtk.Align.CENTER, tooltip_text="Annuler la citation (Échap)")
+        self.quote_cancel.connect("clicked", lambda *_: (self.clear_quote(), self.focus()))
+        self.quote_bar.append(quote_col)
+        self.quote_bar.append(self.quote_cancel)
+        card.append(self.quote_bar)
         self.view = GtkSource.View(wrap_mode=Gtk.WrapMode.WORD_CHAR, accepts_tab=False, top_margin=6,
                                    bottom_margin=6, left_margin=6, right_margin=6, hexpand=True)
         self.buffer = self.view.get_buffer()
@@ -286,14 +302,29 @@ class Composer(Gtk.Box):
         self.buffer.set_text("")
         self.images.clear()
         self.files.clear()
+        self.clear_quote()
         self._refresh_thumbs()
         self._close_popover()
 
-    def restore(self, text, images=()):
-        """Remet un message que l'onglet n'a pas pu envoyer."""
+    def restore(self, text, images=(), quote=None):
+        """Remet un message que l'onglet n'a pas pu envoyer (avec le message qu'il citait)."""
         self.buffer.set_text(text)
         self.images[:] = list(images)
         self._refresh_thumbs()
+        if quote:
+            self.set_quote(*quote)
+
+    def set_quote(self, author, text):
+        """Le prochain message répondra à `text` (message de `author` : `chat_quote.CLAUDE` ou
+        `chat_quote.ME`), montré au-dessus de la saisie."""
+        self.quote = (author, text)
+        self.quote_title.set_label("Réponse à Claude" if author == chat_quote.CLAUDE else "Réponse à ton message")
+        self.quote_label.set_label(chat_quote.one_line(text, 200))
+        self.quote_bar.set_visible(True)
+
+    def clear_quote(self):
+        self.quote = None
+        self.quote_bar.set_visible(False)
 
     def submit(self):
         """Envoie le texte, les images et les fichiers joints (en références `@chemin`, que
@@ -304,8 +335,13 @@ class Composer(Gtk.Box):
             text = f"{text}\n\n{refs}" if text else refs
         if not text and not images:
             return False
+        quote = self.quote
         self.clear()
-        self.emit("send", text, images)
+        self.sent_quote = quote          # lu par l'onglet pendant le signal
+        try:
+            self.emit("send", text, images)
+        finally:
+            self.sent_quote = None
         return True
 
     def _on_changed(self, *_):
@@ -690,6 +726,9 @@ class Composer(Gtk.Box):
                 return True
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and not shift:
             self.submit()
+            return True
+        if keyval == Gdk.KEY_Escape and self.quote:
+            self.clear_quote()               # d'abord la citation ; Échap une 2e fois arrête Claude
             return True
         if keyval == Gdk.KEY_Escape and self.busy:
             self.emit("stop")

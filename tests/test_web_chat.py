@@ -438,11 +438,11 @@ class PhoneErgonomicsTest(unittest.TestCase):
 
 @unittest.skipUnless(NODE, "node absent")
 class QuoteTest(unittest.TestCase):
-    """Répondre en citant : même format que le bureau (ccs_app/quote.py)."""
+    """Répondre en citant : même format que le bureau (ccs_app/chat_quote.py)."""
 
     def test_same_result_as_python(self):
-        from ccs_app import quote
-        from tests.test_quote import SAMPLES
+        from ccs_app import chat_quote as quote
+        from tests.test_chat_quote import SAMPLES
         extra = [("claude", "mot " * 400, "x"), ("moi", "y" * 5000, ""), ("claude", "é😀 " * 600, "z")]
         for author, quoted, body in SAMPLES + extra:
             with self.subTest(quoted=quoted[:30]):
@@ -464,7 +464,7 @@ class QuoteTest(unittest.TestCase):
         self.assertEqual(node("chat-quote.js", 'm.compose("claude", "  ", "réponse")'), "réponse")
 
     def test_constants_and_one_line(self):
-        from ccs_app import quote
+        from ccs_app import chat_quote as quote
         self.assertEqual(node("chat-quote.js", "[m.QUOTE_MAX, m.SELECTION_MAX, m.CUT_MARK, m.LABELS, m.SHOWN]"),
                          [quote.QUOTE_MAX, quote.SELECTION_MAX, quote.CUT_MARK, quote.LABELS, quote.SHOWN])
         self.assertEqual(node("chat-quote.js", 'm.oneLine("a\\n\\n  b\\tc")'), quote.one_line("a\n\n  b\tc"))

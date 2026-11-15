@@ -8,7 +8,7 @@
 //
 // L'auteur est « Claude » (une de ses réponses) ou « Moi » (un message de l'utilisateur). Ce texte
 // est celui du journal : le même format sert à la relecture pour montrer la citation à part.
-// Même code que `ccs_app/quote.py`.
+// Même code que `ccs_app/chat_quote.py`.
 export const CLAUDE = "claude";
 export const ME = "moi";
 export const LABELS = { [CLAUDE]: "Claude", [ME]: "Moi" };     // dans le texte envoyé
