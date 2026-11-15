@@ -289,10 +289,10 @@ Serveur web et version web :
 - [x] 15. Fichiers, Feuille de route, terminal (xterm.js)
 
 Terminal et bureau :
-- [ ] 16. Client commun (local ou par le web) et appairage (`ccs serveur ajouter`)
-- [ ] 17. `ccs tui` plein écran
-- [ ] 18. Bureau : Réglages → Serveurs
-- [ ] 19. Bureau : projets et chats du serveur dans l'application, shell distant
+- [x] 16. Client commun (local ou par le web) et appairage (`ccs serveur ajouter`)
+- [x] 17. `ccs tui` plein écran
+- [x] 18. Bureau : Réglages → Serveurs
+- [x] 19. Bureau : projets et chats du serveur dans l'application, shell distant
 
 Paquets, contrôles, documentation, release :
 - [ ] 20. Trois paquets (`ccs`, `ccs-bureau`, `ccs-serveur`), services systemd, PAM, installation de Claude Code
