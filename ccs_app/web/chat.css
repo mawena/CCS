@@ -2,7 +2,7 @@
 
 /* ---- en-tête : titre lisible, état en pastille, boutons avec libellé ---- */
 .chat { position: relative; }
-.chat-head { flex-wrap: nowrap; gap: 6px; padding: 6px 10px; }
+.chat-head { position: relative; z-index: 20; flex-wrap: nowrap; gap: 6px; padding: 6px 10px; }
 .chat-title { display: grid; gap: 2px; min-width: 0; }
 .chat-title .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-sub { display: flex; align-items: center; gap: 8px; min-width: 0; }

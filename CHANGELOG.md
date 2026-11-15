@@ -19,6 +19,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - Pont : `projects.add`, `projects.remove`, `conversation.trash`, `conversation.trash_list`,
   `conversation.restore`.
 
+### Corrigé
+
+- **Web sur téléphone : le bouton « Plus » d'un chat ne faisait rien.** Son menu s'ouvrait sous le
+  bas de l'écran ; il s'affiche maintenant sous l'en-tête.
+
 ## [0.12.6] — 2026-11-15
 
 ### Corrigé
