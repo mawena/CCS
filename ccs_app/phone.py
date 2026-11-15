@@ -187,8 +187,9 @@ def _header(text):
         return "=?UTF-8?B?" + base64.b64encode(text.encode("utf-8")).decode("ascii") + "?="
 
 
-def build_request(cfg, msg):
-    """Requête POST de `msg`, ou None si le serveur ou le canal est invalide."""
+def build_request(cfg, msg, actions=None):
+    """Requête POST de `msg`, ou None si le serveur ou le canal est invalide. `actions` : valeur
+    de l'en-tête `Actions` de ntfy (boutons de la notification)."""
     url = subscribe_url(cfg)
     if url is None:
         return None
@@ -196,6 +197,8 @@ def build_request(cfg, msg):
                "Content-Type": "text/plain; charset=utf-8"}
     if msg.tags:
         headers["Tags"] = ",".join(msg.tags)
+    if actions:
+        headers["Actions"] = actions
     return urllib.request.Request(url, data=msg.body.encode("utf-8"), headers=headers, method="POST")
 
 
