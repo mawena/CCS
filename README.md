@@ -567,6 +567,9 @@ mêmes fonctions que le bureau :
   autorisation en attente), écran **Projet** (conversations, fichiers, feuille de route, Git,
   nouveau chat, terminal), **nouvelle session** complète (dossiers récents, dépôts du disque,
   compte, modèle, droits), conversations avec aperçu, renommage, coût et « voir plus ».
+  **Projets** : « + Ajouter » (dossier existant ou nouveau, `git init` en option), « ✕ » retire
+  un projet de la liste sans rien effacer. **Supprimer** (menu « ⋯ » d'une conversation) la met
+  à la **Corbeille** (en bas de la liste) : restaurable 30 jours, puis effacée.
 - **Chat** : options (modèle, effort, droits) repliées, brouillon gardé par chat, diff
   lisible des modifications de Claude, chemins cités ouverts dans le volet Fichiers, complétion
   `@` et `/`, messages enregistrés, Compacter, commande `!`, recherche dans le fil, volet
@@ -579,6 +582,8 @@ mêmes fonctions que le bureau :
 - **Analyse** sur 24 heures, 7, 30 ou 90 jours.
 - **Réglages** : les réglages du bureau, le **téléphone** (ntfy, QR code, essai, « Montrer la
   commande »), le thème et les appareils connectés.
+- **Installer comme une application** : un bandeau le propose (bouton Installer sur Chrome ;
+  sur iPhone, Partager puis « Sur l'écran d'accueil »), rappelé dans Réglages → Application.
 
 ### Installer sur le serveur
 

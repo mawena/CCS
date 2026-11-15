@@ -59,6 +59,7 @@ function convMenu(c, ctx, nameNode) {
   const { close } = sheet(titleOf(c), el("p", { class: "subtle" }, base(c.cwd)), [
     el("button", { type: "button", onclick: () => { close(); preview(c, ctx); } }, "Aperçu"),
     el("button", { type: "button", onclick: () => { close(); rename(c, ctx, nameNode); } }, "Renommer"),
+    ctx.trash ? el("button", { type: "button", class: "danger", onclick: () => { close(); ctx.trash(c); } }, "Supprimer") : null,
     el("button", { type: "button", class: "primary", disabled: !c.folder_exists, onclick: () => { close(); ctx.resume(c); } }, "Reprendre"),
   ]);
 }

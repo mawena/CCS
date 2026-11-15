@@ -5,7 +5,7 @@ const SHELL = ["/", "/style.css", "/chat.css", "/sessions.css", "/pages.css",
   "/app.js", "/api.js", "/dom.js", "/login.js", "/views.js", "/home.js", "/sessions.js", "/chat.js",
   "/files.js", "/roadmap.js", "/terminal.js", "/analysis.js", "/settings.js", "/git.js",
   "/chat-changes.js", "/chat-complete.js", "/chat-diff.js", "/chat-links.js", "/chat-saved.js", "/chat-search.js",
-  "/project.js", "/install.js", "/sessions-conv.js", "/sessions-new.js",
+  "/project.js", "/install.js", "/sessions-conv.js", "/sessions-new.js", "/sessions-manage.js",
   "/pages-util.js", "/pages-health.js", "/pages-tasks.js", "/pages-phone.js",
   "/vendor/xterm/xterm.js", "/vendor/xterm/xterm.css", "/vendor/xterm/addon-fit.js",
   "/icons/ccs.svg", "/manifest.webmanifest"];

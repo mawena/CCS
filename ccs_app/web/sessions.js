@@ -3,6 +3,7 @@
 // le chat (ou le projet) en plein écran avec un bouton de retour.
 import { ChatView } from "./chat.js";
 import { clear, confirmSheet, el, emptyState, errorState, loading, resizable, toast } from "./dom.js";
+import { addProject, openTrash, removeProject, trashConversation } from "./sessions-manage.js";
 import { baseName as base, ProjectScreen } from "./project.js";
 import { convRow } from "./sessions-conv.js";
 import { newSession } from "./sessions-new.js";
@@ -222,23 +223,32 @@ export function mountSessions(root, api, ctx = {}) {
         : emptyState("Aucun projet ni conversation pour l'instant.", el("button", { class: "primary", onclick: () => askNewSession() }, "Nouvelle session")));
       return;
     }
-    list.append(el("h3", {}, "Projets"));
+    list.append(el("div", { class: "list-head" }, el("h3", {}, "Projets"),
+      el("button", { class: "small flat", "aria-label": "Ajouter un projet", title: "Ajouter un projet",
+        onclick: () => addProject(api, { folders: projects.map((p) => p.cwd), onDone: () => loadList({ quiet: true }) }) }, "+ Ajouter")));
     if (!projects.length) list.append(el("p", { class: "subtle" }, "Aucun projet ne correspond."));
     for (const p of projects.slice(0, shownProjects)) {
       list.append(el("div", { class: "item project-item" },
         el("button", { class: "project-open-btn grow", "aria-label": `Ouvrir le projet ${p.name}`, onclick: () => showProject(p.cwd, { push: true }) },
           el("strong", {}, p.name), el("span", { class: "subtle" }, `${p.total} conversation(s)${p.open ? ` · ${p.open} ouverte(s)` : ""}`)),
         p.exists ? el("button", { class: "small", onclick: () => open(p.cwd) }, "Nouveau chat") : null,
-        p.exists ? el("button", { class: "small flat", title: "Terminal dans ce projet", "aria-label": `Terminal dans ${p.name}`, onclick: () => openTerm(p.cwd) }, "▸_") : null));
+        p.exists ? el("button", { class: "small flat", title: "Terminal dans ce projet", "aria-label": `Terminal dans ${p.name}`, onclick: () => openTerm(p.cwd) }, "▸_") : null,
+        el("button", { class: "small flat", title: "Retirer de la liste", "aria-label": `Retirer ${p.name} de la liste`,
+          onclick: () => removeProject(api, p, { onDone: () => loadList({ quiet: true }) }) }, "✕")));
     }
     if (projects.length > shownProjects) list.append(el("button", { class: "flat more", onclick: () => { shownProjects += PROJECTS_STEP; renderList(); } },
       `Voir plus de projets (${projects.length - shownProjects})`));
     list.append(el("h3", {}, "Conversations récentes"));
     if (!convs.length) list.append(el("p", { class: "subtle" }, query ? "Aucune conversation ne correspond." : "Aucune conversation."));
-    const cctx = { api, opened: openedIds(), resume: (c) => open(c.cwd, c) };
+    const cctx = { api, opened: openedIds(), resume: (c) => open(c.cwd, c), trash: trashOf };
     for (const c of convs.slice(0, shownConvs)) list.append(convRow(c, cctx));
     if (convs.length > shownConvs) list.append(el("button", { class: "flat more", onclick: () => { shownConvs += CONVS_STEP; renderList(); } },
       `Voir plus de conversations (${convs.length - shownConvs})`));
+    list.append(el("button", { class: "flat more trash-open", onclick: () => openTrash(api, { onDone: () => loadList({ quiet: true }) }) }, "🗑 Corbeille"));
+  }
+
+  function trashOf(c) {
+    trashConversation(api, c, { onDone: () => loadList({ quiet: true }) });
   }
 
   // Recale les onglets sur ce qui tourne vraiment dans le pont : ajoute ce qui manque, marque « arrêté »

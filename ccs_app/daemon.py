@@ -172,8 +172,10 @@ class Daemon:
             t.join(timeout)
 
     def _run_archive(self, settings, now):
-        from . import archive
+        from . import archive, trash
         res = archive.tick(now.timestamp(), settings)   # l'archive compte en secondes
+        if trash.purge(now.timestamp()):
+            log.info("corbeille : conversations de plus de %s jours effacées", trash.DAYS)
         if res.changed or res.errors:
             log.info("archive : %s ajoutée(s), %s mise(s) à jour, %s supprimée(s), erreurs : %s",
                      res.archived, res.updated, res.pruned, res.errors)
