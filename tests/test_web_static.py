@@ -77,6 +77,16 @@ class StaticTest(unittest.TestCase):
         self.assertIn("width=device-width", text)
         self.assertIn('rel="manifest"', text)
 
+    def test_views_registered(self):
+        text = (WEB / "views.js").read_text(encoding="utf-8")
+        for module in ("./home.js", "./analysis.js", "./settings.js"):
+            self.assertIn(module, text)
+
+    def test_settings_page_lists_devices(self):
+        text = (WEB / "settings.js").read_text(encoding="utf-8")
+        self.assertIn("/api/tokens", text)
+        self.assertIn("/api/revoke", text)
+
     def test_api_js_has_reconnect_and_attach(self):
         text = (WEB / "api.js").read_text(encoding="utf-8")
         self.assertIn("reconnect", text)

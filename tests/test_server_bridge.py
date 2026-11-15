@@ -97,6 +97,8 @@ class BridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("state", st)
         self.assertIsNone(st["pause"])
         self.assertEqual(st["user"], "alice")
+        self.assertEqual(set(st["colors"]), {"perso", "pro"})
+        self.assertTrue(all(c.startswith("#") and len(c) == 7 for c in st["colors"].values()))
 
     async def test_switch_unknown_profile_refused(self):
         await self.start()

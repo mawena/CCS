@@ -128,3 +128,43 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
   .view[data-view="sessions"] { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
 }
 #logout { margin-left: auto; }
+
+/* ---- éléments communs des écrans ---- */
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; }
+.grow { flex: 1; min-width: 0; }
+.badge { padding: 2px 10px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 0.8em; font-weight: 700; }
+.dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.invalid { outline: 2px solid var(--error); }
+
+/* ---- accueil ---- */
+.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.status-line .subtle { flex: 1; min-width: 200px; }
+.accounts { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+.accounts > *, .analysis > * { min-width: 0; }
+.account { display: grid; gap: 10px; border-top: 4px solid var(--account, var(--accent)); }
+.account.active { box-shadow: 0 0 0 2px var(--account, var(--accent)), var(--shadow); }
+.account-head { display: flex; align-items: center; gap: 10px; }
+.account-head > div { flex: 1; min-width: 0; }
+.account-head .subtle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gauge { display: grid; gap: 4px; }
+.gauge-head { display: flex; justify-content: space-between; font-size: 0.92em; }
+.gauge-track { height: 10px; border-radius: 99px; background: var(--soft); overflow: hidden; }
+.gauge-fill { height: 100%; border-radius: 99px; background: var(--accent); }
+.gauge-fill.warn { background: var(--warning); }
+.gauge-fill.danger { background: var(--error); }
+.pause-box { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; }
+.pause-box select { width: auto; }
+
+/* ---- analyse ---- */
+.analysis { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+.bar { display: grid; grid-template-columns: minmax(80px, 34%) 1fr 56px; gap: 8px; align-items: center; padding: 3px 0; }
+.bar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { height: 8px; background: var(--soft); border-radius: 99px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); }
+.bar-value { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.9em; }
+.hours { display: flex; align-items: flex-end; gap: 2px; height: 90px; }
+.hour { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 1px; }
+.view > .row select { width: auto; }
+
+/* ---- réglages ---- */
+.settings { display: grid; gap: 12px; max-width: 640px; }

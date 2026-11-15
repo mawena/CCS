@@ -17,7 +17,7 @@ import subprocess
 import time
 from datetime import datetime, timezone
 
-from .. import claude_install, core, daemon, pause, settings
+from .. import account_colors, claude_install, core, daemon, pause, settings
 from . import rpc
 
 log = logging.getLogger("ccs.bridge")
@@ -168,9 +168,13 @@ class Bridge:
         def work():
             now = datetime.now(timezone.utc)
             st = pause.pause_state(now)
+            profiles = core.list_profiles()
+            names = [p.name for p in profiles]
+            chosen = settings.load_settings().get("appearance", {}).get("account_colors") or {}
             return {
                 "user": self.user,
-                "profiles": [dataclasses.asdict(p) for p in core.list_profiles()],
+                "colors": {n: account_colors.color_for(n, names, chosen) for n in names},
+                "profiles": [dataclasses.asdict(p) for p in profiles],
                 "active": core.active_profile_name(),
                 "state": core.load_json(daemon.state_path()),
                 "pause": None if st is None else {
