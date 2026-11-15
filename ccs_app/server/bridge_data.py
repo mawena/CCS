@@ -47,6 +47,11 @@ def allowed_path(path, home=None):
     return _under(path, home) or any(_under(path, r) for r in EXTRA_ROOTS)
 
 
+def _tilde(p):
+    """« ~ » et « ~/x » : le dossier personnel, comme partout ailleurs dans CCS."""
+    return os.path.expanduser(p) if isinstance(p, str) and (p == "~" or p.startswith("~/")) else p
+
+
 def safe_path(p):
     if not isinstance(p, str) or not p or "\0" in p or not os.path.isabs(p):
         raise rpc.RpcError("refuse", "Chemin refusé.")
@@ -117,7 +122,7 @@ class DataApi:
         if name is not None:
             if not isinstance(name, str) or not _FOLDER_NAME.fullmatch(name) or name in (".", ".."):
                 raise rpc.RpcError("invalide", "Nom de dossier refusé.")
-            parent = safe_path(params.get("parent"))
+            parent = safe_path(_tilde(params.get("parent")))
             if not parent.is_dir():
                 raise rpc.RpcError("introuvable", "Dossier parent introuvable.")
             target = safe_path(str(parent / name))
@@ -131,7 +136,7 @@ class DataApi:
                 await asyncio.to_thread(subprocess.run, ["git", "init", "-q", str(target)],
                                         capture_output=True, timeout=30)
         else:
-            target = safe_path(params.get("cwd"))
+            target = safe_path(_tilde(params.get("cwd")))
             if not target.is_dir():
                 raise rpc.RpcError("introuvable", "Dossier introuvable.")
         return {"cwd": await asyncio.to_thread(project_list.add, str(target))}

@@ -300,6 +300,13 @@ class ProjectsAndTrashBridgeTest(DataBridgeTest):
         self.assertNotIn(str(self.home / "neuf"), [e["cwd"] for e in listed["entries"]])
         self.assertTrue((self.home / "neuf").is_dir())          # rien n'est effacé
 
+    async def test_add_accepts_tilde(self):
+        """Le web tape « ~/projet » comme ailleurs dans CCS : ~ est le dossier personnel."""
+        r = await self.c.call("projects.add", cwd="~/projet")
+        self.assertEqual(r["cwd"], str(self.project))
+        r = await self.c.call("projects.add", parent="~", name="autre")
+        self.assertEqual(r["cwd"], str(self.home / "autre"))
+
     async def test_add_refused(self):
         await self.refused("projects.add", cwd="/etc")
         await self.refused("projects.add", parent="/tmp", name="x")

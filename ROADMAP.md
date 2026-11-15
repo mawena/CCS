@@ -355,13 +355,20 @@ Fin de phase :
 - [x] 32. Essai réel par Charles (bureau et VPS) et corrections
 - [x] 33. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT
 
-## Correctif 0.12.1 — essais réels sur le VPS (branche `hotfix/0.12.1`)
+## Correctifs 0.12.1 à 0.12.6 — essais réels sur le VPS
 
 - [x] Changements et retour en arrière : chemins relatifs (`realParentDir`) et copie `@v1` non citée de Claude Code 2.1.3xx
 - [x] Web : fil et saisie du chat dans une colonne centrée sur grand écran
 - [x] Web : boutons radio des questions à leur taille, libellés à gauche
+- [x] Web : actions qui se suivent regroupées, chat compact au téléphone ; message envoyé d'un appareil visible sur tous (0.12.1)
+- [x] Surveillance des sessions sans bus D-Bus (serveur sans bureau) (0.12.1)
+- [x] Web : le fil suit les nouveaux messages, « Claude travaille… » au-dessus de la saisie, bouton Copier (0.12.2, 0.12.4)
+- [x] Web : feuille de route dans l'ordre du fichier, sections redimensionnables, liste masquable (0.12.3)
+- [x] Web au téléphone : une seule barre en haut, saisie plus large (0.12.5)
+- [x] Web : installer CCS comme une application (Chrome, iPhone) (0.12.6)
+- [x] Releases 0.12.1 à 0.12.6 (paquets construits sur le VPS, releases GitHub)
+- [ ] Dépôt APT signé à jour (`make apt` depuis le PC de Charles)
 - [ ] Essais de Charles : page Git du web, Autoriser / Refuser (web et ntfy)
-- [ ] Release 0.12.1 (CHANGELOG, `.deb`, tag, release GitHub, dépôt APT depuis le PC)
 
 ## Phase 15 — Le serveur depuis le bureau, comme Remote Control (0.13.0)
 
@@ -380,9 +387,10 @@ Bureau (page Sessions) :
 - [ ] 4. Page Sessions par machine : « Ce poste » puis chaque serveur appairé, chacun avec ses sessions en cours, ses projets et ses conversations (état de connexion visible, serveur injoignable sans bloquer le reste)
 - [ ] 5. Rejoindre un chat qui tourne sur un serveur (`chat.list`) : fil rejoué et suivi en direct, demandes de permission comprises ; un onglet distant se branche dès l'ouverture
 - [ ] 6. Ajouter un projet, retirer un projet, supprimer une conversation, corbeille, sur ce poste comme sur un serveur
+- [ ] 6b. Session distante : panneau de gauche (Fichiers, Feuille de route, Git) comme pour une session locale
 
 Web :
-- [ ] 7. Ajouter / retirer un projet, supprimer une conversation, corbeille
+- [x] 7. Ajouter un projet (dossier existant ou nouveau, git init, `~` accepté), le retirer de la liste, supprimer une conversation (corbeille, « Annuler »), Corbeille avec Restaurer
 
 Fin de phase :
 - [ ] 8. Documentation (README, guide, CHANGELOG)
