@@ -38,7 +38,7 @@ dialog.sheet.wide { width: min(560px, calc(100vw - 16px)); max-height: calc(100d
 .folder-picker { display: grid; gap: 2px; max-height: 190px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
 .folder-picker:empty { display: none; }
 .item.pick { min-height: 44px; }
-.pick-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.pick-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .account-hint { margin: 0; font-weight: 400; }
 .preview-body { display: grid; gap: 8px; max-height: 55dvh; overflow-y: auto; }
 .pv { display: grid; gap: 2px; }
@@ -90,8 +90,8 @@ button.on, button[aria-pressed="true"] { background: color-mix(in srgb, var(--ac
 /* ---- terminal : barre de touches ---- */
 .term-wrap { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .term-keys { display: grid; gap: 4px; padding: 6px; border-top: 1px solid var(--line); background: var(--bg); }
-.keys-row { display: flex; gap: 4px; overflow-x: auto; }
-.keys-row .key { min-width: 44px; min-height: 44px; flex: 1 0 auto; padding: 0 8px; }
+.keys-row { display: flex; gap: 4px; }
+.keys-row .key { min-width: 0; min-height: 44px; flex: 1 1 0; padding: 0 4px; }
 
 @media (max-width: 719px) {
   .sessions.project-open .side { display: none; }

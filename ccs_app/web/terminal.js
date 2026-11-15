@@ -6,8 +6,8 @@ import { el, toast } from "./dom.js";
 
 const KEYS = [
   ["Échap", "\x1b"], ["Tab", "\t"], ["ctrl"], ["←", "\x1b[D"], ["↓", "\x1b[B"], ["↑", "\x1b[A"], ["→", "\x1b[C"],
-  ["|", "|"], ["~", "~"], ["/", "/"], ["-", "-"],
 ];
+const SYMBOLS = [["|", "|"], ["~", "~"], ["/", "/"], ["-", "-"]];
 const FONT = { key: "ccs-term-font", min: 9, max: 24, normal: 13 };
 
 // Ctrl + lettre (ou @ [ \ ] ^ _) devient le caractère de contrôle correspondant.
@@ -82,8 +82,10 @@ export class TerminalView {
     const keep = (e) => e.preventDefault();
     const btn = (label, run, extra = {}) => el("button", { type: "button", class: "small key", onpointerdown: keep, onclick: run, ...extra }, label);
     this.ctrlBtn = btn("Ctrl", () => { this.setCtrl(!this.ctrl); this.term.focus(); }, { "aria-pressed": "false", title: "Ctrl collant : la touche suivante devient Ctrl + touche" });
-    const keys = KEYS.map(([label, data]) => (label === "ctrl" ? this.ctrlBtn : btn(label, () => { this.setCtrl(false); this.send(data); this.term.focus(); })));
+    const key = ([label, data]) => (label === "ctrl" ? this.ctrlBtn : btn(label, () => { this.setCtrl(false); this.send(data); this.term.focus(); }));
+    const keys = KEYS.map(key);
     const tools = [
+      ...SYMBOLS.map(key),
       btn("Coller", () => this.paste()),
       btn("Copier", () => this.copy()),
       btn("A−", () => this.zoom(-1), { "aria-label": "Texte plus petit" }),
