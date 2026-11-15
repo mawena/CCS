@@ -295,8 +295,8 @@ Terminal et bureau :
 - [x] 19. Bureau : projets et chats du serveur dans l'application, shell distant
 
 Paquets, contrôles, documentation, release :
-- [ ] 20. Trois paquets (`ccs`, `ccs-bureau`, `ccs-serveur`), services systemd, PAM, installation de Claude Code
-- [ ] 21. `ccs doctor` pour le serveur
+- [x] 20. Trois paquets (`ccs`, `ccs-bureau`, `ccs-serveur`) et le métapaquet `ccs-all` qui les installe tous, services systemd, PAM, installation de Claude Code
+- [x] 21. `ccs doctor` pour le serveur
 - [ ] 22. Revue de sécurité
 - [ ] 23. Documentation (README, guide, architecture, man, CHANGELOG, site)
 - [ ] 24. Essai réel sur le VPS (DNS et lnmp par Charles)
