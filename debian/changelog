@@ -1,3 +1,10 @@
+ccs (0.12.2) unstable; urgency=medium
+
+  * Web : le fil suit les nouveaux messages, « Claude travaille… » au-dessus
+    de la saisie, bouton Copier sur les blocs de code.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 21:00:00 +0000
+
 ccs (0.12.1) unstable; urgency=medium
 
   * Changements de la session et retour en arrière avec Claude Code 2.1.3xx
