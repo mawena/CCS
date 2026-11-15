@@ -55,9 +55,10 @@ class GraphView(Gtk.Box):
         "loaded": (GObject.SignalFlags.RUN_FIRST, None, ()),
     }
 
-    def __init__(self, density="compact"):
+    def __init__(self, density="compact", git=None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
         self.density = density if density in ("compact", "cards") else "compact"
+        self.git = git if git is not None else git_repo   # source distante : `remote.workspace`
         self._repo = None
         self._commits = []
         self._refs = []
@@ -116,10 +117,11 @@ class GraphView(Gtk.Box):
         self._loading = True
         if not same:
             self._sel = None
+        git = self.git
 
         def work():
             try:
-                return git_repo.log(repo, 0, limit), git_repo.refs(repo), git_repo.branch(repo)
+                return git.log(repo, 0, limit), git.refs(repo), git.branch(repo)
             except git_repo.GitError as e:
                 return e
 
@@ -141,10 +143,11 @@ class GraphView(Gtk.Box):
             return
         self._loading = True
         gen, repo, skip = self._gen, self._repo, len(self._commits)
+        git = self.git
 
         def work():
             try:
-                return git_repo.log(repo, skip, PAGE)
+                return git.log(repo, skip, PAGE)
             except git_repo.GitError as e:
                 return e
 

@@ -3,6 +3,29 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.14.0] — 2026-11-16
+
+### Ajouté
+
+- **Bureau : page Sessions par machine.** Liste « Ce poste » puis chaque serveur appairé
+  (remplace le bouton « Projets des serveurs »). Sur un serveur :
+  - **En cours** : les chats qui tournent (téléphone, web, autre PC) ; « Rejoindre » rejoue le
+    fil et le suit en direct, autorisations comprises (onglet déjà ouvert : affiché) ;
+  - projets (Chat, Terminal, retirer), « + » pour en ajouter un, conversations récentes
+    (Reprendre, Supprimer), corbeille du serveur ; état de connexion visible.
+- **Bureau, sur ce poste aussi** : « Ajouter un projet » et « Corbeille » dans la barre,
+  « Retirer de la liste… » (menu de « Nouvelle session »), « Supprimer… » (menu « ⋮ »),
+  « Annuler » juste après une suppression. Mêmes contrôles que le pont.
+- **Bureau : panneau de gauche des chats distants** (Fichiers, Feuille de route, Git), comme
+  pour un chat local.
+
+### Corrigé
+
+- **Bureau : un chat distant restait figé après un redémarrage du serveur** (mise à jour) :
+  il se rebranche maintenant seul sur sa conversation.
+- **Bureau : une autorisation donnée depuis le web ou le téléphone** laissait la carte en
+  attente dans le chat distant du bureau ; elle se fige maintenant (« depuis un autre appareil »).
+
 ## [0.13.0] — 2026-11-16
 
 ### Ajouté

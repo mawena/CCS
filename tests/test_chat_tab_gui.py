@@ -258,6 +258,18 @@ class ChatTabTest(HomeTestCase):
         tab._dispatch(proto.PermissionRequest("r1", "Bash", "Bash", {"command": "ls"}, agent_id="agent-1"))
         self.assertTrue(any("sous-agent" in t for t in texts(tab)))
 
+    def test_permission_settled_elsewhere_freezes_card(self):
+        """Chat distant : autorisation donnée depuis le web ou le téléphone → la carte du bureau
+        se fige au lieu de rester en attente."""
+        from ccs_app.server import events as bridge_events
+        tab, _owner = self.make()
+        tab._dispatch(proto.PermissionRequest("r9", "Bash", "Bash", {"command": "ls"}))
+        card = tab.messages._perms["r9"]
+        self.assertFalse(card.answered)
+        tab._dispatch(bridge_events.PermissionSettled("r9", "allow"))
+        self.assertTrue(card.answered)
+        self.assertIsNone(tab.messages.pending_permission())
+
     def test_subagent_has_its_own_view_and_pill(self):
         tab, _owner = self.make()
         self.assertFalse(tab.agent_bar.get_visible())

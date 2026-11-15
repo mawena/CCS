@@ -94,13 +94,20 @@ class _Doc:
 
 
 class FileEditor(Gtk.Box):
-    """Onglets de fichiers. Signal `empty` : le dernier fichier vient de se fermer."""
+    """Onglets de fichiers. Signal `empty` : le dernier fichier vient de se fermer.
+
+    `source` (facultatif, `RemoteFiles` d'une session distante) : `read(path)` (même tuple que
+    `_read`, une image en octets) et `save(path, texte, encodage, cachet)` à la place du
+    disque ; pas de moniteur : `check_changes()` relit les fichiers ouverts (l'espace de
+    session l'appelle de temps en temps)."""
 
     __gsignals__ = {"empty": (GObject.SignalFlags.RUN_FIRST, None, ())}
 
-    def __init__(self):
+    def __init__(self, source=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         _install_css()
+        self.source = source
+        self.remote = bool(getattr(source, "remote", False))
         self._docs = {}
         self._dark = False
         self._check_timer = 0
@@ -227,7 +234,11 @@ class FileEditor(Gtk.Box):
                 return
             self._show(d, res, reload)
 
-        in_thread(lambda: _read(d.path), done)
+        in_thread(lambda: self._read_file(d.path), done)
+
+    def _read_file(self, path):
+        """Travail du fil : le disque, ou la source distante."""
+        return self.source.read(path) if self.source is not None else _read(path)
 
     # ---- construction des contenus ----------------------------------------------------
 
@@ -274,7 +285,14 @@ class FileEditor(Gtk.Box):
         self._update_indicator(d)
         self._clear_holder(d)
         if kind == "image":
-            pic = Gtk.Picture.new_for_filename(d.path)
+            if isinstance(text, bytes):     # image d'un serveur : ses octets
+                try:
+                    pic = Gtk.Picture.new_for_paintable(
+                        Gdk.Texture.new_from_bytes(GLib.Bytes.new(text)))
+                except GLib.Error:
+                    pic = Gtk.Picture()
+            else:
+                pic = Gtk.Picture.new_for_filename(d.path)
             pic.set_can_shrink(True)
             pic.set_vexpand(True)
             d.holder.append(pic)
@@ -285,7 +303,10 @@ class FileEditor(Gtk.Box):
                 "missing": ("Fichier introuvable",
                             "Ce fichier n'existe pas (ou plus) sur le disque.",
                             "dialog-warning-symbolic"),
-            }[kind]
+                "unavailable": ("Fichier indisponible", text or "Ce fichier ne peut pas être affiché.",
+                                "dialog-warning-symbolic"),
+            }.get(kind, ("Fichier indisponible", "Ce fichier ne peut pas être affiché.",
+                         "dialog-warning-symbolic"))
             page = Adw.StatusPage(title=title, description=desc, icon_name=icon)
             page.set_vexpand(True)
             d.holder.append(page)
@@ -446,7 +467,7 @@ class FileEditor(Gtk.Box):
                 webbrowser.open(url)
             return
         target = os.path.normpath(os.path.join(os.path.dirname(d.path), url.split("#")[0]))
-        if os.path.isfile(target):
+        if self.remote or os.path.isfile(target):
             self.open(target)
 
     def _schedule_preview(self, d):
@@ -488,7 +509,7 @@ class FileEditor(Gtk.Box):
                 done(False)
             return
         text = self._buffer_text(d)
-        enc = d.encoding
+        enc, stamp = d.encoding, d.stamp
 
         def finish(res):
             if isinstance(res, Exception):
@@ -507,6 +528,8 @@ class FileEditor(Gtk.Box):
 
         def work():
             try:
+                if self.source is not None:
+                    return self.source.save(d.path, text, enc, stamp)
                 return file_tree.save(d.path, text, enc)
             except (OSError, ValueError) as e:
                 return e
@@ -535,6 +558,9 @@ class FileEditor(Gtk.Box):
 
     def _on_disk_changed(self, d):
         if d.closed or d.state in ("diff", "widget") or d.reading:
+            return
+        if self.remote:
+            self._check_remote(d)
             return
         if not file_tree.changed(d.path, d.stamp) if d.stamp else False:
             return
@@ -573,7 +599,40 @@ class FileEditor(Gtk.Box):
             if res[0] in ("text", "too_big"):
                 self.show_diff(d.path, res[1], self._buffer_text(d))
 
-        in_thread(lambda: _read(d.path), done)
+        in_thread(lambda: self._read_file(d.path), done)
+
+    def _check_remote(self, d):
+        """Fichier d'un serveur : relu dans un fil, comparé à son cachet."""
+        d.reading = True
+
+        def done(res):
+            d.reading = False
+            if d.closed or d.state in ("diff", "widget"):
+                return
+            kind, stamp = res[0], res[4]
+            if kind == "unavailable":
+                return      # serveur injoignable : on garde ce qu'on a
+            if kind == "missing":
+                if d.state != "missing" and not d.dirty:
+                    self._show(d, res)
+                return
+            if d.stamp is not None and stamp is not None and list(stamp) == list(d.stamp):
+                return
+            if d.state == "missing" or not d.dirty:
+                self._show(d, res, reload=True)
+                self._blink(d)
+                return
+            self._notice(d, "Ce fichier a changé sur le serveur et vous avez des modifications "
+                            "non enregistrées.",
+                         [("Garder les miens", lambda: (setattr(d, "stamp", stamp),
+                                                        self._hide_notice(d))),
+                          ("Prendre la version du serveur",
+                           lambda: (setattr(d, "dirty", False), self._show(d, res, reload=True))),
+                          ("Voir les différences",
+                           lambda: res[0] in ("text", "too_big")
+                           and self.show_diff(d.path, res[1], self._buffer_text(d)))])
+
+        in_thread(lambda: self._read_file(d.path), done)
 
     def _blink(self, d):
         if self.tab_view.get_selected_page() is d.page:
@@ -587,6 +646,8 @@ class FileEditor(Gtk.Box):
             self._on_disk_changed(d)
 
     def _watch(self, d):
+        if self.remote:
+            return      # le fichier est sur le serveur : `check_changes()` le relit
         try:
             d.monitor = Gio.File.new_for_path(d.path).monitor_file(
                 Gio.FileMonitorFlags.WATCH_MOVES, None)

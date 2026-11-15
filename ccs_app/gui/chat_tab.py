@@ -26,6 +26,7 @@ from .. import chat_engine, chat_options, chat_protocol as proto, context_alert,
 from .. import roadmap, saved_messages, sessions, settings, shell_command  # noqa: E402
 from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
+from ..server import events as bridge_events  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
 from .chat_composer import Composer  # noqa: E402
 from . import phone_hub  # noqa: E402
@@ -717,6 +718,7 @@ class ChatTab(Gtk.Box):
             proto.ToolResult: lambda e: self.messages.set_tool_result(e),
             proto.Todos: lambda e: self.todos_bar.update(e.items),
             proto.PermissionRequest: self._on_permission,
+            bridge_events.PermissionSettled: self._on_settled,
             proto.TurnResult: self._on_result,
             proto.LocalCommand: self._on_local,
             proto.Compacted: lambda e: self.messages.add_notice(
@@ -940,6 +942,18 @@ class ChatTab(Gtk.Box):
             pid = self._phone_ids.pop(rid, None)
             if pid is not None and hub is not None:
                 hub.settle(pid)
+
+    def _on_settled(self, ev):
+        """Chat distant : demande réglée sur un autre appareil (web, téléphone) ou par nous."""
+        known = ev.decision in ("allow", "always", "deny", "cancelled")
+        card = self.messages._perms.get(ev.request_id)
+        if card is None or card.answered:
+            return
+        self.messages.resolve_permission(ev.request_id, ev.decision if known else "Répondu")
+        if hasattr(card, "verdict"):
+            card.verdict.set_label(card.verdict.get_label() + " — depuis un autre appareil")
+        self._settle_phone(ev.request_id)
+        GLib.idle_add(lambda: (self._sync_permission_keys(), False)[1])
 
     def _answer(self, request_id, decision, message=""):
         self._settle_phone(request_id)

@@ -474,15 +474,37 @@ class RealChatTabTest(HomeTestCase):
     def test_remote_chat_tab_not_saved(self):
         from ccs_app.remote import engine as remote_engine, servers
 
+        class FakeClient:
+            def call_sync(self, *a, **k):
+                raise ConnectionError("hors ligne")
+
         class FakeConn:
-            label, state, listeners = "vps", "online", set()
+            label, state, listeners, client = "vps", "online", set(), FakeClient()
 
             def call(self, *a, **k):
                 pass
+
+            def register(self, eng):
+                pass
+
+            def unregister(self, eng):
+                pass
         local = self.page.open_chat(self.cwd, None, "Local", None, (), present=False)
         server = servers.Server("vps", "https://ccs.example", "alice", "T")
-        with mock.patch.object(remote_engine, "connection", return_value=FakeConn()):
-            tab = self.page.open_remote_chat(server, "/srv/distant", title="Distant", present=False)
+        made = []
+        real = remote_engine.RemoteChatEngine
+
+        def engine(*a, **k):
+            made.append(k)
+            return real(*a, **k)
+        with mock.patch.object(remote_engine, "connection", return_value=FakeConn()), \
+                mock.patch.object(remote_engine, "RemoteChatEngine", side_effect=engine):
+            tab = self.page.open_remote_chat(server, "/srv/distant", title="Distant", present=False,
+                                             chat_id="c42")
+        self.assertIsInstance(tab.panel, SessionWorkspace)        # espace lu par le pont
+        self.assertIsNotNone(tab.panel.remote)
+        self.assertEqual(tab.panel.remote.client, FakeConn.client)
+        self.assertEqual(made[0].get("chat_id"), "c42")
         self.assertEqual(tab.remote, "vps")
         self.assertEqual(tab.display_title(), "Distant · vps")
         self.assertIsInstance(tab.engine, remote_engine.RemoteChatEngine)

@@ -17,6 +17,7 @@ import os
 from gi.repository import Adw, GLib, GObject, Gtk
 
 from .. import roadmap, settings, tasks, terminal_store
+from .common import in_thread
 from .file_editor import FileEditor
 from .file_panel import FileTree
 from .git_changes import hscroll
@@ -31,6 +32,8 @@ MIN_SIDE = 200
 SAVE_DELAY_MS = 600
 APPLY_TRIES = 60       # 60 × 50 ms : le temps que la fenêtre soit placée
 TREE_ACCEL = "<Control>b"
+REMOTE_POLL_S = 15     # session distante : relecture de l'arbre, de la feuille et des fichiers
+REMOTE_AFTER_TOOL_MS = 2500   # … et peu après chaque action de Claude
 
 
 def _show_ignored():
@@ -41,20 +44,27 @@ def _show_ignored():
 
 
 class SessionWorkspace(Gtk.Box):
-    """`SessionWorkspace(cwd, center, on_ask_create=None, layout="B")`.
+    """`SessionWorkspace(cwd, center, on_ask_create=None, layout="B", remote=None)`.
 
     `center` : le widget du chat. S'il émet `open-file(path, line)` et `show-diff(path,
     old, new)`, ils ouvrent l'éditeur. Signal `insert-reference(relpath)` : « Insérer
-    @chemin » depuis l'arbre (renvoyé aussi à `center.insert_reference(relpath)` s'il existe)."""
+    @chemin » depuis l'arbre (renvoyé aussi à `center.insert_reference(relpath)` s'il existe).
+
+    `remote` (`remote.workspace.RemoteWorkspace`) : chat d'un serveur CCS, `cwd` est un dossier
+    du serveur ; arbre, éditeur, feuille de route et Git passent par le pont. Rien ne suit le
+    disque : l'espace relit tout de temps en temps et peu après chaque action de Claude. Le
+    volet « Changements » (journal local) est masqué."""
 
     __gsignals__ = {
         "insert-reference": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
         "layout-changed": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
     }
 
-    def __init__(self, cwd, center, on_ask_create=None, layout="B"):
+    def __init__(self, cwd, center, on_ask_create=None, layout="B", remote=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, hexpand=True, vexpand=True)
         self.cwd = os.fspath(cwd)
+        self.remote = remote
+        self._poll_source = self._soon_source = 0
         self.center = center
         self.layout = layout if layout in ("A", "B") else "B"
         self._on_ask_create = on_ask_create
@@ -65,16 +75,17 @@ class SessionWorkspace(Gtk.Box):
         self._dark = False
 
         # -- gauche : fichiers / feuille de route
-        self.tree = FileTree(self.cwd, self.open_file, show_ignored=_show_ignored())
-        self.tree.connect("insert-reference", self._on_insert_reference)
+        self.tree = self._new_tree(self.cwd)
         self.roadmap = RoadmapView(self.cwd, on_ask_create=self.ask_create,
-                                   on_do_task=self._do_task)
+                                   on_do_task=self._do_task,
+                                   source=remote.roadmap if remote else None)
         self.left_stack = Gtk.Stack(vexpand=True, hexpand=True, hhomogeneous=False)
         self.tree_holder = Gtk.Box(vexpand=True, hexpand=True)   # l'arbre change avec le dossier du projet
         self.tree_holder.append(self.tree)
         self.left_stack.add_titled(self.tree_holder, "fichiers", "Fichiers")
         self.left_stack.add_titled(self.roadmap, "feuille", "Feuille de route")
-        self.git_page = GitPage(self.cwd, self._open_in_editor, self._on_git_layout)
+        self.git_page = GitPage(self.cwd, self._open_in_editor, self._on_git_layout,
+                                git=remote.git if remote else None)
         self.left_stack.add_titled(self.git_page, "git", "Git")
         self.left_stack.set_visible_child_name(self._panes["left"])
         self.left_stack.connect("notify::visible-child-name", self._on_left_changed)
@@ -89,6 +100,7 @@ class SessionWorkspace(Gtk.Box):
                                       tooltip_text="Changements de la session", margin_end=4)
         self.changes_btn.add_css_class("flat")
         self.changes_btn.connect("clicked", lambda _b: self.show_changes())
+        self.changes_btn.set_visible(remote is None)    # journal de la conversation : local
         header.append(self.changes_btn)
         self._changes_panel = None
         self.left.append(header)
@@ -97,7 +109,7 @@ class SessionWorkspace(Gtk.Box):
         self.left.set_visible(self._panes["tree_visible"])
 
         # -- éditeur
-        self.editor = FileEditor()
+        self.editor = FileEditor(source=remote.files if remote else None)
         self.editor.connect("empty", self._on_editor_empty)
         self.editor_box = Gtk.Box(vexpand=True, hexpand=True)
         self.editor_box.append(self.editor)
@@ -133,6 +145,8 @@ class SessionWorkspace(Gtk.Box):
         self.inner.connect("notify::position", self._on_moved)
         self.connect("map", lambda *_: self.apply_sizes())
         self.connect("destroy", self._on_destroy)
+        if remote is not None:
+            self._poll_source = GLib.timeout_add_seconds(REMOTE_POLL_S, self._poll)
 
     # ---- disposition ------------------------------------------------------------------
 
@@ -244,6 +258,46 @@ class SessionWorkspace(Gtk.Box):
         if self._save_source:
             GLib.source_remove(self._save_source)
             self._save_source = 0
+        self._stop_remote()
+
+    # ---- session distante : relectures ------------------------------------------------
+
+    def _poll(self):
+        if self._destroyed:
+            self._poll_source = 0
+            return False
+        if self.get_mapped():
+            self.refresh_remote()
+        return True
+
+    def refresh_soon(self, delay_ms=REMOTE_AFTER_TOOL_MS):
+        """Relit tout dans `delay_ms` (regroupe les actions rapprochées)."""
+        if self.remote is None or self._destroyed:
+            return
+        if self._soon_source:
+            GLib.source_remove(self._soon_source)
+
+        def fire():
+            self._soon_source = 0
+            self.refresh_remote()
+            return False
+        self._soon_source = GLib.timeout_add(delay_ms, fire)
+
+    def refresh_remote(self):
+        """Session distante : arbre, feuille de route, fichiers ouverts et (affichée) page Git."""
+        if self.remote is None or self._destroyed:
+            return
+        self.tree.refresh()
+        self.roadmap.reload()
+        self.editor.check_changes()
+        if self.left_stack.get_visible_child_name() == "git":
+            self.git_page.refresh()
+
+    def _stop_remote(self):
+        for name in ("_poll_source", "_soon_source"):
+            if getattr(self, name):
+                GLib.source_remove(getattr(self, name))
+                setattr(self, name, 0)
 
     # ---- arbre, feuille de route ------------------------------------------------------
 
@@ -320,9 +374,21 @@ class SessionWorkspace(Gtk.Box):
     def follow_tool(self, name, data):
         """Une action de Claude : si elle lit ou modifie un ROADMAP.md, le panneau le suit (une
         conversation lancée depuis ~ ou le Bureau montre ainsi la feuille de route du projet)."""
+        if self.remote is not None:
+            self._follow_remote_tool(name, data)
+            return
         found = roadmap.path_in_tool(name, data, self.cwd)
         if found is not None:
             self.roadmap.follow(found)
+
+    def _follow_remote_tool(self, name, data):
+        """Session distante : le disque est loin, on ne vérifie pas que le fichier existe (la
+        feuille suivie illisible, la vue reprend celle du dossier) ; tout est relu peu après."""
+        fp = data.get("file_path") if isinstance(data, dict) else None
+        if name in roadmap.FILE_TOOLS and isinstance(fp, str) and os.path.isabs(fp) \
+                and os.path.basename(fp) == roadmap.FILENAME:
+            self.roadmap.follow(fp)
+        self.refresh_soon()
 
     def set_project_root(self, folder):
         """« Dossier du projet… » : l'arbre et la feuille de route partent de ce dossier
@@ -331,12 +397,17 @@ class SessionWorkspace(Gtk.Box):
         if folder == self.tree.root:
             return
         old = self.tree
-        self.tree = FileTree(folder, self.open_file, show_ignored=_show_ignored())
-        self.tree.connect("insert-reference", self._on_insert_reference)
+        self.tree = self._new_tree(folder)
         self.tree_holder.remove(old)
         self.tree_holder.append(self.tree)
         self.roadmap.set_root(folder)
         self.git_page.set_root(folder)
+
+    def _new_tree(self, folder):
+        tree = FileTree(folder, self.open_file, show_ignored=_show_ignored(),
+                        source=self.remote.files if self.remote else None)
+        tree.connect("insert-reference", self._on_insert_reference)
+        return tree
 
     def ask_create(self):
         """« Demander à Claude d'en créer une » : un message pour le chat."""
@@ -349,6 +420,9 @@ class SessionWorkspace(Gtk.Box):
         """▶ d'une tâche de la feuille de route : dans ce chat, ou dans la file de nuit."""
         path = self.roadmap.path
         if path is None:
+            return
+        if self.remote is not None:
+            self._do_remote_task(task, phase, where, path)
             return
         if where == "chat":
             if not (hasattr(self.center, "do_roadmap_task")
@@ -364,9 +438,36 @@ class SessionWorkspace(Gtk.Box):
             return
         self.roadmap.toast("Tâche mise dans la file de nuit")
 
+    def _do_remote_task(self, task, phase, where, path):
+        """Session distante : la feuille est sur le serveur. « Faire maintenant » envoie le
+        message au chat ; « file de nuit » va dans la file du serveur."""
+        prompt = roadmap.task_prompt(task, phase)
+        if where == "chat":
+            if not (hasattr(self.center, "send_auto") and self.center.send_auto(prompt)):
+                self.roadmap.toast("Impossible de lancer la tâche dans ce chat")
+            return
+        info = {"path": str(path), "text": task.text, "phase": phase.title}
+        remote, cwd = self.remote, str(path.parent)
+
+        def work():
+            try:
+                remote.add_night_task(cwd, prompt, info)
+                return None
+            except ValueError as e:
+                return str(e)
+
+        def done(err):
+            if not self._destroyed:
+                self.roadmap.toast(f"File de nuit : {err}" if err
+                                   else "Tâche mise dans la file de nuit du serveur")
+        in_thread(work, done)
+
     def show_changes(self):
         """Volet « Changements » dans la zone de droite (fichiers modifiés par Claude, retour en
-        arrière) pour la conversation de ce chat."""
+        arrière) pour la conversation de ce chat (local seulement : le journal d'un chat
+        distant est sur le serveur)."""
+        if self.remote is not None:
+            return
         info = self.center.journal_info() if hasattr(self.center, "journal_info") else None
         if info is None:
             self.roadmap.toast("Pas encore de conversation à examiner")
@@ -432,6 +533,7 @@ class SessionWorkspace(Gtk.Box):
         self.editor.set_dark(self._dark)
 
     def close(self):
-        """Libère ce qui surveille le disque (la feuille de route)."""
+        """Libère ce qui surveille le disque (la feuille de route) et les relectures à distance."""
         self.roadmap.close()
         self.git_page.close()
+        self._stop_remote()

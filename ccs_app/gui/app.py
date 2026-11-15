@@ -526,8 +526,12 @@ class Window(Adw.ApplicationWindow):
 
     # ---- actions -----------------------------------------------------------------
 
-    def toast(self, text):
-        self.toasts.add_toast(Adw.Toast(title=GLib.markup_escape_text(text), timeout=4))
+    def toast(self, text, undo=None):
+        toast = Adw.Toast(title=GLib.markup_escape_text(text), timeout=6 if undo else 4)
+        if undo is not None:                  # « Annuler » (ex. conversation mise à la corbeille)
+            toast.set_button_label("Annuler")
+            toast.connect("button-clicked", lambda *_: undo())
+        self.toasts.add_toast(toast)
 
     def switch(self, name):
         switch_log.note_origin(name, "application")   # pour le journal des bascules

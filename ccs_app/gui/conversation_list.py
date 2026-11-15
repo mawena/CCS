@@ -253,6 +253,8 @@ class ConversationList(Gtk.Box):
         entries.append(("Ouvrir le dossier", "conv.folder") if c.folder_exists
                        else ("Reprendre depuis un autre dossier…", "conv.relocate"))
         entries.append(("Renommer…", "conv.rename"))
+        if tab is None:
+            entries.append(("Supprimer…", "conv.trash"))
         more = Gtk.MenuButton(icon_name="view-more-symbolic", css_classes=["flat"], tooltip_text="Autres actions")
         # Menu construit au premier clic : des dizaines de lignes s'affichent plus vite.
         more.set_create_popup_func(lambda b, e=entries, sid=c.session_id: self.make_menu(b, e, sid))

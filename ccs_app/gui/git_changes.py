@@ -27,9 +27,10 @@ class ChangesView(Gtk.Box):
         "error": (GObject.SignalFlags.RUN_FIRST, None, (object,)),
     }
 
-    def __init__(self, repo):
+    def __init__(self, repo, git=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.repo = repo
+        self.git = git if git is not None else git_repo   # source distante : `remote.workspace`
         self._status = []
         self._busy = 0
         self._current = None          # (chemin, indexé) du fichier dont on voit le diff
@@ -64,6 +65,7 @@ class ChangesView(Gtk.Box):
         self.btn_discard_sel.connect("clicked", lambda _b: self.discard_selection())
         for b in (self.btn_stage_sel, self.btn_unstage_sel, self.btn_discard_sel):
             bar.append(b)
+        self.btn_discard_sel.set_visible(self.can("discard_lines"))
         self.append(hscroll(bar))
         self.diff_holder = Gtk.ScrolledWindow(vexpand=True, hexpand=True,
                                               min_content_height=120)
@@ -114,6 +116,10 @@ class ChangesView(Gtk.Box):
         sw.set_child(child)
         return sw
 
+    def can(self, name):
+        """La source sait-elle faire `name` (une session distante n'annule rien, n'ignore rien) ?"""
+        return callable(getattr(self.git, name, None))
+
     # ---- travail en fil -----------------------------------------------------------------
 
     def busy(self):
@@ -157,7 +163,7 @@ class ChangesView(Gtk.Box):
     # ---- état ---------------------------------------------------------------------------
 
     def refresh(self):
-        self._job(lambda: git_repo.status(self.repo), self._apply_status)
+        self._job(lambda: self.git.status(self.repo), self._apply_status)
 
     def staged_files(self):
         return [s for s in self._status if s.staged not in (".", "?")]
@@ -202,6 +208,9 @@ class ChangesView(Gtk.Box):
             tag.add_css_class("dim-label")
             box.append(tag)
             row.set_child(box)
+            if not (self.can("discard_file") or self.can("ignore")):
+                lb.append(row)
+                continue
             click = Gtk.GestureClick(button=3)
             click.connect("pressed", lambda g, _n, x, y, row=row, fs=fs:
                           self._context_menu(row, fs, x, y))
@@ -212,8 +221,11 @@ class ChangesView(Gtk.Box):
         pop = Gtk.Popover()
         pop.set_parent(row)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        for label, action in (("Annuler les modifications", lambda: self.discard_file(fs.path)),
-                              ("Ajouter au .gitignore", lambda: self.ignore_file(fs.path))):
+        for label, action, need in (
+                ("Annuler les modifications", lambda: self.discard_file(fs.path), "discard_file"),
+                ("Ajouter au .gitignore", lambda: self.ignore_file(fs.path), "ignore")):
+            if not self.can(need):
+                continue
             b = Gtk.Button(label=label)
             b.add_css_class("flat")
             b.connect("clicked", lambda _b, a=action: (pop.popdown(), a()))
@@ -247,7 +259,7 @@ class ChangesView(Gtk.Box):
                 i += 1
         finally:
             self._rebuilding = False
-        self._job(lambda: git_repo.diff(self.repo, path, staged),
+        self._job(lambda: self.git.diff(self.repo, path, staged),
                   lambda fd: self._show_diff(fd, staged))
 
     def _show_diff(self, fd, staged):
@@ -277,12 +289,12 @@ class ChangesView(Gtk.Box):
     def set_staged(self, path, flag):
         if self._rebuilding:
             return
-        fn = git_repo.stage_file if flag else git_repo.unstage_file
+        fn = self.git.stage_file if flag else self.git.unstage_file
         self._job(lambda: fn(self.repo, path), write=True)
 
     def stage_all(self):
         paths = [s.path for s in self.unstaged_files()]
-        self._job(lambda: [git_repo.stage_file(self.repo, p) for p in paths], write=True)
+        self._job(lambda: [self.git.stage_file(self.repo, p) for p in paths], write=True)
 
     def _selection(self):
         if self._diff_view is None or not self._diff_view.selected():
@@ -292,34 +304,35 @@ class ChangesView(Gtk.Box):
     def stage_selection(self):
         sel = self._selection()
         if sel:
-            self._job(lambda: git_repo.stage_lines(self.repo, *sel), write=True)
+            self._job(lambda: self.git.stage_lines(self.repo, *sel), write=True)
 
     def unstage_selection(self):
         sel = self._selection()
         if sel:
-            self._job(lambda: git_repo.unstage_lines(self.repo, *sel), write=True)
+            self._job(lambda: self.git.unstage_lines(self.repo, *sel), write=True)
 
     def discard_selection(self):
         sel = self._selection()
-        if sel:
+        if sel and self.can("discard_lines"):
             self._confirm("Annuler la sélection ?",
                           "Les lignes choisies seront remises dans leur état du dernier commit. "
                           "C'est définitif.", "Annuler les lignes",
-                          lambda: self._job(lambda: git_repo.discard_lines(self.repo, *sel),
+                          lambda: self._job(lambda: self.git.discard_lines(self.repo, *sel),
                                             write=True))
 
     def discard_file(self, path):
         fs = next((s for s in self._status if s.path == path), None)
-        if fs is None:
+        if fs is None or not self.can("discard_file"):
             return
         self._confirm(f"Annuler les modifications de {path} ?",
                       "Le fichier revient à son état du dernier commit. C'est définitif.",
                       "Annuler les modifications",
-                      lambda: self._job(lambda: git_repo.discard_file(self.repo, fs),
+                      lambda: self._job(lambda: self.git.discard_file(self.repo, fs),
                                         write=True))
 
     def ignore_file(self, path):
-        self._job(lambda: git_repo.ignore(self.repo, path), write=True)
+        if self.can("ignore"):
+            self._job(lambda: self.git.ignore(self.repo, path), write=True)
 
     # ---- message et commit --------------------------------------------------------------
 
@@ -335,12 +348,12 @@ class ChangesView(Gtk.Box):
 
     def _on_amend(self, check):
         if check.get_active():
-            self._job(lambda: git_repo.last_message(self.repo), self.set_message)
+            self._job(lambda: self.git.last_message(self.repo), self.set_message)
         else:
             self.set_message("")
 
     def propose(self):
-        self._job(lambda: git_repo.propose_message(self.repo),
+        self._job(lambda: self.git.propose_message(self.repo),
                   lambda text: text and self.set_message(text))
 
     def commit(self):
@@ -351,7 +364,7 @@ class ChangesView(Gtk.Box):
             if self.amend.get_active():
                 self.amend.set_active(False)
                 self.set_message("")
-        self._job(lambda: git_repo.commit(self.repo, message, amend=amend), after, write=True)
+        self._job(lambda: self.git.commit(self.repo, message, amend=amend), after, write=True)
 
     def on_message_key(self, _ctrl, keyval, _keycode, state):
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) \
