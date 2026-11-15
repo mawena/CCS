@@ -7,11 +7,11 @@ const GLYPH = { erreur: "✖", avertissement: "⚠", ok: "✔" };
 const CLASS = { erreur: "err-text", avertissement: "warn-text", ok: "ok-text" };
 
 function checkRow(c) {
-  return el("div", { class: "check" },
-    el("div", { class: "check-head" }, el("span", { class: CLASS[c.statut] || "", "aria-hidden": "true" }, GLYPH[c.statut] || "•"),
+  return el("div", { class: "health-check" },
+    el("div", { class: "health-check-head" }, el("span", { class: CLASS[c.statut] || "", "aria-hidden": "true" }, GLYPH[c.statut] || "•"),
       el("strong", {}, c.nom), el("span", { class: "visually-hidden" }, c.statut)),
     el("div", { class: "subtle" }, c.detail),
-    c.commande ? el("div", { class: "check-cmd" }, el("code", {}, c.commande),
+    c.commande ? el("div", { class: "health-check-cmd" }, el("code", {}, c.commande),
       el("button", { class: "small", "aria-label": `Copier la commande : ${c.commande}`, onclick: () => copyText(c.commande) }, "Copier")) : null);
 }
 

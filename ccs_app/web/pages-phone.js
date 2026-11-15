@@ -1,6 +1,6 @@
 // Réglages > Téléphone (ntfy) : interrupteur, serveur, canal secret, QR code à scanner,
 // événements, essai d'envoi. Le canal n'est jamais écrit dans un journal ni une adresse.
-import { clear, el, toast } from "./dom.js";
+import { clear, confirmSheet, el, toast } from "./dom.js";
 import { busy, settingRow } from "./pages-util.js";
 
 export function phoneGroup(api, s, reload) {
@@ -21,6 +21,8 @@ export function phoneGroup(api, s, reload) {
   const qrBox = el("div", { class: "qr-box", hidden: true });
   const result = el("p", { class: "form-error", role: "status" });
   const newTopic = el("button", { class: "small", onclick: (e) => busy(e.currentTarget, async () => {
+    if (!await confirmSheet({ title: "Créer un nouveau canal ?", confirm: "Créer le canal",
+      body: "L'ancien canal ne recevra plus rien : il faudra se réabonner au nouveau (QR code) sur chaque téléphone." })) return;
     try { await api.call("phone.new_topic"); } catch (err) { result.textContent = err.message; return; }
     toast("Nouveau canal créé.", { kind: "success" });
     reload();
