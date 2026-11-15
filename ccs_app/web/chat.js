@@ -5,6 +5,7 @@
 import { clear, el, resizable, setHtml, toast } from "./dom.js";
 import { ChangesPanel } from "./chat-changes.js";
 import { Completer } from "./chat-complete.js";
+import { contextAlert } from "./chat-context.js";
 import { diffCard, editDiffs } from "./chat-diff.js";
 import { linkify } from "./chat-links.js";
 import { openSavedSheet } from "./chat-saved.js";
@@ -386,14 +387,12 @@ export class ChatView {
   }
 
   async checkContext(ev) {
-    const cfg = (await this.workInfo()).context;
-    const over = Boolean(cfg.enabled && cfg.threshold_tokens && ev.total >= cfg.threshold_tokens);
-    if (over && !this.heavy) {           // franchissement du seuil vers le haut : une seule alerte
-      const gain = ev.total - Math.floor(ev.total * 0.2);
+    const { heavy, gain } = contextAlert(ev, (await this.workInfo()).context, this.heavy);
+    if (gain !== null) {                 // franchissement du seuil vers le haut : une seule alerte
       this.notice(`Contexte lourd : ${fr(ev.total)} jetons. Compacter libérerait environ ${fr(gain)} jetons (estimation).`, "warning",
         { label: "Compacter", run: () => this.sendText("/compact") });
     }
-    this.heavy = over;
+    this.heavy = heavy;
   }
 
   // « Contexte N % » n'arrive qu'en réponse à chat.context : on le demande après chaque tour.
@@ -692,7 +691,10 @@ export class ChatView {
       case "Status":
         if (ev.permission_mode) { this.rights.value = ev.permission_mode === "default" ? "manual" : ev.permission_mode; this.updateSummary(); }
         break;
-      case "LocalCommand": if (ev.text) this.notice(ev.text); break;
+      case "LocalCommand":
+        if (ev.text) this.notice(ev.text);
+        this.requestContext();       // `/compact`, `/clear` : le contexte a changé
+        break;
       case "TextDelta": {
         const e = this.texts.get(ev.msg_id);
         this.assistant(ev.msg_id, (e ? e.text : "") + ev.text, false);
@@ -727,6 +729,7 @@ export class ChatView {
         this.requestContext();
         break;
       case "Compacted": this.notice("Conversation compactée."); break;
+      case "Notice": this.notice(ev.text, ["warning", "error"].includes(ev.kind) ? ev.kind : "info"); break;
       case "Retrying": this.notice(`Nouvel essai (${ev.attempt}) dans ${Math.round(ev.delay_s)} s…`, "warning"); break;
       case "Unknown": break;
       case "StateChanged": this.setState(ev.state); break;

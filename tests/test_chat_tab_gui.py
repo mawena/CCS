@@ -716,6 +716,128 @@ class ChatTabTest(HomeTestCase):
             button.emit("clicked")
         send.assert_called_once_with("/compact")
 
+    # ---- compactage automatique ----------------------------------------------------------
+
+    def auto_on(self, **cfg):
+        from ccs_app import settings
+        s = settings.load_settings()
+        s["context_alert"].update({"auto_compact": True, **cfg})
+        settings.save_settings(s)
+
+    def test_auto_compact_local_chat_end_to_end(self):
+        """Chat local, faux `claude` : le tour finit au-dessus du seuil, `/compact` part tout seul."""
+        self.auto_on()
+        tab, _owner = self.make(env={"FAKE_CLAUDE_SCENARIO": "", "FAKE_CLAUDE_CONTEXT": "160000"})
+        self.say(tab, "bonjour")
+        self.assertTrue(pump_until(lambda: tab.bar.context_label.get_label() == "Contexte 15 %"), texts(tab))
+        got = texts(tab)
+        self.assertIn("Compactage automatique : contexte de 160\u202f000 jetons.", got)
+        self.assertIn("Conversation compactée (160\u202f000 jetons avant).", got)
+        self.assertLess(got.index("Compactage automatique : contexte de 160\u202f000 jetons."),
+                        got.index("Conversation compactée (160\u202f000 jetons avant)."))
+        self.assertNotIn("/compact", got)                           # pas une bulle de l'utilisateur
+        self.assertFalse([t for t in got if t.startswith("Contexte lourd")])
+        self.assertFalse([w for w in descendants(tab.messages.box)
+                          if isinstance(w, Gtk.Button) and w.get_label() == "Compacter"])
+        self.assertTrue(pump_until(lambda: tab.engine.state == "idle"))
+        self.assertEqual(tab._auto_compact.state, "armed")          # prêt pour le prochain dépassement
+        self.assertFalse(tab._context_heavy)
+
+    def test_auto_compact_waits_for_idle(self):
+        """Claude n'est pas au repos (ou la conversation est ouverte ailleurs) : rien ne part, rien
+        n'est écrit ; la décision est reprise à la mesure suivante."""
+        from unittest import mock
+        self.auto_on()
+        tab, _owner = self.make(spawn=False)
+        auto = lambda: [t for t in texts(tab) if t.startswith("Compactage automatique")]   # noqa: E731
+        with mock.patch.object(tab.engine, "send_if_idle", return_value=False) as send:
+            tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+            send.assert_called_once_with("/compact")
+            self.assertEqual((auto(), tab._auto_compact.state), ([], "armed"))
+            tab.elsewhere_pid = 4242
+            tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+            send.assert_called_once()                               # ouverte ailleurs : même pas tenté
+            tab.elsewhere_pid = None
+        with mock.patch.object(tab.engine, "send_if_idle", return_value=True) as send:
+            tab._on_context(chat_engine.ContextUsage(81, 162_000, 200_000))
+            tab._on_context(chat_engine.ContextUsage(81, 162_000, 200_000))   # mesure en double : ignorée
+            send.assert_called_once_with("/compact")
+        self.assertEqual(auto(), ["Compactage automatique : contexte de 162\u202f000 jetons."])
+        self.assertFalse([t for t in texts(tab) if t.startswith("Contexte lourd")])
+
+    def test_auto_compact_never_twice_in_a_row(self):
+        from unittest import mock
+        self.auto_on()
+        tab, _owner = self.make(spawn=False)
+        with mock.patch.object(tab.engine, "send_if_idle", return_value=True) as send:
+            tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+            tab._dispatch(proto.Compacted(160_000, "manual"))
+            tab._on_state(chat_engine.StateChanged("idle"))
+            tab._on_context(chat_engine.ContextUsage(78, 156_000, 200_000))   # resté au-dessus du seuil
+            tab._dispatch(proto.TurnResult(True, "success"))
+            tab._on_context(chat_engine.ContextUsage(79, 158_000, 200_000))
+            send.assert_called_once()
+            stuck = [t for t in texts(tab) if t.startswith("Contexte encore lourd")]
+            self.assertEqual(len(stuck), 1)
+            self.assertIn("156\u202f000 jetons", stuck[0])
+            tab._on_context(chat_engine.ContextUsage(20, 40_000, 200_000))    # repassé sous le seuil
+            tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+            self.assertEqual(send.call_count, 2)
+
+    def test_auto_compact_failure_retried_after_next_good_turn(self):
+        from unittest import mock
+        self.auto_on()
+        tab, _owner = self.make(spawn=False)
+        failed = lambda: [t for t in texts(tab) if "non abouti" in t]   # noqa: E731
+        with mock.patch.object(tab.engine, "send_if_idle", return_value=True) as send, \
+                mock.patch.object(tab.engine, "request_context"):
+            tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+            tab._dispatch(proto.LocalCommand("Error: Compaction failed."))    # pas de Compacted
+            tab._on_state(chat_engine.StateChanged("idle"))
+            self.assertEqual(len(failed()), 1)
+            tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+            tab._dispatch(proto.TurnResult(False, "error_during_execution", is_limit=True))
+            tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+            send.assert_called_once()                                         # pas de boucle
+            tab._dispatch(proto.TurnResult(True, "success"))
+            tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+            self.assertEqual(send.call_count, 2)
+        self.assertEqual(len(failed()), 1)
+
+    def test_remote_chat_follows_its_server(self):
+        """Chat d'un serveur CCS : c'est son pont qui compacte (réglage du serveur, pas celui d'ici) ;
+        l'onglet n'envoie rien et montre la note reçue."""
+        from ccs_app.server import events as bridge_events
+        sent = []
+
+        class FakeRemote:
+            def __init__(self, cwd, session_id, options, on_event):
+                self.cwd, self.session_id, self.state, self.pid, self.started_at = cwd, session_id, "idle", None, None
+                self.effort = None
+
+            def send_if_idle(self, text):
+                sent.append(text)
+                return True
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+        self.auto_on()                                              # réglage local : sans effet ici
+        launch = terminal.claude_launch("/srv/projet-distant", None, "Projet")
+        tab = ChatTab(FakeOwner(), launch, engine_factory=FakeRemote, remote="vps")
+        self.tabs.append(tab)
+        heavy = lambda: [t for t in texts(tab) if t.startswith("Contexte lourd")]   # noqa: E731
+        tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000, auto_compact=True))
+        tab._dispatch(bridge_events.Notice("Compactage automatique : contexte de 160\u202f000 jetons.", "info"))
+        self.assertEqual((sent, heavy()), ([], []))
+        self.assertIn("Compactage automatique : contexte de 160\u202f000 jetons.", texts(tab))
+        tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))   # serveur sans compactage automatique
+        self.assertEqual((sent, len(heavy())), ([], 1))                  # l'alerte et son bouton, comme avant
+
+    def test_compacted_without_token_count(self):
+        tab, _owner = self.make(spawn=False)
+        tab._dispatch(proto.Compacted(None, "auto"))
+        self.assertIn("Conversation compactée.", texts(tab))
+
 
     def test_bang_not_sent_to_claude(self):
         from unittest import mock

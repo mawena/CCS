@@ -13,6 +13,13 @@ class PermissionSettled:
     decision: str = ""
 
 
+@dataclasses.dataclass(frozen=True)
+class Notice:
+    """Note du pont, écrite dans le fil de tous les appareils (compactage automatique)."""
+    text: str
+    kind: str = "info"           # info | warning | error
+
+
 def _collect():
     out = {}
     for mod in (proto, chat_engine):
@@ -21,6 +28,7 @@ def _collect():
                     obj.__module__ == mod.__name__ and name != "ChatSession":
                 out[name] = obj
     out["PermissionSettled"] = PermissionSettled
+    out["Notice"] = Notice
     return out
 
 

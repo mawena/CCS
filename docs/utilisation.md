@@ -82,6 +82,7 @@ continuent sur le serveur si on ferme la page.
   un fichier du projet ouvre le volet Fichiers. `@` et `/` complètent comme au bureau. Le
   menu des messages enregistrés (communs ou par projet), le bouton « Compacter » de l'alerte
   de contexte lourd, la commande `!` et la recherche dans le fil marchent comme au bureau.
+  Le [compactage automatique](#compactage-automatique) se règle dans Réglages → Alertes.
   Le volet **Changements de la session** montre les fichiers changés par Claude avec leur
   diff ; annuler un fichier ou revenir à avant un message demande une confirmation.
 - **Terminal.** Sur écran tactile ou étroit, une barre de touches complète le clavier : Échap,
@@ -1102,7 +1103,8 @@ téléphone). Sur le téléphone, la notification porte les boutons **Autoriser*
   proposés après `/`, dans la section « Mes messages ».
 - **Compacter** : quand le contexte dépasse le seuil de l'[alerte de contexte
   lourd](#alerte-de-contexte-lourd), la note du chat porte un bouton **Compacter**, qui envoie
-  `/compact`.
+  `/compact`. Avec le [compactage automatique](#compactage-automatique), CCS l'envoie tout
+  seul et une note le dit à la place de l'alerte.
 - **Commande `!`** : un message qui commence par `!` (par exemple `!git status`) lance la
   commande dans le dossier du projet, par `bash -lc`. Elle ne part pas chez Claude : sa sortie
   (20 000 caractères au plus) s'affiche dans une carte et s'ajoute en tête de ton prochain
@@ -1645,6 +1647,31 @@ le conseil : `/compact` pour résumer, ou une nouvelle session.
 Un badge apparaît aussi sur la session dans l'onglet Sessions et dans la ligne
 d'état de Claude Code. Interrupteur et seuil : Réglages → Alerte de contexte lourd.
 La notification respecte [Ne pas déranger](#ne-pas-déranger).
+
+### Compactage automatique
+
+Réglage **Compacter automatiquement** (`context_alert.auto_compact`), désactivé par défaut.
+Il se trouve sous l'alerte de contexte lourd, au bureau comme dans la version web, et ne
+fait rien si l'alerte est coupée.
+
+Quand il est activé, CCS mesure le contexte d'un **chat** chaque fois que Claude a fini un
+tour. Au-delà du seuil, il envoie `/compact` lui-même et écrit dans le fil « Compactage
+automatique : contexte de N jetons », à la place de l'alerte et de son bouton.
+
+- **Seulement entre deux tours** : jamais pendant que Claude travaille, ni quand une demande
+  d'autorisation attend ta réponse. Un message que tu envoies pendant le compactage est lu
+  juste après.
+- **Chats d'un serveur** (version web, téléphone, chat distant du bureau) : c'est le serveur
+  qui compacte, avec **son** réglage, même si aucun appareil n'est ouvert.
+- **Chats locaux du bureau** : c'est l'application qui compacte, avec le réglage du poste.
+- **Jamais deux fois de suite** : si le contexte reste au-dessus du seuil après le
+  compactage (seuil trop bas), CCS le dit une fois et attend qu'il repasse dessous. Si le
+  compactage n'aboutit pas (limite d'usage, arrêt), il réessaie après le prochain tour réussi.
+- Les sessions ouvertes dans un **terminal** ne sont pas compactées : l'alerte et son conseil
+  restent comme avant.
+
+Le compactage coûte une requête qui relit le contexte, puis chaque message suivant coûte
+moins cher. Le fil affiché n'est pas effacé : seul ce que Claude relit est résumé.
 
 ## Budget par projet
 

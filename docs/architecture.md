@@ -51,7 +51,7 @@ raccourcis clavier.
 | `fiche` | Fiche « où j'en étais » lue dans le journal (dernière demande, réponse, fichiers, tâches, branche, compte d'après le journal des bascules), `command()` de `ccs fiche` ; encart de l'aperçu |
 | `backup` | Sauvegarde chiffrée : tar en mémoire, `gpg --symmetric --cipher-algo AES256` (phrase de passe saisie dans pinentry, jamais en argument), contenu, restauration atomique en 600 avec confirmation, `command()` de `ccs sauvegarde` et `ccs restaurer` |
 | `session_memory` | RAM par session (PSS du processus et de ses descendants, à défaut RSS), inactivité, total, textes du bandeau ; lu par `ccs sessions` et l'onglet Sessions |
-| `context_alert` | Taille du contexte (dernier usage du journal), seuil, une alerte `context:<session_id>` par session (état `context-alerts.json`), indice de la ligne d'état |
+| `context_alert` | Taille du contexte (dernier usage du journal), seuil, une alerte `context:<session_id>` par session (état `context-alerts.json`), indice de la ligne d'état ; `AutoCompact` : décision du compactage automatique des chats, commune au pont et au bureau |
 | `budget` | Budgets hebdomadaires par projet : `budgets.json`, dépensé de la semaine (cache par chemin, date, taille), alertes à 80 % et 100 % (`pending_alerts`, une fois par seuil, projet et semaine), `command()` de `ccs budget` |
 | `daemon` | Boucle : relevés, prévisions, pause, décision, alertes, rappel des sessions en attente, warm-up, modules optionnels (`hooks`), écriture de `state.json` |
 | `pause` | Mode pause : `pause.json` (sous verrou), `set_pause`, `pause_state`, `expire`, `until_for` (1 h, 4 h, début de la plage suivante, reprise manuelle), libellés, `command()` de `ccs pause` |
@@ -829,6 +829,19 @@ connexion par abonnement).
   l'annonce jamais.
 - **Contexte** : `get_context_usage` (réponse de 43 Ko environ, avec les
   catégories) fournit `ContextUsage`, pour la jauge de la barre.
+- **Compactage automatique** (`context_alert.auto_compact`) : `context_alert.AutoCompact`
+  est une petite machine à états sans entrée-sortie (`armed`, `fired`, `check`, `stuck`,
+  `failed`). Après chaque mesure du contexte, elle dit s'il faut envoyer `/compact` ;
+  l'envoi passe par `ChatSession.send_if_idle`, qui n'écrit que si Claude est au repos, sans
+  demande d'autorisation en attente, et ne lance jamais de processus. Jamais deux
+  compactages de suite : après un compactage, il faut une mesure sous le seuil ; après un
+  compactage sans `compact_boundary` (limite, arrêt), il faut un tour réussi. Chat local :
+  `ChatTab` fait la mesure après chaque `result` et suit la machine. Chat d'un serveur :
+  `bridge_chat.ChatHub` mesure à chaque retour à `idle`, même sans appareil attaché, marque
+  `ContextUsage.auto_compact` (les appareils ne montrent alors plus l'alerte) et écrit ses
+  notes dans le fil par `events.Notice`. `/compact` finit par un `result` de commande
+  locale (`local_command`), précédé de `system/compact_boundary` (relevé du 15/11/2026,
+  Claude Code 2.1.325).
 
 ### Le protocole stream-json en bref
 
@@ -1020,7 +1033,7 @@ le bandeau « Tâche finie ? » apparaît. L'autre choix met la tâche dans la f
 
 **Le chat.** Recherche (Ctrl+F, `gui/chat_messages`), `saved_messages` (menu ☆ et section
 « Mes messages » de la complétion `/`), bouton « Compacter » de l'alerte de contexte lourd
-(envoie `/compact`), commande `!` par `shell_command` (la sortie est ajoutée en tête du
+(envoie `/compact`) ou compactage automatique (`context_alert.AutoCompact`), commande `!` par `shell_command` (la sortie est ajoutée en tête du
 prochain message à Claude).
 
 **Le téléphone.** `phone_reply` : une demande d'autorisation part en notification ntfy avec

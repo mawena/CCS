@@ -367,8 +367,8 @@ Fin de phase :
 - [x] Web au téléphone : une seule barre en haut, saisie plus large (0.12.5)
 - [x] Web : installer CCS comme une application (Chrome, iPhone) (0.12.6)
 - [x] Releases 0.12.1 à 0.12.6 (paquets construits sur le VPS, releases GitHub)
-- [ ] Dépôt APT signé à jour (`make apt` depuis le PC de Charles)
-- [ ] Essais de Charles : page Git du web, Autoriser / Refuser (web et ntfy)
+- [x] Dépôt APT signé à jour (`make apt` depuis le PC de Charles)
+- [x] Essais de Charles : page Git du web, Autoriser / Refuser (web et ntfy)
 
 ## Phase 15 — Le serveur depuis le bureau, comme Remote Control (0.13.0 : pont et web ; 0.14.0 : bureau)
 
@@ -396,4 +396,17 @@ Fin de phase :
 - [x] 8a. Documentation de la partie web (README, CHANGELOG) et release 0.13.0
 - [x] 8. Documentation de la partie bureau (README, guide, CHANGELOG)
 - [ ] 9. Essai réel par Charles depuis son PC
-- [ ] 10. Release mineure 0.14.0 (bureau)
+- [x] 10. Release mineure 0.14.0 (bureau)
+
+## Phase 16 — Compactage automatique (0.15.0)
+
+Quand le contexte d'un chat dépasse le seuil du contexte lourd, CCS envoie `/compact` tout seul, au lieu de seulement proposer le bouton « Compacter ». Désactivé par défaut.
+
+- [x] 1. Réglage `context_alert.auto_compact` (faux par défaut), validé dans `settings.py`
+- [x] 2. Décision commune dans `context_alert.py` : compacter seulement entre deux tours (Claude au repos, aucune demande de permission en attente), une seule fois par dépassement, jamais deux fois de suite si le contexte ne redescend pas
+- [x] 3. Chats du serveur (`server/bridge_chat.py`) : envoi automatique, même sans navigateur ouvert
+- [x] 4. Chat du bureau : même comportement pour les chats locaux
+- [x] 5. Note dans le fil (« Compactage automatique : contexte de N jetons ») à la place de l'alerte avec bouton
+- [x] 6. Case « Compacter automatiquement » dans les réglages du web et du bureau
+- [x] 7. Tests des modules touchés
+- [ ] 8. Documentation (README, CHANGELOG) et release mineure 0.15.0, dépôt APT compris

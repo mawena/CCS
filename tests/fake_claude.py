@@ -16,6 +16,12 @@ Variables d'environnement :
                          (question_mystere) et attend sa réponse avant de continuer.
   FAKE_CLAUDE_REFUSE_MODE mode refusé par set_permission_mode (comme la CLI qui refuse
                          bypassPermissions sans --allow-dangerously-skip-permissions).
+  FAKE_CLAUDE_CONTEXT    jetons du contexte donnés par `get_context_usage` (fenêtre de 200 000) ;
+                         le message `/compact` est alors joué comme la vraie CLI (relevé du
+                         15/11/2026, Claude Code 2.1.325) : `compact_boundary`, puis un `result`
+                         de commande locale, et le contexte tombe à FAKE_CLAUDE_COMPACT_TO
+                         (30 000 par défaut).
+  FAKE_CLAUDE_COMPACT_FAIL 1 : `/compact` échoue (pas de `compact_boundary`, contexte inchangé).
 
 Comportement :
   - `initialize`, `get_context_usage` : réponse tirée du scénario (sinon réponse minimale) ;
@@ -83,6 +89,8 @@ class Fake:
         self.last_request_id = None
         self.queue = []          # lignes lues pendant un tour et pas encore traitées
         self.merge = os.environ.get("FAKE_CLAUDE_MERGE") == "1"
+        context = os.environ.get("FAKE_CLAUDE_CONTEXT")
+        self.context = int(context) if context else None
         self._buf = b""          # octets lus sur stdin et pas encore découpés en lignes
         self.turns = self.split_turns()
 
@@ -195,6 +203,9 @@ class Fake:
             self.reply(request_id, found[0] if found else {
                 "commands": [], "models": [], "current_permission_mode": self.mode,
                 "capabilities": [], "session_state": "idle"})
+        elif sub == "get_context_usage" and self.context is not None:
+            self.reply(request_id, {"totalTokens": self.context, "maxTokens": 200000,
+                                    "percentage": round(self.context / 2000), "categories": []})
         elif sub == "get_context_usage":
             found = self.first_response("totalTokens")
             body = found[min(self.contexts, len(found) - 1)] if found else {
@@ -221,6 +232,37 @@ class Fake:
             self.reply(request_id, {"still_queued": []})
         else:
             self.error(request_id, f"Unsupported control request subtype: {sub}")
+
+    # -- `/compact`
+    def compact(self):
+        """Suite de la vraie CLI : état « compacting », frontière, résumé, puis un `result` de
+        commande locale (texte vide, aucun tour)."""
+        sid = self.session_id()
+        self.emit({"type": "system", "subtype": "status", "status": "compacting", "session_id": sid})
+        failed = os.environ.get("FAKE_CLAUDE_COMPACT_FAIL") == "1"
+        if not failed:
+            before = self.context
+            self.context = int(os.environ.get("FAKE_CLAUDE_COMPACT_TO") or 30000)
+            self.emit({"type": "system", "subtype": "status", "status": None, "session_id": sid})
+            self.emit({"type": "system", "subtype": "compact_boundary", "session_id": sid,
+                       "compact_metadata": {"trigger": "manual", "pre_tokens": before,
+                                            "post_tokens": self.context}})
+            self.emit({"type": "user", "isSynthetic": True, "session_id": sid, "parent_tool_use_id": None,
+                       "message": {"role": "user", "content": "This session is being continued…"}})
+            self.emit({"type": "user", "isReplay": True, "session_id": sid, "parent_tool_use_id": None,
+                       "message": {"role": "user",
+                                   "content": "<local-command-stdout>Compacted </local-command-stdout>"}})
+        self.emit({"type": "result", "subtype": "success", "is_error": failed,
+                   "result": "Error: Compaction failed." if failed else "", "local_command": "compact",
+                   "session_id": sid, "num_turns": 0, "total_cost_usd": 0, "modelUsage": {},
+                   "model_usage_since_last_result": {}, "permission_denials": []})
+
+    @staticmethod
+    def text_of(msg):
+        content = (msg.get("message") or {}).get("content")
+        if isinstance(content, list):
+            return "".join(b.get("text", "") for b in content if isinstance(b, dict))
+        return content if isinstance(content, str) else ""
 
     # -- un tour
     def play_turn(self):
@@ -297,7 +339,9 @@ class Fake:
             if kind == "control_request":
                 self.handle_control(msg)
             elif kind == "user":
-                if not self.play_turn():
+                if self.context is not None and self.text_of(msg).strip() == "/compact":
+                    self.compact()
+                elif not self.play_turn():
                     return 0
 
 
