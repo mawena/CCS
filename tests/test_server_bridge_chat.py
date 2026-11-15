@@ -112,6 +112,21 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.wait(lambda: "PermissionRequest" in self.types(b)))
         self.assertIn("PermissionRequest", self.types(a))
 
+    async def test_sent_message_shown_on_other_devices(self):
+        """Message envoyé depuis le téléphone : les autres appareils (bureau, autre onglet) le
+        voient aussi, et il reste dans le tampon pour un onglet rechargé."""
+        a, b = await self.client(), await self.client()
+        chat_id = (await a.call("chat.open", cwd=str(self.project)))["chat_id"]
+        await b.call("chat.attach", chat_id=chat_id, since=0)
+        await a.call("chat.send", chat_id=chat_id, text="!notes\nbonjour", shown="bonjour",
+                     nonce="n1", images=[])
+        self.assertTrue(await self.wait(lambda: "UserSent" in self.types(b)))
+        ev = self.find(b, "UserSent")
+        self.assertEqual((ev["text"], ev["nonce"], ev["images"]), ("bonjour", "n1", 0))
+        replay = await self.client()
+        r = await replay.call("chat.attach", chat_id=chat_id, since=0)
+        self.assertIn("UserSent", [e["event"]["type"] for e in r["events"]])
+
     async def test_answer_permission_settles_for_others(self):
         a, b = await self.client(), await self.client()
         chat_id = (await a.call("chat.open", cwd=str(self.project)))["chat_id"]

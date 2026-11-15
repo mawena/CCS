@@ -83,6 +83,13 @@ def _parse(entry):
         name = info["backupFileName"]
         if name is not None and not isinstance(name, str):
             return None
+        if not os.path.isabs(path):
+            # Claude Code 2.1.3xx : chemin relatif à `realParentDir`. Sans lui, le fichier est
+            # introuvable : l'ignorer plutôt que lire ou écrire dans le dossier du pont.
+            parent = info.get("realParentDir")
+            if not isinstance(parent, str) or not os.path.isabs(parent):
+                continue
+            path = os.path.normpath(os.path.join(parent, path))
         version = info.get("version")
         files[path] = Backup(path, name, version if isinstance(version, int) else 0)
     return Snapshot(mid, str(snap.get("timestamp") or ""), files)
@@ -188,6 +195,24 @@ def _backups_by_path(snaps):
     return out
 
 
+def _earliest(session_id, backup):
+    """Plus ancienne copie sur disque du même fichier. En mode pont, Claude Code n'écrit pas la
+    mise à jour de l'instantané : la copie `<hash>@v1` d'avant la première modification existe
+    mais n'est citée nulle part. (Un fichier créé par Claude n'a pas de `@v1` sur disque : on ne
+    devine pas qu'il n'existait pas, on garde la copie citée.)"""
+    name = backup.name
+    if not name or "@v" not in name:
+        return backup
+    stem, _, ver = name.rpartition("@v")
+    if not ver.isdigit():
+        return backup
+    folder = _config_dir() / "file-history" / session_id
+    for v in range(1, int(ver)):
+        if (folder / f"{stem}@v{v}").is_file():
+            return Backup(backup.path, f"{stem}@v{v}", v)
+    return backup
+
+
 def _content(session_id, backup):
     """(connu, contenu) : une copie perdue n'est pas « connue »."""
     if backup.name is None:
@@ -201,7 +226,7 @@ def changes(snaps, session_id):
     ancienne copie connue)."""
     out = []
     for path, backups in _backups_by_path(snaps).items():
-        known, before = _content(session_id, backups[0])
+        known, before = _content(session_id, _earliest(session_id, backups[0]))
         if not known:
             continue
         now = _current(path)
@@ -221,14 +246,15 @@ def rewind_plan(snaps, session_id, message_id):
         raise NoSnapshot(message_id)
     steps = []
     for path, backups in _backups_by_path(snaps).items():
+        first = _earliest(session_id, backups[0])
         backup = target_snap.files.get(path)
-        known, content = _content(session_id, backup or backups[0])
+        known, content = _content(session_id, backup or first)
         if not known:
             continue
         now = _current(path)
         if content == now:
             continue
-        states = [c for ok, c in (_content(session_id, b) for b in backups) if ok]
+        states = [c for ok, c in (_content(session_id, b) for b in [first, *backups]) if ok]
         steps.append(Step(path, content, now not in states))
     return steps
 

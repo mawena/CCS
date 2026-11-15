@@ -20,7 +20,8 @@ SAMPLES = [
     proto.ControlReply("r2", False, {"a": 1}, "erreur"),
     proto.TurnResult(True, "success", 0.5, {"in": 1}, 200000, "fin", False, True),
     proto.Compacted(1000, "auto"), proto.Retrying(2, 1.5), proto.Unknown({"type": "zzz"}),
-    chat_engine.StateChanged("busy"), chat_engine.ContextUsage(12, 24000, 200000),
+    chat_engine.StateChanged("busy"), chat_engine.UserSent("bonjour", 1, "n1"),
+    chat_engine.ContextUsage(12, 24000, 200000),
     chat_engine.OptionRefused("model", "non"), chat_engine.UnhandledRequest("x", "y"),
     chat_engine.ProcessExited(1, "trace", True), events.PermissionSettled("r1", "allow"),
 ]

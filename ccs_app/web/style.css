@@ -74,7 +74,8 @@ input, select, textarea {
   font: inherit; color: var(--fg); background: var(--card);
   border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px; width: 100%;
 }
-input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
+input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; min-height: 0; padding: 0; margin: 0; flex: none; accent-color: var(--accent); }
+label.check > span { flex: 1; min-width: 0; text-align: left; }
 input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* ---- bandeau ---- */
@@ -191,7 +192,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .stage { flex: 1; min-height: 0; display: flex; padding: 0; }
 .stage > .card.empty { margin: 16px; flex: 1; }
 .holder { flex: 1; min-width: 0; display: flex; }
-.chat { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.chat { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; --chat-column: 900px; }
 .chat-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
 .chat-head .subtle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
@@ -206,6 +207,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .tool.done { border-left-color: var(--success); }
 .tool.error { border-left-color: var(--error); }
 .tool.nested { margin-left: 18px; }
+.tool-group { max-width: min(860px, 100%); border-radius: 10px; background: var(--soft); }
+.tool-group > summary { cursor: pointer; display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.92em; }
+.tool-group > summary .subtle { overflow: hidden; text-overflow: ellipsis; }
+.tool-group-body { display: grid; gap: 4px; padding: 0 6px 6px; }
 .tool summary { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 32px; display: flex; align-items: center; gap: 6px; }
 .tool pre { max-height: 320px; overflow: auto; white-space: pre-wrap; }
 .permission { border-left: 4px solid var(--warning); display: grid; gap: 8px; max-width: min(860px, 100%); }
@@ -215,6 +221,9 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .notice.warning { color: var(--warning); }
 .notice.error { color: var(--error); }
 .composer { border-top: 1px solid var(--line); padding: 8px 10px; display: grid; gap: 6px; background: var(--bg); }
+/* Grand écran : fil et saisie dans une même colonne centrée. */
+.thread { padding-inline: max(14px, calc((100% - var(--chat-column)) / 2)); }
+.composer { padding-inline: max(10px, calc((100% - var(--chat-column)) / 2)); }
 .composer-row { display: flex; gap: 6px; align-items: flex-end; }
 .composer textarea { resize: none; max-height: 220px; flex: 1; }
 .chat-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -232,8 +241,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
   .sessions:not(.chat-open) .main { display: none; }
   .side { border-right: 0; }
   .back { display: inline-flex; }
-  .thread { padding: 10px; }
+  .thread { padding: 8px; gap: 8px; }
   .composer { padding-bottom: 6px; }
+  .tool, .tool-group > summary { font-size: 0.85em; }
+  .tool { padding: 2px 8px; }
+  .tool summary { min-height: 30px; }
+  .tool-group > summary { min-height: 34px; }
+  .msg.user .bubble { padding: 8px 12px; }
   .chat-head .grow .subtle { display: none; }
 }
 

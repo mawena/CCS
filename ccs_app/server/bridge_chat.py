@@ -15,7 +15,7 @@ import re
 import secrets
 import time
 
-from .. import chat_options, markdown_render, sessions
+from .. import chat_engine, chat_options, markdown_render, sessions
 from ..chat_engine import ChatSession
 from . import events, rpc
 from .bridge_data import safe_path
@@ -168,6 +168,11 @@ class ChatHub:
             except (KeyError, TypeError, binascii.Error):
                 raise rpc.RpcError("invalide", "Image illisible.") from None
         ok = await asyncio.to_thread(chat.engine.send, text, images)
+        if ok:
+            shown, nonce = params.get("shown"), params.get("nonce")
+            self._record(chat, chat_engine.UserSent(
+                shown if isinstance(shown, str) else text, len(images),
+                nonce if isinstance(nonce, str) else ""))
         return {"ok": bool(ok)}
 
     async def answer(self, _conn, params):

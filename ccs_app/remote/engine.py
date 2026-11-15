@@ -5,6 +5,7 @@ chats ouverts et les relance après une reconnexion."""
 
 import base64
 import dataclasses
+import secrets
 import time
 
 from .. import chat_engine
@@ -79,6 +80,7 @@ class RemoteChatEngine:
         self.seq = 0
         self._opening = False
         self._then = []
+        self._own = set()           # nonces de nos envois : leur écho du pont est ignoré
 
     # ---- ouverture et événements ---------------------------------------------------------
 
@@ -128,6 +130,9 @@ class RemoteChatEngine:
         ev = events.from_json(item.get("event") or {})
         if isinstance(ev, events.PermissionSettled):
             return
+        if isinstance(ev, chat_engine.UserSent) and ev.nonce in self._own:
+            self._own.discard(ev.nonce)
+            return
         if isinstance(ev, chat_engine.StateChanged):
             self.state = ev.state
         elif getattr(ev, "session_id", None) and type(ev).__name__ == "Init":
@@ -145,7 +150,9 @@ class RemoteChatEngine:
 
     def send(self, text, images=()):
         payload = [{"media_type": mt, "data": base64.b64encode(data).decode("ascii")} for mt, data in images or ()]
-        self._open(lambda: self._call("chat.send", text=text, images=payload))
+        nonce = secrets.token_hex(8)
+        self._own.add(nonce)
+        self._open(lambda: self._call("chat.send", text=text, images=payload, nonce=nonce))
         return True
 
     def answer(self, request_id, decision, message=""):

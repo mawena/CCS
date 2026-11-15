@@ -38,6 +38,15 @@ class StateChanged:
 
 
 @dataclass(frozen=True)
+class UserSent:
+    """Message de l'utilisateur reçu par le pont : les autres appareils l'affichent ; celui qui
+    l'a envoyé le reconnaît à son `nonce` et ne le montre pas deux fois."""
+    text: str
+    images: int = 0
+    nonce: str = ""
+
+
+@dataclass(frozen=True)
 class ContextUsage:
     percentage: int
     total: int
