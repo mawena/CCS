@@ -148,6 +148,34 @@ class AuthTest(unittest.IsolatedAsyncioTestCase):
         chk = await self.svc.check({"session": r["session"]})
         self.assertEqual(chk, {"user": "alice", "ticket": expected})
 
+    async def test_planted_symlink_never_followed(self):
+        """Le dossier du pont appartient à l'utilisateur : un lien posé à la place de la clé ne
+        doit jamais faire écrire, changer les droits ou le propriétaire de sa cible."""
+        r = await self.enrolled()
+        victim = Path(self.tmp) / "fichier-de-root"
+        victim.write_text("secret de root")
+        os.chmod(victim, 0o640)
+        key = paths.bridge_key("alice")
+        good = key.read_bytes()
+        key.unlink()
+        os.symlink(victim, key)
+        self.chowned.clear()
+        chk = await self.svc.check({"session": r["session"]})
+        self.assertEqual(victim.read_text(), "secret de root")
+        self.assertEqual(oct(victim.stat().st_mode & 0o777), "0o640")
+        self.assertNotIn(str(victim), [c[0] for c in self.chowned])
+        self.assertFalse(key.is_symlink())
+        self.assertEqual(key.read_bytes(), good)                 # la clé de référence n'a pas changé
+        expected = hmac.new(good, session_hash(r["session"]).encode(), hashlib.sha256).hexdigest()
+        self.assertEqual(chk["ticket"], expected)
+
+    async def test_pam_called_even_for_refused_accounts(self):
+        seen = []
+        self.svc.pam_check = lambda u, p: (seen.append(u), PASSWORDS.get(u) == p)[1]
+        for user in ("personne", "bob", "root"):
+            await self.svc.login({"user": user, "password": "x", "ip": "1"})
+        self.assertEqual(seen, ["personne", "bob", "root"])     # même durée : pas d'indice
+
     async def test_check_restarts_missing_bridge(self):
         r = await self.enrolled()
         self.spawned.clear()

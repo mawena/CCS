@@ -114,6 +114,10 @@ class StaticTest(unittest.TestCase):
         self.assertIn("/api/tokens", text)
         self.assertIn("/api/revoke", text)
 
+    def test_sanitizer_refuses_protocol_relative_links(self):
+        text = (WEB / "dom.js").read_text(encoding="utf-8")
+        self.assertIn("\\/(?!\\/)", text)
+
     def test_api_js_has_reconnect_and_attach(self):
         text = (WEB / "api.js").read_text(encoding="utf-8")
         self.assertIn("reconnect", text)

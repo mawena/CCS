@@ -14,7 +14,7 @@ import logging
 import os
 import pwd
 import secrets
-import shutil
+import stat
 import subprocess
 import time
 
@@ -38,9 +38,13 @@ def _group_exists(name):
 
 
 def _chown(path, user):
-    """Le fichier ou le dossier appartient à l'utilisateur ; un dossier au groupe ccs-web."""
-    group = WEB_GROUP if path.is_dir() and _group_exists(WEB_GROUP) else None
-    shutil.chown(path, user=user, group=group)
+    """Le fichier ou le dossier appartient à l'utilisateur ; un dossier au groupe ccs-web.
+    Jamais à travers un lien symbolique (le dossier du pont appartient à l'utilisateur)."""
+    pw = pwd.getpwnam(user)
+    gid = -1
+    if os.path.isdir(path) and not os.path.islink(path) and _group_exists(WEB_GROUP):
+        gid = grp.getgrnam(WEB_GROUP).gr_gid
+    os.chown(path, pw.pw_uid, gid, follow_symlinks=False)
 
 
 def start_bridge(user, timeout=20):
@@ -105,19 +109,58 @@ class AuthService:
             await self.sleep(remaining)
         return dict(REFUSED)
 
+    def _canonical_key(self, user):
+        p = paths.canonical_key(user)
+        p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(p.parent, 0o700)
+        try:
+            fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(fd, "rb") as f:
+                key = f.read(64)
+            if len(key) == 32:
+                return key
+        except FileNotFoundError:
+            pass
+        key = secrets.token_bytes(32)
+        tmp = p.with_name(f".{p.name}.tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(key)
+        os.replace(tmp, p)
+        return key
+
     def _ensure_key(self, user):
+        """Copie de la clé dans le dossier du pont (à l'utilisateur, groupe ccs-web, 2750).
+        L'utilisateur peut y poser n'importe quoi : la copie n'est lue que sans suivre de lien,
+        et réécrite en supprimant l'entrée puis en créant un fichier neuf (O_EXCL)."""
+        key = self._canonical_key(user)
         d = paths.bridge_dir(user)
-        d.mkdir(parents=True, exist_ok=True)
+        d.parent.mkdir(parents=True, exist_ok=True)          # /run/ccs/bridge : à root
+        if d.is_symlink():
+            d.unlink()
+        d.mkdir(exist_ok=True)
         os.chmod(d, 0o2750)
         self.chown(d, user)
         key_path = paths.bridge_key(user)
-        if not key_path.exists():
-            fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, "wb") as f:
-                f.write(secrets.token_bytes(32))
-        os.chmod(key_path, 0o600)
+        try:
+            fd = os.open(key_path, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(fd, "rb") as f:
+                st = os.fstat(f.fileno())
+                current = f.read(64)
+            if current == key and stat.S_ISREG(st.st_mode) and st.st_nlink == 1 \
+                    and stat.S_IMODE(st.st_mode) == 0o600:
+                return key
+        except OSError:
+            pass
+        try:
+            os.unlink(key_path)                               # l'entrée seule, jamais sa cible
+        except FileNotFoundError:
+            pass
+        fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(key)
         self.chown(key_path, user)
-        return key_path.read_bytes()
+        return key
 
     async def _ticket(self, user, token):
         key = self._ensure_key(user)
@@ -151,8 +194,9 @@ class AuthService:
         if blocked:
             log.warning("connexion bloquée : %r depuis %s", user[:40], ip)
             return blocked
-        ok = bool(user and password) and self.allowed(user) and \
-            await asyncio.to_thread(self.pam_check, user, password)
+        # PAM est appelé même pour un compte refusé : même durée, aucun indice sur le motif
+        pam_ok = bool(user and password) and await asyncio.to_thread(self.pam_check, user, password)
+        ok = pam_ok and self.allowed(user)
         if not ok:
             return await self._refuse(user, ip, started, "compte ou mot de passe")
         secret = totp.load(user)

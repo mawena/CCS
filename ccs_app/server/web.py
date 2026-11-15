@@ -23,6 +23,8 @@ DEFAULT_CONFIG = {"listen": "127.0.0.1:8420", "origin": "https://ccs.mawena.clou
 CSP = ("default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 SESSION, DEVICE = "ccs_session", "ccs_device"
+RECHECK_S = 300          # une session expirée ou révoquée ferme ses WebSocket au plus tard après ce délai
+CLOSED_BY_AUTH = 4001
 
 
 def load_config(path=None):
@@ -75,6 +77,11 @@ class BridgeConnector:
 def make_app(auth, bridges, config):
     allowed = {config["origin"], f"http://{config['listen']}"}
     app = web.Application(client_max_size=rpc.MAX_LINE)
+    open_ws = {}             # jeton (session ou application) → WebSocket ouverts
+
+    async def close_all(token):
+        for ws in list(open_ws.pop(token, ())):
+            await ws.close(code=CLOSED_BY_AUTH, message=b"session terminee")
 
     async def add_headers(_request, response):
         response.headers["Content-Security-Policy"] = CSP
@@ -158,6 +165,7 @@ def make_app(auth, bridges, config):
         session = request.cookies.get(SESSION)
         if session:
             await safe_call("logout", session=session)
+            await close_all(session)
         resp = web.json_response({})
         resp.del_cookie(SESSION, path="/")
         return resp
@@ -228,6 +236,24 @@ def make_app(auth, bridges, config):
             if not ws.closed:
                 await ws.send_json(reply)
 
+        open_ws.setdefault(token, set()).add(ws)
+
+        async def recheck():
+            bearer = request.headers.get("Authorization", "").startswith("Bearer ")
+            while not ws.closed:
+                await asyncio.sleep(RECHECK_S)
+                try:
+                    if bearer:
+                        await auth.call("check_app", token=token)
+                    else:
+                        await auth.call("check", session=token)
+                except rpc.RpcError as e:
+                    if e.code == "refuse":
+                        await ws.close(code=CLOSED_BY_AUTH, message=b"session expiree")
+                        return
+                except OSError:
+                    pass
+        watcher = asyncio.ensure_future(recheck())
         tasks = set()
         try:
             async for msg in ws:
@@ -242,8 +268,10 @@ def make_app(auth, bridges, config):
                     tasks.add(t)
                     t.add_done_callback(tasks.discard)
         finally:
+            watcher.cancel()
             for t in tasks:
                 t.cancel()
+            open_ws.get(token, set()).discard(ws)
             await bridge.close()
         return ws
 

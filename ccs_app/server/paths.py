@@ -48,6 +48,12 @@ def bridge_key(user):
     return bridge_dir(user) / "key"
 
 
+def canonical_key(user):
+    """Clé de référence du pont d'un utilisateur, gardée par root (le dossier du pont, lui,
+    appartient à l'utilisateur : on n'y fait jamais confiance)."""
+    return state_dir() / "keys" / check_user(user)
+
+
 def totp_file(user):
     return state_dir() / "totp" / check_user(user)
 

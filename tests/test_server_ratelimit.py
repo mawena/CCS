@@ -41,6 +41,16 @@ class LimiterTest(unittest.TestCase):
         lim.failure("x", 5)
         self.assertFalse(lim.blocked("x", 6))
 
+    def test_memory_bounded(self):
+        lim = Limiter(max_keys=100)
+        for i in range(1000):
+            lim.failure(f"u:{i}", float(i))
+        self.assertLessEqual(len(lim._failures), 100)
+        for t in range(4):
+            lim.failure("x", 2000 + t)
+        lim.failure("x", 2004)
+        self.assertTrue(lim.blocked("x", 2005))                 # un blocage en cours n'est jamais oublié
+
     def test_retry_after(self):
         lim = Limiter()
         for t in range(5):

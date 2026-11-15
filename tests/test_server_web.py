@@ -27,7 +27,7 @@ class FakeAuth:
                 out["device"] = "DEVICE-1"
             return out
         if method == "check":
-            if params.get("session") != "SESSION-1":
+            if params.get("session") != "SESSION-1" or getattr(self, "expired", False):
                 raise rpc.RpcError("refuse", "Session expirée.")
             return {"user": "alice", "ticket": "T1"}
         if method == "check_app":
@@ -152,6 +152,22 @@ class WebTest(AioHTTPTestCase):
                 break
             await __import__("asyncio").sleep(0.01)
         self.assertTrue(bridge.closed)
+
+    async def test_logout_closes_open_websockets(self):
+        await self.login()
+        ws = await self.client.ws_connect("/api/ws", headers={"Origin": ORIGIN})
+        await self.client.post("/api/logout", headers={"Origin": ORIGIN})
+        msg = await ws.receive(timeout=5)
+        self.assertEqual((msg.type, msg.data), (WSMsgType.CLOSE, 4001))
+
+    async def test_expired_session_closes_websocket(self):
+        web.RECHECK_S = 0.05
+        self.addCleanup(setattr, web, "RECHECK_S", 300)
+        await self.login()
+        ws = await self.client.ws_connect("/api/ws", headers={"Origin": ORIGIN})
+        self.auth.expired = True
+        msg = await ws.receive(timeout=5)
+        self.assertEqual((msg.type, msg.data), (WSMsgType.CLOSE, 4001))
 
     async def test_ws_oversized_message(self):
         await self.login()
