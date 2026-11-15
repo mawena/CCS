@@ -260,6 +260,8 @@ Documentation et release :
 
 ## Phase 13 — Travailler sans quitter CCS (toutes les propositions retenues le 14/11)
 
+Conception : `docs/superpowers/specs/2026-11-15-phase-13-design.md` (release unique 0.11.0).
+
 Git dans le panneau de gauche (inspiré de GiGit) :
 - [ ] Troisième page **Git** à côté de Fichiers et Feuille de route : graphe des commits façon ungit/GiGit (branches en colonnes, étiquettes de branches et tags, chargement par pages), détail d'un commit (message, auteur, fichiers, diff)
 - [ ] Git sans terminal : branche courante et git flow (démarrer ou finir une feature), indexation, commit avec un message proposé d'après les changements, fetch, pull, push
