@@ -105,6 +105,19 @@ class PackagingTest(unittest.TestCase):
         self.assertIn("ccs-web", text)
         self.assertIn("/etc/ccs/web.json", text)
 
+    def test_debhelper_token_once_on_its_own_line(self):
+        """debhelper remplace chaque « #DEBHELPER# », même dans un commentaire : un second bloc
+        démarrait ccs-auth avant la création du groupe ccs-web (socket resté en root:root)."""
+        scripts = [p for p in DEB.iterdir() if p.suffix in (".preinst", ".postinst", ".prerm", ".postrm")]
+        self.assertTrue(scripts)
+        for p in scripts:
+            hits = [l for l in p.read_text(encoding="utf-8").splitlines() if "#DEBHELPER#" in l]
+            self.assertEqual(hits, ["#DEBHELPER#"], p.name)
+
+    def test_server_services_start_after_web_user_exists(self):
+        text = (DEB / "ccs-serveur.postinst").read_text(encoding="utf-8")
+        self.assertLess(text.index("adduser --system"), text.index("#DEBHELPER#"))
+
 
 if __name__ == "__main__":
     unittest.main()

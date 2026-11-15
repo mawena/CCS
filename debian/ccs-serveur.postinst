@@ -1,6 +1,7 @@
 #!/bin/sh
 # ccs-serveur : groupe « ccs » (qui a le droit de se connecter), utilisateur système ccs-web,
-# configuration par défaut. Les services sont activés et démarrés par #DEBHELPER#.
+# configuration par défaut. Les services sont activés et démarrés plus bas par debhelper, une
+# fois ccs-web créé (ce mot-clé n'apparaît qu'une fois : debhelper le remplace partout).
 set -e
 
 case "$1" in

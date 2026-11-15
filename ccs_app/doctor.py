@@ -295,6 +295,15 @@ def dead_tasks():
     return [t.id for t in tasks.all() if t.state == tasks.RUNNING and t.pid and not _pid_alive(t.pid)]
 
 
+def socket_group(path):
+    """Groupe propriétaire d'un fichier (le socket de ccs-auth) ; None s'il manque."""
+    import grp
+    try:
+        return grp.getgrgid(os.stat(path).st_gid).gr_name
+    except (OSError, KeyError):
+        return None
+
+
 def server_info():
     """État du serveur CCS (paquet ccs-serveur) ; None s'il n'est pas installé."""
     import grp
@@ -305,6 +314,7 @@ def server_info():
     from urllib.parse import urlparse
     if not os.path.exists("/usr/lib/systemd/system/ccs-auth.service"):
         return None
+    from .server import paths as server_paths
     from .server import web as server_web
 
     def active(unit):
@@ -346,7 +356,7 @@ def server_info():
         members = []
     return {"auth": active("ccs-auth"), "web": active("ccs-web"), "listen": cfg["listen"],
             "origin": cfg["origin"], "listening": listening, "health": health, "cert_days": cert_days,
-            "members": members}
+            "members": members, "auth_group": socket_group(server_paths.auth_socket())}
 
 
 @dataclass
@@ -702,6 +712,14 @@ def check_server(p):
     else:
         out.append(Check("Serveur : services", ERREUR, f"ccs-auth : {info['auth']}, ccs-web : {info['web']}",
                          "sudo systemctl enable --now ccs-auth ccs-web"))
+    if info["auth"] == "active":
+        group = info.get("auth_group")
+        if group == "ccs-web":
+            out.append(Check("Serveur : connexion", OK, "ccs-web joint ccs-auth"))
+        else:
+            out.append(Check("Serveur : connexion", ERREUR, "ccs-web ne peut pas joindre ccs-auth (socket "
+                             + (f"du groupe {group}" if group else "absent") + ") : les connexions échouent",
+                             "sudo systemctl restart ccs-auth"))
     if info["listening"] == "local":
         out.append(Check("Serveur : écoute", OK, f"{info['listen']} (joignable par nginx seulement)"))
     elif info["listening"] == "public":
