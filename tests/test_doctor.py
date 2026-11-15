@@ -397,6 +397,14 @@ class ProcessTest(unittest.TestCase):
         self.proc(11, ["/usr/bin/python3", "/usr/bin/claude-accounts", "tray"])
         self.assertTrue(doctor.tray_running(proc=str(self.tmp / "proc")))
 
+    def test_tray_running_renamed_by_setproctitle(self):
+        """Avec python3-setproctitle, l'indicateur s'appelle `ccs-tray` : sa ligne de commande
+        d'origine est écrasée (reste des octets nuls)."""
+        d = self.tmp / "proc" / "12"
+        d.mkdir(parents=True)
+        (d / "cmdline").write_bytes(b"ccs-tray" + b"\0" * 40)
+        self.assertTrue(doctor.tray_running(proc=str(self.tmp / "proc")))
+
     def test_process_code(self):
         repo = self.tmp / "repo"
         (repo / "ccs_app").mkdir(parents=True)

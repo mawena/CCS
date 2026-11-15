@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from . import __version__, core, daemon, file_history as _file_history, settings
+from . import __version__, core, daemon, file_history as _file_history, procname, settings
 
 OK, AVERTISSEMENT, ERREUR = "ok", "avertissement", "erreur"
 STATUTS = (OK, AVERTISSEMENT, ERREUR)
@@ -158,6 +158,8 @@ def tray_running(proc="/proc"):
         except OSError:
             continue
         argv = _cmdline(name, proc) or []
+        if argv[:1] == [procname.NAMES["tray"]]:            # renommé par python3-setproctitle
+            return True
         if "tray" in argv[1:] and any(os.path.basename(a) == "claude-accounts" or "ccs_app" in a
                                       for a in argv):
             return True
