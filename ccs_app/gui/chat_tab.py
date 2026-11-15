@@ -1038,7 +1038,7 @@ class ChatTab(Gtk.Box):
         pct = threshold * 100 / ev.maximum if ev.maximum else None
         self.bar.set_context(ev.percentage, pct)
         if self.remote:                 # chat d'un serveur : son pont compacte et l'écrit dans le fil
-            auto = getattr(ev, "auto_compact", False)
+            auto = ev.auto_compact
         else:
             auto = context_alert.auto_on(cfg)
             self._auto_compact_step(cfg, ev.total)
