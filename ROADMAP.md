@@ -409,4 +409,27 @@ Quand le contexte d'un chat dépasse le seuil du contexte lourd, CCS envoie `/co
 - [x] 5. Note dans le fil (« Compactage automatique : contexte de N jetons ») à la place de l'alerte avec bouton
 - [x] 6. Case « Compacter automatiquement » dans les réglages du web et du bureau
 - [x] 7. Tests des modules touchés
-- [ ] 8. Documentation (README, CHANGELOG) et release mineure 0.15.0, dépôt APT compris
+- [x] 8. Documentation (README, CHANGELOG) et release mineure 0.15.0, dépôt APT compris
+
+## Phase 17 — Répondre en citant un message (0.16.0)
+
+Comme sur WhatsApp : on choisit un message du chat (le sien ou celui de Claude), il s'affiche en citation au-dessus de la saisie, et Claude le reçoit avec la réponse. Si du texte est sélectionné dans le message, seule la sélection est citée.
+
+- [ ] 1. Format commun de la citation (`quote.py`, `web/chat-quote.js`) : composer le message envoyé (citation en bloc Markdown, puis la réponse), la reconnaître à la relecture, raccourcir un long message cité
+- [ ] 2. Web : action « Répondre » sur chaque message, bandeau de citation au-dessus de la saisie (avec « Annuler »), bulle qui montre la citation
+- [ ] 3. Bureau : bouton « Répondre » au survol d'une réponse, entrée « Répondre » dans le menu d'une bulle, bandeau au-dessus de la saisie, bulle qui montre la citation
+- [ ] 4. Conversations rouvertes : la citation est reconnue dans l'historique (web, bureau) et dans l'aperçu d'une conversation
+- [ ] 5. Tests des modules touchés
+- [ ] 6. Documentation (README, docs, CHANGELOG) et release mineure 0.16.0, dépôt APT compris
+
+## Phase 18 — Étiquettes sur les messages (0.17.0)
+
+Poser un ou plusieurs mots-clés sur un message (« important », « à revoir »…) et retrouver ensuite les messages par étiquette.
+
+- [ ] 1. Identifiant stable d'un message, le même en direct et à la relecture du journal (réponse de Claude : identifiant de la réponse ; message de l'utilisateur : identifiant de sa ligne du journal)
+- [ ] 2. Stockage des étiquettes (`message_tags.py`) : par conversation, avec un extrait du message pour le retrouver sans relire le journal
+- [ ] 3. Pont : lire, poser et retirer les étiquettes d'un chat du serveur ; changement diffusé aux autres appareils
+- [ ] 4. Web : action « Étiqueter » sur chaque message, étiquettes affichées sous le message, volet « Étiquettes » (liste par étiquette, saut au message)
+- [ ] 5. Bureau : mêmes fonctions (chat local et chat d'un serveur)
+- [ ] 6. Tests des modules touchés
+- [ ] 7. Documentation (README, docs, CHANGELOG) et release mineure 0.17.0, dépôt APT compris
