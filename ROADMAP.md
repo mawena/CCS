@@ -297,7 +297,7 @@ Terminal et bureau :
 Paquets, contrôles, documentation, release :
 - [x] 20. Trois paquets (`ccs`, `ccs-bureau`, `ccs-serveur`) et le métapaquet `ccs-all` qui les installe tous, services systemd, PAM, installation de Claude Code
 - [x] 21. `ccs doctor` pour le serveur
-- [ ] 22. Revue de sécurité
+- [x] 22. Revue de sécurité
 - [ ] 23. Documentation (README, guide, architecture, man, CHANGELOG, site)
 - [ ] 24. Essai réel sur le VPS (DNS et lnmp par Charles)
 - [ ] 25. Release mineure 0.11.0, trois `.deb`, release GitHub et dépôt APT, mise à jour du VPS
