@@ -654,6 +654,16 @@ class ChatTabTest(HomeTestCase):
         self.assertTrue(pump_until(lambda: tab.messages.find_count() == 1))
         self.assertIn("Disponible quand Claude aura fini", tab.find_label.get_label())
 
+    def test_saved_messages_load_and_persist(self):
+        from ccs_app import saved_messages
+        saved_messages.save("global", [saved_messages.Saved("merci", "Merci !", "global")])
+        tab, _owner = self.make(spawn=False)
+        self.assertTrue(pump_until(lambda: [s.name for s in tab.composer.saved] == ["merci"]))
+        tab.composer.add_saved("ici", "Texte du projet", "projet")
+        self.assertTrue(pump_until(lambda: (self.cwd / ".ccs" / "messages.json").exists()))
+        got = {s.name: s.scope for s in saved_messages.load(str(self.cwd))}
+        self.assertEqual(got, {"merci": "global", "ici": "projet"})
+
 
 if __name__ == "__main__":
     unittest.main()

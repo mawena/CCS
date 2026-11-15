@@ -23,7 +23,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, file_history, preview  # noqa: E402
-from .. import roadmap, sessions, settings  # noqa: E402
+from .. import roadmap, saved_messages, sessions, settings  # noqa: E402
 from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
@@ -150,6 +150,8 @@ class ChatTab(Gtk.Box):
 
         self.composer.set_file_source(self._file_source)
         self.composer.connect("send", self._on_send)
+        self.composer.connect("saved-changed", self._on_saved_changed)
+        in_thread(lambda: saved_messages.load(launch.cwd), self._set_saved)
         self.composer.connect("cycle-rights", lambda *_: self.bar.cycle_rights())
         self.composer.connect("stop", lambda *_: self.stop_turn())
         self.composer.connect("queue-edit", lambda _c, i, text, old: self.edit_message(i, text, old))
@@ -350,6 +352,24 @@ class ChatTab(Gtk.Box):
             return False
         self.state.sent_at = time.time()
         return True
+
+    # ---- messages enregistrés ------------------------------------------------------------
+
+    def _set_saved(self, items):
+        if not self._closed:
+            self.composer.set_saved(items)
+
+    def _on_saved_changed(self, _composer, items):
+        """Le menu ☆ a changé la liste : chaque portée (commune, projet) est réécrite."""
+        cwd = self.launch.cwd
+
+        def work():
+            for scope in saved_messages.SCOPES:
+                try:
+                    saved_messages.save(scope, items, cwd)
+                except (OSError, ValueError):
+                    pass
+        in_thread(work, lambda _r: None)
 
     # ---- chercher dans le fil (Ctrl+F) ---------------------------------------------------
 
