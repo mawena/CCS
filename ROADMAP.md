@@ -262,7 +262,7 @@ Documentation et release :
 
 Demandée le 15/11, prioritaire. Piloter CCS depuis Internet (`https://ccs.mawena.cloud`,
 surtout depuis le téléphone), depuis un terminal sur le VPS, et depuis l'application GTK du
-bureau. Conception à faire.
+bureau. Conception : `docs/superpowers/specs/2026-11-15-phase-13-vps-design.md`.
 
 - [ ] **Serveur CCS** : service `ccs-web` installé par le paquet, qui écoute `127.0.0.1:8420` ; il fait tourner les chats sans interface (moteur de chat actuel) et expose une API HTTP + WebSocket (aiohttp, paquet Ubuntu) pour les projets, sessions, chats, autorisations, fichiers, feuille de route et git
 - [ ] **Connexion par les comptes Ubuntu** (choix de Charles le 15/11) : identifiant et mot de passe Ubuntu vérifiés par PAM, uniquement (pas de comptes propres à CCS) ; chaque connexion travaille sous cet utilisateur Unix (ses projets, ses comptes Claude) par un petit service privilégié qui vérifie et lance, le serveur web exposé ne tournant jamais en root ; `root` refusé, seuls les membres du groupe `ccs` admis ; cookie de session sécurisé, jeton révocable pour le bureau et le terminal, essais limités ; **double authentification obligatoire** (choix du 15/11) : code TOTP à 6 chiffres, QR code à scanner à la première connexion, appareil retenu 30 jours, réinitialisation par `sudo ccs totp reinitialiser <utilisateur>` sur le VPS
