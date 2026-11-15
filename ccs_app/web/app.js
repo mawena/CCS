@@ -1,6 +1,7 @@
 // Charpente de la version web : connexion, navigation, bandeau de reconnexion, thème.
 import { Api, post, session } from "./api.js";
 import { clear, confirmSheet, el } from "./dom.js";
+import { offerInstall } from "./install.js";
 import { showLogin } from "./login.js";
 import { VIEWS } from "./views.js";
 
@@ -89,6 +90,7 @@ function start(user) {
   buildNav();
   render();
   refreshWaiting();
+  offerInstall();
 }
 
 setInterval(() => { if (!document.hidden) refreshWaiting(); }, 20000);

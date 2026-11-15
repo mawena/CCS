@@ -3,6 +3,7 @@
 // connectés (jetons d'application, appareils retenus), révocables.
 import { post } from "./api.js";
 import { clear, confirmSheet, el, toast } from "./dom.js";
+import { canInstall, install, installSteps, installed } from "./install.js";
 import { phoneGroup } from "./pages-phone.js";
 import { settingRow } from "./pages-util.js";
 
@@ -96,11 +97,26 @@ function themeGroup() {
   return group;
 }
 
+// « Application » : installer CCS sur l'écran d'accueil (comme Outlook), ou rappeler qu'il l'est.
+function installGroup() {
+  const group = el("section", { class: "card flat settings-group" }, el("h2", {}, "Application"));
+  if (installed()) group.append(el("p", { class: "subtle" }, "CCS est installé sur cet appareil."));
+  else if (!canInstall()) group.append(el("p", { class: "subtle" }, "Ce navigateur ne propose pas l'installation. Sur iPhone : Safari ou Chrome ; ailleurs : Chrome ou Edge."));
+  else {
+    const steps = installSteps();
+    group.append(el("p", { class: "subtle" }, "Une icône sur l'écran d'accueil, en plein écran, sans barre du navigateur."),
+      steps || el("button", { type: "button", class: "primary", onclick: async () => {
+        if (await install()) toast("CCS est installé.", { kind: "success" });
+      } }, "Installer CCS"));
+  }
+  return group;
+}
+
 export function mountSettings(root, api) {
   const wrap = el("div", { class: "settings-wrap" });
   const forms = el("div", { class: "settings-wrap" });
   const devices = el("section", { class: "card flat" });
-  wrap.append(themeGroup(), forms, devices);
+  wrap.append(themeGroup(), installGroup(), forms, devices);
   root.append(wrap);
 
   async function loadSettings() {

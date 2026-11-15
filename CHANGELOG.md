@@ -3,6 +3,15 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.12.6] — 2026-11-15
+
+### Corrigé
+
+- **Web : installer CCS comme une application**, comme Outlook. Un bandeau le propose une fois
+  connecté (« Plus tard » le cache 30 jours) et Réglages → Application le rappelle : bouton
+  Installer sur Chrome (Android, ordinateur) ; sur iPhone, Safari comme Chrome, la marche à
+  suivre (Partager ⬆ → « Sur l'écran d'accueil »). CCS s'ouvre ensuite en plein écran.
+
 ## [0.12.5] — 2026-11-15
 
 ### Corrigé
