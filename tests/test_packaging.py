@@ -117,7 +117,8 @@ class PackagingTest(unittest.TestCase):
     def test_upgrade_restarts_running_bridges(self):
         """Un pont lancé garde l'ancien code en mémoire : la mise à jour le redémarre."""
         text = (DEB / "ccs-serveur.postinst").read_text(encoding="utf-8")
-        self.assertIn("systemctl try-restart 'ccs-bridge@*.service'", text)
+        # deb-systemd-invoke : respecte policy-rc.d (lintian : maintainer-script-calls-systemctl)
+        self.assertIn("deb-systemd-invoke try-restart 'ccs-bridge@*.service'", text)
 
     def test_server_services_start_after_web_user_exists(self):
         text = (DEB / "ccs-serveur.postinst").read_text(encoding="utf-8")

@@ -19,7 +19,7 @@ case "$1" in
     fi
     # mise à jour : les ponts déjà lancés gardent l'ancien code en mémoire
     if [ -n "$2" ] && [ -d /run/systemd/system ]; then
-      systemctl try-restart 'ccs-bridge@*.service' >/dev/null 2>&1 || true
+      deb-systemd-invoke try-restart 'ccs-bridge@*.service' >/dev/null 2>&1 || true
     fi
     if [ -z "$(getent group ccs | cut -d: -f4)" ]; then
       echo "CCS : ajoute les comptes autorisés au groupe « ccs » : sudo adduser <utilisateur> ccs"
