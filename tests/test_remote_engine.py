@@ -97,6 +97,52 @@ class RemoteEngineTest(unittest.TestCase):
         sent = [e.text for e in col.events if isinstance(e, chat_engine.UserSent)]
         self.assertEqual(sent, ["du téléphone"])
 
+    def test_join_running_chat_replays_and_follows(self):
+        """Bureau : rejoindre un chat qui tourne déjà sur le serveur (lancé du téléphone) : le fil
+        est rejoué, puis suivi en direct ; on peut y répondre."""
+        tel = engine.RemoteChatEngine(self.conn, str(self.project), None, ChatOptions(), on_event=lambda e: None)
+        tel.send("du téléphone")
+        col = Collector()
+        deadline = time.time() + 20
+        while tel.chat_id is None and time.time() < deadline:
+            time.sleep(0.05)
+        joined = engine.RemoteChatEngine(self.conn, str(self.project), None, ChatOptions(), on_event=col,
+                                         chat_id=tel.chat_id)
+        self.assertTrue(col.wait(proto.PermissionRequest))
+        self.assertIn("du téléphone", [e.text for e in col.events if isinstance(e, chat_engine.UserSent)])
+        self.assertEqual(joined.chat_id, tel.chat_id)
+        req = next(e for e in col.events if isinstance(e, proto.PermissionRequest))
+        joined.answer(req.request_id, "allow")
+        self.assertTrue(col.wait(proto.TurnResult))
+
+    def test_permission_settled_elsewhere_is_forwarded(self):
+        """Une autorisation réglée sur un autre appareil (web, téléphone) arrive au bureau, pour
+        que sa carte ne reste pas en attente."""
+        col = Collector()
+        eng = engine.RemoteChatEngine(self.conn, str(self.project), None, ChatOptions(), on_event=col)
+        eng.send("bonjour")
+        self.assertTrue(col.wait(proto.PermissionRequest))
+        req = next(e for e in col.events if isinstance(e, proto.PermissionRequest))
+        self.sync.call_sync("chat.answer", chat_id=eng.chat_id, request_id=req.request_id, decision="allow")
+        from ccs_app.server import events as bridge_events
+        self.assertTrue(col.wait(bridge_events.PermissionSettled))
+
+    def test_bridge_restart_reopens_chat(self):
+        """Le pont a redémarré (mise à jour) : le chat n'existe plus là-bas. À la reconnexion,
+        l'onglet du bureau se rebranche sur la conversation au lieu de rester figé."""
+        col = Collector()
+        eng = engine.RemoteChatEngine(self.conn, str(self.project), None, ChatOptions(), on_event=col)
+        eng.send("bonjour")
+        self.assertTrue(col.wait(proto.PermissionRequest))
+        old = eng.chat_id
+        self.sync.call_sync("chat.close", chat_id=old)
+        eng.resync()                                   # ce que fait la reconnexion
+        deadline = time.time() + 20
+        while eng.chat_id in (None, old) and time.time() < deadline:
+            time.sleep(0.05)
+        self.assertNotIn(eng.chat_id, (None, old))
+        self.assertIn(eng.chat_id, [c["chat_id"] for c in self.sync.call_sync("chat.list")["chats"]])
+
     def test_methods_exist_like_local(self):
         local = [m for m in ("send", "answer", "answer_questions", "interrupt", "set_options", "request_context",
                              "suspend_if_idle", "background_finished", "stop")]
