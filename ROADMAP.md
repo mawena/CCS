@@ -296,7 +296,7 @@ CCS sur le VPS (demandé le 15/11, propositions à choisir, conception à faire)
 - [ ] **Version terminal** : `ccs tui` plein écran (urwid, paquet Ubuntu) : projets, sessions, chat, autorisations, feuille de route ; en local sur le VPS (par SSH) ou contre un serveur distant
 - [ ] **Bureau connecté au VPS** : Réglages → Serveurs (adresse et identifiants) ; les projets du VPS apparaissent dans Sessions avec le nom du serveur, et le chat, les fichiers, la feuille de route et git se pilotent à distance depuis l'interface GTK
 - [ ] **Paquet pour serveur** : `apt install ccs` sur un VPS sans bureau installe et démarre le service web (interface GTK séparée ou en dépendance recommandée)
-- [ ] **Mise en ligne** (VPS relevé le 15/11 : Ubuntu 24.04, nginx + certbot déjà en place, port 8420 libre) : enregistrement DNS `A ccs → 84.46.246.202` chez Hostinger (DNS `dns-parking.com`), site nginx `ccs.mawena.cloud` sur le modèle de `chat.mawena.cloud` (proxy vers `127.0.0.1:8420`, WebSocket), certificat par `certbot --nginx` ; guide dans le README et contrôle par `ccs doctor`
+- [ ] **Mise en ligne** (VPS relevé le 15/11 : Ubuntu 24.04, nginx + certbot déjà en place, port 8420 libre) : enregistrement DNS `A ccs → 84.46.246.202` chez Hostinger (DNS `dns-parking.com`), site créé par lnmp (le gestionnaire d'hôtes de Charles : `sudo lnmp add --id ccs --domain mawena.cloud --sub ccs --proxy 8420`, qui écrit le proxy avec WebSocket, puis le certificat Let's Encrypt par `lnmp add-ssl`) ; guide dans le README et contrôle par `ccs doctor`
 - [ ] **Claude Code sur le VPS** : absent aujourd'hui ; installation et connexion des comptes guidées par `ccs doctor` (le VPS n'a pas de navigateur : connexion par lien à ouvrir ailleurs)
 
 Fin de phase :
