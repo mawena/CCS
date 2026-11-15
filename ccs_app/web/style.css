@@ -256,6 +256,20 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
   .tool-group > summary { min-height: 34px; }
   .msg.user .bubble { padding: 8px 12px; }
   .chat-head .grow .subtle { display: none; }
+  /* une seule barre en haut : celle du chat (retour, titre, actions) */
+  .sessions.chat-tab .tabs-row { display: none; }
+  .chat-head { padding: 2px 4px; gap: 2px; }
+  .chat-head .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1em; }
+  .back-chat { min-width: 40px; padding: 0 6px; font-size: 1.25em; }
+  /* zone de saisie : la place au texte */
+  .composer { padding: 6px 8px max(6px, env(safe-area-inset-bottom)); gap: 4px; }
+  .composer-row { gap: 4px; }
+  .composer-row .icon { min-width: 36px; padding: 0 4px; }
+  .send-label { display: none; }
+  .send { min-width: 44px; padding: 0 12px; }
+  .composer-foot { font-size: 0.85em; }
+  /* blocs de code plus serrés */
+  .code-wrap pre { font-size: 0.8em; padding: 8px 10px; }
 }
 
 /* ---- tiroir Fichiers / Feuille de route, terminal ---- */
@@ -353,3 +367,6 @@ dialog.sheet h2 { margin: 0 0 6px; font-size: 1.1em; }
 .resize-handle { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; z-index: 5; touch-action: none; }
 .resize-handle:hover, body.resizing .resize-handle { background: color-mix(in srgb, var(--accent) 35%, transparent); }
 body.resizing { user-select: none; cursor: col-resize; }
+
+.send-icon { display: none; }
+@media (max-width: 719px) { .send-icon { display: inline; font-size: 1.1em; line-height: 1; } }
