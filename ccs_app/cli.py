@@ -156,13 +156,6 @@ def cmd_auth_serve(_args):
     return 0
 
 
-def local_bridge_socket():
-    """Socket du pont local de l'utilisateur (`ccs tui` sur la machine même)."""
-    from pathlib import Path
-    base = os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/ccs-{os.getuid()}"
-    return Path(base) / "ccs" / "bridge.sock"
-
-
 def cmd_bridge(args):
     """Pont CCS de l'utilisateur courant (service ccs-bridge@, ou --local)."""
     import asyncio
@@ -172,7 +165,8 @@ def cmd_bridge(args):
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     user = pwd.getpwuid(os.getuid()).pw_name
     if args.local:
-        sock = args.socket or local_bridge_socket()
+        from .remote.client import default_socket
+        sock = args.socket or default_socket()
         os.makedirs(os.path.dirname(str(sock)), mode=0o700, exist_ok=True)
         key = None
     else:
@@ -192,6 +186,56 @@ def cmd_web_serve(_args):
     from .server import web
     asyncio.run(web.serve())
     return 0
+
+
+def cmd_serveur(args):
+    """Serveurs CCS connus : appairage (mot de passe Ubuntu + code, une fois), liste, retrait."""
+    import getpass
+    from .remote import servers
+    if args.action == "liste":
+        items = servers.load()
+        if not items:
+            print("Aucun serveur CCS. Ajoute-en un : ccs serveur ajouter <adresse>")
+        for s in items:
+            print(f"{s.name:<28} {s.url}  ({s.user})")
+        return 0
+    if args.action == "retirer":
+        if servers.remove(args.cible):
+            print(f"Serveur {args.cible} retiré (le jeton reste valable sur le serveur : révoque-le dans ses Réglages).")
+            return 0
+        print(f"Serveur inconnu : {args.cible}", file=sys.stderr)
+        return 1
+    try:
+        url = servers.normalize_url(args.cible)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 1
+    name = args.nom or f"ccs sur {os.uname().nodename}"
+    user = input(f"Identifiant Ubuntu sur {url} : ").strip() or getpass.getuser()
+    password = getpass.getpass("Mot de passe : ")
+    result = servers.pair(url, user, password, "", name)
+    if isinstance(result, dict) and result.get("status") == "enroll":
+        from .server import totp
+        print("Première connexion : ajoute ce code dans ton application (Aegis, Google Authenticator…).")
+        print(f"Clé : {result['secret']}")
+        try:
+            import qrcode
+            qr = qrcode.QRCode(border=1)
+            qr.add_data(totp.uri(user, result["secret"], url.split("://", 1)[1]))
+            qr.print_ascii(invert=True)
+        except ImportError:
+            pass
+        result = servers.finish_enroll(url, user, result["pending"], input("Code à 6 chiffres : ").strip(), name)
+    elif isinstance(result, dict) and result.get("status") == "code":
+        result = servers.pair(url, user, password, input("Code à 6 chiffres : ").strip(), name)
+    if isinstance(result, servers.Server):
+        print(f"Serveur {result.name} appairé : ccs tui --serveur {result.name}")
+        return 0
+    if result.get("status") == "blocked":
+        print(f"Trop d'essais : réessaie dans {max(1, result.get('retry_after', 60) // 60)} min.", file=sys.stderr)
+    else:
+        print(result.get("message") or "Appairage refusé.", file=sys.stderr)
+    return 1
 
 
 def cmd_totp(args):
@@ -977,6 +1021,15 @@ def build_parser():
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
     sub.add_parser("auth-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_auth_serve)
     sub.add_parser("web-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_web_serve)
+    sv = sub.add_parser("serveur", help="serveurs CCS distants (appairage, liste, retrait)")
+    sv_sub = sv.add_subparsers(dest="action", required=True)
+    sva = sv_sub.add_parser("ajouter", help="appaire ce poste avec un serveur CCS")
+    sva.add_argument("cible", help="adresse, par exemple ccs.mawena.cloud")
+    sva.add_argument("--nom", help="nom de cet appareil sur le serveur")
+    sv_sub.add_parser("liste", help="serveurs appairés")
+    svr = sv_sub.add_parser("retirer", help="oublie un serveur")
+    svr.add_argument("cible")
+    sv.set_defaults(func=cmd_serveur)
     br = sub.add_parser("bridge", help=argparse.SUPPRESS)
     br.add_argument("--socket")
     br.add_argument("--local", action="store_true")
