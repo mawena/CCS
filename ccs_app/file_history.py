@@ -59,6 +59,10 @@ class Step:
     user_edited: bool
 
 
+class NoSnapshot(LookupError):
+    """Ce message n'a pas d'instantané : l'état des fichiers d'avant lui est inconnu."""
+
+
 def _config_dir():
     return core.paths().config_dir
 
@@ -209,11 +213,15 @@ def changes(snaps, session_id):
 def rewind_plan(snaps, session_id, message_id):
     """Ce qu'il faut écrire pour revenir à l'état d'avant `message_id`. Pour chaque fichier
     suivi : la copie de l'instantané de ce message si elle existe ; sinon (suivi pour la
-    première fois après ce message) sa plus ancienne copie. Seuls les fichiers qui changent."""
+    première fois après ce message) sa plus ancienne copie. Seuls les fichiers qui changent.
+    Lève `NoSnapshot` si ce message n'a pas d'instantané (sans lui, tout reviendrait à l'état
+    d'avant la conversation)."""
     target_snap = next((s for s in snaps if s.message_id == message_id), None)
+    if target_snap is None:
+        raise NoSnapshot(message_id)
     steps = []
     for path, backups in _backups_by_path(snaps).items():
-        backup = target_snap.files.get(path) if target_snap is not None else None
+        backup = target_snap.files.get(path)
         known, content = _content(session_id, backup or backups[0])
         if not known:
             continue

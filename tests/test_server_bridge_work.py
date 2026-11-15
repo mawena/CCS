@@ -2,11 +2,13 @@
 commande `!`, changements de la session et retour en arrière (HOME temporaire, aucun vrai claude)."""
 
 import asyncio
+import hashlib
 import json
 import os
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ccs_app import chat_protocol as proto, file_history, sessions
 from ccs_app.server import bridge, bridge_chat, bridge_work, events, rpc
@@ -166,6 +168,14 @@ class ChangesTest(WorkTest):
     def user(self, uuid, text):
         return json.dumps({"type": "user", "uuid": uuid, "message": {"role": "user", "content": text}})
 
+    @staticmethod
+    def sha(path):
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+    def plan(self, mid="m1"):
+        r = self.call("work.rewind_plan", chat_id="c1", message_id=mid)
+        return r, [{"path": s["path"], "sha256": s["sha256"]} for s in r["steps"]]
+
     def test_changes_with_diff_and_points(self):
         (self.copies / "h1@v1").write_text("un\ndeux\n")
         Path(self.f).write_text("un\ntrois\n")
@@ -177,7 +187,48 @@ class ChangesTest(WorkTest):
         self.assertEqual(ch["kind"], "modified")
         self.assertIn("-deux", ch["diff"])
         self.assertIn("+trois", ch["diff"])
+        self.assertEqual(ch["sha256"], self.sha(self.f))                  # C4 : contenu actuel
+        self.assertFalse(ch["too_big"])
         self.assertEqual(r["points"][0]["message_id"], "m1")
+
+    def test_points_are_only_messages_with_a_snapshot(self):
+        (self.copies / "h1@v1").write_text("avant\n")
+        Path(self.f).write_text("après\n")
+        self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: ("h1@v1", 1)}),
+                          self.user("m2", "sans instantané"))
+        r = self.call("work.changes", chat_id="c1")
+        self.assertEqual([p["message_id"] for p in r["points"]], ["m1"])
+        self.assertEqual(self.fails("work.rewind_plan", chat_id="c1", message_id="m2").code, "introuvable")
+        self.assertEqual(Path(self.f).read_text(), "après\n")
+
+    def test_changes_of_deleted_file_and_too_big_file(self):
+        gone, big = str(self.project / "parti.txt"), str(self.project / "gros.map")
+        (self.copies / "p@v1").write_text("là\n")
+        (self.copies / "g@v1").write_text("petit\n")
+        Path(big).write_bytes(b"x" * (bridge_work.MAX_FILE_BYTES + 1))
+        self.journal_with(self.user("m1", "x"), snap_line("m1", {gone: ("p@v1", 1), big: ("g@v1", 1)}))
+        files = {f["path"]: f for f in self.call("work.changes", chat_id="c1")["files"]}
+        self.assertIsNone(files[gone]["sha256"])
+        self.assertEqual(files[gone]["kind"], "deleted")
+        self.assertTrue(files[big]["too_big"])
+        self.assertEqual(files[big]["diff"], "")
+        self.assertEqual(files[big]["sha256"], self.sha(big))
+        self.assertEqual(bridge_work.MAX_FILE_BYTES, 2 * 1024 * 1024)
+
+    def test_changes_long_lines_cut_and_total_capped(self):
+        other = str(self.project / "b.txt")
+        (self.copies / "h1@v1").write_text("court\n")
+        (self.copies / "h2@v1").write_text("court\n")
+        Path(self.f).write_text("y" * 10000 + "\n")
+        Path(other).write_text("z\n")
+        self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: ("h1@v1", 1), other: ("h2@v1", 1)}))
+        files = {f["path"]: f for f in self.call("work.changes", chat_id="c1")["files"]}
+        self.assertLessEqual(max(len(l) for l in files[self.f]["diff"].splitlines()),
+                             bridge_work.MAX_LINE_CHARS + 1)
+        self.assertEqual(bridge_work.MAX_LINE_CHARS, 4000)
+        with mock.patch.object(bridge_work, "MAX_DIFF_TOTAL", 10):
+            files = self.call("work.changes", chat_id="c1")["files"]
+        self.assertEqual([f["too_big"] for f in files], [False, True])  # budget épuisé après le premier
 
     def test_unknown_format(self):
         self.journal_with(json.dumps({"type": "file-history-snapshot", "autre": 1}))
@@ -187,37 +238,97 @@ class ChangesTest(WorkTest):
         (self.copies / "h1@v1").write_text("avant\n")
         Path(self.f).write_text("après\n")
         self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: ("h1@v1", 1)}))
-        self.assertEqual(self.fails("work.undo_file", chat_id="c1", path=str(self.project / "autre")).code, "introuvable")
-        self.call("work.undo_file", chat_id="c1", path=self.f)
+        self.assertEqual(self.fails("work.undo_file", chat_id="c1", path=str(self.project / "autre"),
+                                    expected=None).code, "introuvable")
+        self.call("work.undo_file", chat_id="c1", path=self.f, expected=self.sha(self.f))
         self.assertEqual(Path(self.f).read_text(), "avant\n")
+
+    def test_undo_file_checks_what_was_shown(self):
+        """C4 : le fichier a changé depuis l'affichage (ou l'empreinte manque) : rien n'est écrit."""
+        (self.copies / "h1@v1").write_text("avant\n")
+        Path(self.f).write_text("après\n")
+        self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: ("h1@v1", 1)}))
+        shown = self.call("work.changes", chat_id="c1")["files"][0]["sha256"]
+        Path(self.f).write_text("modifié depuis\n")
+        e = self.fails("work.undo_file", chat_id="c1", path=self.f, expected=shown)
+        self.assertEqual((e.code, e.message), ("conflit", "Un fichier a changé depuis l'affichage : vérifie de nouveau."))
+        self.assertEqual(self.fails("work.undo_file", chat_id="c1", path=self.f).code, "invalide")
+        self.assertEqual(Path(self.f).read_text(), "modifié depuis\n")
 
     def test_undo_removes_created_file(self):
         Path(self.f).write_text("neuf\n")
         self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: (None, 1)}))
-        self.assertEqual(self.call("work.changes", chat_id="c1")["files"][0]["kind"], "created")
-        self.call("work.undo_file", chat_id="c1", path=self.f)
+        ch = self.call("work.changes", chat_id="c1")["files"][0]
+        self.assertEqual(ch["kind"], "created")
+        self.call("work.undo_file", chat_id="c1", path=self.f, expected=ch["sha256"])
         self.assertFalse(Path(self.f).exists())
 
     def test_rewind_plan_then_apply(self):
         (self.copies / "h1@v1").write_text("avant\n")
         Path(self.f).write_text("après\n")
         self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: ("h1@v1", 1)}))
-        plan = self.call("work.rewind_plan", chat_id="c1", message_id="m1")
+        plan, expected = self.plan()
         self.assertEqual([s["path"] for s in plan["steps"]], [self.f])
+        self.assertEqual(plan["steps"][0]["sha256"], self.sha(self.f))
+        self.assertEqual(plan["skipped"], [])
         self.assertEqual(Path(self.f).read_text(), "après\n")      # le plan n'écrit rien
-        r = self.call("work.rewind_apply", chat_id="c1", message_id="m1")
+        r = self.call("work.rewind_apply", chat_id="c1", message_id="m1", expected=expected)
         self.assertEqual(r["count"], 1)
         self.assertEqual(Path(self.f).read_text(), "avant\n")
 
-    def test_rewind_refuses_step_outside_allowed_roots(self):
+    def test_rewind_apply_only_what_was_shown(self):
+        """C4 : le plan recalculé au clic doit être celui qui a été montré."""
+        other = str(self.project / "b.txt")
+        (self.copies / "h1@v1").write_text("avant\n")
+        (self.copies / "h2@v1").write_text("b avant\n")
+        Path(self.f).write_text("après\n")
+        Path(other).write_text("b avant\n")
+        self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: ("h1@v1", 1), other: ("h2@v1", 1)}))
+        _plan, expected = self.plan()
+        self.assertEqual([e["path"] for e in expected], [self.f])
+        Path(other).write_text("b changé depuis\n")             # un fichier de plus à remettre
+        e = self.fails("work.rewind_apply", chat_id="c1", message_id="m1", expected=expected)
+        self.assertEqual(e.code, "conflit")
+        _plan, expected = self.plan()
+        Path(self.f).write_text("encore autre chose\n")          # contenu changé depuis l'affichage
+        self.assertEqual(self.fails("work.rewind_apply", chat_id="c1", message_id="m1",
+                                    expected=expected).code, "conflit")
+        self.assertEqual(self.fails("work.rewind_apply", chat_id="c1", message_id="m1").code, "invalide")
+        self.assertEqual(Path(self.f).read_text(), "encore autre chose\n")
+        self.assertEqual(Path(other).read_text(), "b changé depuis\n")
+
+    def test_writes_refused_while_claude_works(self):
+        (self.copies / "h1@v1").write_text("avant\n")
+        Path(self.f).write_text("après\n")
+        self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: ("h1@v1", 1)}))
+        _plan, expected = self.plan()
+        for state in ("starting", "busy", "permission"):
+            self.chat.engine.state = state
+            e = self.fails("work.rewind_apply", chat_id="c1", message_id="m1", expected=expected)
+            self.assertEqual((e.code, e.message), ("occupe", "Claude travaille : attends la fin du tour."))
+            self.assertEqual(self.fails("work.undo_file", chat_id="c1", path=self.f,
+                                        expected=self.sha(self.f)).code, "occupe")
+        self.assertEqual(Path(self.f).read_text(), "après\n")
+
+    def test_rewind_skips_files_outside_allowed_roots(self):
+        """Constat 13 : un fichier hors des dossiers permis est laissé de côté et signalé, le
+        reste du retour en arrière se fait."""
+        outside = "/etc/passwd-ccs-test"
         (self.copies / "h1@v1").write_text("x\n")
-        self.journal_with(self.user("m1", "x"), snap_line("m1", {"/etc/passwd-ccs-test": ("h1@v1", 1)}))
-        self.assertEqual(self.fails("work.rewind_apply", chat_id="c1", message_id="m1").code, "refuse")
+        (self.copies / "h2@v1").write_text("avant\n")
+        Path(self.f).write_text("après\n")
+        self.journal_with(self.user("m1", "x"), snap_line("m1", {outside: ("h1@v1", 1), self.f: ("h2@v1", 1)}))
+        plan, expected = self.plan()
+        self.assertEqual([s["path"] for s in plan["steps"]], [self.f])
+        self.assertEqual(plan["skipped"], [outside])
+        r = self.call("work.rewind_apply", chat_id="c1", message_id="m1", expected=expected)
+        self.assertEqual((r["count"], r["skipped"]), (1, [outside]))
+        self.assertEqual(Path(self.f).read_text(), "avant\n")
+        self.assertFalse(os.path.exists(outside))
 
     def test_no_session_yet(self):
         self.chat.engine.session_id = None
         self.assertEqual(self.call("work.changes", chat_id="c1")["files"], [])
-
 
 if __name__ == "__main__":
     unittest.main()

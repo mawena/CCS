@@ -1,27 +1,38 @@
 """Travail dans le chat, côté pont (phase 14 au web) : commandes `/`, fichiers proposés après `@`,
 messages enregistrés, commande `!`, changements de la session (copies de Claude Code) et retour
 en arrière. Chaque chemin venu du client passe par `bridge_data.safe_path` ; rien d'écrit sans
-que le client l'ait demandé après sa carte de confirmation."""
+que le client l'ait demandé après sa carte de confirmation : annuler un fichier ou revenir en
+arrière exige les empreintes (sha256) des fichiers tels qu'ils ont été montrés, et rien ne
+s'écrit pendant un tour de Claude."""
 
 import asyncio
 import collections
 import difflib
+import hashlib
 import itertools
 import os
+import re
 import threading
 
 from .. import context_alert, file_history, saved_messages, sessions, settings, shell_command
 from . import rpc
+from .bridge_chat import BUSY
 from .bridge_data import safe_path
 
 SKIP_DIRS = {"node_modules", "__pycache__", "venv", "dist", "build", "target", "site-packages"}
 FILE_SCAN_MAX = 20_000
 SHELL_TIMEOUT_S = 600
 SHELL_KEEP = 20
-MAX_DIFF = 200_000
+MAX_FILE_BYTES = 2 * 1024 * 1024    # fichier plus gros : diff non calculé (`too_big`)
+MAX_LINE_CHARS = 4000               # ligne de diff plus longue : coupée
+MAX_DIFF = 200_000                  # texte du diff d'un fichier
+MAX_DIFF_TOTAL = 1_000_000          # texte de tous les diffs d'une réponse (au-delà : `too_big`)
 MAX_NAME = 80
 MAX_TEXT = 20_000
 POINTS_MAX = 200
+MAX_EXPECTED = 10_000
+CONFLICT = "Un fichier a changé depuis l'affichage : vérifie de nouveau."
+_SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 def scan_files(root, limit=FILE_SCAN_MAX):
@@ -44,19 +55,88 @@ def _text(data):
         return None
 
 
-def _change_json(ch):
+def _sha256(data):
+    return None if data is None else hashlib.sha256(data).hexdigest()
+
+
+def _file_sha256(path):
+    """Empreinte du contenu actuel (None si le fichier n'existe pas ou ne se lit pas), lu comme
+    `file_history` le lit."""
+    try:
+        with open(path, "rb") as f:
+            h = hashlib.sha256()
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def _unified(a, b, name, limit):
+    """Diff unifié lu au fur et à mesure : s'arrête après `limit` caractères ; lignes coupées
+    à MAX_LINE_CHARS."""
+    out, size = [], 0
+    for line in difflib.unified_diff(a.splitlines(True), b.splitlines(True), f"a/{name}", f"b/{name}", n=3):
+        if len(line) > MAX_LINE_CHARS:
+            line = line[:MAX_LINE_CHARS] + "…\n"
+        out.append(line)
+        size += len(line)
+        if size > limit:
+            out.append("\n… (diff coupé)\n")
+            break
+    return "".join(out)
+
+
+def _change_json(ch, budget):
+    """Entrée de work.changes. `budget` : [caractères de diff encore permis dans la réponse] ;
+    un fichier de plus de MAX_FILE_BYTES, ou venu une fois le budget épuisé, porte `too_big`."""
     kind = "created" if ch.before is None else "deleted" if ch.now is None else "modified"
+    out = {"path": ch.path, "kind": kind, "binary": False, "diff": "", "too_big": False,
+           "sha256": _sha256(ch.now)}
     before = b"" if ch.before is None else ch.before
     now = b"" if ch.now is None else ch.now
+    if max(len(before), len(now)) > MAX_FILE_BYTES or budget[0] <= 0:
+        out["too_big"] = True
+        return out
     a, b = _text(before), _text(now)
-    diff, binary = "", a is None or b is None
-    if not binary:
-        name = os.path.basename(ch.path)
-        diff = "".join(difflib.unified_diff(
-            a.splitlines(True), b.splitlines(True), f"a/{name}", f"b/{name}", n=3))
-        if len(diff) > MAX_DIFF:
-            diff = diff[:MAX_DIFF] + "\n… (diff coupé)\n"
-    return {"path": ch.path, "kind": kind, "binary": binary, "diff": diff}
+    if a is None or b is None:
+        out["binary"] = True
+        return out
+    out["diff"] = _unified(a, b, os.path.basename(ch.path), min(MAX_DIFF, budget[0]))
+    budget[0] -= len(out["diff"])
+    return out
+
+
+def _allowed(path):
+    try:
+        safe_path(path)
+    except rpc.RpcError:
+        return False
+    return True
+
+
+def _not_busy(chat):
+    if getattr(chat.engine, "state", None) in BUSY:
+        raise rpc.RpcError("occupe", "Claude travaille : attends la fin du tour.")
+
+
+def _expected_sha(value):
+    if value is not None and not (isinstance(value, str) and _SHA256.fullmatch(value)):
+        raise rpc.RpcError("invalide", "Empreinte invalide : actualise.")
+    return value
+
+
+def _expected_files(params):
+    """{chemin: sha256 ou None} montré par work.rewind_plan (paramètre `expected`)."""
+    raw = params.get("expected")
+    if not isinstance(raw, list) or len(raw) > MAX_EXPECTED:
+        raise rpc.RpcError("invalide", "Fichiers montrés manquants : actualise.")
+    out = {}
+    for item in raw:
+        if not isinstance(item, dict) or not isinstance(item.get("path"), str):
+            raise rpc.RpcError("invalide", "Fichiers montrés invalides : actualise.")
+        out[item["path"]] = _expected_sha(item.get("sha256"))
+    return out
 
 
 class WorkApi:
@@ -212,16 +292,26 @@ class WorkApi:
             snaps = file_history.read(transcript)
             if snaps is None:
                 return {"unknown": True, "files": [], "points": []}
-            files = [_change_json(c) for c in file_history.changes(snaps, sid)]
+            budget = [MAX_DIFF_TOTAL]
+            files = [_change_json(c, budget) for c in file_history.changes(snaps, sid)]
+            with_snapshot = {s.message_id for s in snaps}     # seuls points de retour possibles
             points = [{"message_id": u.message_id, "text": u.text[:300], "time": u.time}
-                      for u in file_history.user_messages(transcript)[-POINTS_MAX:]]
+                      for u in file_history.user_messages(transcript)
+                      if u.message_id in with_snapshot][-POINTS_MAX:]
             return {"unknown": False, "files": files, "points": points}
         return await asyncio.to_thread(work)
 
     async def undo_file(self, _conn, params):
-        transcript, sid = self._journal(self._chat(params))
+        """Remet un fichier comme avant la conversation, s'il est encore tel qu'il a été montré
+        (`expected` : son sha256 dans work.changes, None s'il n'existait pas)."""
+        chat = self._chat(params)
+        _not_busy(chat)
+        transcript, sid = self._journal(chat)
         path = params.get("path")
         safe_path(path)
+        if "expected" not in params:
+            raise rpc.RpcError("invalide", "Empreinte du fichier montré manquante : actualise.")
+        expected = _expected_sha(params.get("expected"))
         if transcript is None:
             raise rpc.RpcError("introuvable", "Conversation introuvable.")
 
@@ -230,6 +320,8 @@ class WorkApi:
             ch = next((c for c in file_history.changes(snaps, sid) if c.path == path), None)
             if ch is None:
                 raise rpc.RpcError("introuvable", "Ce fichier n'a pas changé pendant la session.")
+            if _sha256(ch.now) != expected:
+                raise rpc.RpcError("conflit", CONFLICT)
             file_history.apply([file_history.Step(ch.path, ch.before, False)])
         try:
             await asyncio.to_thread(work)
@@ -237,30 +329,48 @@ class WorkApi:
             raise rpc.RpcError("erreur", "Écriture impossible.") from None
         return {}
 
-    def _plan(self, params):
-        transcript, sid = self._journal(self._chat(params))
+    def _plan(self, chat, params):
+        """(étapes, chemins laissés de côté) du retour à l'état d'avant `message_id` : un
+        fichier hors des dossiers permis n'est pas écrit, il est seulement signalé."""
+        transcript, sid = self._journal(chat)
         mid = params.get("message_id")
         if transcript is None or not isinstance(mid, str):
             raise rpc.RpcError("introuvable", "Conversation ou message introuvable.")
         snaps = file_history.read(transcript)
         if snaps is None:
             raise rpc.RpcError("inconnu", "Format de l'historique des fichiers inconnu : retour impossible.")
-        plan = file_history.rewind_plan(snaps, sid, mid)
-        for step in plan:
-            safe_path(step.path)
-        return plan
+        try:
+            plan = file_history.rewind_plan(snaps, sid, mid)
+        except file_history.NoSnapshot:
+            raise rpc.RpcError("introuvable", "Ce message n'a pas d'instantané des fichiers : "
+                                              "retour impossible à ce point.") from None
+        sorted_plan = [(s, _allowed(s.path)) for s in plan]
+        return [s for s, ok in sorted_plan if ok], [s.path for s, ok in sorted_plan if not ok]
 
     async def rewind_plan(self, _conn, params):
-        plan = await asyncio.to_thread(self._plan, params)
-        return {"steps": [{"path": s.path, "deleted": s.content is None, "user_edited": s.user_edited}
-                          for s in plan]}
+        chat = self._chat(params)
+
+        def work():
+            steps, skipped = self._plan(chat, params)
+            return {"steps": [{"path": s.path, "deleted": s.content is None, "user_edited": s.user_edited,
+                               "sha256": _file_sha256(s.path)} for s in steps],
+                    "skipped": skipped}
+        return await asyncio.to_thread(work)
 
     async def rewind_apply(self, _conn, params):
+        """Applique le plan seulement s'il est celui qui a été montré : mêmes fichiers, mêmes
+        contenus actuels (`expected` : [{path, sha256}] de work.rewind_plan)."""
+        chat = self._chat(params)
+        _not_busy(chat)
+        expected = _expected_files(params)
+
         def work():
-            plan = self._plan(params)
-            file_history.apply(plan)
-            return len(plan)
+            steps, skipped = self._plan(chat, params)
+            if {s.path: _file_sha256(s.path) for s in steps} != expected:
+                raise rpc.RpcError("conflit", CONFLICT)
+            file_history.apply(steps)
+            return {"count": len(steps), "skipped": skipped}
         try:
-            return {"count": await asyncio.to_thread(work)}
+            return await asyncio.to_thread(work)
         except OSError:
             raise rpc.RpcError("erreur", "Écriture impossible.") from None
