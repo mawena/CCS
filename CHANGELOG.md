@@ -3,6 +3,15 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.14.1] — 2026-11-16
+
+### Corrigé
+
+- **Bureau : un chat du serveur ne se mettait pas à jour en direct** quand on le suivait sans
+  y écrire (conversation reprise pendant que le web ou le téléphone la fait tourner). L'onglet
+  s'y branche maintenant dès l'ouverture, ou dès qu'un autre appareil l'ouvre, sans rejouer
+  l'historique déjà affiché.
+
 ## [0.14.0] — 2026-11-16
 
 ### Ajouté
