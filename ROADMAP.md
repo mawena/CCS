@@ -370,7 +370,7 @@ Fin de phase :
 - [ ] Dépôt APT signé à jour (`make apt` depuis le PC de Charles)
 - [ ] Essais de Charles : page Git du web, Autoriser / Refuser (web et ntfy)
 
-## Phase 15 — Le serveur depuis le bureau, comme Remote Control (0.13.0)
+## Phase 15 — Le serveur depuis le bureau, comme Remote Control (0.13.0 : pont et web ; 0.14.0 : bureau)
 
 Demandée le 15/11. Depuis l'application de bureau des postes de Charles : voir les chats qui
 tournent sur le VPS et les piloter en direct ; ajouter et supprimer projets et sessions.
@@ -393,6 +393,7 @@ Web :
 - [x] 7. Ajouter un projet (dossier existant ou nouveau, git init, `~` accepté), le retirer de la liste, supprimer une conversation (corbeille, « Annuler »), Corbeille avec Restaurer
 
 Fin de phase :
-- [ ] 8. Documentation (README, guide, CHANGELOG)
+- [x] 8a. Documentation de la partie web (README, CHANGELOG) et release 0.13.0
+- [ ] 8. Documentation de la partie bureau (README, guide, CHANGELOG)
 - [ ] 9. Essai réel par Charles depuis son PC
-- [ ] 10. Release mineure 0.13.0
+- [ ] 10. Release mineure 0.14.0 (bureau)
