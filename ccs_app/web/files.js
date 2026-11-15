@@ -74,18 +74,31 @@ export class FilesPanel {
     if (r.truncated) this.results.append(el("p", { class: "subtle" }, "Trop de résultats : précise ta recherche."));
   }
 
-  open(relpath, opts = {}) {
+  // Un seul fichier ouvert à la fois : en ouvrir un autre remplace le premier (avec confirmation s'il
+  // a des modifications non enregistrées). Renvoie false si l'utilisateur a gardé le premier.
+  async open(relpath, opts = {}) {
+    if (this.current && !await this.current.view.confirmLeave()) return false;
+    this.current?.holder.remove();
     this.browser.hidden = true;
     const holder = el("div", { class: "file-holder" });
     this.node.append(holder);
-    new FileView(holder, this.api, `${this.root}/${relpath}`, () => { holder.remove(); this.browser.hidden = false; }, opts);
+    const view = new FileView(holder, this.api, `${this.root}/${relpath}`, () => {
+      holder.remove();
+      if (this.current && this.current.holder === holder) this.current = null;
+      this.browser.hidden = false;
+    }, opts);
+    this.current = { holder, view };
+    return true;
   }
 
   // Fichier cité dans le chat : chemin absolu dans le projet ou relatif ; `line` : ligne à montrer.
   openFile(path, { line = null } = {}) {
     const rel = path.startsWith(`${this.root}/`) ? path.slice(this.root.length + 1) : path.replace(/^\.?\/+/, "");
-    this.open(rel, { line });
+    return this.open(rel, { line });
   }
+
+  // Modifications non enregistrées dans le fichier ouvert ?
+  get dirty() { return Boolean(this.current?.view.dirty); }
 }
 
 export class FileView {
@@ -108,17 +121,20 @@ export class FileView {
       onclick: () => this.toggleWrap() }, "↩");
     const md = /\.(md|markdown)$/i.test(path);
     this.mdBtn = md ? el("button", { class: "small", hidden: true, onclick: () => this.togglePreview() }, "Aperçu") : null;
-    const back = async () => {
-      if (this.dirty && !await confirmSheet({ title: "Abandonner les modifications ?", body: "Elles ne sont pas enregistrées.",
-        confirm: "Abandonner", danger: true })) return;
-      onBack();
-    };
+    const back = async () => { if (await this.confirmLeave()) onBack(); };
     container.append(el("div", { class: "file-head" },
       el("button", { class: "small flat", "aria-label": "Retour", onclick: back }, "←"),
       el("strong", { class: "grow file-name", title: path }, path.split("/").pop()), this.wrapBtn, this.mdBtn, this.editBtn, this.saveBtn),
       this.state, this.text, this.code, this.image, this.preview);
     this.applyWrap();
     this.load();
+  }
+
+  // Vrai si l'on peut quitter ce fichier : rien de modifié, ou l'utilisateur abandonne ses changements.
+  async confirmLeave() {
+    if (!this.dirty) return true;
+    return confirmSheet({ title: "Abandonner les modifications ?", body: "Elles ne sont pas enregistrées.",
+      confirm: "Abandonner", danger: true });
   }
 
   fail(message) {
@@ -199,6 +215,9 @@ export class FileView {
   }
 
   async save() {
+    if (this.saving) return;
+    this.saving = true;                          // un double appui enverrait deux écritures : faux conflit
+    this.saveBtn.disabled = true;
     try {
       const r = await this.api.call("files.write", { path: this.path, text: this.text.value, stamp: this.stamp });
       this.stamp = r.stamp;
@@ -211,6 +230,9 @@ export class FileView {
       toast(e.code === "conflit"
         ? "Le fichier a changé depuis son ouverture (Claude l'a peut-être modifié) : copie tes changements, puis rouvre-le."
         : e.message, { kind: "error", action: e.code === "conflit" ? null : { label: "Réessayer", run: () => this.save() } });
+    } finally {
+      this.saving = false;
+      this.saveBtn.disabled = false;
     }
   }
 

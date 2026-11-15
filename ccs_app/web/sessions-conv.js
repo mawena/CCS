@@ -80,13 +80,15 @@ function preview(c, ctx) {
       clear(body).append(errorState(e.message, load));
       return;
     }
-    const shown = (r.messages || []).filter((m) => (m.role === "USER" || m.role === "ASSISTANT") && m.text).slice(-PREVIEW_MESSAGES);
+    // le pont envoie « utilisateur » / « assistant » (preview.py) ; les majuscules restent acceptées
+    const kind = (m) => { const role = String(m.role || "").toLowerCase(); return role === "utilisateur" || role === "user" ? "user" : role === "assistant" ? "claude" : null; };
+    const shown = (r.messages || []).filter((m) => kind(m) && m.text).slice(-PREVIEW_MESSAGES);
     clear(body);
     if (!shown.length) { body.append(el("p", { class: "subtle" }, "Rien à afficher dans cette conversation.")); return; }
     for (const m of shown) {
       const text = m.text.length > 700 ? `${m.text.slice(0, 700)}…` : m.text;
-      body.append(el("div", { class: `pv ${m.role === "USER" ? "user" : "claude"}` },
-        el("span", { class: "subtle" }, m.role === "USER" ? "Toi" : "Claude"), el("div", { class: "pv-text" }, text)));
+      body.append(el("div", { class: `pv ${kind(m)}` },
+        el("span", { class: "subtle" }, kind(m) === "user" ? "Toi" : "Claude"), el("div", { class: "pv-text" }, text)));
     }
   };
   load();

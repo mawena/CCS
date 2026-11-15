@@ -46,11 +46,12 @@ export class ChangesPanel {
 
   fileCard(f) {
     const name = f.path.split("/").pop();
-    const lines = parseUnified(f.diff);
+    const lines = f.too_big || f.binary ? [] : parseUnified(f.diff || "");
     const card = el("details", { class: "change" },
       el("summary", {}, el("strong", {}, name), el("span", { class: `kind k-${f.kind}` }, KINDS[f.kind]),
-        ...(f.binary ? [] : statBadges(lines)), el("span", { class: "subtle path" }, f.path)),
-      f.binary ? el("p", { class: "subtle" }, "Fichier binaire : pas de diff.") : diffBlock(lines),
+        ...(f.binary || f.too_big ? [] : statBadges(lines)), el("span", { class: "subtle path" }, f.path)),
+      f.too_big ? el("p", { class: "subtle" }, "Fichier trop gros pour être montré")
+        : f.binary ? el("p", { class: "subtle" }, "Fichier binaire : pas de diff.") : diffBlock(lines),
       el("div", { class: "tool-actions" },
         f.kind === "deleted" ? null : el("button", { type: "button", class: "small", onclick: () => this.actions.openFile?.(f.path) }, "Ouvrir le fichier"),
         el("button", { type: "button", class: "small danger", onclick: () => this.undo(f) }, "Annuler ce fichier")));
@@ -63,10 +64,10 @@ export class ChangesPanel {
       confirm: "Annuler ce fichier", danger: true });
     if (!ok) return;
     try {
-      await this.api.call("work.undo_file", { chat_id: this.chatId, path: f.path });
+      await this.api.call("work.undo_file", { chat_id: this.chatId, path: f.path, ...(f.sha256 !== undefined ? { expected: f.sha256 } : {}) });
       toast("Fichier remis comme avant la session.", { kind: "success" });
       this.actions.changed?.();
-    } catch (e) { toast(e.message, { kind: "error" }); }
+    } catch (e) { toast(e.message, { kind: "error" }); }      // « conflit » ou « occupé » : le message du pont, puis on actualise
     this.load();
   }
 
@@ -77,12 +78,14 @@ export class ChangesPanel {
       return;
     }
     if (!plan.steps.length) { toast("Tout est déjà comme avant ce message."); return; }
+    const shown = plan.steps.every((s) => s.sha256 !== undefined);      // champ absent : ancien pont, pas de garde
+    const expected = shown ? { expected: plan.steps.map((s) => ({ path: s.path, sha256: s.sha256 })) } : {};
     const list = plan.steps.map((s) => `${s.path.startsWith(`${this.cwd}/`) ? s.path.slice(this.cwd.length + 1) : s.path}${s.deleted ? " (supprimé)" : ""}${s.user_edited ? " (modifié depuis par toi ?)" : ""}`);
     const ok = await confirmSheet({ title: `Revenir avant ce message ? (${plan.steps.length} fichier${plan.steps.length > 1 ? "s" : ""})`,
       body: `${list.join("\n")}\n\nC'est définitif.`, confirm: "Revenir en arrière", danger: true });
     if (!ok) return;
     try {
-      const r = await this.api.call("work.rewind_apply", { chat_id: this.chatId, message_id: p.message_id });
+      const r = await this.api.call("work.rewind_apply", { chat_id: this.chatId, message_id: p.message_id, ...expected });
       toast(`${r.count} fichier(s) remis comme avant ce message.`, { kind: "success" });
       this.actions.changed?.();
     } catch (e) { toast(e.message, { kind: "error" }); }
