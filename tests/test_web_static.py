@@ -113,7 +113,8 @@ class StaticTest(unittest.TestCase):
         """Comme « Nouvelle session… » du bureau : un dossier encore sans conversation s'ouvre aussi
         (chat ou terminal) ; l'onglet prend le chemin réel renvoyé par le pont (~ développé)."""
         sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
-        self.assertIn('"aria-label": "Dossier du projet"', sessions)
+        self.assertIn('"aria-label": "Dossier de la session"',            # feuille « Nouvelle session »
+                      (WEB / "sessions-new.js").read_text(encoding="utf-8"))
         self.assertIn("r.cwd", sessions)
 
     def test_feedback_helpers_replace_alert_and_confirm(self):
