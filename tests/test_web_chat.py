@@ -369,3 +369,12 @@ class RoadmapOrderAndPanesTest(unittest.TestCase):
         css = (WEB / "style.css").read_text(encoding="utf-8")
         self.assertIn(".resize-handle", css)
         self.assertIn(".side-hidden", css)
+
+    def test_copy_button_in_header_not_over_code(self):
+        """Web : le bouton Copier est dans une barre au-dessus du code (langue à gauche), jamais
+        posé par-dessus une longue commande."""
+        js = (WEB / "chat.js").read_text(encoding="utf-8")
+        self.assertIn('class: "code-head"', js)
+        css = (WEB / "chat.css").read_text(encoding="utf-8")
+        self.assertNotIn("position: absolute; top: 4px; right: 4px", css)
+        self.assertIn(".code-head", css)

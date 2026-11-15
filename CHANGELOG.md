@@ -3,6 +3,13 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.12.4] — 2026-11-15
+
+### Corrigé
+
+- **Web : bouton Copier des blocs de code** : placé dans une barre au-dessus du code, avec la
+  langue à gauche et une icône ; il ne recouvre plus les longues commandes et affiche « Copié ».
+
 ## [0.12.3] — 2026-11-15
 
 ### Corrigé

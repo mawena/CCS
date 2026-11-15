@@ -801,20 +801,41 @@ function refreshGroup(g) {
   g.last.textContent = sum ? `· ${sum.textContent.trim()}` : "";
 }
 
-// Bouton « Copier » sur chaque bloc de code d'une réponse (commandes à lancer…).
+// Bloc de code d'une réponse : barre du haut avec la langue et un bouton « Copier », le code dessous
+// (le bouton ne recouvre jamais une longue commande).
+const SVG = "http://www.w3.org/2000/svg";
+function icon(shapes) {                              // petite icône 14 px au trait, construite nœud par nœud
+  const svg = document.createElementNS(SVG, "svg");
+  for (const [k, v] of Object.entries({ viewBox: "0 0 24 24", width: 14, height: 14, fill: "none", stroke: "currentColor",
+    "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) svg.setAttribute(k, v);
+  for (const [tag, attrs] of shapes) {
+    const n = document.createElementNS(SVG, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    svg.append(n);
+  }
+  return svg;
+}
+const COPY_ICON = [["rect", { x: 9, y: 9, width: 12, height: 12, rx: 2 }], ["path", { d: "M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" }]];
+const DONE_ICON = [["path", { d: "M20 6 9 17l-5-5" }]];
+
 function addCopyButtons(node) {
   for (const pre of node.querySelectorAll("pre")) {
-    const btn = el("button", { type: "button", class: "copy-code small flat", "aria-label": "Copier le code" }, "Copier");
+    const code = pre.querySelector("code");
+    const lang = [...(code?.classList || [])].find((c) => c.startsWith("language-"))?.slice(9) || "code";
+    const btn = el("button", { type: "button", class: "copy-code", "aria-label": "Copier le code" });
+    const label = (shapes, text) => { clear(btn).append(icon(shapes), el("span", {}, text)); };
+    label(COPY_ICON, "Copier");
     btn.addEventListener("click", async () => {
-      const text = (pre.querySelector("code") || pre).textContent;
+      const text = (code || pre).textContent;
       try { await navigator.clipboard.writeText(text); }
       catch {
         const ta = el("textarea", { style: "position:fixed;opacity:0" }); ta.value = text;
         document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
       }
-      btn.textContent = "Copié"; setTimeout(() => { btn.textContent = "Copier"; }, 1500);
+      btn.classList.add("done"); label(DONE_ICON, "Copié");
+      setTimeout(() => { btn.classList.remove("done"); label(COPY_ICON, "Copier"); }, 1500);
     });
-    const wrap = el("div", { class: "code-wrap" });
-    pre.replaceWith(wrap); wrap.append(pre, btn);
+    const wrap = el("div", { class: "code-wrap" }, el("div", { class: "code-head" }, el("span", { class: "code-lang" }, lang), btn));
+    pre.replaceWith(wrap); wrap.append(pre);
   }
 }
