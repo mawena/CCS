@@ -49,6 +49,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   en arrière est refusé si le fichier a changé depuis l'affichage ou pendant que Claude
   travaille ; chat et terminal limités aux dossiers permis ; renommage limité aux journaux de
   Claude Code ; la commande `!` ne reste plus bloquée par un processus en arrière-plan.
+- **Mise en page web** : les cartes de l'Accueil ne débordent plus, au téléphone comme sur grand
+  écran ; la page Sessions sans chat ouvert n'affiche plus de bouton géant ; les titres courts
+  des projets et conversations sont alignés à gauche.
+- **Doctor** : l'indicateur renommé `ccs-tray` est reconnu (plus de fausse alerte « Indicateur
+  non lancé »).
 - **Git** : fetch, pull et push du serveur ne demandent jamais de mot de passe ; le bureau garde
   sa fenêtre de mot de passe pour pull et push.
 - **Bureau** : un retour en arrière vers un message sans copie des fichiers est expliqué ; les
