@@ -207,6 +207,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .tool.done { border-left-color: var(--success); }
 .tool.error { border-left-color: var(--error); }
 .tool.nested { margin-left: 18px; }
+.tool-group { max-width: min(860px, 100%); border-radius: 10px; background: var(--soft); }
+.tool-group > summary { cursor: pointer; display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.92em; }
+.tool-group > summary .subtle { overflow: hidden; text-overflow: ellipsis; }
+.tool-group-body { display: grid; gap: 4px; padding: 0 6px 6px; }
 .tool summary { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 32px; display: flex; align-items: center; gap: 6px; }
 .tool pre { max-height: 320px; overflow: auto; white-space: pre-wrap; }
 .permission { border-left: 4px solid var(--warning); display: grid; gap: 8px; max-width: min(860px, 100%); }
@@ -236,8 +241,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
   .sessions:not(.chat-open) .main { display: none; }
   .side { border-right: 0; }
   .back { display: inline-flex; }
-  .thread { padding: 10px; }
+  .thread { padding: 8px; gap: 8px; }
   .composer { padding-bottom: 6px; }
+  .tool, .tool-group > summary { font-size: 0.85em; }
+  .tool { padding: 2px 8px; }
+  .tool summary { min-height: 30px; }
+  .tool-group > summary { min-height: 34px; }
+  .msg.user .bubble { padding: 8px 12px; }
   .chat-head .grow .subtle { display: none; }
 }
 

@@ -313,3 +313,13 @@ class WideScreenTest(unittest.TestCase):
         self.assertTrue(rule, "pas de règle commune case à cocher / radio")
         for decl in ("width: 22px", "min-height: 0", "flex: none"):
             self.assertIn(decl, rule.group(1), decl)
+
+    def test_consecutive_tools_grouped(self):
+        """Fil (surtout au téléphone) : les actions qui se suivent forment une ligne repliable
+        « N actions », aussi dans l'historique rechargé ; la recherche ouvre le groupe."""
+        js = (WEB / "chat.js").read_text(encoding="utf-8")
+        self.assertIn('class: "tool-group"', js)
+        self.assertEqual(js.count("this.regroup();"), 2)
+        self.assertIn('closest("details.tool-group")', (WEB / "chat-search.js").read_text(encoding="utf-8"))
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".tool-group-body", css)
