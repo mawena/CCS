@@ -9,56 +9,7 @@ import unittest
 from pathlib import Path
 
 from ccs_app import git_repo
-
-IDENT = ["-c", "user.name=Test", "-c", "user.email=test@example.org",
-         "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"]
-
-
-def g(repo, *args):
-    """git de test (identité locale, aucune config de Charles)."""
-    return subprocess.run(["git", *IDENT, "-C", str(repo), *args], check=True,
-                          capture_output=True, text=True).stdout
-
-
-def commit_file(repo, name, text, msg=None):
-    path = Path(repo) / name
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    g(repo, "add", "--", name)
-    g(repo, "commit", "-q", "-m", msg or f"ajoute {name}")
-    return g(repo, "rev-parse", "HEAD").strip()
-
-
-class GitTestCase(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="ccs-git-")
-        self.addCleanup(shutil.rmtree, self.tmp, True)
-        self.env = {k: os.environ.get(k) for k in ("HOME", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM")}
-        os.environ["HOME"] = self.tmp
-        os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
-        cfg = Path(self.tmp) / "gitconfig"
-        cfg.write_text("[user]\n\tname = Test\n\temail = test@example.org\n"
-                       "[commit]\n\tgpgsign = false\n[init]\n\tdefaultBranch = main\n")
-        os.environ["GIT_CONFIG_GLOBAL"] = str(cfg)
-        self.addCleanup(self._restore_env)
-        self.repo = Path(self.tmp) / "depot"
-        self.repo.mkdir()
-        g(self.repo, "init", "-q")
-
-    def _restore_env(self):
-        for k, v in self.env.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
-
-    def remote(self):
-        """Distant nu local (file://), branche main poussée."""
-        bare = Path(self.tmp) / "distant.git"
-        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
-        g(self.repo, "remote", "add", "origin", bare.as_uri())
-        return bare
-
+from tests.git_helpers import GitTestCase, commit_file, g
 
 class ReadTest(GitTestCase):
     def test_not_a_repo(self):
