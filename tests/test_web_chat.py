@@ -150,7 +150,7 @@ class StaticChatTest(unittest.TestCase):
         b = bridge.build("alice", None, local=True, start_daemon=False, install_claude=False)
         known = set(b._handlers)
         for name, text in self.text().items():
-            for m in re.finditer(r'"((?:work|chat|files|conversation)\.[a-z_.]+)"', text):
+            for m in re.finditer(r'call\("((?:work|chat|files|conversation)\.[a-z_.]+)"', text):
                 self.assertIn(m.group(1), known, f"{name} : {m.group(1)}")
 
     def test_no_alert_confirm_or_unsafe_html(self):
