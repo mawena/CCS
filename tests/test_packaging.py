@@ -114,6 +114,11 @@ class PackagingTest(unittest.TestCase):
             hits = [l for l in p.read_text(encoding="utf-8").splitlines() if "#DEBHELPER#" in l]
             self.assertEqual(hits, ["#DEBHELPER#"], p.name)
 
+    def test_upgrade_restarts_running_bridges(self):
+        """Un pont lancé garde l'ancien code en mémoire : la mise à jour le redémarre."""
+        text = (DEB / "ccs-serveur.postinst").read_text(encoding="utf-8")
+        self.assertIn("systemctl try-restart 'ccs-bridge@*.service'", text)
+
     def test_server_services_start_after_web_user_exists(self):
         text = (DEB / "ccs-serveur.postinst").read_text(encoding="utf-8")
         self.assertLess(text.index("adduser --system"), text.index("#DEBHELPER#"))
