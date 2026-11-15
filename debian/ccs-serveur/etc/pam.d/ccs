@@ -1,4 +1,0 @@
-# PAM de CCS (paquet ccs-serveur) : connexion à la version web avec le mot de passe Ubuntu.
-# Le groupe « ccs » et le refus de root sont vérifiés par ccs-auth lui-même.
-@include common-auth
-@include common-account
