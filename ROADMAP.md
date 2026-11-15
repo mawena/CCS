@@ -397,3 +397,16 @@ Fin de phase :
 - [x] 8. Documentation de la partie bureau (README, guide, CHANGELOG)
 - [ ] 9. Essai réel par Charles depuis son PC
 - [x] 10. Release mineure 0.14.0 (bureau)
+
+## Phase 16 — Compactage automatique (0.15.0)
+
+Quand le contexte d'un chat dépasse le seuil du contexte lourd, CCS envoie `/compact` tout seul, au lieu de seulement proposer le bouton « Compacter ». Désactivé par défaut.
+
+- [ ] 1. Réglage `context_alert.auto_compact` (faux par défaut), validé dans `settings.py`
+- [ ] 2. Décision commune dans `context_alert.py` : compacter seulement entre deux tours (Claude au repos, aucune demande de permission en attente), une seule fois par dépassement, jamais deux fois de suite si le contexte ne redescend pas
+- [ ] 3. Chats du serveur (`server/bridge_work.py`) : envoi automatique, même sans navigateur ouvert
+- [ ] 4. Chat du bureau : même comportement pour les chats locaux
+- [ ] 5. Note dans le fil (« Compactage automatique : contexte de N jetons ») à la place de l'alerte avec bouton
+- [ ] 6. Case « Compacter automatiquement » dans les réglages du web et du bureau
+- [ ] 7. Tests des modules touchés
+- [ ] 8. Documentation (README, CHANGELOG) et release mineure 0.15.0, dépôt APT compris
