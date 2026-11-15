@@ -164,6 +164,9 @@ def cmd_bridge(args):
     from .server import bridge, paths
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     user = pwd.getpwuid(os.getuid()).pw_name
+    local_bin = os.path.join(os.path.expanduser("~"), ".local", "bin")   # Claude Code (installeur officiel)
+    if local_bin not in os.environ.get("PATH", "").split(":"):
+        os.environ["PATH"] = local_bin + ":" + os.environ.get("PATH", "/usr/bin:/bin")
     if args.local:
         from .remote.client import default_socket
         sock = args.socket or default_socket()
