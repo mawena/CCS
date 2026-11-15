@@ -20,7 +20,7 @@ log = logging.getLogger("ccs.web")
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 DEFAULT_CONFIG = {"listen": "127.0.0.1:8420", "origin": "https://ccs.mawena.cloud"}
-CSP = ("default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
+CSP = ("default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 SESSION, DEVICE = "ccs_session", "ccs_device"
 

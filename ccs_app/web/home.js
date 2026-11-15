@@ -1,6 +1,7 @@
 // Accueil : comptes Claude côte à côte (jauges session et semaine, compte actif, bascule),
 // ligne d'état, pause, file de tâches. Rafraîchi chaque minute.
 import { ago, clear, el } from "./dom.js";
+import { TerminalView } from "./terminal.js";
 
 function resetText(iso) {
   if (!iso) return "";
@@ -50,7 +51,20 @@ export function mountHome(root, api) {
   const accounts = el("section", { class: "accounts" });
   const pauseBox = el("div", { class: "card flat pause-box" });
   const tasksBox = el("section", { class: "card flat" });
-  root.append(status, accounts, pauseBox, tasksBox);
+  const addBox = el("section", { class: "card flat" });
+  root.append(status, accounts, pauseBox, tasksBox, addBox);
+  let home = null;
+  let addTerm = null;
+  const nameInput = el("input", { placeholder: "Nom du compte (ex. perso2)", pattern: "[A-Za-z0-9_-]{1,32}" });
+  addBox.append(el("h2", {}, "Ajouter un compte Claude"),
+    el("p", { class: "subtle" }, "Lance « ccs add » dans un terminal : ouvre le lien de connexion sur ton téléphone ou ton PC, puis colle le code dans le terminal."),
+    el("div", { class: "row" }, nameInput, el("button", { class: "small", onclick: () => {
+      if (!/^[A-Za-z0-9_-]{1,32}$/.test(nameInput.value)) { alert("Nom : lettres, chiffres, - et _ seulement."); return; }
+      addTerm?.destroy(true);
+      const holder = el("div", { class: "term-box" });
+      addBox.append(holder);
+      addTerm = new TerminalView(holder, api, { cwd: home, command: "ccs add", name: nameInput.value });
+    } }, "Ouvrir le terminal")));
 
   async function loadTasks() {
     clear(tasksBox).append(el("h2", {}, "File de tâches"));
@@ -72,6 +86,7 @@ export function mountHome(root, api) {
       clear(status).append(el("span", { class: "subtle" }, `Indisponible : ${e.message}`));
       return;
     }
+    home = st.home;
     const s = st.state || {};
     const best = s.best?.name ? `Meilleur compte : ${s.best.name} (${s.best.reason})` : "";
     const decision = s.auto_switch?.decision?.reason ? `Bascule automatique : ${s.auto_switch.decision.reason}` : "";
@@ -93,5 +108,5 @@ export function mountHome(root, api) {
   loadTasks();
   const timer = setInterval(load, 60000);
   const off = api.on("reconnected", () => { load(); loadTasks(); });
-  return () => { clearInterval(timer); off(); };
+  return () => { clearInterval(timer); off(); addTerm?.destroy(false); };
 }

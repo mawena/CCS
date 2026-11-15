@@ -89,6 +89,26 @@ class StaticTest(unittest.TestCase):
             self.assertIn(f'"{name}"', text, name)
         self.assertIn("./sessions.js", (WEB / "views.js").read_text(encoding="utf-8"))
 
+    def test_vendor_checksums_match(self):
+        import hashlib
+        lines = (WEB / "vendor" / "LISEZMOI").read_text(encoding="utf-8").splitlines()
+        sums = [l.split() for l in lines if re.match(r"^[0-9a-f]{64}  ", l)]
+        self.assertEqual(len(sums), 3)
+        for digest, name in sums:
+            self.assertEqual(hashlib.sha256((WEB / "vendor" / name).read_bytes()).hexdigest(), digest, name)
+        self.assertTrue((WEB / "vendor" / "xterm" / "LICENSE").is_file())
+
+    def test_files_roadmap_terminal_wired(self):
+        chat = (WEB / "chat.js").read_text(encoding="utf-8")
+        sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
+        self.assertIn("./files.js", chat)
+        self.assertIn("./roadmap.js", chat)
+        self.assertIn("./terminal.js", sessions)
+        self.assertIn("files.write", (WEB / "files.js").read_text(encoding="utf-8"))
+        self.assertIn("roadmap.toggle", (WEB / "roadmap.js").read_text(encoding="utf-8"))
+        self.assertIn("term.input", (WEB / "terminal.js").read_text(encoding="utf-8"))
+        self.assertIn("ccs add", (WEB / "home.js").read_text(encoding="utf-8"))
+
     def test_settings_page_lists_devices(self):
         text = (WEB / "settings.js").read_text(encoding="utf-8")
         self.assertIn("/api/tokens", text)

@@ -234,3 +234,38 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
   .composer { padding-bottom: 6px; }
   .chat-head .grow .subtle { display: none; }
 }
+
+/* ---- tiroir Fichiers / Feuille de route, terminal ---- */
+.chat-body { flex: 1; display: flex; min-height: 0; }
+.chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.drawer { width: min(380px, 42%); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+.drawer-head { display: flex; align-items: center; padding: 4px 4px 4px 12px; border-bottom: 1px solid var(--line); }
+.drawer-body { flex: 1; overflow: auto; padding: 8px; }
+.tree { list-style: none; margin: 0; padding-left: 12px; }
+.drawer-body > .files > .tree { padding-left: 0; }
+.tree-row { width: 100%; min-height: 36px; justify-content: flex-start; background: transparent; font-weight: 400; padding: 0 6px; gap: 4px; text-align: left; }
+.tree-row:hover { background: var(--soft); }
+.tree-row .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.twisty { width: 14px; display: inline-block; transition: transform 0.1s; }
+.tree-row.open .twisty { transform: rotate(90deg); }
+.mark { font-family: var(--mono); font-size: 0.8em; font-weight: 700; }
+.m-M { color: var(--warning); } .m-A, .m-n { color: var(--success); } .m-D { color: var(--error); }
+.file-holder { display: flex; flex-direction: column; gap: 6px; height: 100%; }
+.file-head { display: flex; align-items: center; gap: 4px; }
+.file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-text { flex: 1; min-height: 50vh; font-family: var(--mono); font-size: 0.85em; resize: vertical; white-space: pre; }
+.file-preview { overflow-wrap: anywhere; }
+.roadmap .phase { border-bottom: 1px solid var(--line); padding: 6px 0; }
+.roadmap summary { display: flex; gap: 8px; cursor: pointer; font-weight: 700; min-height: 36px; align-items: center; }
+.roadmap .bar-track { margin: 4px 0 6px; }
+.task { font-weight: 400; min-height: 36px; align-items: flex-start; padding-top: 6px; }
+.task.done span { color: var(--subtle); }
+.depth-1 { margin-left: 18px; } .depth-2 { margin-left: 36px; } .depth-3 { margin-left: 54px; }
+.term { flex: 1; min-width: 0; min-height: 0; padding: 6px; background: var(--card); }
+.term-box { height: 360px; display: flex; margin-top: 8px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+
+@media (max-width: 719px) {
+  .drawer { position: absolute; inset: 0; width: 100%; z-index: 15; border-right: 0; }
+  .chat-body { position: relative; }
+  .term-box { height: 300px; }
+}

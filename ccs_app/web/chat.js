@@ -3,6 +3,8 @@
 // effort / droits, saisie avec images. Les événements arrivent numérotés : après une coupure, le
 // chat redemande ce qu'il a manqué (`chat.attach` depuis son dernier numéro).
 import { clear, el, setHtml } from "./dom.js";
+import { FilesPanel } from "./files.js";
+import { RoadmapPanel } from "./roadmap.js";
 
 const RIGHTS = [["manual", "Demander"], ["acceptEdits", "Modifications acceptées"], ["plan", "Plan"],
   ["bypassPermissions", "Tout autoriser"]];
@@ -81,10 +83,14 @@ export class ChatView {
       model: this.model.value || null, effort: this.effort.value || null, rights: this.rights.value } });
     for (const s of [this.rights, this.effort, this.model]) s.addEventListener("change", options);
 
+    this.drawer = el("aside", { class: "drawer", hidden: true });
+    const panel = (kind) => () => this.openDrawer(kind);
     this.node = el("section", { class: "chat" },
       el("header", { class: "chat-head" }, el("div", { class: "grow" }, el("strong", {}, title || cwd),
-        el("div", { class: "subtle" }, cwd)), this.state, this.stopBtn),
-      this.thread, form);
+        el("div", { class: "subtle" }, cwd)), this.state, this.stopBtn,
+        el("button", { class: "small flat", title: "Fichiers du projet", onclick: panel("files") }, "📁"),
+        el("button", { class: "small flat", title: "Feuille de route", onclick: panel("roadmap") }, "☑")),
+      el("div", { class: "chat-body" }, this.drawer, el("div", { class: "chat-main" }, this.thread, form)));
     root.append(this.node);
 
     this.offs.push(api.on("chat.event", (d) => { if (d.chat_id === this.chatId) this.receive(d); }));
@@ -94,6 +100,20 @@ export class ChatView {
   }
 
   destroy() { for (const off of this.offs) off(); this.node.remove(); }
+
+  openDrawer(kind) {
+    if (!this.drawer.hidden && this.drawer.dataset.kind === kind) { this.drawer.hidden = true; return; }
+    clear(this.drawer);
+    this.drawer.dataset.kind = kind;
+    this.drawer.hidden = false;
+    this.drawer.append(el("div", { class: "drawer-head" },
+      el("strong", { class: "grow" }, kind === "files" ? "Fichiers" : "Feuille de route"),
+      el("button", { class: "small flat", "aria-label": "Fermer", onclick: () => { this.drawer.hidden = true; } }, "×")));
+    const body = el("div", { class: "drawer-body" });
+    this.drawer.append(body);
+    if (kind === "files") new FilesPanel(body, this.api, this.cwd);
+    else new RoadmapPanel(body, this.api, this.cwd);
+  }
 
   async call(method, params = {}) {
     try { return await this.api.call(method, { chat_id: this.chatId, ...params }); } catch (e) {

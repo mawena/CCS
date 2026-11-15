@@ -13,6 +13,7 @@ import dataclasses
 import hashlib
 import hmac
 import logging
+import os
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -173,6 +174,7 @@ class Bridge:
             chosen = settings.load_settings().get("appearance", {}).get("account_colors") or {}
             return {
                 "user": self.user,
+                "home": os.path.expanduser("~"),
                 "colors": {n: account_colors.color_for(n, names, chosen) for n in names},
                 "profiles": [dataclasses.asdict(p) for p in profiles],
                 "active": core.active_profile_name(),
