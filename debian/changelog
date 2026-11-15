@@ -1,3 +1,10 @@
+ccs (0.12.5) unstable; urgency=medium
+
+  * Web au téléphone : une seule barre en haut, saisie plus large, envoi en
+    icône, blocs de code plus serrés.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 23:30:00 +0000
+
 ccs (0.12.4) unstable; urgency=medium
 
   * Web : bouton Copier dans une barre au-dessus des blocs de code.

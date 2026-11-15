@@ -100,7 +100,8 @@ export class ChatView {
     this.optBtn = el("button", { type: "button", class: "small flat opt", "aria-expanded": "false", onclick: () => this.toggleOptions() },
       el("strong", {}, "Options"), this.summary);
 
-    const send = el("button", { class: "primary send", type: "submit", "aria-label": "Envoyer" }, "Envoyer");
+    const send = el("button", { class: "primary send", type: "submit", "aria-label": "Envoyer" },
+      el("span", { class: "send-icon", "aria-hidden": "true" }, "➤"), el("span", { class: "send-label" }, "Envoyer"));
     const attach = el("button", { class: "flat icon", type: "button", "aria-label": "Joindre une image", title: "Joindre une image",
       onclick: () => this.fileInput.click() }, "📎");
     const saved = el("button", { class: "flat icon", type: "button", "aria-label": "Messages enregistrés", title: "Messages enregistrés",
@@ -144,6 +145,8 @@ export class ChatView {
       onclick: () => { this.menu.hidden = !this.menu.hidden; } }, "Plus"));
     this.node = el("section", { class: "chat" },
       el("header", { class: "chat-head" },
+        el("button", { type: "button", class: "flat back-chat phone-only", "aria-label": "Retour aux sessions",
+          onclick: () => this.host?.back?.() }, "←"),
         el("div", { class: "chat-title grow" }, el("strong", { class: "title" }, title || cwd),
           el("div", { class: "chat-sub" }, this.state, el("span", { class: "subtle cwd" }, cwd))),
         actions, this.menu),

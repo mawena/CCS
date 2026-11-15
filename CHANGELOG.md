@@ -3,6 +3,15 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.12.5] — 2026-11-15
+
+### Corrigé
+
+- **Web au téléphone, chat plus aéré** : une seule barre en haut (← retour, titre, Fichiers,
+  Plus) au lieu de deux ; zone de saisie plus large (bouton d'envoi en icône ➤, boutons
+  joindre et messages enregistrés plus petits, marge du bas de l'iPhone respectée) ; blocs de
+  code plus serrés.
+
 ## [0.12.4] — 2026-11-15
 
 ### Corrigé
