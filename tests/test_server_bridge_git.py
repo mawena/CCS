@@ -1,9 +1,11 @@
 """Pont : git d'un projet (état, diff, indexation, commit, fetch / pull / push, journal), sur de
 vrais petits dépôts temporaires ; un dépôt nu local sert de distant, aucun réseau."""
 
+import os
 import subprocess
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ccs_app.server import bridge, bridge_git, rpc
 from tests.git_helpers import GitTestCase, commit_file, g, many_commits
@@ -220,6 +222,56 @@ class GitBridgeTest(GitTestCase, unittest.IsolatedAsyncioTestCase):
         await self.call("git.push", force=True)
         await self.fails("invalide", "git.push", force="oui")
         self.assertEqual((await self.call("git.status"))["branch"]["ahead"], 0)
+
+
+    # ---- revue phase 14 : confinement et plafonds (C7) ---------------------------------
+
+    async def test_diff_refuses_dash_and_stays_in_repo(self):
+        commit_file(self.repo, "a.txt", "un\n")
+        await self.fails("invalide", "git.diff", path="-", staged=False)
+        outside = Path(self.tmp) / "dehors"
+        outside.mkdir()
+        (outside / "hostname").write_text("secret-dehors\n")
+        os.symlink(outside, self.repo / "lnk")
+        try:
+            r = await self.call("git.diff", path="lnk/hostname", staged=False)
+            self.assertIsNone(r["diff"])
+        except rpc.RpcError as e:
+            self.assertNotIn("secret-dehors", e.message)
+
+    async def test_diff_of_too_big_file(self):
+        self.assertEqual(bridge_git.MAX_FILE_BYTES, 2 * 1024 * 1024)
+        (self.repo / "app.js.map").write_bytes(b"x" * (bridge_git.MAX_FILE_BYTES + 1))   # une seule ligne
+        d = (await self.call("git.diff", path="app.js.map", staged=False))["diff"]
+        self.assertTrue(d["too_big"])
+        self.assertEqual(d["hunks"], [])
+
+    async def test_diff_long_lines_are_cut(self):
+        self.assertEqual(bridge_git.MAX_LINE_CHARS, 4000)
+        commit_file(self.repo, "a.txt", "un\n")
+        (self.repo / "a.txt").write_text("y" * 10000 + "\n")
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        self.assertFalse(d["too_big"])
+        longest = max(len(l["text"]) for h in d["hunks"] for l in h["lines"])
+        self.assertLessEqual(longest, bridge_git.MAX_LINE_CHARS + 1)
+
+    async def test_diff_total_size_capped(self):
+        commit_file(self.repo, "a.txt", "un\n")
+        (self.repo / "a.txt").write_text("".join(f"{i:05d}" + "z" * 3000 + "\n" for i in range(600)))
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        self.assertTrue(d["truncated"])
+        total = sum(len(l["text"]) for h in d["hunks"] for l in h["lines"])
+        self.assertLessEqual(total, bridge_git.MAX_DIFF_CHARS + bridge_git.MAX_LINE_CHARS + 1)
+
+    async def test_status_capped(self):
+        self.assertEqual(bridge_git.MAX_STATUS_FILES, 2000)
+        for i in range(5):
+            (self.repo / f"f{i}.txt").write_text("x\n")
+        with mock.patch.object(bridge_git, "MAX_STATUS_FILES", 3):
+            r = await self.call("git.status")
+        self.assertTrue(r["truncated"])
+        self.assertEqual(len(r["files"]), 3)
+        self.assertFalse((await self.call("git.status"))["truncated"])
 
 
 if __name__ == "__main__":

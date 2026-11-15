@@ -7,6 +7,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ccs_app import git_repo
 from tests.git_helpers import GitTestCase, commit_file, g
@@ -362,6 +363,58 @@ class WriteTest(GitTestCase):
         g(self.repo, "add", "tests/t.py")
         self.assertEqual(git_repo.propose_message(str(self.repo)).splitlines()[0],
                          "test: ajoute tests/t.py")
+
+
+class SafetyAndLimitsTest(GitTestCase):
+    """Revue phase 14 : git.diff ne lit que les fichiers du dépôt, jamais l'entrée standard, et
+    ne calcule pas le diff d'un fichier trop gros."""
+
+    def test_run_never_reads_stdin(self):
+        with mock.patch("subprocess.run", wraps=subprocess.run) as m:
+            git_repo.run(self.repo, "status")
+        self.assertIs(m.call_args.kwargs["stdin"], subprocess.DEVNULL)
+
+    def no_leak(self, path, secret):
+        try:
+            fd = git_repo.diff(str(self.repo), path, staged=False)
+        except git_repo.GitError as e:
+            self.assertNotIn(secret, e.output)
+            return
+        self.assertIsNone(fd, path)
+
+    def test_diff_untracked_only_what_git_lists(self):
+        commit_file(self.repo, "a.txt", "un\n")
+        outside = Path(self.tmp) / "dehors"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("secret-dehors\n")
+        (outside / "null").write_text("secret-null\n")
+        os.symlink(outside, self.repo / "lnk")                       # lien vers un dossier hors du dépôt
+        (self.repo / ".gitignore").write_text("cache.txt\n")
+        (self.repo / "cache.txt").write_text("secret-ignore\n")
+        (self.repo / "-").write_text("secret-tiret\n")
+        self.no_leak("lnk/secret.txt", "secret-dehors")
+        self.no_leak("lnk", "secret-null")
+        self.no_leak("cache.txt", "secret-ignore")                  # ignoré : jamais montré
+        self.no_leak("-", "secret-tiret")                           # « - » : l'entrée standard
+        self.no_leak("*.txt", "secret")                             # motif : pris à la lettre
+        (self.repo / "vrai.txt").write_text("x\n")
+        self.assertTrue(git_repo.diff(str(self.repo), "vrai.txt", staged=False).new_file)
+
+    def test_diff_too_big_is_not_computed(self):
+        commit_file(self.repo, "a.txt", "un\n")
+        (self.repo / "a.txt").write_text("x" * 200 + "\n")
+        (self.repo / "neuf.txt").write_text("y" * 200 + "\n")
+        for path in ("a.txt", "neuf.txt"):
+            fd = git_repo.diff(str(self.repo), path, staged=False, max_bytes=100)
+            self.assertTrue(fd.too_big, path)
+            self.assertEqual(fd.hunks, [])
+        g(self.repo, "add", "a.txt")
+        (self.repo / "a.txt").write_text("court\n")
+        self.assertTrue(git_repo.diff(str(self.repo), "a.txt", staged=True, max_bytes=100).too_big)
+        self.assertTrue(git_repo.diff(str(self.repo), "a.txt", staged=False, max_bytes=100).too_big)
+        fd = git_repo.diff(str(self.repo), "neuf.txt", staged=False)
+        self.assertFalse(fd.too_big)
+        self.assertEqual(len(fd.hunks), 1)
 
 
 if __name__ == "__main__":

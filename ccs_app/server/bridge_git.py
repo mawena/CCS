@@ -15,6 +15,10 @@ from . import rpc
 from .bridge_data import safe_path
 
 DIFF_LINES = 2000          # lignes de diff renvoyées au plus (le reste : « tronqué »)
+MAX_DIFF_CHARS = 1_000_000  # texte de diff renvoyé au plus (le reste : « tronqué »)
+MAX_LINE_CHARS = 4000      # une ligne plus longue est coupée
+MAX_FILE_BYTES = 2 * 1024 * 1024    # fichier plus gros : diff non calculé (`too_big`)
+MAX_STATUS_FILES = 2000    # fichiers renvoyés par git.status au plus (`truncated` au-delà)
 PAGE = 50
 MAX_PATHS = 500
 
@@ -31,10 +35,15 @@ def _paths(params):
 
 
 def _rel(path):
-    if (not isinstance(path, str) or not path or "\0" in path or os.path.isabs(path)
+    """Chemin relatif à la racine du dépôt ; « - » refusé (l'entrée standard pour git)."""
+    if (not isinstance(path, str) or not path or path == "-" or "\0" in path or os.path.isabs(path)
             or ".." in path.split("/")):
         raise rpc.RpcError("invalide", "Chemin de fichier invalide.")
     return path
+
+
+def _cut(text):
+    return text if len(text) <= MAX_LINE_CHARS else text[:MAX_LINE_CHARS] + "…"
 
 
 class GitApi:
@@ -85,8 +94,9 @@ class GitApi:
             except git_repo.GitError:
                 last = ""
             return {"repo": True, "root": str(root), "branch": dataclasses.asdict(b),
-                    "files": [dataclasses.asdict(f) for f in files],
-                    "proposed": git_repo.propose_message(root), "last_message": last}
+                    "files": [dataclasses.asdict(f) for f in files[:MAX_STATUS_FILES]],
+                    "truncated": len(files) > MAX_STATUS_FILES,
+                    "proposed": git_repo.propose_message(root, files), "last_message": last}
         try:
             return await asyncio.to_thread(work)
         except git_repo.GitError as e:
@@ -106,23 +116,28 @@ class GitApi:
 
     @staticmethod
     def _diff_json(fd):
-        total, hunks, truncated = 0, [], False
+        """Au plus DIFF_LINES lignes et MAX_DIFF_CHARS caractères, lignes coupées à
+        MAX_LINE_CHARS : la réponse reste loin de `rpc.MAX_LINE`."""
+        total = chars = 0
+        hunks, truncated = [], False
         for h in fd.hunks:
-            if total >= DIFF_LINES:
+            if total >= DIFF_LINES or chars >= MAX_DIFF_CHARS:
                 truncated = True
                 break
             lines = []
             for line in h.lines:
-                if total >= DIFF_LINES:
+                if total >= DIFF_LINES or chars >= MAX_DIFF_CHARS:
                     truncated = True
                     break
-                lines.append({"kind": line.kind, "text": line.text, "old_no": line.old_no,
+                text = _cut(line.text)
+                lines.append({"kind": line.kind, "text": text, "old_no": line.old_no,
                               "new_no": line.new_no})
                 total += 1
+                chars += len(text)
             hunks.append({"header": h.header, "lines": lines})
         return {"path": fd.path, "old_path": fd.old_path, "binary": fd.binary,
                 "new_file": fd.new_file, "deleted": fd.deleted, "hunks": hunks,
-                "truncated": truncated}
+                "truncated": truncated, "too_big": fd.too_big}
 
     async def diff(self, _conn, params):
         root = await self._root(params)
@@ -130,7 +145,7 @@ class GitApi:
         staged = params.get("staged") is True
 
         def work(r):
-            fd = git_repo.diff(r, path, staged)
+            fd = git_repo.diff(r, path, staged, max_bytes=MAX_FILE_BYTES)
             return {"diff": None if fd is None else self._diff_json(fd)}
         return await self._run(root, work)
 
@@ -162,7 +177,7 @@ class GitApi:
             raise rpc.RpcError("invalide", "Bloc ou action invalide.")
 
         def work(r):
-            fd = git_repo.diff(r, path, staged=action == "unstage")
+            fd = git_repo.diff(r, path, staged=action == "unstage", max_bytes=MAX_FILE_BYTES)
             if fd is None or not 0 <= index < len(fd.hunks):
                 raise rpc.RpcError("invalide", "Ce bloc n'existe plus : recharge le fichier.")
             keep = {(index, li) for li, line in enumerate(fd.hunks[index].lines) if line.kind != " "}

@@ -7,6 +7,7 @@ module ne touche à GTK ; l'interface les appelle hors de son fil (`in_thread`).
 
 import os
 import re
+import stat
 import subprocess
 from dataclasses import dataclass, field
 
@@ -36,12 +37,13 @@ def _env(extra=None):
 
 def run(repo, *args, input=None, env=None, timeout=60, ok_codes=(0,)):
     """`git -C repo args…` ; sortie standard en octets. Lève `GitError` si le code n'est pas
-    dans `ok_codes` (ou si git est introuvable, ou trop long)."""
+    dans `ok_codes` (ou si git est introuvable, ou trop long). Sans `input`, l'entrée standard
+    est vide : git ne lit jamais celle de l'appelant."""
     argv = ["git", "-c", "core.quotePath=false", "-C", str(repo), *args]
     command = " ".join(["git", *args])
+    feed = {"input": input} if input is not None else {"stdin": subprocess.DEVNULL}
     try:
-        proc = subprocess.run(argv, input=input, capture_output=True, env=_env(env),
-                              timeout=timeout)
+        proc = subprocess.run(argv, capture_output=True, env=_env(env), timeout=timeout, **feed)
     except FileNotFoundError:
         raise GitError(command, "La commande git est introuvable.", 127) from None
     except subprocess.TimeoutExpired as e:
@@ -243,6 +245,7 @@ class FileDiff:
     hunks: list
     new_file: bool = False
     deleted: bool = False
+    too_big: bool = False         # diff non calculé : fichier plus gros que la limite demandée
 
 
 _ESC = {b"n": b"\n", b"t": b"\t", b"\\": b"\\", b'"': b'"', b"a": b"\a", b"b": b"\b",
@@ -357,26 +360,84 @@ def hunk_done(hunk, old_no, new_no):
 
 
 _DIFF_OPTS = ("--no-color", "--no-ext-diff", "-M")
+_LITERAL = {"GIT_LITERAL_PATHSPECS": "1"}     # un chemin est un nom de fichier, jamais un motif
 
 
 def _untracked(repo, path):
-    try:
-        run(repo, "ls-files", "--error-unmatch", "--", path)
+    """Vrai seulement pour un fichier non suivi que git liste lui-même (`ls-files -o`, exactement
+    ce chemin) : jamais un fichier ignoré, derrière un lien ou hors du dépôt, ni « - » (l'entrée
+    standard pour `--no-index`), ni un dossier ou un lien vers un dossier (que `--no-index`
+    parcourrait)."""
+    if path == "-":
         return False
+    try:
+        out = run(repo, "ls-files", "-z", "-o", "--exclude-standard", "--", path, env=_LITERAL)
     except GitError:
-        return True
+        return False
+    if out.split(b"\0")[:-1] != [os.fsencode(path)]:
+        return False
+    full = os.path.join(str(repo), path)
+    try:
+        mode = os.lstat(full).st_mode
+    except OSError:
+        return False
+    if stat.S_ISLNK(mode):
+        return not os.path.isdir(full)
+    return stat.S_ISREG(mode)
 
 
-def diff(repo, path, staged):
-    """Diff d'un fichier : indexé (`staged`) ou non indexé ; fichier non suivi : contre
-    /dev/null. None s'il n'y a pas de différence."""
+def _file_size(repo, path):
+    try:
+        st = os.lstat(os.path.join(str(repo), path))
+    except OSError:
+        return 0
+    return st.st_size if stat.S_ISREG(st.st_mode) else 0
+
+
+def _blob_size(repo, spec):
+    try:
+        return int(run(repo, "cat-file", "-s", spec, ok_codes=(0, 128)).strip() or 0)
+    except (GitError, ValueError):
+        return 0
+
+
+def _too_big(repo, path, staged, untracked, max_bytes):
     if staged:
-        raw = run(repo, "diff", "--cached", *_DIFF_OPTS, "--", path)
-    elif _untracked(repo, path):
+        sizes = (_blob_size(repo, f":0:{path}"), _blob_size(repo, f"HEAD:{path}"))
+    elif untracked:
+        sizes = (_file_size(repo, path),)
+    else:
+        sizes = (_file_size(repo, path), _blob_size(repo, f":0:{path}"))
+    return max(sizes) > max_bytes
+
+
+def _differs(repo, path, staged):
+    try:
+        run(repo, "diff", "--quiet", *(("--cached",) if staged else ()), "--", path, env=_LITERAL)
+    except GitError as e:
+        if e.code == 1:
+            return True
+        raise
+    return False
+
+
+def diff(repo, path, staged, max_bytes=None):
+    """Diff d'un fichier : indexé (`staged`) ou non indexé ; fichier non suivi : contre
+    /dev/null. None s'il n'y a pas de différence, ou si git ne suit pas ce chemin et ne le
+    liste pas comme non suivi (ignoré, derrière un lien…). `max_bytes` : si la copie de
+    travail, l'index ou HEAD dépasse cette taille, le diff n'est pas calculé (`too_big`)."""
+    untracked = not staged and _untracked(repo, path)
+    if max_bytes is not None and _too_big(repo, path, staged, untracked, max_bytes):
+        if not untracked and not _differs(repo, path, staged):
+            return None
+        return FileDiff(path, None, False, [], new_file=untracked, too_big=True)
+    if staged:
+        raw = run(repo, "diff", "--cached", *_DIFF_OPTS, "--", path, env=_LITERAL)
+    elif untracked:
         raw = run(repo, "diff", "--no-index", *_DIFF_OPTS, "--", "/dev/null", path,
                   ok_codes=(0, 1))
     else:
-        raw = run(repo, "diff", *_DIFF_OPTS, "--", path)
+        raw = run(repo, "diff", *_DIFF_OPTS, "--", path, env=_LITERAL)
     files = parse_diff(raw)
     return files[0] if files else None
 
@@ -613,10 +674,10 @@ _VERBS = {"A": "ajoute", "M": "modifie", "D": "supprime", "R": "renomme", "C": "
           "T": "modifie"}
 
 
-def propose_message(repo):
+def propose_message(repo, files=None):
     """Message de commit proposé d'après les seuls fichiers indexés (sans appel à Claude) ;
-    vide si rien n'est indexé."""
-    staged = [s for s in status(repo) if s.staged not in (".", "?")]
+    vide si rien n'est indexé. `files` : résultat de `status` déjà lu."""
+    staged = [s for s in (status(repo) if files is None else files) if s.staged not in (".", "?")]
     if not staged:
         return ""
     paths = [s.path for s in staged]
