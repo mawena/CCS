@@ -351,6 +351,6 @@ La version web au téléphone (choisie le 15/11 : ergonomie, fonctions du bureau
 - [x] 30. Phase 14 au web : Git (état, diff, indexation, commit, fetch / pull / push)
 
 Fin de phase :
-- [ ] 31. Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [x] 31. Documentation (README, guide, architecture, man, CHANGELOG, site)
 - [ ] 32. Essai réel par Charles (bureau et VPS) et corrections
 - [ ] 33. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT
