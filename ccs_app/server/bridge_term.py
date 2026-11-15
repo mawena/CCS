@@ -92,6 +92,8 @@ class TermHub:
 
     async def open(self, conn, params):
         cwd = params.get("cwd")
+        if isinstance(cwd, str) and cwd.startswith("~"):
+            cwd = os.path.normpath(os.path.expanduser(cwd))
         if not isinstance(cwd, str) or not os.path.isdir(cwd):
             raise rpc.RpcError("invalide", "Dossier introuvable.")
         if params.get("command") is not None:

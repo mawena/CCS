@@ -14,7 +14,16 @@ export function mountSessions(root, api) {
   const tabBar = el("div", { class: "tabs", role: "tablist" });
   const stage = el("div", { class: "stage" });
   const back = el("button", { class: "flat back", onclick: () => show(null) }, "← Sessions");
-  const side = el("aside", { class: "side" }, search, list);
+  // comme « Nouvelle session… » du bureau : un dossier encore sans conversation (~ accepté)
+  const folder = el("input", { type: "text", placeholder: "Dossier, par ex. ~/Repo/projet", "aria-label": "Dossier du projet",
+    autocapitalize: "off", autocomplete: "off", spellcheck: "false", enterkeyhint: "go" });
+  const typed = () => folder.value.trim();
+  const newSession = el("form", { class: "new-session", onsubmit: (e) => { e.preventDefault(); if (typed()) open(typed()); } },
+    folder,
+    el("button", { type: "submit", class: "small" }, "Nouveau chat"),
+    el("button", { type: "button", class: "small flat", title: "Terminal dans ce dossier",
+      onclick: () => { if (typed()) openTerm(typed()); } }, "▸_"));
+  const side = el("aside", { class: "side" }, el("h3", {}, "Nouvelle session"), newSession, search, list);
   const main = el("div", { class: "main" }, el("div", { class: "tabs-row" }, back, tabBar), stage);
   const layout = el("div", { class: "sessions" }, side, main);
   root.append(layout);
@@ -64,7 +73,8 @@ export function mountSessions(root, api) {
   async function open(cwd, conv) {
     try {
       const r = await api.call("chat.open", { cwd, session_id: conv?.session_id || null });
-      addTab(r.chat_id, cwd, conv?.title || base(cwd), r.seq ? null : conv?.path);
+      const real = r.cwd || cwd;                  // chemin réel (~ développé par le pont)
+      addTab(r.chat_id, real, conv?.title || base(real), r.seq ? null : conv?.path);
     } catch (e) { alert(e.message); }
   }
 

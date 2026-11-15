@@ -14,6 +14,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   (`https://ccs.mawena.cloud`), avec chat, sessions, fichiers, feuille de route, analyse,
   terminaux et réglages. Connexion par les comptes Ubuntu du groupe `ccs` et double
   authentification (TOTP, QR code), appareil retenu 30 jours ; `sudo ccs totp reinitialiser`.
+  « Nouvelle session » ouvre un chat ou un terminal dans n'importe quel dossier (`~/…`
+  accepté), même sans conversation.
 - `ccs tui` : CCS en plein écran dans le terminal, sur la machine ou sur un serveur
   (`--serveur`) ; `ccs serveur ajouter|liste|retirer` pour appairer un poste.
 - Bureau connecté : Réglages → Serveurs CCS, projets et chats du serveur dans la page
