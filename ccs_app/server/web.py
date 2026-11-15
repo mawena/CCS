@@ -162,6 +162,12 @@ def make_app(auth, bridges, config):
         resp.del_cookie(SESSION, path="/")
         return resp
 
+    async def session_info(request):
+        who = await identify(request)
+        if who is None:
+            raise web.HTTPUnauthorized()
+        return web.json_response({"user": who[0]})
+
     async def tokens(request):
         return web.json_response(await safe_call("tokens", session=request.cookies.get(SESSION, "")))
 
@@ -249,6 +255,7 @@ def make_app(auth, bridges, config):
     app.router.add_post("/api/enroll", enroll)
     app.router.add_post("/api/pair", pair)
     app.router.add_post("/api/logout", logout)
+    app.router.add_get("/api/session", session_info)
     app.router.add_get("/api/tokens", tokens)
     app.router.add_post("/api/revoke", revoke)
     app.router.add_get("/api/ws", ws_handler)

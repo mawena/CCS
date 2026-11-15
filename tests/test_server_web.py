@@ -182,6 +182,13 @@ class WebTest(AioHTTPTestCase):
         sess = next(c for c in r.headers.getall("Set-Cookie") if c.startswith("ccs_session="))
         self.assertIn("max-age=0", sess.lower())
 
+    async def test_session_endpoint(self):
+        r = await self.client.get("/api/session")
+        self.assertEqual(r.status, 401)
+        await self.login()
+        r = await self.client.get("/api/session")
+        self.assertEqual(await r.json(), {"user": "alice"})
+
     async def test_tokens_and_revoke(self):
         await self.login()
         r = await self.client.get("/api/tokens")

@@ -1,0 +1,130 @@
+/* Version web de CCS : mêmes couleurs que l'application GTK (libadwaita), clair et sombre selon
+   le système, une colonne sur téléphone (moins de 720 px), cibles tactiles d'au moins 44 px. */
+
+:root {
+  --accent: #3584e4;
+  --accent-fg: #ffffff;
+  --success: #2ec27e;
+  --warning: #e5a50a;
+  --error: #e01b24;
+  --bg: #fafafb;
+  --fg: #1e1e22;
+  --card: #ffffff;
+  --line: rgba(0, 0, 0, 0.09);
+  --soft: rgba(0, 0, 0, 0.04);
+  --subtle: rgba(30, 30, 34, 0.62);
+  --shadow: 0 0 0 1px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.10);
+  --radius: 14px;
+  --mono: "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+  --nav-h: 56px;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #222226;
+    --fg: #f2f2f5;
+    --card: #2e2e33;
+    --line: rgba(255, 255, 255, 0.10);
+    --soft: rgba(255, 255, 255, 0.05);
+    --subtle: rgba(242, 242, 245, 0.62);
+    --shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.45 Cantarell, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow-x: hidden; -webkit-text-size-adjust: 100%;
+}
+[hidden] { display: none !important; }
+a { color: var(--accent); }
+h1, h2, h3 { margin: 0 0 8px; line-height: 1.2; }
+h2 { font-size: 1.15rem; }
+code, pre { font-family: var(--mono); font-size: 0.9em; }
+pre { overflow-x: auto; background: var(--soft); padding: 10px 12px; border-radius: 10px; }
+img { max-width: 100%; }
+
+.subtle { color: var(--subtle); font-size: 0.92em; }
+.card {
+  background: var(--card); border-radius: var(--radius); padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+.card.flat { box-shadow: 0 0 0 1px var(--line); }
+.empty { text-align: center; padding: 36px 16px; }
+.big-number { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+/* ---- boutons et champs ---- */
+button, .button {
+  min-height: 44px; min-width: 44px; padding: 0 16px; border-radius: 10px;
+  border: 0; background: var(--soft); color: var(--fg); font: inherit; font-weight: 600;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+button:hover { filter: brightness(0.96); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-fg); }
+button.danger { background: var(--error); color: #fff; }
+button.flat { background: transparent; }
+button.small { min-height: 36px; padding: 0 12px; font-size: 0.92em; }
+label { display: grid; gap: 4px; font-weight: 600; font-size: 0.92em; }
+label.check { display: flex; align-items: center; gap: 10px; font-weight: 400; min-height: 44px; }
+input, select, textarea {
+  font: inherit; color: var(--fg); background: var(--card);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px; width: 100%;
+}
+input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---- bandeau ---- */
+.banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50; padding: 8px 14px; text-align: center;
+  font-weight: 600; background: var(--accent); color: #fff;
+}
+.banner.warning { background: var(--warning); color: #1e1e22; }
+.banner.error { background: var(--error); }
+
+/* ---- connexion ---- */
+.login { min-height: 100%; display: grid; place-items: center; padding: 24px 16px; }
+.login-card { width: min(420px, 100%); display: grid; gap: 14px; padding: 24px; }
+.login-head { display: flex; align-items: center; gap: 12px; }
+.login-logo { width: 44px; height: 44px; }
+#login-credentials { display: grid; gap: 14px; }
+.enroll { display: grid; gap: 8px; }
+.qr { width: 220px; height: 220px; background: #fff; border-radius: 12px; padding: 8px; justify-self: center; }
+.message { color: var(--error); min-height: 1.2em; margin: 0; }
+
+/* ---- charpente ---- */
+.shell { min-height: 100%; display: flex; flex-direction: column; }
+.topbar {
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px;
+  padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 800; }
+.brand img { width: 26px; height: 26px; }
+.nav { display: flex; gap: 4px; margin: 0 auto; }
+.nav a {
+  display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px;
+  border-radius: 10px; color: var(--fg); text-decoration: none; font-weight: 600;
+}
+.nav a.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.view { flex: 1; width: 100%; max-width: 1280px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; align-content: start; }
+.view[data-view="sessions"] { max-width: none; padding: 0; }
+
+/* ---- téléphone : barre de navigation en bas ---- */
+@media (max-width: 719px) {
+  body { font-size: 16px; }
+  .topbar { padding: 4px 8px; padding-top: max(4px, env(safe-area-inset-top)); }
+  .topbar .brand span, #logout { font-size: 0.9em; }
+  .nav {
+    position: fixed; bottom: 0; left: 0; right: 0; margin: 0; z-index: 20; justify-content: space-around;
+    background: var(--card); border-top: 1px solid var(--line);
+    padding: 4px 4px max(4px, env(safe-area-inset-bottom));
+  }
+  .nav a { flex-direction: column; gap: 0; padding: 4px 6px; font-size: 0.75em; min-width: 64px; }
+  .nav-icon { font-size: 1.3em; line-height: 1.2; }
+  .view { padding: 10px; padding-bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom)); }
+  .view[data-view="sessions"] { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
+}
+#logout { margin-left: auto; }
