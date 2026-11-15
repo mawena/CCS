@@ -186,6 +186,14 @@ def cmd_bridge(args):
     return 0
 
 
+def cmd_web_serve(_args):
+    """Service ccs-web (utilisateur système ccs-web, lancé par systemd)."""
+    import asyncio
+    from .server import web
+    asyncio.run(web.serve())
+    return 0
+
+
 def cmd_totp(args):
     """Réinitialise le code de double authentification d'un utilisateur (root)."""
     from .server import totp
@@ -968,6 +976,7 @@ def build_parser():
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
     sub.add_parser("auth-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_auth_serve)
+    sub.add_parser("web-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_web_serve)
     br = sub.add_parser("bridge", help=argparse.SUPPRESS)
     br.add_argument("--socket")
     br.add_argument("--local", action="store_true")
