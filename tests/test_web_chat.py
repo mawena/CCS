@@ -323,3 +323,27 @@ class WideScreenTest(unittest.TestCase):
         self.assertIn('closest("details.tool-group")', (WEB / "chat-search.js").read_text(encoding="utf-8"))
         css = (WEB / "style.css").read_text(encoding="utf-8")
         self.assertIn(".tool-group-body", css)
+
+
+class FollowAndCopyTest(unittest.TestCase):
+    def setUp(self):
+        self.js = (WEB / "chat.js").read_text(encoding="utf-8")
+
+    def test_thread_follows_new_messages(self):
+        """Web : le fil descend tout seul quand Claude écrit (texte rendu après coup compris),
+        tant que l'utilisateur n'est pas remonté lire plus haut."""
+        self.assertIn('this.thread.addEventListener("scroll"', self.js)
+        render = re.search(r"\n  async render\(node, markdown\) \{(.*?)\n  \}\n", self.js, re.S)
+        self.assertTrue(render)
+        self.assertIn("this.follow", render.group(1))
+
+    def test_working_indicator_above_composer(self):
+        """Web : « Claude travaille… » en bas à gauche, au-dessus de la saisie, comme au bureau."""
+        self.assertIn('class: "working"', self.js)
+        css = (WEB / "chat.css").read_text(encoding="utf-8")
+        self.assertIn(".working", css)
+
+    def test_code_blocks_have_copy_button(self):
+        """Web : chaque bloc de code des réponses a un bouton Copier."""
+        self.assertIn('class: "copy-code', self.js)
+        self.assertIn("clipboard", self.js)
