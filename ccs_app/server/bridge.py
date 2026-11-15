@@ -35,6 +35,7 @@ class Bridge:
         self.install_claude = install_claude
         self.clients = set()
         self.busy_checks = []        # fonctions qui disent « un travail est en cours »
+        self.close_hooks = []        # appelées à la fermeture d'une connexion
         self.last_activity = clock()
         self._server = None
         self._handlers = {}
@@ -87,6 +88,8 @@ class Bridge:
 
     def _on_close(self, conn):
         self.clients.discard(conn)
+        for hook in self.close_hooks:
+            hook(conn)
         self.last_activity = self.clock()
 
     async def start(self, socket_path):
