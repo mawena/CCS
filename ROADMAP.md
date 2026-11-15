@@ -297,7 +297,7 @@ CCS sur le VPS (demandé le 15/11, propositions à choisir, conception à faire)
 - [ ] **Bureau connecté au VPS** : Réglages → Serveurs (adresse et identifiants) ; les projets du VPS apparaissent dans Sessions avec le nom du serveur, et le chat, les fichiers, la feuille de route et git se pilotent à distance depuis l'interface GTK
 - [ ] **Paquet pour serveur** : `apt install ccs` sur un VPS sans bureau installe et démarre le service web (interface GTK séparée ou en dépendance recommandée)
 - [ ] **Mise en ligne** (VPS relevé le 15/11 : Ubuntu 24.04, nginx + certbot déjà en place, port 8420 libre) : enregistrement DNS `A ccs → 84.46.246.202` chez Hostinger (DNS `dns-parking.com`), site créé par lnmp (le gestionnaire d'hôtes de Charles : `sudo lnmp add --id ccs --domain mawena.cloud --sub ccs --proxy 8420`, qui écrit le proxy avec WebSocket, puis le certificat Let's Encrypt par `lnmp add-ssl`) ; guide dans le README et contrôle par `ccs doctor`
-- [ ] **Claude Code sur le VPS** : absent aujourd'hui ; installation et connexion des comptes guidées par `ccs doctor` (le VPS n'a pas de navigateur : connexion par lien à ouvrir ailleurs)
+- [ ] **Le paquet installe Claude Code** (demandé le 15/11) : à l'installation du `.deb` (bureau comme VPS), s'il manque, l'installeur officiel (`curl -fsSL https://claude.ai/install.sh | bash`) est lancé pour l'utilisateur qui installe (`SUDO_USER` ou `PKEXEC_UID`), jamais en root ; sans réseau, l'installation du paquet n'échoue pas et CCS le reprend à son premier démarrage (service web compris) ; la connexion des comptes reste guidée par `ccs doctor` (le VPS n'a pas de navigateur : lien à ouvrir ailleurs)
 
 Fin de phase :
 - [ ] 18. Documentation (README, guide, architecture, man, CHANGELOG, site)
