@@ -13,6 +13,7 @@ import itertools
 import os
 import re
 import secrets
+import time
 
 from .. import chat_options, markdown_render, sessions
 from ..chat_engine import ChatSession
@@ -31,6 +32,7 @@ class _Chat:
         self.engine = None
         self.buf = collections.deque(maxlen=BUFFER)
         self.seq = 0
+        self.opened_at = time.time()
         self.conns = set()
 
 
@@ -45,12 +47,20 @@ def transcript_of(cwd, session_id):
     return None
 
 
+def _history_before(chat):
+    """Heure (epoch) depuis laquelle le tampon a tout gardé : l'ouverture du chat, ou son plus vieil
+    événement s'il a débordé. Le client montre le journal d'avant cette heure, sans doublon."""
+    if chat.buf and chat.buf[0]["seq"] > 1:
+        return chat.buf[0]["ts"]
+    return chat.opened_at
+
+
 def _info(chat):
-    """Champs communs de chat.open, chat.attach et chat.list : options du moteur, conversation
-    et journal."""
+    """Champs communs de chat.open, chat.attach et chat.list : options du moteur, conversation,
+    journal et heure de début du tampon."""
     sid = chat.engine.session_id
     return {"options": dataclasses.asdict(chat.engine.options), "session_id": sid,
-            "path": transcript_of(chat.cwd, sid)}
+            "path": transcript_of(chat.cwd, sid), "history_before": _history_before(chat)}
 
 
 def _options(raw):
@@ -96,7 +106,7 @@ class ChatHub:
         if chat.chat_id not in self.chats:
             return
         chat.seq += 1
-        item = {"seq": chat.seq, "event": events.to_json(ev)}
+        item = {"seq": chat.seq, "ts": time.time(), "event": events.to_json(ev)}
         chat.buf.append(item)
         for conn in list(chat.conns):
             if not conn.closed:

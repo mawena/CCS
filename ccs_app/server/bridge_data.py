@@ -103,8 +103,10 @@ class DataApi:
     async def messages(self, _conn, params):
         path = safe_path(params.get("path"))
         limit = params.get("limit") if isinstance(params.get("limit"), int) else None
+        before = params.get("before")
+        before = before if isinstance(before, (int, float)) and not isinstance(before, bool) else None
         try:
-            msgs = await asyncio.to_thread(preview.read_messages, str(path), limit)
+            msgs = await asyncio.to_thread(preview.read_messages, str(path), limit, before=before)
         except FileNotFoundError:
             raise rpc.RpcError("introuvable", "Conversation introuvable.") from None
         return {"messages": _plain(msgs)}

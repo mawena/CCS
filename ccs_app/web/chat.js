@@ -158,8 +158,7 @@ export class ChatView {
     this.offs.push(api.on("chat.event", (d) => { if (d.chat_id === this.chatId) this.receive(d); }));
     this.offs.push(api.on("work.shell", (d) => { if (d.chat_id === this.chatId) this.shellDone(d); }));
     this.offs.push(api.on("reconnected", () => { this.attach(); this.pollShells(); }));
-    if (history) this.loadHistory(history);
-    this.attach();
+    this.attach();                                   // l'historique suit le premier rattachement
   }
 
   destroy() { this.dead = true; clearTimeout(this.ctxTimer); for (const off of this.offs) off(); for (const { panel } of this.panels.values()) panel.destroy?.(); this.node.remove(); }
@@ -473,6 +472,17 @@ export class ChatView {
     this.stoppedCard = null;
     for (const item of r.events || []) this.receive(item);
     this.setState(r.state);
+    this.startHistory(r.history_before);
+  }
+
+  // Journal de la conversation jusqu'à `before` (heure depuis laquelle le tampon du pont a tout), une
+  // fois : ce qui suit est déjà arrivé par chat.attach. Sans `before` (chat perdu) : tout le journal.
+  startHistory(before) {
+    const h = this.history;
+    if (!h || h.started) return;
+    h.started = true;
+    h.before = typeof before === "number" ? before : undefined;
+    this.loadHistory();
   }
 
   resetThread(newSession) {
@@ -485,12 +495,13 @@ export class ChatView {
     this.heavy = false;
     this.context.textContent = "";
     if (newSession) this.history = null;
-    else if (this.history) { const path = this.history.path; this.history = { path, loaded: 0, full: false }; this.loadHistory(path); }
+    else if (this.history) this.history = { path: this.history.path, loaded: 0, full: false };   // relu après chat.attach
   }
 
   // Le pont ne connaît plus ce chat (redémarrage après une mise à jour) : on le dit, et on propose de
   // reprendre la conversation si on connaît son identifiant.
   gone() {
+    this.startHistory();                             // plus de tampon : tout le journal
     if (this.stoppedCard) return;
     this.setState("stopped");
     const resume = this.sessionId && this.host?.resume
@@ -705,13 +716,21 @@ export class ChatView {
     return m.text ? el("div", { class: "notice info" }, el("span", {}, m.text)) : null;
   }
 
-  async loadHistory(path) {
+  historyParams(h, limit) {
+    return { path: h.path, limit, ...(h.before !== undefined ? { before: h.before } : {}) };
+  }
+
+  // Au-dessus du fil : les événements du tampon sont peut-être déjà affichés.
+  async loadHistory() {
+    const h = this.history;
     let r;
-    try { r = await this.api.call("conversation.messages", { path, limit: HISTORY_LIMIT }); } catch { return; }
+    try { r = await this.api.call("conversation.messages", this.historyParams(h, HISTORY_LIMIT)); } catch { return; }
+    if (this.history !== h) return;                  // fil remis à zéro entre-temps
     const msgs = r.messages || [];
-    this.history.loaded = msgs.length;
-    this.history.full = msgs.length < HISTORY_LIMIT;
-    for (const m of msgs) { const n = this.historyNode(m); if (n) this.append(n); }
+    h.loaded = msgs.length;
+    h.full = msgs.length < HISTORY_LIMIT;
+    const first = this.thread.firstChild;
+    for (const m of msgs) { const n = this.historyNode(m); if (n) this.thread.insertBefore(n, first); }
     this.thread.scrollTop = this.thread.scrollHeight;
   }
 
@@ -721,7 +740,7 @@ export class ChatView {
     if (!h || h.full) return;
     h.full = true;
     let r;
-    try { r = await this.api.call("conversation.messages", { path: h.path, limit: 100000 }); } catch { h.full = false; return; }
+    try { r = await this.api.call("conversation.messages", this.historyParams(h, 100000)); } catch { h.full = false; return; }
     const older = (r.messages || []).slice(0, Math.max(0, (r.messages || []).length - h.loaded));
     const first = this.thread.firstChild;
     for (const m of older) { const n = this.historyNode(m); if (n) this.thread.insertBefore(n, first); }

@@ -1,6 +1,7 @@
 """Pont : projets, fichiers, feuille de route, analyse et tâches ; chemins limités."""
 
 import asyncio
+import datetime
 import os
 import shutil
 import tempfile
@@ -207,6 +208,22 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(r["entries"]), 1)
         self.assertTrue(r["truncated"])
         await self.refused("files.search", root="/etc", query="a")
+
+    async def test_conversation_messages_before(self):
+        """`before` (epoch) : seulement les messages d'avant (le reste est dans le tampon du chat)."""
+        import json
+        d = self.home / ".claude" / "projects" / "-p"
+        d.mkdir(parents=True)
+        journal = d / "abc.jsonl"
+        journal.write_text("".join(json.dumps({"type": "user", "timestamp": ts, "uuid": u,
+                                               "message": {"role": "user", "content": text}}) + "\n"
+                                   for u, ts, text in (("u1", "2026-11-15T10:00:00Z", "avant"),
+                                                       ("u2", "2026-11-15T10:05:00Z", "après"))))
+        cut = datetime.datetime(2026, 11, 15, 10, 2, tzinfo=datetime.timezone.utc).timestamp()
+        r = await self.c.call("conversation.messages", path=str(journal), limit=50, before=cut)
+        self.assertEqual([m["text"] for m in r["messages"]], ["avant"])
+        r = await self.c.call("conversation.messages", path=str(journal), limit=50)
+        self.assertEqual([m["text"] for m in r["messages"]], ["avant", "après"])
 
     async def test_conversation_rename_and_cost(self):
         d = self.home / ".claude" / "projects" / "-p"

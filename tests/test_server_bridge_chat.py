@@ -1,6 +1,7 @@
 """Chats dans le pont, contre le faux `claude` : rejeu après coupure, plusieurs appareils."""
 
 import asyncio
+import collections
 import os
 import shutil
 import tempfile
@@ -8,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ccs_app import sessions
+from ccs_app import chat_protocol, sessions
 from ccs_app.server import bridge, bridge_chat, rpc
 from tests.helpers import make_home
 
@@ -188,6 +189,25 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         att = await c.call("chat.attach", chat_id=r2["chat_id"], since=0)
         self.assertEqual((att["session_id"], att["path"]), ("abc", str(journal)))
         self.assertEqual(set(att["options"]), set(want))
+
+    async def test_history_before_covers_what_the_buffer_lost(self):
+        """history_before : heure d'ouverture du chat tant que le tampon a tout gardé, sinon heure du
+        plus vieil événement gardé (le journal montre ce qui précède, sans doublon)."""
+        import time
+        c = await self.client()
+        t0 = time.time()
+        chat_id = (await c.call("chat.open", cwd=str(self.project)))["chat_id"]
+        t1 = time.time()
+        listing = (await c.call("chat.list"))["chats"][0]
+        self.assertTrue(t0 <= listing["history_before"] <= t1)
+        chat = self.hub.chats[chat_id]
+        chat.buf = collections.deque(chat.buf, maxlen=2)         # tampon minuscule : il déborde
+        for _ in range(3):
+            await asyncio.sleep(0.01)
+            self.hub._record(chat, chat_protocol.Status("default"))
+        r = await c.call("chat.attach", chat_id=chat_id, since=0)
+        self.assertEqual(r["history_before"], chat.buf[0]["ts"])
+        self.assertGreater(r["history_before"], listing["history_before"])
 
     async def test_busy_check_and_close(self):
         c = await self.client()

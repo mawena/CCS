@@ -259,6 +259,16 @@ process.exit(0);
         r = node("chat-links.js", 'm.findRefs("voir (src/a.py:3) et x/src/a.py", "/p", new Set(["src/a.py"]))')
         self.assertEqual([(x["path"], x["line"], x["index"]) for x in r], [("src/a.py", 3, 6)])
 
+    def test_restored_tab_history_stops_where_the_buffer_starts(self):
+        """Onglet restauré : le journal n'est lu qu'après le rattachement, jusqu'à history_before
+        (le reste vient du tampon du pont), et placé au-dessus du fil."""
+        chat = (WEB / "chat.js").read_text()
+        self.assertFalse("if (history) this.loadHistory(history);" in chat, "historique lu trop tôt")
+        self.assertTrue("this.startHistory(r.history_before)" in chat, "history_before inutilisé")
+        self.assertTrue("before: h.before" in chat, "before non transmis")
+        load = chat[chat.index("async loadHistory("):chat.index("async loadFullHistory(")]
+        self.assertTrue("insertBefore" in load and "this.append(" not in load, "historique pas au-dessus")
+
     def test_rewind_body_lists_skipped_files(self):
         plan = {"steps": [{"path": "/p/a.txt", "deleted": False, "user_edited": False, "sha256": "x"}],
                 "skipped": ["/etc/hors"]}

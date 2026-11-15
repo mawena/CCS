@@ -135,7 +135,7 @@ export function mountSessions(root, api, ctx = {}) {
   async function openChat(cwd, conv, options, text) {
     const r = await api.call("chat.open", { cwd, session_id: conv?.session_id || null, ...(options ? { options } : {}) });
     const real = r.cwd || cwd;                  // chemin réel (~ développé par le pont)
-    const rec = addTab(r.chat_id, real, conv?.title || base(real), r.seq ? null : (conv?.path || r.path), null,
+    const rec = addTab(r.chat_id, real, conv?.title || base(real), conv?.path || r.path, null,
       { session_id: conv?.session_id || r.session_id, options: r.options, state: r.seq ? "idle" : "starting" });
     if (text && rec?.view?.sendText) rec.view.sendText(text);
     return true;
@@ -286,7 +286,7 @@ export function mountSessions(root, api, ctx = {}) {
       toast(e.message, { kind: "error", action: { label: "Réessayer", run: () => resumeStopped(oldId, view) } });
       return;
     }
-    addTab(r.chat_id, r.cwd || t.cwd, conv.title, r.seq ? null : (conv.path || r.path), null,
+    addTab(r.chat_id, r.cwd || t.cwd, conv.title, conv.path || r.path, null,
       { session_id: conv.session_id, options: r.options, state: r.seq ? "idle" : "starting" });
     if (r.chat_id !== oldId) dropTab(oldId);              // le nouvel onglet est déjà devant : l'ancien disparaît
     renderRunning();

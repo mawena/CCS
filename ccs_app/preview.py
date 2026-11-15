@@ -266,9 +266,10 @@ def _wanted(raw):
     return len(raw) <= MAX_LINE_BYTES or b'"tool_result"' not in raw
 
 
-def read_messages(path, limit=None, results=True, max_result_chars=RESULT_MAX):
+def read_messages(path, limit=None, results=True, max_result_chars=RESULT_MAX, before=None):
     """Messages lisibles du journal, dans l'ordre. `limit` : seulement les N derniers.
-    `results` : rattacher (raccourci) le résultat de chaque appel d'outil.
+    `results` : rattacher (raccourci) le résultat de chaque appel d'outil. `before` (epoch) :
+    seulement les lignes écrites avant cette heure.
     FileNotFoundError si le journal n'existe ni sur le disque ni dans l'archive ; les lignes illisibles sont ignorées."""
     reader = _Reader(limit, results, max_result_chars)
     with archive.open_journal(path) as fh:   # le journal, ou sa copie archivée s'il a disparu
@@ -281,6 +282,10 @@ def read_messages(path, limit=None, results=True, max_result_chars=RESULT_MAX):
                 d = json.loads(raw)
             except ValueError:
                 continue
+            if before is not None and isinstance(d, dict):
+                ts = _ts(d.get("timestamp"))
+                if ts is not None and ts >= before:
+                    continue
             reader.line(d)
     return list(reader.out)
 
