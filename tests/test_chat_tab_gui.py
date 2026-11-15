@@ -725,5 +725,122 @@ class ChatTabTest(HomeTestCase):
         self.assertLess(time.monotonic() - start, 4)
 
 
+    # ---- autoriser depuis le téléphone ---------------------------------------------------
+
+    def phone_setup(self):
+        from ccs_app import settings
+        from ccs_app.gui import phone_hub
+        s = settings.load_settings()
+        s["phone"].update(enabled=True, server="https://ntfy.example.org", topic="ccs-test-canal-123")
+        settings.save_settings(s)
+        sent, listeners = [], []
+
+        class FakeListener:
+            def __init__(self, cfg, topic, on_body):
+                self.on_body, self.started, self.stopped = on_body, False, False
+                listeners.append(self)
+
+            def start(self):
+                self.started = True
+
+            def stop(self):
+                self.stopped = True
+
+        class Resp:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        def urlopen(req, timeout=None):
+            sent.append(req)
+            return Resp()
+        hub = phone_hub.PhoneHub(urlopen=urlopen, run=lambda f: f(), dispatch=lambda f: f(),
+                                 listener_factory=FakeListener)
+        phone_hub.set_hub(hub)
+        self.addCleanup(phone_hub.set_hub, None)
+        return hub, sent, listeners
+
+    @staticmethod
+    def action_body(req, which="allow"):
+        """Corps (« allow <id> <jeton> ») du bouton demandé, lu dans l'en-tête Actions."""
+        for part in req.get_header("Actions").split("; "):
+            for field in part.split(", "):
+                if field.startswith(f"body={which} "):
+                    return field[len("body="):]
+        raise AssertionError("bouton introuvable")
+
+    def ask_permission(self, tab):
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        return next(iter(tab.messages._perms.values()))
+
+    def test_permission_sends_actions(self):
+        hub, sent, listeners = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.ask_permission(tab)
+        self.assertEqual(len(sent), 1)
+        req = sent[0]
+        self.assertEqual(req.full_url, "https://ntfy.example.org/ccs-test-canal-123")
+        self.assertIn("Autoriser", req.get_header("Actions"))
+        self.assertIn("Refuser", req.get_header("Actions"))
+        self.assertTrue(req.get_header("Title").startswith("Commande dans "))
+        self.assertNotIn("touch", req.data.decode())              # contenu masqué par défaut
+        self.assertTrue(listeners and listeners[0].started)
+
+    def test_phone_reply_answers_card(self):
+        hub, sent, listeners = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        card = self.ask_permission(tab)
+        hub._on_body(self.action_body(sent[0], "allow"))
+        self.assertTrue(card.answered)
+        self.assertIn("depuis le téléphone", card.verdict.get_label())
+        self.assertIn("Autorisé", card.verdict.get_label())
+        self.assertTrue(pump_until(lambda: tab.state.waiting_for == "input"))   # Claude a continué
+        self.assertTrue(any(t.strip() == "OK" for t in texts(tab)))
+
+    def test_phone_reply_replayed_or_after_pc_is_ignored(self):
+        hub, sent, _l = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        card = self.ask_permission(tab)
+        body = self.action_body(sent[0], "deny")
+        hub._on_body(body)
+        self.assertIn("Refusé", card.verdict.get_label())
+        hub._on_body(self.action_body(sent[0], "allow"))           # rejouée : sans effet
+        self.assertIn("Refusé", card.verdict.get_label())
+
+    def test_pc_answer_settles_token(self):
+        hub, sent, listeners = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        card = self.ask_permission(tab)
+        self.assertTrue(hub.replies.pending())
+        card.allow.emit("clicked")                                 # réglée sur le PC
+        self.assertFalse(hub.replies.pending())
+        hub._on_body(self.action_body(sent[0], "deny"))            # arrive trop tard
+        self.assertEqual(card.verdict.get_label(), "Autorisé")
+
+    def test_listener_stops_when_nothing_pending(self):
+        hub, sent, listeners = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        card = self.ask_permission(tab)
+        self.assertFalse(listeners[0].stopped)
+        card.allow.emit("clicked")
+        self.assertTrue(listeners[0].stopped)
+        self.assertIsNone(hub.listener)
+
+    def test_no_phone_request_when_disabled(self):
+        from ccs_app.gui import phone_hub
+        hub = phone_hub.PhoneHub(urlopen=lambda *a, **k: self.fail("réseau"), run=lambda f: f())
+        phone_hub.set_hub(hub)
+        self.addCleanup(phone_hub.set_hub, None)
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.ask_permission(tab)
+        self.assertFalse(hub.replies.pending())
+        self.assertIsNone(hub.listener)
+
+
 if __name__ == "__main__":
     unittest.main()

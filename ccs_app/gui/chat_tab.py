@@ -28,7 +28,8 @@ from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
 from .chat_composer import Composer  # noqa: E402
-from .chat_messages import MessageList, TodosBar, tool_label  # noqa: E402
+from . import phone_hub  # noqa: E402
+from .chat_messages import MessageList, PermissionCard, TodosBar, tool_label, tool_target  # noqa: E402
 from .common import in_thread  # noqa: E402
 
 SUSPEND_CHECK_S = 60
@@ -137,6 +138,7 @@ class ChatTab(Gtk.Box):
         self.todos_bar = TodosBar()           # liste de tâches épinglée au-dessus de la saisie
         self.offline_banner = Adw.Banner(title="Serveur injoignable : reconnexion…", revealed=False)
         self._roadmap_task = None             # (chemin, texte, phase) de la tâche lancée d'un clic
+        self._phone_ids = {}                  # id de demande du chat → id de demande du téléphone
         self._shells = []                     # commandes `!` en cours (ShellRun)
         self._shell_notes = []                # sorties à joindre au prochain message
         self._context_heavy = False           # contexte au-dessus du seuil (alerte déjà montrée)
@@ -249,6 +251,7 @@ class ChatTab(Gtk.Box):
         """Ferme le chat : `claude` s'arrête (stdin fermé, puis SIGTERM, puis SIGKILL), la
         conversation est déjà enregistrée par Claude Code."""
         self._closed = True
+        self._settle_phone()
         for run in list(self._shells):
             run.stop()
         engine = self.engine
@@ -887,7 +890,8 @@ class ChatTab(Gtk.Box):
                                           question=question)
 
     def _on_permission(self, ev):
-        self.messages.add_permission(ev, self._answer, on_questions=self._answer_questions)
+        card = self.messages.add_permission(ev, self._answer, on_questions=self._answer_questions)
+        self._notify_phone(ev, card)
         self._sync_permission_keys()
         self.messages.set_busy(False)
         self.attention()
@@ -896,7 +900,38 @@ class ChatTab(Gtk.Box):
         self.engine.answer_questions(request_id, answers)
         GLib.idle_add(lambda: (self._sync_permission_keys(), False)[1])
 
+    def _notify_phone(self, ev, card):
+        """Notification du téléphone avec « Autoriser » / « Refuser » (si activée dans les
+        réglages) ; la réponse verte du téléphone revient par `_phone_answer`."""
+        hub = phone_hub.get()
+        if hub is None or not isinstance(card, PermissionCard):
+            return
+        detail = tool_target(ev.tool_name, ev.input, self.launch.cwd)
+        pid = hub.notify(ev.tool_name, sessions.project_name(self.state.cwd), detail,
+                         lambda decision, rid=ev.request_id: self._phone_answer(rid, decision))
+        if pid is not None:
+            self._phone_ids[ev.request_id] = pid
+
+    def _phone_answer(self, request_id, decision):
+        """Réponse venue du téléphone (déjà vérifiée) : la carte la montre, le moteur la reçoit."""
+        card = self.messages._perms.get(request_id)
+        if self._closed or not isinstance(card, PermissionCard) or card.answered:
+            return
+        card.resolve(decision)
+        card.verdict.set_label(card.verdict.get_label() + " — depuis le téléphone")
+        self._answer(request_id, decision)
+
+    def _settle_phone(self, request_id=None):
+        """Plus de réponse du téléphone pour cette demande (ou pour toutes)."""
+        hub = phone_hub.get()
+        ids = [request_id] if request_id is not None else list(self._phone_ids)
+        for rid in ids:
+            pid = self._phone_ids.pop(rid, None)
+            if pid is not None and hub is not None:
+                hub.settle(pid)
+
     def _answer(self, request_id, decision, message=""):
+        self._settle_phone(request_id)
         self.engine.answer(request_id, decision, message)
         GLib.idle_add(lambda: (self._sync_permission_keys(), False)[1])
 
@@ -956,6 +991,7 @@ class ChatTab(Gtk.Box):
         else:
             self._roadmap_task = None
         self.messages.cancel_permissions()
+        self._settle_phone()
         self._sync_permission_keys()
         self.messages.trim()                     # longue session : mémoire bornée
         self.engine.request_context()

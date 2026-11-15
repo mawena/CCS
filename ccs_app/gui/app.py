@@ -20,7 +20,7 @@ from .analysis_hub import AnalysisHub  # noqa: E402
 from .common import (ask_name, ask_title, cap, error_text, in_thread, install_css, load_state,  # noqa: E402
                      now_utc, refresh_data, run_ccs_async)
 from .doctor_dialog import show_doctor  # noqa: E402
-from . import style  # noqa: E402
+from . import phone_hub, style  # noqa: E402
 from .home_page import HomePage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
@@ -49,6 +49,8 @@ class Window(Adw.ApplicationWindow):
         install_css()
         style.apply_color_scheme(load_settings()["appearance"]["color_scheme"])
         self.store = Store()
+        phone_hub.set_hub(phone_hub.PhoneHub())   # un seul Replies et un seul Listener
+        self.connect("destroy", lambda *_: phone_hub.set_hub(None))
         self._reload_pending = False
         self.closing = False
         self.back_to = None

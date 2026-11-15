@@ -52,6 +52,18 @@ class PhoneGroupTest(unittest.TestCase):
         self.assertFalse(g.try_button.get_sensitive())
         self.assertEqual(list(g.events), [k for k, _l in phone.EVENTS])
 
+    def test_show_content_toggle_saved(self):
+        self.s["phone"] = {"enabled": True, "topic": TOPIC, "reply_topic": "ccs-reponses-secretes-456"}
+        g = self.group()
+        self.assertFalse(g.show_content.get_active())
+        self.assertIn("un serveur personnel est conseillé", g.show_content.get_subtitle())
+        g.show_content.set_active(True)
+        self.assertTrue(self.s["phone"]["show_content"])
+        self.assertEqual(self.s["phone"]["reply_topic"], "ccs-reponses-secretes-456")   # conservé
+        self.assertEqual(len(self.saved), 1)
+        g.show_content.set_active(False)
+        self.assertFalse(self.s["phone"]["show_content"])
+
     def test_enabling_creates_a_secret_topic_once(self):
         g = self.group()
         g.enabled.set_active(True)

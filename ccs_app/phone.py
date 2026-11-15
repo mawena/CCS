@@ -69,6 +69,9 @@ def config(settings=None):
            "topic": topic.strip() if isinstance(topic, str) else ""}
     ev = raw.get("events") if isinstance(raw.get("events"), dict) else {}
     cfg["events"] = {k: ev[k] if isinstance(ev.get(k), bool) else v for k, v in DEFAULTS["events"].items()}
+    cfg["show_content"] = raw.get("show_content") is True
+    reply = raw.get("reply_topic")
+    cfg["reply_topic"] = reply if isinstance(reply, str) and valid_topic(reply) else ""
     return cfg
 
 
@@ -202,11 +205,11 @@ def build_request(cfg, msg, actions=None):
     return urllib.request.Request(url, data=msg.body.encode("utf-8"), headers=headers, method="POST")
 
 
-def deliver(cfg, msg, urlopen=None):
+def deliver(cfg, msg, urlopen=None, actions=None):
     """Envoie `msg` tout de suite (appel bloquant, délai `TIMEOUT_S`). (réussi, raison).
     Ne lève jamais ; le canal n'est jamais écrit dans le journal."""
     try:
-        req = build_request(cfg, msg)
+        req = build_request(cfg, msg, actions)
         if req is None:
             return False, "serveur ou canal invalide"
         with (urlopen or urllib.request.urlopen)(req, timeout=TIMEOUT_S) as resp:
