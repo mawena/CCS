@@ -352,5 +352,5 @@ La version web au téléphone (choisie le 15/11 : ergonomie, fonctions du bureau
 
 Fin de phase :
 - [x] 31. Documentation (README, guide, architecture, man, CHANGELOG, site)
-- [ ] 32. Essai réel par Charles (bureau et VPS) et corrections
-- [ ] 33. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT
+- [x] 32. Essai réel par Charles (bureau et VPS) et corrections
+- [x] 33. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT

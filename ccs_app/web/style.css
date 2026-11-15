@@ -294,7 +294,8 @@ dialog.sheet {
 dialog.sheet::backdrop { background: rgb(0 0 0 / 0.45); }
 dialog.sheet h2 { margin: 0 0 6px; font-size: 1.1em; }
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-.state { display: grid; justify-items: center; gap: 8px; padding: 24px 12px; text-align: center; color: var(--subtle); }
+.state { display: grid; justify-items: center; align-content: center; gap: 8px; padding: 24px 12px; text-align: center; color: var(--subtle); }
+.stage > .state { flex: 1; }                     /* aucun chat ouvert : centré dans la zone */
 .state p { margin: 0; }
 .state.loading { grid-auto-flow: column; justify-content: center; align-items: center; }
 .state.error { color: var(--error); }
@@ -318,3 +319,10 @@ dialog.sheet h2 { margin: 0 0 6px; font-size: 1.1em; }
   .toasts { bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom)); }
   body.chat-mode .toasts { bottom: 90px; }
 }
+
+/* Une grille d'une seule colonne ne s'élargit jamais au-delà de son conteneur : sans cela, une
+   ligne sans retour (adresse e-mail d'un compte, chemin, commande) élargit la colonne, et les
+   barres et boutons débordent de la carte. */
+.view, .account, .gauge, .section, .stack, details.details > div, .health-check, .settings-group,
+.settings-wrap, .settings, .running, .changes, .git, .new-sheet, .preview-body, .file-results,
+.saved-list, .permission, .composer { grid-template-columns: minmax(0, 1fr); }

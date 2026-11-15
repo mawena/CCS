@@ -1,3 +1,18 @@
+ccs (0.12.0) unstable; urgency=medium
+
+  * Page Git du bureau (indexation par fichier, bloc et ligne, commit, fetch,
+    pull, push, git flow, graphe des commits).
+  * Faire une tâche de la feuille de route, changements de la session et
+    retour en arrière, recherche et messages enregistrés dans le chat,
+    commande `!`, Autoriser et Refuser depuis la notification ntfy.
+  * Version web au niveau du bureau, pensée pour le téléphone (sessions,
+    chat complet, fichiers, Git, accueil, réglages, analyse).
+  * Corrections de la revue : onglets restaurés sans doublon, pont plus sûr
+    (dossiers permis, plafonds, contrôles avant écriture), Git sans invite
+    côté serveur.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 18:00:00 +0000
+
 ccs (0.11.0) unstable; urgency=medium
 
   * CCS sur un serveur : version web responsive (https), connexion par les

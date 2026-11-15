@@ -20,6 +20,17 @@ def text(name):
 
 
 class PagesTest(unittest.TestCase):
+    def test_single_column_grids_never_widen(self):
+        """Accueil : une carte de compte ne s'élargit pas jusqu'à sa ligne e-mail (sans retour à la
+        ligne), ses barres et son bouton restent dans la carte, au téléphone comme au bureau."""
+        css = (WEB / "style.css").read_text()
+        rule = re.search(r"([^{}]*)\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\);\s*\}", css)
+        self.assertIsNotNone(rule, "règle minmax(0, 1fr) absente")
+        sels = {s.strip() for s in re.sub(r"/\*.*?\*/", "", rule.group(1), flags=re.S).split(",")}
+        for s in (".view", ".account", ".gauge", ".section", ".stack", "details.details > div",
+                  ".health-check"):
+            self.assertIn(s, sels)
+
     def test_no_alert_confirm_or_prompt(self):
         for name in MINE:
             self.assertIsNone(re.search(r"(?<![.\w])(alert|confirm|prompt)\(", text(name)), name)
