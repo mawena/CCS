@@ -156,6 +156,36 @@ def cmd_auth_serve(_args):
     return 0
 
 
+def local_bridge_socket():
+    """Socket du pont local de l'utilisateur (`ccs tui` sur la machine même)."""
+    from pathlib import Path
+    base = os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/ccs-{os.getuid()}"
+    return Path(base) / "ccs" / "bridge.sock"
+
+
+def cmd_bridge(args):
+    """Pont CCS de l'utilisateur courant (service ccs-bridge@, ou --local)."""
+    import asyncio
+    import logging
+    import pwd
+    from .server import bridge, paths
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    user = pwd.getpwuid(os.getuid()).pw_name
+    if args.local:
+        sock = args.socket or local_bridge_socket()
+        os.makedirs(os.path.dirname(str(sock)), mode=0o700, exist_ok=True)
+        key = None
+    else:
+        sock = args.socket or paths.bridge_socket(user)
+        try:
+            key = paths.bridge_key(user).read_bytes()
+        except OSError:
+            print("ccs bridge : clé du pont absente (lancé hors de ccs-auth ?)", file=sys.stderr)
+            return 1
+    asyncio.run(bridge.Bridge(user, key, local=args.local).serve(sock))
+    return 0
+
+
 def cmd_totp(args):
     """Réinitialise le code de double authentification d'un utilisateur (root)."""
     from .server import totp
@@ -938,6 +968,10 @@ def build_parser():
     sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
     sub.add_parser("auth-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_auth_serve)
+    br = sub.add_parser("bridge", help=argparse.SUPPRESS)
+    br.add_argument("--socket")
+    br.add_argument("--local", action="store_true")
+    br.set_defaults(func=cmd_bridge)
     tp = sub.add_parser("totp", help="double authentification du serveur CCS (root)")
     tp_sub = tp.add_subparsers(dest="action", required=True)
     tr = tp_sub.add_parser("reinitialiser", help="efface le code d'un utilisateur")
