@@ -1,0 +1,196 @@
+"""Chat web : logique pure testée avec node (diff des modifications, chemins cités, complétion,
+recherche) et contrôles statiques (appels au pont, règles de la CSP, aucun alert/confirm)."""
+
+import json
+import re
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+from ccs_app.server import bridge, web
+
+WEB = Path(web.WEB_DIR)
+CHAT_JS = sorted(WEB.glob("chat*.js"))
+NODE = shutil.which("node")
+
+
+_COPY = None
+
+
+def _copy():
+    """Copie des modules dans un dossier « type: module » (le dossier web n'a pas de package.json)."""
+    global _COPY
+    if _COPY is None:
+        _COPY = Path(tempfile.mkdtemp(prefix="ccs-webjs-"))
+        for p in WEB.glob("*.js"):
+            shutil.copy(p, _COPY / p.name)
+        (_COPY / "package.json").write_text('{"type": "module"}')
+    return _COPY
+
+
+def tearDownModule():
+    if _COPY is not None:
+        shutil.rmtree(_COPY, ignore_errors=True)
+
+
+def node(module, expr):
+    """Évalue `expr` (avec `m` = le module importé) dans node et renvoie le JSON affiché."""
+    script = f"import * as m from {json.dumps((_copy() / module).as_uri())};\nconsole.log(JSON.stringify({expr}));"
+    r = subprocess.run([NODE, "--input-type=module", "-e", script], capture_output=True, text=True, timeout=30)
+    if r.returncode:
+        raise AssertionError(r.stderr[-600:])
+    return json.loads(r.stdout)
+
+
+@unittest.skipUnless(NODE, "node absent")
+class DiffTest(unittest.TestCase):
+    def test_edit_trims_common_lines(self):
+        r = node("chat-diff.js", 'm.lineDiff("a\\nb\\nc\\n", "a\\nB\\nc\\n")')
+        self.assertEqual(r, [{"t": " ", "s": "a"}, {"t": "-", "s": "b"}, {"t": "+", "s": "B"}, {"t": " ", "s": "c"}])
+
+    def test_write_is_all_added(self):
+        r = node("chat-diff.js", 'm.lineDiff("", "x\\ny")')
+        self.assertEqual([l["t"] for l in r], ["+", "+"])
+
+    def test_edit_diffs_for_each_tool(self):
+        r = node("chat-diff.js", 'm.editDiffs("Edit", {file_path: "/p/a.py", old_string: "x", new_string: "y"})')
+        self.assertEqual(r[0]["path"], "/p/a.py")
+        self.assertEqual([l["t"] for l in r[0]["lines"]], ["-", "+"])
+        r = node("chat-diff.js", 'm.editDiffs("MultiEdit", {file_path: "/p/a.py", edits: [{old_string: "1", new_string: "2"}, {old_string: "3", new_string: "4"}]})')
+        self.assertEqual(len([l for l in r[0]["lines"] if l["t"] != "@"]), 4)
+        r = node("chat-diff.js", 'm.editDiffs("Write", {file_path: "/p/n.txt", content: "a\\nb"})')
+        self.assertEqual([l["t"] for l in r[0]["lines"]], ["+", "+"])
+        self.assertEqual(node("chat-diff.js", 'm.editDiffs("Bash", {command: "ls"})'), None)
+
+    def test_counts(self):
+        self.assertEqual(node("chat-diff.js", 'm.countLines([{t:"+",s:"a"},{t:"-",s:"b"},{t:" ",s:"c"},{t:"+",s:"d"}])'),
+                         {"add": 2, "del": 1})
+
+    def test_unified_text_parse(self):
+        r = node("chat-diff.js", 'm.parseUnified("--- a/x\\n+++ b/x\\n@@ -1 +1 @@\\n-a\\n+b\\n c\\n")')
+        self.assertEqual([l["t"] for l in r], ["@", "-", "+", " "])
+
+
+@unittest.skipUnless(NODE, "node absent")
+class LinksTest(unittest.TestCase):
+    FILES = '["src/a.py", "README.md", "ccs_app/web/chat.js"]'
+
+    def ref(self, text):
+        return node("chat-links.js", f'm.parsePathRef({json.dumps(text)}, "/home/u/p", new Set({self.FILES}))')
+
+    def test_relative_with_line(self):
+        self.assertEqual(self.ref("src/a.py:42"), {"path": "src/a.py", "line": 42})
+        self.assertEqual(self.ref("./README.md"), {"path": "README.md", "line": None})
+
+    def test_absolute_inside_project(self):
+        self.assertEqual(self.ref("/home/u/p/src/a.py:3:7"), {"path": "src/a.py", "line": 3})
+
+    def test_unknown_or_outside_is_not_a_link(self):
+        self.assertIsNone(self.ref("src/zz.py"))
+        self.assertIsNone(self.ref("/etc/passwd"))
+        self.assertIsNone(self.ref("pas un chemin"))
+        self.assertIsNone(self.ref("../src/a.py"))
+
+    def test_find_in_text(self):
+        r = node("chat-links.js", f'm.findRefs("Voir src/a.py:10 et `x` puis ccs_app/web/chat.js, ok", "/home/u/p", new Set({self.FILES}))')
+        self.assertEqual([(x["path"], x["line"]) for x in r], [("src/a.py", 10), ("ccs_app/web/chat.js", None)])
+        self.assertEqual(r[0]["text"], "src/a.py:10")
+
+
+@unittest.skipUnless(NODE, "node absent")
+class CompleteTest(unittest.TestCase):
+    def tok(self, text, cursor=None):
+        cursor = len(text) if cursor is None else cursor
+        return node("chat-complete.js", f'm.detectToken({json.dumps(text)}, {cursor})')
+
+    def test_slash_only_at_start(self):
+        self.assertEqual(self.tok("/com"), {"kind": "/", "query": "com", "start": 0, "end": 4})
+        self.assertIsNone(self.tok("dis /com"))
+        self.assertIsNone(self.tok("/compact et"))
+
+    def test_at_token(self):
+        self.assertEqual(self.tok("regarde @src/a"), {"kind": "@", "query": "src/a", "start": 8, "end": 14})
+        self.assertEqual(self.tok("@")["query"], "")
+        self.assertIsNone(self.tok("mail a@b.fr "))
+        self.assertEqual(self.tok("@a et plus", 2)["query"], "a")
+
+    def test_rank_files_prefers_basename_prefix(self):
+        r = node("chat-complete.js", 'm.rankFiles(["lib/zchat.js", "chat.js", "docs/chat-notes.md"], "chat")')
+        self.assertEqual(r[0], "chat.js")
+        self.assertEqual(len(r), 3)
+
+    def test_filter_commands(self):
+        r = node("chat-complete.js", 'm.rankCommands([{name:"review"},{name:"compact"},{name:"init"}], "co").map(c => c.name)')
+        self.assertEqual(r, ["compact"])
+        r = node("chat-complete.js", 'm.rankCommands([{name:"xcompact"},{name:"compact"}], "com").map(c => c.name)')
+        self.assertEqual(r, ["compact", "xcompact"])
+
+
+@unittest.skipUnless(NODE, "node absent")
+class SearchTest(unittest.TestCase):
+    def test_fold(self):
+        self.assertEqual(node("chat-search.js", 'm.fold("Éléphant À")'), "elephant a")
+
+    def test_find_indexes(self):
+        r = node("chat-search.js", 'm.findIndexes(["Un chat", "le CHIEN", "chât noir"], "chat")')
+        self.assertEqual(r, [0, 2])
+        self.assertEqual(node("chat-search.js", 'm.findIndexes(["a"], "  ")'), [])
+
+    def test_step_wraps(self):
+        self.assertEqual(node("chat-search.js", "[m.step(0, 3, 1), m.step(2, 3, 1), m.step(0, 3, -1), m.step(0, 0, 1)]"), [1, 0, 2, -1])
+
+
+class StaticChatTest(unittest.TestCase):
+    def text(self):
+        return {p.name: p.read_text(encoding="utf-8") for p in CHAT_JS}
+
+    def test_every_rpc_called_exists(self):
+        b = bridge.build("alice", None, local=True, start_daemon=False, install_claude=False)
+        known = set(b._handlers)
+        for name, text in self.text().items():
+            for m in re.finditer(r'"((?:work|chat|files|conversation)\.[a-z_.]+)"', text):
+                self.assertIn(m.group(1), known, f"{name} : {m.group(1)}")
+
+    def test_no_alert_confirm_or_unsafe_html(self):
+        for name, text in self.text().items():
+            self.assertIsNone(re.search(r"(?<![\w.])(alert|confirm|prompt)\(", text), name)
+            self.assertNotIn("innerHTML", text, name)
+            self.assertNotIn("insertAdjacentHTML", text, name)
+            self.assertNotIn("outerHTML", text, name)
+            self.assertIsNone(re.search(r"""\bon[a-z]+\s*=\s*["']""", text), name)
+            self.assertNotIn(".style.cssText", text, name)
+
+    def test_header_buttons_have_labels(self):
+        text = self.text()["chat.js"]
+        for label in ("Fichiers", "Feuille de route", "Git", "Options", "Arrêter", "Plus"):
+            self.assertIn(f'"{label}"', text, label)
+        self.assertIn("GitPanel", text)
+        self.assertIn("openFile", text)
+
+    def test_input_attributes(self):
+        text = self.text()["chat.js"]
+        for attr in ("enterkeyhint", "autocapitalize", 'aria-label": "Motif du refus"', 'aria-label": "Autre réponse"'):
+            self.assertIn(attr, text, attr)
+
+    def test_draft_and_send_failure_keep_text(self):
+        text = self.text()["chat.js"]
+        self.assertIn("localStorage", text)
+        # le champ n'est vidé qu'après la réponse du pont
+        send = text[text.index("async deliver("):]
+        self.assertLess(send.index('"chat.send"'), send.index('this.input.value = ""'))
+
+    def test_escape_interrupts_only_when_empty(self):
+        text = self.text()["chat.js"]
+        i = text.index('e.key === "Escape"')
+        self.assertIn("!this.input.value", text[i:i + 300])
+
+    def test_new_modules_are_in_service_worker(self):
+        sw = (WEB / "sw.js").read_text(encoding="utf-8")
+        missing = [p.name for p in CHAT_JS if f'"/{p.name}"' not in sw]
+        self.assertEqual(missing, [], "à ajouter à SHELL de sw.js (fichier d'un autre lot)")
+
+
+if __name__ == "__main__":
+    unittest.main()
