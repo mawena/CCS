@@ -77,11 +77,11 @@ class BridgeConnector:
 def make_app(auth, bridges, config):
     allowed = {config["origin"], f"http://{config['listen']}"}
     app = web.Application(client_max_size=rpc.MAX_LINE)
-    open_ws = {}             # jeton (session ou application) → WebSocket ouverts
+    open_ws = {}             # jeton (session ou application) → {WebSocket: signal d'arrêt}
 
     async def close_all(token):
-        for ws in list(open_ws.pop(token, ())):
-            await ws.close(code=CLOSED_BY_AUTH, message=b"session terminee")
+        for stop in list(open_ws.pop(token, {}).values()):
+            stop.set()
 
     async def add_headers(_request, response):
         response.headers["Content-Security-Policy"] = CSP
@@ -236,7 +236,8 @@ def make_app(auth, bridges, config):
             if not ws.closed:
                 await ws.send_json(reply)
 
-        open_ws.setdefault(token, set()).add(ws)
+        stop = asyncio.Event()
+        open_ws.setdefault(token, {})[ws] = stop
 
         async def recheck():
             bearer = request.headers.get("Authorization", "").startswith("Bearer ")
@@ -249,14 +250,24 @@ def make_app(auth, bridges, config):
                         await auth.call("check", session=token)
                 except rpc.RpcError as e:
                     if e.code == "refuse":
-                        await ws.close(code=CLOSED_BY_AUTH, message=b"session expiree")
+                        stop.set()
                         return
                 except OSError:
                     pass
         watcher = asyncio.ensure_future(recheck())
         tasks = set()
+        stopped = asyncio.ensure_future(stop.wait())
         try:
-            async for msg in ws:
+            while True:
+                receiving = asyncio.ensure_future(ws.receive())
+                await asyncio.wait({receiving, stopped}, return_when=asyncio.FIRST_COMPLETED)
+                if stop.is_set():
+                    receiving.cancel()
+                    await ws.close(code=CLOSED_BY_AUTH, message=b"session terminee")
+                    break
+                msg = receiving.result()
+                if msg.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED, WSMsgType.ERROR):
+                    break
                 if msg.type != WSMsgType.TEXT:
                     continue
                 try:
@@ -269,9 +280,10 @@ def make_app(auth, bridges, config):
                     t.add_done_callback(tasks.discard)
         finally:
             watcher.cancel()
+            stopped.cancel()
             for t in tasks:
                 t.cancel()
-            open_ws.get(token, set()).discard(ws)
+            open_ws.get(token, {}).pop(ws, None)
             await bridge.close()
         return ws
 
