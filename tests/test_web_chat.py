@@ -378,3 +378,17 @@ class RoadmapOrderAndPanesTest(unittest.TestCase):
         css = (WEB / "chat.css").read_text(encoding="utf-8")
         self.assertNotIn("position: absolute; top: 4px; right: 4px", css)
         self.assertIn(".code-head", css)
+
+
+class PhoneErgonomicsTest(unittest.TestCase):
+    def test_phone_single_header_and_light_composer(self):
+        """Téléphone : une seule barre en haut (retour, titre, actions) au lieu de deux, une zone
+        de saisie qui laisse la place au texte (bouton d'envoi en icône, boutons plus petits)."""
+        js = (WEB / "chat.js").read_text(encoding="utf-8")
+        self.assertIn('class: "flat back-chat phone-only"', js)
+        self.assertIn("this.host?.back", js)
+        self.assertIn("back: () =>", (WEB / "sessions.js").read_text(encoding="utf-8"))
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        phone = "".join(re.findall(r"@media \(max-width: 719px\) \{(.*?)\n\}", css, re.S))
+        self.assertIn(".sessions.chat-tab .tabs-row { display: none; }", phone)
+        self.assertIn(".send-label { display: none; }", phone)
