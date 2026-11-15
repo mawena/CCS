@@ -258,23 +258,38 @@ Documentation et release :
 - [x] Fil borné dans les longues sessions (élagage + « Afficher » depuis le journal), cycles de widgets cassés, mémoire rendue au système
 - [x] Essai réel par Charles, puis release correctif 0.10.2 (`.deb`, release GitHub, dépôt APT)
 
-## Phase 13 — Travailler sans quitter CCS (toutes les propositions retenues le 14/11)
+## Phase 13 — Travailler sans quitter CCS (0.11.0)
 
-Conception : `docs/superpowers/specs/2026-11-15-phase-13-design.md` (release unique 0.11.0).
+Toutes les propositions retenues le 14/11, conception validée le 15/11.
+Conception : `docs/superpowers/specs/2026-11-15-phase-13-design.md`.
+Plan détaillé (tests et interfaces de chaque tâche) : `docs/superpowers/plans/2026-11-15-phase-13.md`.
 
-Git dans le panneau de gauche (inspiré de GiGit) :
-- [ ] Troisième page **Git** à côté de Fichiers et Feuille de route : graphe des commits façon ungit/GiGit (branches en colonnes, étiquettes de branches et tags, chargement par pages), détail d'un commit (message, auteur, fichiers, diff)
-- [ ] Git sans terminal : branche courante et git flow (démarrer ou finir une feature), indexation, commit avec un message proposé d'après les changements, fetch, pull, push
+Page Git (inspirée de GiGit) :
+- [ ] 1. Lecture d'un dépôt : log par pages, références, branche et avance/retard, état, diff (`git_repo`)
+- [ ] 2. Écritures : indexation par fichier, bloc et ligne, commit et amend, annulation, `.gitignore`, fetch / pull / push (forcé avec garde), git flow, message proposé
+- [ ] 3. Disposition du graphe façon ungit, portée de GiGit (10 000 commits en moins de 200 ms)
+- [ ] 4. Avatars des auteurs en cache, réglages `git.*` et `phone.show_content`
+- [ ] 5. Onglet portant un widget quelconque dans la zone de droite
+- [ ] 6. Graphe des commits en deux densités (compact, cartes), chargé par pages
+- [ ] 7. Détail d'un commit, changements en cours, indexation par ligne, Commit et Ctrl+Entrée
+- [ ] 8. Page Git dans le panneau de gauche : dispositions A, B et C, bandeau d'erreur, fetch automatique, rafraîchissement
 
 Le travail de Claude :
-- [ ] **Faire une tâche de la feuille de route** : un bouton sur chaque `- [ ]` l'envoie au chat ouvert (« Fais : … ») ou à la file de tâches de nuit ; la case se coche quand Claude a fini
-- [ ] **Changements de la session** : un volet liste tous les fichiers modifiés par Claude dans la conversation, avec le diff cumulé, « Annuler ce fichier » et « Revenir à avant ce message » (points de reprise)
+- [ ] 9. « Faire une tâche » de la feuille de route : chat ou file de nuit, bandeau « Tâche finie ? » si Claude n'a pas coché
+- [ ] 10. Lecture des copies de Claude Code (`file_history`) : changements, plan de retour en arrière
+- [ ] 11. Volet « Changements de la session », annuler un fichier, revenir avant un message, contrôle `ccs doctor`
 
 Le chat :
-- [ ] **Chercher dans le fil** : Ctrl+F dans le chat, avec saut aux messages et aux cartes trouvés
-- [ ] Messages enregistrés : textes réutilisables (« fais la release », « relis et teste »), globaux ou par projet, insérés par `/` ou un menu
-- [ ] Bouton « Compacter » dans l'alerte de contexte lourd, avec le gain estimé
-- [ ] Commande `!` dans la saisie : lance une commande shell dans le dossier du projet, sortie affichée en carte
+- [ ] 12. Chercher dans le fil (Ctrl+F)
+- [ ] 13. Messages enregistrés, communs ou par projet
+- [ ] 14. Bouton « Compacter » dans l'alerte de contexte lourd
+- [ ] 15. Commande `!` lancée dans le dossier du projet
 
-Loin du PC :
-- [ ] **Répondre depuis le téléphone** : boutons Autoriser / Refuser dans la notification ntfy (le service écoute un sujet de réponse protégé par un jeton secret)
+Le téléphone :
+- [ ] 16. Réponses signées et à usage unique (`phone_reply`)
+- [ ] 17. Autoriser ou Refuser depuis la notification, réglage « Montrer la commande »
+
+Fin de phase :
+- [ ] 18. Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [ ] 19. Essai réel par Charles et corrections
+- [ ] 20. Release mineure 0.11.0, `.deb`, release GitHub et dépôt APT
