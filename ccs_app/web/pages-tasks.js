@@ -167,8 +167,15 @@ export function tasksSection(api, ctx) {
     const form = el("form", { class: "stack" }, el("h2", {}, "Nouvelle tâche"),
       field("Dossier du projet", folder), datalist, field("Message", message),
       field("Quand", when), time, field("Droits", rights, ""), rightsHelp, field("Modèle", model), error,
-      el("div", { class: "sheet-actions" }, el("button", { type: "button", onclick: () => dlg.close() }, "Annuler"), submit));
+      el("div", { class: "sheet-actions" }, el("button", { type: "button", onclick: () => tryClose() }, "Annuler"), submit));
     dlg.append(form);
+    // du texte tapé ne part pas sans confirmation (bouton Annuler, Échap)
+    const tryClose = async () => {
+      if (message.value.trim() && !await confirmSheet({ title: "Abandonner cette tâche ?", body: "Le message tapé sera perdu.",
+        confirm: "Abandonner", cancel: "Continuer", danger: true })) return;
+      dlg.close();
+    };
+    dlg.addEventListener("cancel", (e) => { e.preventDefault(); tryClose(); });
     api.call("projects.list", {}).then((r) => {
       for (const p of (r.entries || []).filter((x) => x.cwd && x.exists)) datalist.append(el("option", { value: p.cwd }));
     }).catch(() => {});

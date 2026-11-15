@@ -55,7 +55,12 @@ export class RoadmapPanel {
     check.addEventListener("change", async () => {
       const want = check.checked;
       try {
-        await this.api.call("roadmap.toggle", { path: this.path, line: task.line, text: task.text });
+        const r = await this.api.call("roadmap.toggle", { path: this.path, line: task.line, text: task.text, done: want });
+        if (r && r.changed === false) {           // la case était déjà dans cet état : la page n'est plus à jour
+          toast("La feuille de route avait déjà changé : elle est rechargée.");
+          this.load();
+          return;
+        }
         task.done = want;
         label.classList.toggle("done", want);
         update();

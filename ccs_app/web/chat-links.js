@@ -3,7 +3,7 @@
 import { el } from "./dom.js";
 
 const REF = /^(\/?[\w@+.-]+(?:\/[\w@+.-]+)*)(?::(\d+)(?::\d+)?)?$/;
-const IN_TEXT = /(?<![\w/.@+-])(\.?\/?[\w@+.-]+(?:\/[\w@+.-]+)*\.[A-Za-z0-9]+)(?::(\d+)(?::\d+)?)?/g;
+const IN_TEXT = /(^|[^\w/.@+-])(\.?\/?[\w@+.-]+(?:\/[\w@+.-]+)*\.[A-Za-z0-9]+)(?::(\d+)(?::\d+)?)?/g;
 
 // Chemin relatif au projet + ligne si `text` désigne un fichier de `files` (Set de chemins relatifs).
 export function parsePathRef(text, cwd, files) {
@@ -22,8 +22,9 @@ export function parsePathRef(text, cwd, files) {
 export function findRefs(text, cwd, files) {
   const out = [];
   for (const m of String(text).matchAll(IN_TEXT)) {
-    const ref = parsePathRef(m[0], cwd, files);
-    if (ref) out.push({ ...ref, text: m[0], index: m.index });
+    const text0 = m[0].slice(m[1].length);        // m[1] : le caractère qui précède (pas de lookbehind : Safari < 16.4)
+    const ref = parsePathRef(text0, cwd, files);
+    if (ref) out.push({ ...ref, text: text0, index: m.index + m[1].length });
   }
   return out;
 }

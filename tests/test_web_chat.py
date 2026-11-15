@@ -194,3 +194,80 @@ class StaticChatTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def node_script(body):
+    """Exécute `body` (module ES, console.log du résultat JSON) dans node et renvoie ce JSON."""
+    r = subprocess.run([NODE, "--input-type=module", "-e", body.replace("@WEB@", _copy().as_uri())],
+                       capture_output=True, text=True, timeout=30)
+    if r.returncode:
+        raise AssertionError(r.stderr[-600:])
+    return json.loads(r.stdout)
+
+
+@unittest.skipUnless(NODE, "node absent")
+class RevueWebTest(unittest.TestCase):
+    def test_queued_calls_survive_a_failed_attempt(self):
+        """Un appel mis en file pendant une coupure n'est pas rejeté (il partirait quand même) ;
+        seul un appel déjà envoyé l'est."""
+        r = node_script("""
+globalThis.location = { protocol: "https:", host: "x" };
+class WS { static OPEN = 1; constructor() { this.readyState = 0; this.sent = []; WS.last = this; }
+  send(m) { this.sent.push(m); } close() {} }
+globalThis.WebSocket = WS;
+const { Api } = await import("@WEB@/api.js");
+const api = new Api();
+api.connect();
+const ws = WS.last;
+const queued = api.call("a");                  // hors ligne : en file
+let state = "pending";
+queued.then(() => { state = "ok"; }, () => { state = "rejected"; });
+ws.onclose();                                  // la tentative échoue
+api.stopped = true;
+await new Promise((r) => setTimeout(r, 10));
+const keptInQueue = api.queue.length;
+console.log(JSON.stringify({ state, keptInQueue }));
+process.exit(0);
+""")
+        self.assertEqual(r, {"state": "pending", "keptInQueue": 1})
+
+    def test_sent_call_is_rejected_on_close(self):
+        r = node_script("""
+globalThis.location = { protocol: "https:", host: "x" };
+class WS { static OPEN = 1; constructor() { this.readyState = 0; this.sent = []; WS.last = this; }
+  send(m) { this.sent.push(m); } close() {} }
+globalThis.WebSocket = WS;
+const { Api } = await import("@WEB@/api.js");
+const api = new Api();
+api.connect();
+const ws = WS.last;
+ws.readyState = 1;
+ws.onopen();
+let code = null;
+const p = api.call("a").catch((e) => { code = e.code; });
+ws.onclose();
+api.stopped = true;
+await p;
+console.log(JSON.stringify({ code, sent: ws.sent.length }));
+process.exit(0);
+""")
+        self.assertEqual(r, {"code": "hors_ligne", "sent": 1})
+
+    def test_find_refs_without_lookbehind(self):
+        src = (WEB / "chat-links.js").read_text()
+        self.assertNotIn("(?<", src)
+        r = node("chat-links.js", 'm.findRefs("voir (src/a.py:3) et x/src/a.py", "/p", new Set(["src/a.py"]))')
+        self.assertEqual([(x["path"], x["line"], x["index"]) for x in r], [("src/a.py", 3, 6)])
+
+    def test_roles_in_preview_and_state_fixes(self):
+        conv = (WEB / "sessions-conv.js").read_text()
+        self.assertIn('"utilisateur"', conv)
+        chat = (WEB / "chat.js").read_text()
+        self.assertIn("CYCLE_RIGHTS", chat)
+        self.assertNotIn("RIGHTS.map(([v]) => v)", chat)
+        self.assertIn('"chat.context"', chat)
+        self.assertIn("introuvable", chat)
+        self.assertIn("ccs-draft:${cwd}|${chatId}", chat)
+        self.assertIn("done: want", (WEB / "roadmap.js").read_text())
+        self.assertIn("header: h.header", (WEB / "git.js").read_text())
+        self.assertIn("if (r.ok)", (WEB / "sw.js").read_text())

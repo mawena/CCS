@@ -31,7 +31,8 @@ export class GitPanel {
       el("label", { class: "check" }, this.amend, "Modifier le dernier commit (amend)"),
       el("div", { class: "row" }, this.commitBtn, this.proposeBtn));
     this.changesView = el("div", { class: "stack" }, this.files, this.commitBox);
-    this.node = el("div", { class: "git" }, this.errorBox, this.head, this.tabs, this.changesView, this.logBox);
+    this.refreshBtn = el("button", { class: "small flat", onclick: () => this.refresh() }, "Actualiser");
+    this.node = el("div", { class: "git" }, this.errorBox, this.head, el("div", { class: "row" }, this.tabs, this.refreshBtn), this.changesView, this.logBox);
     container.append(this.node);
     this.drawTabs();
     clear(this.files).append(loading());
@@ -46,6 +47,7 @@ export class GitPanel {
 
   fail(e, retry = null) {
     if (this.dead) return;
+    if (e && e.code === "conflit") toast(e.message || "Le dépôt a changé : actualisation.", { kind: "error" });
     clear(this.errorBox).append(el("div", { class: "git-error", role: "alert" }, el("span", {}, e.message || String(e)),
       retry ? el("button", { class: "small flat", onclick: retry }, "Réessayer") : null,
       el("button", { class: "small flat", "aria-label": "Fermer l'erreur", onclick: () => clear(this.errorBox) }, "×")));
@@ -88,7 +90,10 @@ export class GitPanel {
   async loadDiff(key, draw = true) {
     const [side, ...rest] = key.split(":");
     try {
-      this.open.set(key, (await this.call("git.diff", { path: rest.join(":"), staged: side === "staged" })).diff || { hunks: [], empty: true });
+      const r = await this.call("git.diff", { path: rest.join(":"), staged: side === "staged" });
+      const d = r.diff || { hunks: [], empty: true };
+      if (r.too_big) d.too_big = true;
+      this.open.set(key, d);
     } catch (e) { this.open.delete(key); this.fail(e); }
     if (draw && !this.dead) this.render();
   }
@@ -116,6 +121,7 @@ export class GitPanel {
     this.changesView.hidden = this.view !== "changes" || !st?.repo;
     this.logBox.hidden = this.view !== "log" || !st?.repo;
     this.tabs.hidden = !st?.repo;
+    this.refreshBtn.disabled = this.working;
     if (!st) return;
     if (!st.repo) {
       clear(this.head);
@@ -168,6 +174,7 @@ export class GitPanel {
     const untracked = st.files.filter((f) => f.staged === "?");
     clear(this.files);
     if (!st.files.length) { this.files.append(emptyState("Rien à valider : le dossier est propre.")); return; }
+    if (st.truncated) this.files.append(el("p", { class: "subtle" }, "Trop de fichiers : seuls les premiers sont montrés."));
     this.group("Indexés", staged, "staged", (f) => f.staged, "Désindexer", "git.unstage", "Tout désindexer");
     this.group("Modifiés", work, "work", (f) => f.unstaged, "Indexer", "git.stage", "Tout indexer");
     this.group("Non suivis", untracked, "work", () => "?", "Indexer", "git.stage", "Tout indexer");
@@ -201,6 +208,7 @@ export class GitPanel {
   diffNode(key, f, side, letter) {
     const d = this.open.get(key);
     if (d === null) return loading("Chargement du diff…");
+    if (d.too_big) return el("p", { class: "subtle" }, "Fichier trop gros pour être montré");
     if (d.empty || (!d.hunks.length && !d.binary)) return el("p", { class: "subtle" }, "Pas de différence à montrer.");
     if (d.binary) return el("p", { class: "subtle" }, "Fichier binaire : pas de diff.");
     const canHunk = letter !== "?" && !d.new_file && !d.deleted;     // un fichier neuf ou supprimé s'indexe en entier
@@ -208,7 +216,7 @@ export class GitPanel {
     d.hunks.forEach((h, i) => {
       box.append(el("div", { class: "diff-hunk" }, el("code", {}, h.header),
         canHunk ? this.btn(side === "staged" ? "Désindexer ce bloc" : "Indexer ce bloc",
-          () => this.run(() => this.call("git.hunk", { path: f.path, index: i, action: side === "staged" ? "unstage" : "stage" }))) : null));
+          () => this.run(() => this.call("git.hunk", { path: f.path, index: i, header: h.header, action: side === "staged" ? "unstage" : "stage" }))) : null));
       for (const line of h.lines) {
         box.append(el("div", { class: `diff-line ${line.kind === "+" ? "add" : line.kind === "-" ? "del" : ""}` },
           el("span", {}, line.old_no ?? ""), el("span", {}, line.new_no ?? ""), el("span", {}, line.kind === " " ? "" : line.kind),

@@ -126,7 +126,8 @@ export function mountSettings(root, api) {
           el("div", { class: "subtle" }, `${KINDS[t.kind] || t.kind} · utilisé le ${new Date(t.last_used * 1000).toLocaleString("fr-FR")}`)),
         el("button", { class: "small flat", onclick: async () => {
           if (!await confirmSheet({ title: "Révoquer cet accès ?", body: "L'appareil devra se reconnecter.", confirm: "Révoquer", danger: true })) return;
-          await post("/api/revoke", { token_id: t.id });
+          const res = await post("/api/revoke", { token_id: t.id }).catch((e) => ({ status: "error", message: e.message }));
+          if (!res || res.status === "error" || res.revoked === false) { toast((res && res.message) || "Révocation impossible : cet accès n'existe plus.", { kind: "error" }); return; }
           toast("Accès révoqué.", { kind: "success" });
           loadDevices();
         } }, "Révoquer")));

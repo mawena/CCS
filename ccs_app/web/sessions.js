@@ -110,13 +110,16 @@ export function mountSessions(root, api, ctx = {}) {
     if (current === id || !current) show(current === id ? (tabs.size ? [...tabs.keys()].pop() : null) : current);
   }
 
+  // meta : { state, session_id, options, silent } ; silent : ne change ni l'onglet courant ni l'historique
+  // (restauration au chargement et à la reconnexion : Retour ne doit pas se presser deux fois).
   function addTab(chatId, cwd, title, history, termOptions, meta = {}) {
-    if (tabs.has(chatId)) { show(chatId); return tabs.get(chatId); }
+    if (tabs.has(chatId)) { if (!meta.silent) show(chatId); return tabs.get(chatId); }
     if (!tabs.size) clear(stage);
     const holder = el("div", { class: "holder" });
     stage.append(holder);
     const isTerm = Boolean(termOptions);
-    const view = isTerm ? new TerminalView(holder, api, termOptions) : new ChatView(holder, api, { chatId, cwd, title, history });
+    const view = isTerm ? new TerminalView(holder, api, termOptions) : new ChatView(holder, api, { chatId, cwd, title, history, sessionId: meta.session_id || null, options: meta.options || null,
+      host: { resume: (v) => resumeStopped(chatId, v), stopped: () => { const t = tabs.get(chatId); if (t) { t.state = "stopped"; renderRunning(); } } } });
     const close = el("button", { class: "flat tab-close", "aria-label": `Fermer ${title || base(cwd)}`, onclick: (e) => { e.stopPropagation(); closeTab(chatId); } }, "×");
     const tab = el("div", { class: `tab${isTerm ? " term-tab" : ""}`, role: "tab", tabindex: "0", onclick: () => { show(chatId); if (isTerm) view.resize(); } },
       el("span", {}, (isTerm ? "▸ " : "") + (title || base(cwd))), close);
@@ -124,7 +127,7 @@ export function mountSessions(root, api, ctx = {}) {
     const rec = { tab, view, holder, term: isTerm, cwd, title: title || base(cwd), state: isTerm ? "term" : (meta.state || "starting"), sessionId: meta.session_id || null };
     tabs.set(chatId, rec);
     renderRunning();
-    show(chatId, { push: true });
+    if (!meta.silent) show(chatId, { push: true });
     return rec;
   }
 
@@ -132,8 +135,8 @@ export function mountSessions(root, api, ctx = {}) {
   async function openChat(cwd, conv, options, text) {
     const r = await api.call("chat.open", { cwd, session_id: conv?.session_id || null, ...(options ? { options } : {}) });
     const real = r.cwd || cwd;                  // chemin réel (~ développé par le pont)
-    const rec = addTab(r.chat_id, real, conv?.title || base(real), r.seq ? null : conv?.path, null,
-      { session_id: conv?.session_id, state: r.seq ? "idle" : "starting" });
+    const rec = addTab(r.chat_id, real, conv?.title || base(real), r.seq ? null : (conv?.path || r.path), null,
+      { session_id: conv?.session_id || r.session_id, options: r.options, state: r.seq ? "idle" : "starting" });
     if (text && rec?.view?.sendText) rec.view.sendText(text);
     return true;
   }
@@ -227,14 +230,70 @@ export function mountSessions(root, api, ctx = {}) {
       `Voir plus de conversations (${convs.length - shownConvs})`));
   }
 
-  async function restore() {
-    let r;
-    try { r = await api.call("chat.list"); } catch { r = { chats: [] }; }
-    for (const c of r.chats || []) addTab(c.chat_id, c.cwd, base(c.cwd), null, null, { state: c.state, session_id: c.session_id });
+  // Recale les onglets sur ce qui tourne vraiment dans le pont : ajoute ce qui manque, marque « arrêté »
+  // ce qui n'y est plus (le pont a pu redémarrer après une mise à jour), remplace un onglet dont le
+  // dossier ne correspond plus. Une liste qui n'arrive pas ne retire rien.
+  async function sync() {
+    let r = null;
+    try { r = await api.call("chat.list"); } catch { /* on garde les onglets tels quels */ }
+    if (r) {
+      const alive = new Map((r.chats || []).map((c) => [c.chat_id, c]));
+      for (const [id, t] of [...tabs]) {
+        if (t.term) continue;
+        const c = alive.get(id);
+        if (c && c.cwd === t.cwd) continue;
+        if (c) dropTab(id);                                  // même identifiant, autre dossier : ce n'est plus ce chat
+        else { t.state = "stopped"; t.view.gone?.(); }
+      }
+      for (const c of r.chats || []) {
+        const t = tabs.get(c.chat_id);
+        if (t) { t.state = c.state || t.state; t.sessionId = c.session_id || t.sessionId; continue; }
+        addTab(c.chat_id, c.cwd, base(c.cwd), c.path || null, null, { state: c.state, session_id: c.session_id, options: c.options, silent: true });
+      }
+    }
     try {
-      for (const t of (await api.call("term.list")).terms || []) addTab(`term-${t.term_id}`, t.cwd || "", t.name || "Terminal", null, { termId: t.term_id });
+      const terms = (await api.call("term.list")).terms || [];
+      const live = new Set(terms.map((t) => t.term_id));
+      const known = new Set([...tabs.values()].filter((t) => t.term).map((t) => t.view.termId).filter(Boolean));
+      for (const t of terms) {
+        if (!known.has(t.term_id)) addTab(`term-${t.term_id}`, t.cwd || "", t.name || "Terminal", null, { termId: t.term_id }, { silent: true });
+      }
+      for (const t of tabs.values()) if (t.term && t.view.termId && !live.has(t.view.termId)) t.view.gone?.();
     } catch { /* pas de terminal */ }
+    renderRunning();
     if (data) renderList();                                 // les conversations ouvertes reçoivent leur marque
+  }
+
+  // Retire un onglet sans rien demander au pont (il n'existe plus ou n'est plus le même).
+  function dropTab(id) {
+    const t = tabs.get(id);
+    if (!t) return;
+    t.view.destroy();
+    t.holder.remove();
+    t.tab.remove();
+    tabs.delete(id);
+    if (current === id) show(null);
+  }
+
+  // « Reprendre la conversation » d'un chat que le pont a perdu : nouveau chat sur la même conversation,
+  // à la place de l'ancien onglet.
+  async function resumeStopped(oldId, view) {
+    const t = tabs.get(oldId);
+    if (!t || !view.sessionId) return;
+    const conv = { session_id: view.sessionId, title: t.title, path: view.history?.path || null };
+    let r;
+    try { r = await api.call("chat.open", { cwd: t.cwd, session_id: view.sessionId }); } catch (e) {
+      toast(e.message, { kind: "error", action: { label: "Réessayer", run: () => resumeStopped(oldId, view) } });
+      return;
+    }
+    addTab(r.chat_id, r.cwd || t.cwd, conv.title, r.seq ? null : (conv.path || r.path), null,
+      { session_id: conv.session_id, options: r.options, state: r.seq ? "idle" : "starting" });
+    if (r.chat_id !== oldId) dropTab(oldId);              // le nouvel onglet est déjà devant : l'ancien disparaît
+    renderRunning();
+  }
+
+  async function restore() {
+    await sync();
     const asked = ctx.sub ? decodeURIComponent(ctx.sub) : null;
     if (asked && asked.startsWith(PROJECT_PREFIX)) { showProject(asked.slice(PROJECT_PREFIX.length)); return; }
     const keep = tabs.has(asked) ? asked : sessionStorage.getItem("ccs-chat");
@@ -246,7 +305,7 @@ export function mountSessions(root, api, ctx = {}) {
   const onNewChat = (e) => { if (e.detail?.cwd) open(e.detail.cwd, null, {}, e.detail.text); };
   document.addEventListener("ccs:new-chat", onNewChat);
   const offs = [
-    api.on("reconnected", () => loadList({ quiet: true })),
+    api.on("reconnected", () => { loadList({ quiet: true }); sync(); }),
     api.on("chat.event", (d) => { if (d.event?.type === "StateChanged") setState(d.chat_id, d.event.state); }),
   ];
   const first = ctx.sub ? decodeURIComponent(ctx.sub) : "";
@@ -265,6 +324,7 @@ export function mountSessions(root, api, ctx = {}) {
     route: (sub) => {
       const id = sub ? decodeURIComponent(sub) : null;
       if (id && id.startsWith(PROJECT_PREFIX)) { showProject(id.slice(PROJECT_PREFIX.length)); return; }
+      if (id && !tabs.has(id)) { sync().then(() => show(tabs.has(id) ? id : null)); return; }   // chat ouvert ailleurs (« Reprendre » une tâche) : on le rattrape
       show(tabs.has(id) ? id : null);
     },
   };
