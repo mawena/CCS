@@ -265,12 +265,12 @@ Conception : `docs/superpowers/specs/2026-11-15-phase-13-design.md`.
 Plan détaillé (tests et interfaces de chaque tâche) : `docs/superpowers/plans/2026-11-15-phase-13.md`.
 
 Page Git (inspirée de GiGit) :
-- [ ] 1. Lecture d'un dépôt : log par pages, références, branche et avance/retard, état, diff (`git_repo`)
-- [ ] 2. Écritures : indexation par fichier, bloc et ligne, commit et amend, annulation, `.gitignore`, fetch / pull / push (forcé avec garde), git flow, message proposé
-- [ ] 3. Disposition du graphe façon ungit, portée de GiGit (10 000 commits en moins de 200 ms)
-- [ ] 4. Avatars des auteurs en cache, réglages `git.*` et `phone.show_content`
-- [ ] 5. Onglet portant un widget quelconque dans la zone de droite
-- [ ] 6. Graphe des commits en deux densités (compact, cartes), chargé par pages
+- [x] 1. Lecture d'un dépôt : log par pages, références, branche et avance/retard, état, diff (`git_repo`)
+- [x] 2. Écritures : indexation par fichier, bloc et ligne, commit et amend, annulation, `.gitignore`, fetch / pull / push (forcé avec garde), git flow, message proposé
+- [x] 3. Disposition du graphe façon ungit, portée de GiGit (10 000 commits en moins de 200 ms)
+- [x] 4. Avatars des auteurs en cache, réglages `git.*` et `phone.show_content`
+- [x] 5. Onglet portant un widget quelconque dans la zone de droite
+- [x] 6. Graphe des commits en deux densités (compact, cartes), chargé par pages
 - [ ] 7. Détail d'un commit, changements en cours, indexation par ligne, Commit et Ctrl+Entrée
 - [ ] 8. Page Git dans le panneau de gauche : dispositions A, B et C, bandeau d'erreur, fetch automatique, rafraîchissement
 
@@ -288,6 +288,15 @@ Le chat :
 Le téléphone :
 - [ ] 16. Réponses signées et à usage unique (`phone_reply`)
 - [ ] 17. Autoriser ou Refuser depuis la notification, réglage « Montrer la commande »
+
+CCS sur le VPS (demandé le 15/11, propositions à choisir, conception à faire) :
+- [ ] **Serveur CCS** : service `ccs-web` installé par le paquet, qui écoute `127.0.0.1:8420` ; il fait tourner les chats sans interface (moteur de chat actuel) et expose une API HTTP + WebSocket (aiohttp, paquet Ubuntu) pour les projets, sessions, chats, autorisations, fichiers, feuille de route et git
+- [ ] **Comptes et connexion** : `ccs utilisateur ajouter <nom>` (mot de passe haché), page de connexion, cookie de session sécurisé, jeton pour le bureau et le terminal, essais limités ; double authentification (code TOTP) recommandée, car une session ouverte fait lancer des commandes sur le VPS
+- [ ] **Version web** : mêmes écrans que le bureau (Accueil, Sessions et chat, Fichiers / Feuille de route / Git, Analyse, Réglages), responsive (une colonne et panneaux en tiroirs sur le téléphone), installable sur l'écran d'accueil du téléphone
+- [ ] **Version terminal** : `ccs tui` plein écran (urwid, paquet Ubuntu) : projets, sessions, chat, autorisations, feuille de route ; en local sur le VPS (par SSH) ou contre un serveur distant
+- [ ] **Bureau connecté au VPS** : Réglages → Serveurs (adresse et identifiants) ; les projets du VPS apparaissent dans Sessions avec le nom du serveur, et le chat, les fichiers, la feuille de route et git se pilotent à distance depuis l'interface GTK
+- [ ] **Paquet pour serveur** : `apt install ccs` sur un VPS sans bureau installe et démarre le service web (interface GTK séparée ou en dépendance recommandée)
+- [ ] **Mise en ligne** : `ccs.mawena.cloud` → VPS, proxy inverse HTTPS (Let's Encrypt) vers `127.0.0.1:8420` avec WebSocket ; guide dans le README et contrôle par `ccs doctor`
 
 Fin de phase :
 - [ ] 18. Documentation (README, guide, architecture, man, CHANGELOG, site)
