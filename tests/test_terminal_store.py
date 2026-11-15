@@ -144,9 +144,9 @@ class ChatAndPanesTest(HomeTestCase):
     def test_panes_round_trip_and_defaults(self):
         self.assertEqual(terminal_store.load_panes(),
                          {"A": {"tree": 240, "side": 460}, "B": {"tree": 240, "side": 460},
-                          "tree_visible": True, "left": "fichiers"})
+                          "C": {"tree": 520}, "tree_visible": True, "left": "fichiers"})
         panes = {"A": {"tree": 200, "side": 500}, "B": {"tree": 260, "side": 400},
-                 "tree_visible": False, "left": "feuille"}
+                 "C": {"tree": 600}, "tree_visible": False, "left": "git"}
         self.assertTrue(terminal_store.save_panes(panes))
         self.assertEqual(terminal_store.load_panes(), panes)
 

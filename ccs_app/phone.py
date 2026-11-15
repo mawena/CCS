@@ -31,6 +31,8 @@ DEFAULTS = {
     "server": "https://ntfy.sh",
     "topic": "",
     "events": {"waiting": True, "task": True, "switch": True, "exhausted": True},
+    "show_content": False,
+    "reply_topic": "",
 }
 EVENTS = (
     ("waiting", "Session qui attend ta réponse"),
