@@ -38,7 +38,9 @@ def command_argv(command, name):
 
 
 class _Term:
-    def __init__(self, term_id, proc, master):
+    def __init__(self, term_id, proc, master, cwd="", name="Terminal"):
+        self.cwd = cwd
+        self.name = name
         self.term_id = term_id
         self.proc = proc
         self.master = master
@@ -112,7 +114,8 @@ class TermHub:
         finally:
             os.close(slave)
         os.set_blocking(master, False)
-        term = _Term(f"t{next(self._ids)}", proc, master)
+        name = params.get("name") if params.get("command") is not None else os.path.basename(cwd.rstrip("/"))
+        term = _Term(f"t{next(self._ids)}", proc, master, cwd, name or "Terminal")
         term.conns.add(conn)
         self.terms[term.term_id] = term
         asyncio.get_running_loop().add_reader(master, self._readable, term)
@@ -181,7 +184,7 @@ class TermHub:
         return {"output": term.recent}
 
     async def list(self, _conn, _params):
-        return {"terms": [{"term_id": t.term_id} for t in self.terms.values() if not t.closed]}
+        return {"terms": [{"term_id": t.term_id, "cwd": t.cwd, "name": t.name} for t in self.terms.values() if not t.closed]}
 
     async def close(self, _conn, params):
         await self._kill(self._get(params))
