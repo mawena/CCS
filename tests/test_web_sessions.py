@@ -100,3 +100,20 @@ class SessionsWebTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ManageProjectsAndTrashTest(unittest.TestCase):
+    def test_web_add_remove_project_and_trash(self):
+        """Web (phase 15) : ajouter un projet (dossier existant ou nouveau, git init), le retirer
+        de la liste, supprimer une conversation (corbeille 30 jours) et la restaurer."""
+        js = (WEB / "sessions-manage.js").read_text(encoding="utf-8")
+        for rpc_name in ("projects.add", "projects.remove", "conversation.trash",
+                         "conversation.trash_list", "conversation.restore"):
+            self.assertIn(f'"{rpc_name}"', js)
+        sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
+        self.assertIn("./sessions-manage.js", sessions)
+        self.assertIn("Ajouter un projet", sessions)
+        self.assertIn("Corbeille", sessions)
+        conv = (WEB / "sessions-conv.js").read_text(encoding="utf-8")
+        self.assertIn("ctx.trash", conv)
+        self.assertIn("/sessions-manage.js", (WEB / "sw.js").read_text(encoding="utf-8"))

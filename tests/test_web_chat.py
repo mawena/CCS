@@ -381,6 +381,14 @@ class RoadmapOrderAndPanesTest(unittest.TestCase):
 
 
 class PhoneErgonomicsTest(unittest.TestCase):
+    def test_plus_menu_opens_under_header(self):
+        """Téléphone : le menu « Plus » se place sous l'en-tête du chat, pas sous tout le chat
+        (hors de l'écran) : l'en-tête doit être le conteneur positionné du menu."""
+        css = (WEB / "chat.css").read_text(encoding="utf-8")
+        import re
+        head = re.search(r"\.chat-head \{([^}]*)\}", css).group(1)
+        self.assertIn("position: relative", head)
+
     def test_phone_single_header_and_light_composer(self):
         """Téléphone : une seule barre en haut (retour, titre, actions) au lieu de deux, une zone
         de saisie qui laisse la place au texte (bouton d'envoi en icône, boutons plus petits)."""
