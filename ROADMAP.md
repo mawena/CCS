@@ -315,23 +315,23 @@ Page Git (inspirée de GiGit) :
 - [x] 4. Avatars des auteurs en cache, réglages `git.*` et `phone.show_content`
 - [x] 5. Onglet portant un widget quelconque dans la zone de droite
 - [x] 6. Graphe des commits en deux densités (compact, cartes), chargé par pages
-- [ ] 7. Détail d'un commit, changements en cours, indexation par ligne, Commit et Ctrl+Entrée
-- [ ] 8. Page Git dans le panneau de gauche : dispositions A, B et C, bandeau d'erreur, fetch automatique, rafraîchissement
+- [x] 7. Détail d'un commit, changements en cours, indexation par ligne, Commit et Ctrl+Entrée
+- [x] 8. Page Git dans le panneau de gauche : dispositions A, B et C, bandeau d'erreur, fetch automatique, rafraîchissement
 
 Le travail de Claude :
-- [ ] 9. « Faire une tâche » de la feuille de route : chat ou file de nuit, bandeau « Tâche finie ? » si Claude n'a pas coché
-- [ ] 10. Lecture des copies de Claude Code (`file_history`) : changements, plan de retour en arrière
-- [ ] 11. Volet « Changements de la session », annuler un fichier, revenir avant un message, contrôle `ccs doctor`
+- [x] 9. « Faire une tâche » de la feuille de route : chat ou file de nuit, bandeau « Tâche finie ? » si Claude n'a pas coché
+- [x] 10. Lecture des copies de Claude Code (`file_history`) : changements, plan de retour en arrière
+- [x] 11. Volet « Changements de la session », annuler un fichier, revenir avant un message, contrôle `ccs doctor`
 
 Le chat :
-- [ ] 12. Chercher dans le fil (Ctrl+F)
-- [ ] 13. Messages enregistrés, communs ou par projet
-- [ ] 14. Bouton « Compacter » dans l'alerte de contexte lourd
-- [ ] 15. Commande `!` lancée dans le dossier du projet
+- [x] 12. Chercher dans le fil (Ctrl+F)
+- [x] 13. Messages enregistrés, communs ou par projet
+- [x] 14. Bouton « Compacter » dans l'alerte de contexte lourd
+- [x] 15. Commande `!` lancée dans le dossier du projet
 
 Le téléphone :
-- [ ] 16. Réponses signées et à usage unique (`phone_reply`)
-- [ ] 17. Autoriser ou Refuser depuis la notification, réglage « Montrer la commande »
+- [x] 16. Réponses signées et à usage unique (`phone_reply`)
+- [x] 17. Autoriser ou Refuser depuis la notification, réglage « Montrer la commande »
 
 CCS sur le VPS (demandé le 15/11, propositions à choisir, conception à faire) :
 - [ ] **Serveur CCS** : service `ccs-web` installé par le paquet, qui écoute `127.0.0.1:8420` ; il fait tourner les chats sans interface (moteur de chat actuel) et expose une API HTTP + WebSocket (aiohttp, paquet Ubuntu) pour les projets, sessions, chats, autorisations, fichiers, feuille de route et git
