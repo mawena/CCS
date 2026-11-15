@@ -188,3 +188,21 @@ class ServedTest(AioHTTPTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InstallAppTest(unittest.TestCase):
+    def test_install_offered_on_iphone_and_chrome(self):
+        """Comme Outlook : la version web propose de s'installer (bouton Installer sur Chrome
+        Android/ordinateur, marche à suivre Partager → « Sur l'écran d'accueil » sur iPhone,
+        Safari comme Chrome), jamais une fois installée, et refusable."""
+        js = (WEB / "install.js").read_text(encoding="utf-8")
+        self.assertIn("beforeinstallprompt", js)
+        self.assertIn("display-mode: standalone", js)
+        self.assertIn("navigator.standalone", js)
+        self.assertIn("iPhone|iPad|iPod", js)
+        self.assertIn("localStorage", js)
+        self.assertIn("./install.js", (WEB / "app.js").read_text(encoding="utf-8"))
+        self.assertIn("/install.js", (WEB / "sw.js").read_text(encoding="utf-8"))
+        html = (WEB / "index.html").read_text(encoding="utf-8")
+        self.assertIn('name="apple-mobile-web-app-capable"', html)
+        self.assertIn('name="apple-mobile-web-app-title"', html)

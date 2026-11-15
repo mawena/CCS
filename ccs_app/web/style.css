@@ -370,3 +370,14 @@ body.resizing { user-select: none; cursor: col-resize; }
 
 .send-icon { display: none; }
 @media (max-width: 719px) { .send-icon { display: inline; font-size: 1.1em; line-height: 1; } }
+
+/* ---- installer l'application (install.js) ---- */
+.install-banner { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: 12px; margin: 0 auto; max-width: 520px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px; box-shadow: 0 8px 28px rgb(0 0 0 / 0.25); }
+.install-banner img { border-radius: 10px; flex: none; }
+.install-text { flex: 1; min-width: 180px; display: grid; gap: 2px; }
+.install-actions { display: flex; gap: 6px; margin-left: auto; }
+.install-steps { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 0.92em; }
+@media (max-width: 719px) {
+  .install-banner { bottom: calc(var(--nav-h) + 10px + env(safe-area-inset-bottom)); }
+}
