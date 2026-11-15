@@ -61,7 +61,7 @@ export class FindBar {
   mark(current) {
     for (const b of this.blocks()) b.classList.remove("hit", "hit-current");
     for (const b of this.hits) b.classList.add("hit");
-    if (current) { current.classList.add("hit-current"); current.scrollIntoView({ block: "center" }); }
+    if (current) { const g = current.closest("details.tool-group"); if (g) g.open = true; current.classList.add("hit-current"); current.scrollIntoView({ block: "center" }); }
   }
 
   async run() {

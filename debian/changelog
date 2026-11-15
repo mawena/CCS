@@ -1,3 +1,47 @@
+ccs (0.12.6) unstable; urgency=medium
+
+  * Web : installer CCS comme une application (Chrome : bouton Installer ;
+    iPhone : marche à suivre vers l'écran d'accueil).
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 16 Nov 2026 00:00:00 +0000
+
+ccs (0.12.5) unstable; urgency=medium
+
+  * Web au téléphone : une seule barre en haut, saisie plus large, envoi en
+    icône, blocs de code plus serrés.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 23:30:00 +0000
+
+ccs (0.12.4) unstable; urgency=medium
+
+  * Web : bouton Copier dans une barre au-dessus des blocs de code.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 23:00:00 +0000
+
+ccs (0.12.3) unstable; urgency=medium
+
+  * Web : feuille de route dans l'ordre du fichier, liste des sessions et
+    volet redimensionnables, liste masquable.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 22:00:00 +0000
+
+ccs (0.12.2) unstable; urgency=medium
+
+  * Web : le fil suit les nouveaux messages, « Claude travaille… » au-dessus
+    de la saisie, bouton Copier sur les blocs de code.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 21:00:00 +0000
+
+ccs (0.12.1) unstable; urgency=medium
+
+  * Changements de la session et retour en arrière avec Claude Code 2.1.3xx
+    (chemins relatifs, copie d'avant la première modification).
+  * Message envoyé d'un appareil affiché sur tous les autres.
+  * Web : questions à choix lisibles, colonne centrée sur grand écran,
+    actions regroupées et chat plus compact au téléphone.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 18:30:00 +0000
+
 ccs (0.12.0) unstable; urgency=medium
 
   * Page Git du bureau (indexation par fichier, bloc et ligne, commit, fetch,

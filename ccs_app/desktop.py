@@ -122,11 +122,14 @@ class Bridge:
             self.ctx = GLib.MainContext.new()
             self.ctx.push_thread_default()
             self.loop = loop = GLib.MainLoop(self.ctx)
-            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-            for signal, handler in (("ActionInvoked", self._on_signal), ("ActivationToken", self._on_token)):
-                bus.signal_subscribe(None, "org.freedesktop.Notifications", signal,
-                                     "/org/freedesktop/Notifications", None,
-                                     Gio.DBusSignalFlags.NONE, handler)
+            try:  # sans bus de session (serveur), on surveille quand même les sessions
+                bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+                for signal, handler in (("ActionInvoked", self._on_signal), ("ActivationToken", self._on_token)):
+                    bus.signal_subscribe(None, "org.freedesktop.Notifications", signal,
+                                         "/org/freedesktop/Notifications", None,
+                                         Gio.DBusSignalFlags.NONE, handler)
+            except Exception:
+                log.warning("bus de session indisponible : notifications sans boutons")
             # Le dossier peut apparaître après le démarrage (première utilisation de
             # Claude Code) ou être supprimé puis recréé : on le revérifie à intervalle
             # régulier et on (ré)installe le moniteur quand il change.

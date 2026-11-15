@@ -3,6 +3,69 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.12.6] — 2026-11-15
+
+### Corrigé
+
+- **Web : installer CCS comme une application**, comme Outlook. Un bandeau le propose une fois
+  connecté (« Plus tard » le cache 30 jours) et Réglages → Application le rappelle : bouton
+  Installer sur Chrome (Android, ordinateur) ; sur iPhone, Safari comme Chrome, la marche à
+  suivre (Partager ⬆ → « Sur l'écran d'accueil »). CCS s'ouvre ensuite en plein écran.
+
+## [0.12.5] — 2026-11-15
+
+### Corrigé
+
+- **Web au téléphone, chat plus aéré** : une seule barre en haut (← retour, titre, Fichiers,
+  Plus) au lieu de deux ; zone de saisie plus large (bouton d'envoi en icône ➤, boutons
+  joindre et messages enregistrés plus petits, marge du bas de l'iPhone respectée) ; blocs de
+  code plus serrés.
+
+## [0.12.4] — 2026-11-15
+
+### Corrigé
+
+- **Web : bouton Copier des blocs de code** : placé dans une barre au-dessus du code, avec la
+  langue à gauche et une icône ; il ne recouvre plus les longues commandes et affiche « Copié ».
+
+## [0.12.3] — 2026-11-15
+
+### Corrigé
+
+- **Web : feuille de route dans l'ordre** : les phases suivent l'ordre du fichier, comme au
+  bureau, et la phase en cours s'affiche à l'ouverture.
+- **Web : sections redimensionnables et masquables** : la liste des sessions et le volet
+  (Fichiers, Feuille de route, Git, Changements) s'élargissent en glissant leur bord droit
+  (double-clic : taille par défaut, largeur gardée) ; le bouton ☰ masque ou réaffiche la liste.
+
+## [0.12.2] — 2026-11-15
+
+### Corrigé
+
+- **Web : le fil suit les nouveaux messages** : il descend tout seul quand Claude répond, même
+  pendant le rendu du texte, sauf si tu es remonté lire plus haut.
+- **Web : « Claude travaille… »** affiché en bas à gauche, au-dessus de la zone de saisie,
+  comme au bureau.
+- **Web : bouton Copier** sur chaque bloc de code des réponses.
+
+## [0.12.1] — 2026-11-15
+
+### Corrigé
+
+- **Changements de la session et retour en arrière** : fonctionnent avec Claude Code 2.1.3xx
+  lancé par le pont. Les chemins relatifs des copies (`realParentDir`) sont résolus depuis le
+  dossier du projet (plus depuis celui du pont), et la copie d'avant la première modification,
+  présente sur disque mais jamais citée dans le journal, sert d'état « avant ».
+- **Surveillance des sessions sans bus D-Bus** (serveur sans bureau) : le dossier des
+  sessions est surveillé même quand le bus de session manque.
+- **Messages entre appareils** : un message envoyé du téléphone, du web ou du bureau s'affiche
+  sur tous les appareils qui suivent le chat ; un onglet rechargé garde aussi ses propres
+  messages.
+- **Web, questions à choix** : boutons radio à leur taille, libellés alignés à gauche.
+- **Web, grand écran** : le fil et la zone de saisie forment une colonne centrée.
+- **Web, téléphone** : les actions qui se suivent sont regroupées en une ligne repliable
+  (« 7 actions · … ») ; cartes plus compactes. La recherche ouvre le groupe trouvé.
+
 ## [0.12.0] — 2026-11-15
 
 ### Ajouté

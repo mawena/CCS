@@ -169,3 +169,56 @@ class CheckTest(FileHistoryCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def snap_line_rel(message_id, files, parent):
+    """Format de Claude Code 2.1.3xx : chemin relatif + `realParentDir`."""
+    return json.dumps({
+        "type": "file-history-snapshot", "messageId": message_id, "isSnapshotUpdate": False,
+        "snapshot": {"messageId": message_id, "timestamp": "2026-11-15T10:00:00Z",
+                     "trackedFileBackups": {
+                         p: {"backupFileName": name, "version": v,
+                             "backupTime": "2026-11-15T10:00:00Z", "realParentDir": parent}
+                         for p, (name, v) in files.items()}}})
+
+
+class ServerFormatTest(FileHistoryCase):
+    """Constaté sur le VPS (Claude Code 2.1.325, mode pont) : chemins relatifs à `realParentDir`
+    et copie d'avant la première modification (`@v1`) jamais citée dans le journal."""
+
+    def setUp(self):
+        super().setUp()
+        self.other = Path(self.tmp) / "ailleurs"
+        self.other.mkdir()
+        self.old_cwd = os.getcwd()
+        os.chdir(self.other)            # le pont ne tourne pas dans le dossier du projet
+        self.addCleanup(os.chdir, self.old_cwd)
+
+    def test_relative_path_resolved_from_real_parent_dir(self):
+        Path(self.f("a.txt")).write_text("après")
+        self.copy("h@v1", "avant")
+        self.write_journal(snap_line_rel("m1", {"a.txt": ("h@v1", 1)}, str(self.proj)))
+        snaps = fh.read(self.journal)
+        self.assertEqual(list(snaps[0].files), [self.f("a.txt")])
+        [c] = fh.changes(snaps, self.SESSION)
+        self.assertEqual((c.path, c.before, c.now), (self.f("a.txt"), b"avant", "après".encode()))
+
+    def test_relative_path_without_parent_is_ignored(self):
+        self.copy("h@v1", "avant")
+        self.write_journal(snap_line("m1", {"a.txt": ("h@v1", 1)}))
+        snaps = fh.read(self.journal)
+        self.assertEqual(snaps[0].files, {})
+        self.assertFalse((self.other / "a.txt").exists())
+
+    def test_uncited_first_copy_on_disk_is_the_before_state(self):
+        Path(self.f("a.txt")).write_text("après")
+        self.copy("h@v1", "avant")
+        self.copy("h@v2", "après")
+        self.write_journal(snap_line_rel("m1", {}, str(self.proj)),
+                           snap_line_rel("m2", {"a.txt": ("h@v2", 2)}, str(self.proj)))
+        snaps = fh.read(self.journal)
+        [c] = fh.changes(snaps, self.SESSION)
+        self.assertEqual(c.before, b"avant")
+        [step] = fh.rewind_plan(snaps, self.SESSION, "m1")
+        self.assertEqual((step.path, step.content), (self.f("a.txt"), b"avant"))
+        self.assertFalse(step.user_edited)

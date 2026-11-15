@@ -2,7 +2,7 @@
 // sous-agents), autorisations et questions de Claude, liste de tâches épinglée, barre modèle /
 // effort / droits, saisie avec images. Les événements arrivent numérotés : après une coupure, le
 // chat redemande ce qu'il a manqué (`chat.attach` depuis son dernier numéro).
-import { clear, el, setHtml, toast } from "./dom.js";
+import { clear, el, resizable, setHtml, toast } from "./dom.js";
 import { ChangesPanel } from "./chat-changes.js";
 import { Completer } from "./chat-complete.js";
 import { diffCard, editDiffs } from "./chat-diff.js";
@@ -80,6 +80,11 @@ export class ChatView {
     this.state = el("span", { class: "chat-state", hidden: true }, "");
     this.stopBtn = el("button", { type: "button", class: "small danger stop", hidden: true, onclick: () => this.call("chat.interrupt") }, "Arrêter");
     this.thread = el("div", { class: "thread", role: "log", "aria-live": "polite", tabindex: "-1" });
+    // Suivre le bas du fil tant que l'utilisateur n'est pas remonté lire plus haut : le texte
+    // rendu après coup (Markdown) agrandit le fil sans passer par append().
+    this.follow = true;
+    this.thread.addEventListener("scroll", () => { this.follow = this.stuck(); }, { passive: true });
+    this.working = el("div", { class: "working", hidden: true, role: "status" }, el("span", { class: "spinner" }), el("span", {}, "Claude travaille…"));
     this.todos = el("div", { class: "todos", hidden: true });
     this.input = el("textarea", { rows: 1, placeholder: "Écris à Claude…", "aria-label": "Message", enterkeyhint: "send",
       autocapitalize: "sentences", autocomplete: "off" });
@@ -95,14 +100,15 @@ export class ChatView {
     this.optBtn = el("button", { type: "button", class: "small flat opt", "aria-expanded": "false", onclick: () => this.toggleOptions() },
       el("strong", {}, "Options"), this.summary);
 
-    const send = el("button", { class: "primary send", type: "submit", "aria-label": "Envoyer" }, "Envoyer");
+    const send = el("button", { class: "primary send", type: "submit", "aria-label": "Envoyer" },
+      el("span", { class: "send-icon", "aria-hidden": "true" }, "➤"), el("span", { class: "send-label" }, "Envoyer"));
     const attach = el("button", { class: "flat icon", type: "button", "aria-label": "Joindre une image", title: "Joindre une image",
       onclick: () => this.fileInput.click() }, "📎");
     const saved = el("button", { class: "flat icon", type: "button", "aria-label": "Messages enregistrés", title: "Messages enregistrés",
       onclick: () => openSavedSheet({ api: this.api, cwd: this.cwd, currentText: () => this.input.value,
         onInsert: (t) => this.insert(t) }) }, "★");
     this.form = el("form", { class: "composer" },
-      this.todos, this.thumbs,
+      this.working, this.todos, this.thumbs,
       el("div", { class: "composer-row" }, attach, saved, this.input, send, this.fileInput),
       this.bar,
       el("div", { class: "composer-foot" }, this.optBtn, this.context, this.stopBtn));
@@ -121,6 +127,7 @@ export class ChatView {
     this.findbar = new FindBar({ blocks: () => [...this.thread.querySelectorAll(".msg, .tool")],
       ensureAll: () => this.loadFullHistory(), onClose: () => this.input.focus() });
     this.drawer = el("aside", { class: "drawer", hidden: true });
+    resizable(this.drawer, "drawer", { min: 240, max: 1000 });
     this.menu = el("div", { class: "chat-menu", hidden: true });
     const items = [
       { label: "Fichiers", run: () => this.openDrawer("files"), phone: true },
@@ -138,6 +145,8 @@ export class ChatView {
       onclick: () => { this.menu.hidden = !this.menu.hidden; } }, "Plus"));
     this.node = el("section", { class: "chat" },
       el("header", { class: "chat-head" },
+        el("button", { type: "button", class: "flat back-chat phone-only", "aria-label": "Retour aux sessions",
+          onclick: () => this.host?.back?.() }, "←"),
         el("div", { class: "chat-title grow" }, el("strong", { class: "title" }, title || cwd),
           el("div", { class: "chat-sub" }, this.state, el("span", { class: "subtle cwd" }, cwd))),
         actions, this.menu),
@@ -267,7 +276,10 @@ export class ChatView {
   // Envoie au pont ; le texte et les images ne sont retirés de la saisie qu'après sa réponse.
   async deliver(text, images = [], retry = null) {
     let r = null;
-    try { r = await this.api.call("chat.send", { chat_id: this.chatId, text: this.shellNotes.join("") + text, images }); } catch (e) {
+    const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    (this.ownSent ||= new Set()).add(nonce);        // l'écho du pont n'est pas affiché deux fois
+    try { r = await this.api.call("chat.send", { chat_id: this.chatId, text: this.shellNotes.join("") + text, images, shown: text, nonce }); } catch (e) {
+      this.ownSent.delete(nonce);
       this.sendFailed(e.message, retry);
       return false;
     }
@@ -515,16 +527,33 @@ export class ChatView {
 
   // ---- fil ----------------------------------------------------------------------------
 
+  toBottom() { this.follow = true; this.thread.scrollTop = this.thread.scrollHeight; }
+
   stuck() { return this.thread.scrollHeight - this.thread.scrollTop - this.thread.clientHeight < 80; }
 
   append(node) {
-    const stick = this.stuck();
-    this.thread.append(node);
-    if (stick) this.thread.scrollTop = this.thread.scrollHeight;
+    const stick = this.follow || this.stuck();
+    const last = this.thread.lastElementChild;
+    if (isToolNode(node) && last?.classList.contains("tool-group")) { last.body.append(node); refreshGroup(last); }
+    else if (isToolNode(node) && isToolNode(last)) { const g = toolGroup(); last.replaceWith(g); g.body.append(last, node); refreshGroup(g); }
+    else this.thread.append(node);
+    if (stick) this.toBottom();
     return node;
   }
 
+  // Actions qui se suivent (commandes, lectures, modifications) : une ligne repliable.
+  regroup() {
+    let run = [];
+    const flush = () => {
+      if (run.length >= 2) { const g = toolGroup(); run[0].before(g); g.body.append(...run); refreshGroup(g); }
+      run = [];
+    };
+    for (const n of [...this.thread.children]) { if (isToolNode(n)) run.push(n); else flush(); }
+    flush();
+  }
+
   userBubble(text, nImages = 0) {
+    this.follow = true;                              // nouveau message : on revient en bas
     return this.append(el("div", { class: "msg user" }, el("div", { class: "bubble" }, text,
       nImages ? el("div", { class: "subtle" }, `${nImages} image(s) jointe(s)`) : null)));
   }
@@ -538,8 +567,11 @@ export class ChatView {
   async render(node, markdown) {
     try {
       const r = await this.api.call("chat.render", { markdown });
+      const follow = this.follow;
       setHtml(node, r.html);
+      addCopyButtons(node);
       linkify(node, this.cwd, (await this.fileIndex()).set, (p, o) => this.openFile(p, o));
+      if (follow) this.toBottom();
     } catch { if (!node.firstChild) node.textContent = markdown; }
   }
 
@@ -589,6 +621,8 @@ export class ChatView {
     this.state.dataset.state = state;
     this.stopBtn.hidden = !["busy", "permission", "starting"].includes(state);
     this.node.classList.toggle("busy", state === "busy");
+    this.working.hidden = !["busy", "starting"].includes(state);
+    this.working.lastChild.textContent = state === "starting" ? "Démarrage…" : "Claude travaille…";
   }
 
   permissionCard(ev) {
@@ -680,6 +714,7 @@ export class ChatView {
       }
       case "Todos": this.setTodos(ev.items || []); break;
       case "PermissionRequest": this.permissionCard(ev); break;
+      case "UserSent": if (!this.ownSent?.delete(ev.nonce)) this.userBubble(ev.text, ev.images || 0); break;
       case "PermissionSettled": { const c = this.perms.get(ev.request_id); if (c) { c.remove(); this.perms.delete(ev.request_id); } break; }
       case "ControlReply": break;
       case "TurnResult":
@@ -731,7 +766,8 @@ export class ChatView {
     h.full = msgs.length < HISTORY_LIMIT;
     const first = this.thread.firstChild;
     for (const m of msgs) { const n = this.historyNode(m); if (n) this.thread.insertBefore(n, first); }
-    this.thread.scrollTop = this.thread.scrollHeight;
+    this.regroup();
+    this.toBottom();
   }
 
   // Pour la recherche : le fil ne montre que les derniers messages ; ajoute les plus anciens en haut.
@@ -744,5 +780,65 @@ export class ChatView {
     const older = (r.messages || []).slice(0, Math.max(0, (r.messages || []).length - h.loaded));
     const first = this.thread.firstChild;
     for (const m of older) { const n = this.historyNode(m); if (n) this.thread.insertBefore(n, first); }
+    this.regroup();
+  }
+}
+
+function isToolNode(n) {
+  return Boolean(n) && n.matches?.("details.tool") && !n.classList.contains("shell");
+}
+
+function toolGroup() {
+  const count = el("strong", {});
+  const last = el("span", { class: "subtle" });
+  const body = el("div", { class: "tool-group-body" });
+  const g = el("details", { class: "tool-group" }, el("summary", {}, count, " ", last), body);
+  Object.assign(g, { body, count, last });
+  return g;
+}
+
+function refreshGroup(g) {
+  const tools = [...g.body.children];
+  g.count.textContent = `${tools.length} actions`;
+  const sum = tools[tools.length - 1]?.querySelector("summary");
+  g.last.textContent = sum ? `· ${sum.textContent.trim()}` : "";
+}
+
+// Bloc de code d'une réponse : barre du haut avec la langue et un bouton « Copier », le code dessous
+// (le bouton ne recouvre jamais une longue commande).
+const SVG = "http://www.w3.org/2000/svg";
+function icon(shapes) {                              // petite icône 14 px au trait, construite nœud par nœud
+  const svg = document.createElementNS(SVG, "svg");
+  for (const [k, v] of Object.entries({ viewBox: "0 0 24 24", width: 14, height: 14, fill: "none", stroke: "currentColor",
+    "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" })) svg.setAttribute(k, v);
+  for (const [tag, attrs] of shapes) {
+    const n = document.createElementNS(SVG, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    svg.append(n);
+  }
+  return svg;
+}
+const COPY_ICON = [["rect", { x: 9, y: 9, width: 12, height: 12, rx: 2 }], ["path", { d: "M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" }]];
+const DONE_ICON = [["path", { d: "M20 6 9 17l-5-5" }]];
+
+function addCopyButtons(node) {
+  for (const pre of node.querySelectorAll("pre")) {
+    const code = pre.querySelector("code");
+    const lang = [...(code?.classList || [])].find((c) => c.startsWith("language-"))?.slice(9) || "code";
+    const btn = el("button", { type: "button", class: "copy-code", "aria-label": "Copier le code" });
+    const label = (shapes, text) => { clear(btn).append(icon(shapes), el("span", {}, text)); };
+    label(COPY_ICON, "Copier");
+    btn.addEventListener("click", async () => {
+      const text = (code || pre).textContent;
+      try { await navigator.clipboard.writeText(text); }
+      catch {
+        const ta = el("textarea", { style: "position:fixed;opacity:0" }); ta.value = text;
+        document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+      }
+      btn.classList.add("done"); label(DONE_ICON, "Copié");
+      setTimeout(() => { btn.classList.remove("done"); label(COPY_ICON, "Copier"); }, 1500);
+    });
+    const wrap = el("div", { class: "code-wrap" }, el("div", { class: "code-head" }, el("span", { class: "code-lang" }, lang), btn));
+    pre.replaceWith(wrap); wrap.append(pre);
   }
 }

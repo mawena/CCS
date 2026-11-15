@@ -74,7 +74,8 @@ input, select, textarea {
   font: inherit; color: var(--fg); background: var(--card);
   border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px; width: 100%;
 }
-input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
+input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; min-height: 0; padding: 0; margin: 0; flex: none; accent-color: var(--accent); }
+label.check > span { flex: 1; min-width: 0; text-align: left; }
 input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* ---- bandeau ---- */
@@ -170,7 +171,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .settings { display: grid; gap: 12px; max-width: 640px; }
 
 /* ---- sessions et chat ---- */
-.sessions { display: grid; grid-template-columns: 320px 1fr; height: calc(100dvh - 57px); }
+.sessions { display: grid; grid-template-columns: auto minmax(0, 1fr); height: calc(100dvh - 57px); }
+.sessions > .side { width: 320px; }
+.sessions.side-hidden { grid-template-columns: 1fr; }
+.sessions.side-hidden > .side { display: none; }
+.side-toggle { min-width: 40px; padding: 0 8px; }
 .side { border-right: 1px solid var(--line); overflow-y: auto; padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start; }
 .side h3 { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtle); margin: 10px 0 0; }
 .new-session { display: flex; gap: 6px; align-items: center; }
@@ -191,7 +196,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .stage { flex: 1; min-height: 0; display: flex; padding: 0; }
 .stage > .card.empty { margin: 16px; flex: 1; }
 .holder { flex: 1; min-width: 0; display: flex; }
-.chat { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.chat { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; --chat-column: 900px; }
 .chat-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
 .chat-head .subtle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
@@ -206,6 +211,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .tool.done { border-left-color: var(--success); }
 .tool.error { border-left-color: var(--error); }
 .tool.nested { margin-left: 18px; }
+.tool-group { max-width: min(860px, 100%); border-radius: 10px; background: var(--soft); }
+.tool-group > summary { cursor: pointer; display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.92em; }
+.tool-group > summary .subtle { overflow: hidden; text-overflow: ellipsis; }
+.tool-group-body { display: grid; gap: 4px; padding: 0 6px 6px; }
 .tool summary { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 32px; display: flex; align-items: center; gap: 6px; }
 .tool pre { max-height: 320px; overflow: auto; white-space: pre-wrap; }
 .permission { border-left: 4px solid var(--warning); display: grid; gap: 8px; max-width: min(860px, 100%); }
@@ -215,6 +225,9 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .notice.warning { color: var(--warning); }
 .notice.error { color: var(--error); }
 .composer { border-top: 1px solid var(--line); padding: 8px 10px; display: grid; gap: 6px; background: var(--bg); }
+/* Grand écran : fil et saisie dans une même colonne centrée. */
+.thread { padding-inline: max(14px, calc((100% - var(--chat-column)) / 2)); }
+.composer { padding-inline: max(10px, calc((100% - var(--chat-column)) / 2)); }
 .composer-row { display: flex; gap: 6px; align-items: flex-end; }
 .composer textarea { resize: none; max-height: 220px; flex: 1; }
 .chat-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -227,14 +240,36 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; cursor: pointer; }
 
 @media (max-width: 719px) {
+  .sessions > .side { width: auto !important; }
+  .sessions.side-hidden > .side { display: grid; }
+  .side-toggle, .resize-handle { display: none; }
   .sessions { grid-template-columns: 1fr; height: calc(100dvh - 49px - var(--nav-h) - env(safe-area-inset-bottom)); }
   .sessions.chat-open .side { display: none; }
   .sessions:not(.chat-open) .main { display: none; }
   .side { border-right: 0; }
   .back { display: inline-flex; }
-  .thread { padding: 10px; }
+  .thread { padding: 8px; gap: 8px; }
   .composer { padding-bottom: 6px; }
+  .tool, .tool-group > summary { font-size: 0.85em; }
+  .tool { padding: 2px 8px; }
+  .tool summary { min-height: 30px; }
+  .tool-group > summary { min-height: 34px; }
+  .msg.user .bubble { padding: 8px 12px; }
   .chat-head .grow .subtle { display: none; }
+  /* une seule barre en haut : celle du chat (retour, titre, actions) */
+  .sessions.chat-tab .tabs-row { display: none; }
+  .chat-head { padding: 2px 4px; gap: 2px; }
+  .chat-head .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1em; }
+  .back-chat { min-width: 40px; padding: 0 6px; font-size: 1.25em; }
+  /* zone de saisie : la place au texte */
+  .composer { padding: 6px 8px max(6px, env(safe-area-inset-bottom)); gap: 4px; }
+  .composer-row { gap: 4px; }
+  .composer-row .icon { min-width: 36px; padding: 0 4px; }
+  .send-label { display: none; }
+  .send { min-width: 44px; padding: 0 12px; }
+  .composer-foot { font-size: 0.85em; }
+  /* blocs de code plus serrés */
+  .code-wrap pre { font-size: 0.8em; padding: 8px 10px; }
 }
 
 /* ---- tiroir Fichiers / Feuille de route, terminal ---- */
@@ -267,7 +302,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .term-box { height: 360px; display: flex; margin-top: 8px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
 
 @media (max-width: 719px) {
-  .drawer { position: absolute; inset: 0; width: 100%; z-index: 15; border-right: 0; }
+  .drawer, .drawer.resizable { position: absolute; inset: 0; width: 100% !important; z-index: 15; border-right: 0; }
   .chat-body { position: relative; }
   .term-box { height: 300px; }
 }
@@ -326,3 +361,23 @@ dialog.sheet h2 { margin: 0 0 6px; font-size: 1.1em; }
 .view, .account, .gauge, .section, .stack, details.details > div, .health-check, .settings-group,
 .settings-wrap, .settings, .running, .changes, .git, .new-sheet, .preview-body, .file-results,
 .saved-list, .permission, .composer { grid-template-columns: minmax(0, 1fr); }
+
+/* ---- sections redimensionnables (dom.js resizable) ---- */
+.resizable { position: relative; flex: none; }
+.resize-handle { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; z-index: 5; touch-action: none; }
+.resize-handle:hover, body.resizing .resize-handle { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+body.resizing { user-select: none; cursor: col-resize; }
+
+.send-icon { display: none; }
+@media (max-width: 719px) { .send-icon { display: inline; font-size: 1.1em; line-height: 1; } }
+
+/* ---- installer l'application (install.js) ---- */
+.install-banner { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: 12px; margin: 0 auto; max-width: 520px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px; box-shadow: 0 8px 28px rgb(0 0 0 / 0.25); }
+.install-banner img { border-radius: 10px; flex: none; }
+.install-text { flex: 1; min-width: 180px; display: grid; gap: 2px; }
+.install-actions { display: flex; gap: 6px; margin-left: auto; }
+.install-steps { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 0.92em; }
+@media (max-width: 719px) {
+  .install-banner { bottom: calc(var(--nav-h) + 10px + env(safe-area-inset-bottom)); }
+}

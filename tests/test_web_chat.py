@@ -290,3 +290,105 @@ process.exit(0);
         self.assertIn("done: want", (WEB / "roadmap.js").read_text())
         self.assertIn("header: h.header", (WEB / "git.js").read_text())
         self.assertIn("if (r.ok)", (WEB / "sw.js").read_text())
+
+
+class WideScreenTest(unittest.TestCase):
+    def test_thread_and_composer_share_centered_column(self):
+        """Grand écran : le fil et la zone de saisie forment une même colonne centrée (pas de fil
+        calé à gauche avec les messages de l'utilisateur tout à droite de l'écran)."""
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        self.assertRegex(css, r"--chat-column:\s*\d+px")
+        col = r"padding-inline:\s*max\(\d+px,\s*calc\(\(100% - var\(--chat-column\)\) / 2\)\)"
+        for sel in (".thread", ".composer"):
+            rules = re.findall(r"(?:^|\n)([^{}\n]*)\{([^}]*)\}", css)
+            hit = [body for head, body in rules
+                   if sel in [s.strip() for s in head.split(",")] and re.search(col, body)]
+            self.assertTrue(hit, f"{sel} : pas de colonne centrée")
+
+    def test_radio_and_checkbox_keep_native_size(self):
+        """Question à choix (web) : les boutons radio ne prennent pas le style des champs de
+        texte (largeur 100 %, grands ronds, libellé repoussé à droite)."""
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        rule = re.search(r'\ninput\[type="checkbox"\], input\[type="radio"\] \{([^}]*)\}', css)
+        self.assertTrue(rule, "pas de règle commune case à cocher / radio")
+        for decl in ("width: 22px", "min-height: 0", "flex: none"):
+            self.assertIn(decl, rule.group(1), decl)
+
+    def test_consecutive_tools_grouped(self):
+        """Fil (surtout au téléphone) : les actions qui se suivent forment une ligne repliable
+        « N actions », aussi dans l'historique rechargé ; la recherche ouvre le groupe."""
+        js = (WEB / "chat.js").read_text(encoding="utf-8")
+        self.assertIn('class: "tool-group"', js)
+        self.assertEqual(js.count("this.regroup();"), 2)
+        self.assertIn('closest("details.tool-group")', (WEB / "chat-search.js").read_text(encoding="utf-8"))
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".tool-group-body", css)
+
+
+class FollowAndCopyTest(unittest.TestCase):
+    def setUp(self):
+        self.js = (WEB / "chat.js").read_text(encoding="utf-8")
+
+    def test_thread_follows_new_messages(self):
+        """Web : le fil descend tout seul quand Claude écrit (texte rendu après coup compris),
+        tant que l'utilisateur n'est pas remonté lire plus haut."""
+        self.assertIn('this.thread.addEventListener("scroll"', self.js)
+        render = re.search(r"\n  async render\(node, markdown\) \{(.*?)\n  \}\n", self.js, re.S)
+        self.assertTrue(render)
+        self.assertIn("this.follow", render.group(1))
+
+    def test_working_indicator_above_composer(self):
+        """Web : « Claude travaille… » en bas à gauche, au-dessus de la saisie, comme au bureau."""
+        self.assertIn('class: "working"', self.js)
+        css = (WEB / "chat.css").read_text(encoding="utf-8")
+        self.assertIn(".working", css)
+
+    def test_code_blocks_have_copy_button(self):
+        """Web : chaque bloc de code des réponses a un bouton Copier."""
+        self.assertIn('class: "copy-code', self.js)
+        self.assertIn("clipboard", self.js)
+
+
+class RoadmapOrderAndPanesTest(unittest.TestCase):
+    def test_roadmap_phases_in_file_order(self):
+        """Web : les phases dans l'ordre du fichier (comme au bureau), pas inversées."""
+        js = (WEB / "roadmap.js").read_text(encoding="utf-8")
+        self.assertNotIn(".reverse()", js)
+        self.assertIn("for (const phase of r.phases)", js)
+
+    def test_sections_resizable_and_hideable(self):
+        """Web : la liste des sessions et le volet (Fichiers, Feuille de route, Git…) se
+        redimensionnent à la souris (largeur gardée) ; la liste peut être masquée."""
+        dom = (WEB / "dom.js").read_text(encoding="utf-8")
+        self.assertIn("export function resizable", dom)
+        self.assertIn("localStorage", dom)
+        self.assertIn("resizable(this.drawer", (WEB / "chat.js").read_text(encoding="utf-8"))
+        sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
+        self.assertIn("resizable(side", sessions)
+        self.assertIn("side-hidden", sessions)
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".resize-handle", css)
+        self.assertIn(".side-hidden", css)
+
+    def test_copy_button_in_header_not_over_code(self):
+        """Web : le bouton Copier est dans une barre au-dessus du code (langue à gauche), jamais
+        posé par-dessus une longue commande."""
+        js = (WEB / "chat.js").read_text(encoding="utf-8")
+        self.assertIn('class: "code-head"', js)
+        css = (WEB / "chat.css").read_text(encoding="utf-8")
+        self.assertNotIn("position: absolute; top: 4px; right: 4px", css)
+        self.assertIn(".code-head", css)
+
+
+class PhoneErgonomicsTest(unittest.TestCase):
+    def test_phone_single_header_and_light_composer(self):
+        """Téléphone : une seule barre en haut (retour, titre, actions) au lieu de deux, une zone
+        de saisie qui laisse la place au texte (bouton d'envoi en icône, boutons plus petits)."""
+        js = (WEB / "chat.js").read_text(encoding="utf-8")
+        self.assertIn('class: "flat back-chat phone-only"', js)
+        self.assertIn("this.host?.back", js)
+        self.assertIn("back: () =>", (WEB / "sessions.js").read_text(encoding="utf-8"))
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        phone = "".join(re.findall(r"@media \(max-width: 719px\) \{(.*?)\n\}", css, re.S))
+        self.assertIn(".sessions.chat-tab .tabs-row { display: none; }", phone)
+        self.assertIn(".send-label { display: none; }", phone)

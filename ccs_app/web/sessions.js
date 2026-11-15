@@ -2,7 +2,7 @@
 // à gauche, onglets de chat ou écran Projet à droite. Au téléphone, une colonne : la liste, puis
 // le chat (ou le projet) en plein écran avec un bouton de retour.
 import { ChatView } from "./chat.js";
-import { clear, confirmSheet, el, emptyState, errorState, loading, toast } from "./dom.js";
+import { clear, confirmSheet, el, emptyState, errorState, loading, resizable, toast } from "./dom.js";
 import { baseName as base, ProjectScreen } from "./project.js";
 import { convRow } from "./sessions-conv.js";
 import { newSession } from "./sessions-new.js";
@@ -32,9 +32,18 @@ export function mountSessions(root, api, ctx = {}) {
   const back = el("button", { class: "flat back", onclick: () => (history.state?.fromList ? history.back() : show(null)) }, "← Sessions");
   const newBtn = el("button", { class: "primary new-session-btn", onclick: () => askNewSession() }, "Nouvelle session");
   const side = el("aside", { class: "side" }, newBtn, running, search, list);
-  const main = el("div", { class: "main" }, el("div", { class: "tabs-row" }, back, tabBar), stage);
+  resizable(side, "sessions-side", { min: 220, max: 600 });
+  // Grand écran : masquer / réafficher la liste des sessions (choix gardé).
+  const sideToggle = el("button", { class: "flat side-toggle", "aria-label": "Masquer ou afficher la liste des sessions",
+    title: "Masquer / afficher la liste", onclick: () => toggleSide() }, "☰");
+  const main = el("div", { class: "main" }, el("div", { class: "tabs-row" }, sideToggle, back, tabBar), stage);
   const projectHost = el("div", { class: "project", hidden: true });
   const layout = el("div", { class: "sessions" }, side, main, projectHost);
+  const toggleSide = (hide = !layout.classList.contains("side-hidden")) => {
+    layout.classList.toggle("side-hidden", hide);
+    localStorage.setItem("ccs-side-hidden", hide ? "1" : "");
+  };
+  toggleSide(localStorage.getItem("ccs-side-hidden") === "1");
   root.append(layout);
 
   // ---- navigation ------------------------------------------------------------------------------
@@ -57,6 +66,8 @@ export function mountSessions(root, api, ctx = {}) {
       t.tab.setAttribute("aria-selected", String(id === chatId));
     }
     layout.classList.toggle("chat-open", Boolean(chatId));
+    // téléphone : un chat (pas un terminal) n'a qu'une barre, la sienne, avec son bouton retour
+    layout.classList.toggle("chat-tab", Boolean(chatId && !chatId.startsWith("term-")));
     if (chatId) sessionStorage.setItem("ccs-chat", chatId); else sessionStorage.removeItem("ccs-chat");
     renderRunning();
     if (!tabs.size) clear(stage).append(emptyState("Aucun chat ouvert. Choisis un projet ou une conversation.",
@@ -67,7 +78,7 @@ export function mountSessions(root, api, ctx = {}) {
     document.body.classList.remove("chat-mode");
     current = null;
     for (const t of tabs.values()) t.holder.hidden = true;
-    layout.classList.remove("chat-open");
+    layout.classList.remove("chat-open", "chat-tab");
     sessionStorage.removeItem("ccs-chat");
     const want = `#/sessions/${PROJECT_PREFIX}${encodeURIComponent(cwd)}`;
     if (location.hash !== want) history[push ? "pushState" : "replaceState"]({ fromList: push }, "", want);
@@ -119,7 +130,7 @@ export function mountSessions(root, api, ctx = {}) {
     stage.append(holder);
     const isTerm = Boolean(termOptions);
     const view = isTerm ? new TerminalView(holder, api, termOptions) : new ChatView(holder, api, { chatId, cwd, title, history, sessionId: meta.session_id || null, options: meta.options || null,
-      host: { resume: (v) => resumeStopped(chatId, v), stopped: () => { const t = tabs.get(chatId); if (t) { t.state = "stopped"; renderRunning(); } } } });
+      host: { back: () => back.click(), resume: (v) => resumeStopped(chatId, v), stopped: () => { const t = tabs.get(chatId); if (t) { t.state = "stopped"; renderRunning(); } } } });
     const close = el("button", { class: "flat tab-close", "aria-label": `Fermer ${title || base(cwd)}`, onclick: (e) => { e.stopPropagation(); closeTab(chatId); } }, "×");
     const tab = el("div", { class: `tab${isTerm ? " term-tab" : ""}`, role: "tab", tabindex: "0", onclick: () => { show(chatId); if (isTerm) view.resize(); } },
       el("span", {}, (isTerm ? "▸ " : "") + (title || base(cwd))), close);
