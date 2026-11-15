@@ -1,0 +1,2 @@
+# Le fichier .desktop lance claude-accounts, fourni par le paquet ccs dont ccs-bureau dépend.
+ccs-bureau: desktop-command-not-in-package usr/bin/claude-accounts [usr/share/applications/io.ccs.ClaudeAccounts.desktop]

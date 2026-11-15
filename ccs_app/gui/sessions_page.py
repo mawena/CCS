@@ -106,6 +106,10 @@ class SessionsPage(Adw.BreakpointBin):
         for b in (self.new_btn, self.new_icon):
             b.connect("clicked", lambda *_: self.window.new_session())
             bar.append(b)
+        self.servers_btn = Gtk.Button(icon_name="network-server-symbolic", valign=Gtk.Align.CENTER,
+                                      tooltip_text="Projets des serveurs CCS (VPS…)")
+        self.servers_btn.connect("clicked", lambda *_: self.open_servers())
+        bar.append(self.servers_btn)
         root.append(bar)
         self.vte_hint = caption(terminal.VTE_HINT)
         self.vte_hint.set_margin_start(12)
@@ -423,6 +427,11 @@ class SessionsPage(Adw.BreakpointBin):
         empty_all = not self.convs and not self.found and not v.filtering
         self.conv_list.render(v.conversations, v.total, v.filtering, v.selected.cwd is hub.ALL, self.compact,
                               empty_all, force)
+
+    def open_servers(self):
+        from .remote_dialog import RemoteProjectsDialog
+        from .terminals import gui_dispatch
+        RemoteProjectsDialog(self.window, gui_dispatch).present(self)
 
     def render_header(self):
         e = self.view.selected

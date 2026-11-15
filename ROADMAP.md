@@ -256,4 +256,84 @@ Documentation et release :
 
 - [x] Listes Markdown courtes en un seul label
 - [x] Fil borné dans les longues sessions (élagage + « Afficher » depuis le journal), cycles de widgets cassés, mémoire rendue au système
-- [ ] Essai réel par Charles, puis release (correctif 0.10.2)
+- [x] Essai réel par Charles, puis release correctif 0.10.2 (`.deb`, release GitHub, dépôt APT)
+
+## Phase 13 — CCS sur le VPS : serveur, web, terminal, bureau connecté (0.11.0)
+
+Demandée le 15/11, prioritaire. Piloter CCS depuis Internet (`https://ccs.mawena.cloud`,
+surtout depuis le téléphone), depuis un terminal sur le VPS, et depuis l'application GTK du
+bureau. Conception : `docs/superpowers/specs/2026-11-15-phase-13-vps-design.md`.
+Plan détaillé : `docs/superpowers/plans/2026-11-15-phase-13-vps.md`.
+Choix de Charles : connexion par les comptes Ubuntu seulement (PAM, groupe `ccs`, `root` refusé),
+double authentification obligatoire, architecture sur le modèle de Cockpit, mise en ligne par lnmp.
+
+Briques du serveur :
+- [x] 1. Protocole JSON par lignes sur socket Unix
+- [x] 2. Codes TOTP et limite des essais (5 échecs en 15 min → 15 min de refus)
+- [x] 3. Sessions (12 h sans activité, 7 jours au plus), appareils retenus 30 jours, jetons d'application
+- [x] 4. Vérification des comptes Ubuntu par PAM, groupe `ccs`, `root` refusé
+- [x] 5. Service `ccs-auth` : connexion, inscription du code par QR code, tickets des ponts
+
+Le pont (un par utilisateur) :
+- [x] 6. Serveur du pont, ticket, comptes Claude et réglages
+- [x] 7. Chats dans le pont, rejouables après une coupure, partagés entre appareils
+- [x] 8. Projets, fichiers, feuille de route, analyse et tâches (chemins limités au dossier de l'utilisateur)
+- [x] 9. Terminaux shell
+- [x] 10. Service de fond lancé par le pont, Claude Code installé s'il manque
+
+Serveur web et version web :
+- [x] 11. Service `ccs-web` (127.0.0.1:8420) : connexion, relais WebSocket, en-têtes de sécurité
+- [x] 12. Version web : charpente, connexion avec code, navigation responsive, installable sur le téléphone
+- [x] 13. Accueil, Analyse, Réglages (dont Appareils)
+- [x] 14. Sessions et chat
+- [x] 15. Fichiers, Feuille de route, terminal (xterm.js)
+
+Terminal et bureau :
+- [x] 16. Client commun (local ou par le web) et appairage (`ccs serveur ajouter`)
+- [x] 17. `ccs tui` plein écran
+- [x] 18. Bureau : Réglages → Serveurs
+- [x] 19. Bureau : projets et chats du serveur dans l'application, shell distant
+
+Paquets, contrôles, documentation, release :
+- [x] 20. Trois paquets (`ccs`, `ccs-bureau`, `ccs-serveur`) et le métapaquet `ccs-all` qui les installe tous, services systemd, PAM, installation de Claude Code
+- [x] 21. `ccs doctor` pour le serveur
+- [x] 22. Revue de sécurité
+- [x] 23. Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [x] 24. Essai réel sur le VPS (DNS et lnmp par Charles)
+- [x] 25. Release mineure 0.11.0, quatre `.deb`, release GitHub et dépôt APT, mise à jour du VPS
+
+## Phase 14 — Travailler sans quitter CCS (0.12.0)
+
+Toutes les propositions retenues le 14/11, conception validée le 15/11. Passée en phase 14 le 15/11 : la partie VPS est prioritaire. Travail sur la branche `feature/phase14`.
+Conception : `docs/superpowers/specs/2026-11-15-phase-13-design.md`.
+Plan détaillé (tests et interfaces de chaque tâche) : `docs/superpowers/plans/2026-11-15-phase-13.md`.
+
+Page Git (inspirée de GiGit) :
+- [x] 1. Lecture d'un dépôt : log par pages, références, branche et avance/retard, état, diff (`git_repo`)
+- [x] 2. Écritures : indexation par fichier, bloc et ligne, commit et amend, annulation, `.gitignore`, fetch / pull / push (forcé avec garde), git flow, message proposé
+- [x] 3. Disposition du graphe façon ungit, portée de GiGit (10 000 commits en moins de 200 ms)
+- [x] 4. Avatars des auteurs en cache, réglages `git.*` et `phone.show_content`
+- [x] 5. Onglet portant un widget quelconque dans la zone de droite
+- [x] 6. Graphe des commits en deux densités (compact, cartes), chargé par pages
+- [ ] 7. Détail d'un commit, changements en cours, indexation par ligne, Commit et Ctrl+Entrée
+- [ ] 8. Page Git dans le panneau de gauche : dispositions A, B et C, bandeau d'erreur, fetch automatique, rafraîchissement
+
+Le travail de Claude :
+- [ ] 9. « Faire une tâche » de la feuille de route : chat ou file de nuit, bandeau « Tâche finie ? » si Claude n'a pas coché
+- [ ] 10. Lecture des copies de Claude Code (`file_history`) : changements, plan de retour en arrière
+- [ ] 11. Volet « Changements de la session », annuler un fichier, revenir avant un message, contrôle `ccs doctor`
+
+Le chat :
+- [ ] 12. Chercher dans le fil (Ctrl+F)
+- [ ] 13. Messages enregistrés, communs ou par projet
+- [ ] 14. Bouton « Compacter » dans l'alerte de contexte lourd
+- [ ] 15. Commande `!` lancée dans le dossier du projet
+
+Le téléphone :
+- [ ] 16. Réponses signées et à usage unique (`phone_reply`)
+- [ ] 17. Autoriser ou Refuser depuis la notification, réglage « Montrer la commande »
+
+Fin de phase :
+- [ ] 18. Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [ ] 19. Essai réel par Charles et corrections
+- [ ] 20. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT

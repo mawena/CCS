@@ -12,6 +12,7 @@ leurs dates d'expiration : rien d'autre ne sort de `token_info()`.
 import os
 import re
 import shutil
+import json
 import subprocess
 import sys
 import time
@@ -29,7 +30,7 @@ EXTENSION = "ubuntu-appindicators@ubuntu.com"
 INSTALLED_DIR = "/usr/lib/ccs"
 REFRESH_SOON_S = 3 * 86400          # connexion qui expire bientôt : avertissement
 DAEMON_RESTART_GRACE_S = 600        # le service redémarre seul quand son code change
-CLAUDE_INSTALL = "curl -fsSL https://claude.ai/install.sh | bash"
+from .claude_install import INSTALL as CLAUDE_INSTALL  # noqa: E402
 RESTART = f"systemctl --user restart {SERVICE}"
 SECRET_RE = re.compile(r"sk-ant-[A-Za-z0-9_\-]+|[A-Za-z0-9_\-]{32,}")
 
@@ -210,6 +211,13 @@ def claude_version(path):
     return out.strip().splitlines()[0] if rc == 0 and out.strip() else None
 
 
+def bureau_installed(base=None):
+    """Interface graphique présente : paquet ccs-bureau installé, ou arbre des sources.
+    Un dossier gui/ réduit à __pycache__ (reste d'une désinstallation) ne compte pas."""
+    base = Path(base) if base else Path(__file__).resolve().parent
+    return (base / "gui" / "__init__.py").is_file()
+
+
 def vte_available():
     try:
         import gi
@@ -287,6 +295,70 @@ def dead_tasks():
     return [t.id for t in tasks.all() if t.state == tasks.RUNNING and t.pid and not _pid_alive(t.pid)]
 
 
+def socket_group(path):
+    """Groupe propriétaire d'un fichier (le socket de ccs-auth) ; None s'il manque."""
+    import grp
+    try:
+        return grp.getgrgid(os.stat(path).st_gid).gr_name
+    except (OSError, KeyError):
+        return None
+
+
+def server_info():
+    """État du serveur CCS (paquet ccs-serveur) ; None s'il n'est pas installé."""
+    import grp
+    import pwd
+    import socket
+    import ssl
+    import urllib.request
+    from urllib.parse import urlparse
+    if not os.path.exists("/usr/lib/systemd/system/ccs-auth.service"):
+        return None
+    from .server import paths as server_paths
+    from .server import web as server_web
+
+    def active(unit):
+        try:
+            r = subprocess.run(["systemctl", "is-active", unit], capture_output=True, text=True, timeout=10)
+            return r.stdout.strip() or "inconnu"
+        except (OSError, subprocess.TimeoutExpired):
+            return "inconnu"
+    cfg = server_web.load_config()
+    host, _, port = cfg["listen"].rpartition(":")
+    listening = None
+    try:
+        out = subprocess.run(["ss", "-ltnH", f"sport = :{port}"], capture_output=True, text=True, timeout=10).stdout
+        addrs = [line.split()[3] for line in out.splitlines() if len(line.split()) > 3]
+        if addrs:
+            listening = "local" if all(a.startswith(("127.0.0.1:", "[::1]:")) for a in addrs) else "public"
+    except (OSError, subprocess.TimeoutExpired, IndexError):
+        pass
+    health, cert_days = None, None
+    try:
+        with urllib.request.urlopen(cfg["origin"] + "/api/health", timeout=8) as r:
+            health = bool(json.load(r).get("ok"))
+    except Exception as e:  # noqa: BLE001 — l'erreur est montrée telle quelle
+        health = str(getattr(e, "reason", e))[:160]
+    parsed = urlparse(cfg["origin"])
+    if parsed.scheme == "https" and parsed.hostname:
+        try:
+            ctx = ssl.create_default_context()
+            with socket.create_connection((parsed.hostname, parsed.port or 443), timeout=8) as sock:
+                with ctx.wrap_socket(sock, server_hostname=parsed.hostname) as tls:
+                    not_after = ssl.cert_time_to_seconds(tls.getpeercert()["notAfter"])
+            cert_days = int((not_after - time.time()) // 86400)
+        except Exception:  # noqa: BLE001
+            cert_days = None
+    try:
+        g = grp.getgrnam("ccs")
+        members = sorted(set(g.gr_mem) | {u.pw_name for u in pwd.getpwall() if u.pw_gid == g.gr_gid})
+    except KeyError:
+        members = []
+    return {"auth": active("ccs-auth"), "web": active("ccs-web"), "listen": cfg["listen"],
+            "origin": cfg["origin"], "listening": listening, "health": health, "cert_days": cert_days,
+            "members": members, "auth_group": socket_group(server_paths.auth_socket())}
+
+
 @dataclass
 class Probes:
     systemctl: Callable = systemctl
@@ -299,6 +371,7 @@ class Probes:
     extensions: Callable = gnome_extensions
     watcher: Callable = watcher_available
     desktop: Callable = lambda: os.environ.get("XDG_CURRENT_DESKTOP", "")
+    bureau: Callable = bureau_installed
     tray_running: Callable = tray_running
     integration: Callable = integration_status
     profiles: Callable = core.list_profiles
@@ -314,6 +387,7 @@ class Probes:
     archive: Callable = archive_info
     phone: Callable = phone_info
     dead_tasks: Callable = dead_tasks
+    server: Callable = server_info
     _cache: dict = field(default_factory=dict, repr=False)
 
     def once(self, name, *args):
@@ -426,8 +500,19 @@ def check_daemon_code(p):
     return Check(nom, OK, f"version {code.version or '?'} ({where})")
 
 
+def check_bureau(p):
+    """Sans ccs-bureau, les vérifications de l'interface graphique sont sautées (serveur, usage en
+    terminal) ; dans une session graphique, l'absence du bureau est signalée."""
+    if p.once("bureau") or not p.once("desktop"):
+        return None
+    return Check("Bureau", AVERTISSEMENT, "interface graphique non installée (paquet ccs-bureau)",
+                 "sudo apt install ccs-bureau")
+
+
 def check_extension(p):
     nom = "Extension AppIndicator"
+    if not p.once("bureau"):
+        return None
     if p.watcher():
         return Check(nom, OK, "les indicateurs s'affichent dans la barre du haut")
     ext = p.extensions()
@@ -447,6 +532,8 @@ def check_extension(p):
 
 def check_tray(p):
     nom = "Indicateur"
+    if not p.once("bureau"):
+        return None
     if p.tray_running():
         return Check(nom, OK, "lancé")
     return Check(nom, AVERTISSEMENT, "non lancé (il démarre normalement avec la session)",
@@ -534,6 +621,8 @@ def check_settings(p):
 
 def check_vte(p):
     nom = "Terminal intégré"
+    if not p.once("bureau"):
+        return None
     if p.vte():
         return Check(nom, OK, "disponible (VTE pour GTK 4)")
     return Check(nom, AVERTISSEMENT, "VTE pour GTK 4 absent : les sessions s'ouvriront dans un terminal "
@@ -543,6 +632,8 @@ def check_vte(p):
 def check_chat_deps(p):
     """Bibliothèques du chat (coloration du code, rendu Markdown)."""
     nom = "Chat graphique"
+    if not p.once("bureau"):
+        return None
     missing = [(name, pkg) for name, pkg, ok in (
         ("GtkSource 5", "gir1.2-gtksource-5", p.once("gtksource")),
         ("markdown_it", "python3-markdown-it", p.once("markdown_it"))) if not ok]
@@ -608,17 +699,72 @@ def check_tasks(p):
                  f"ccs tache annuler {dead[0]}")
 
 
-CHECKS = (check_service, check_state, check_package, check_daemon_code, check_extension, check_tray,
-          check_integration, check_profiles, check_settings, check_claude, check_tools, check_gpg,
-          check_archive, check_phone, check_tasks, check_vte, check_chat_deps)
+def check_server(p):
+    """Serveur CCS (paquet ccs-serveur) : services, écoute locale, site public, certificat,
+    comptes autorisés. Rien si le paquet n'est pas installé."""
+    info = p.once("server")
+    if info is None:
+        return None
+    from urllib.parse import urlparse
+    out = []
+    if info["auth"] == "active" and info["web"] == "active":
+        out.append(Check("Serveur : services", OK, "ccs-auth et ccs-web actifs"))
+    else:
+        out.append(Check("Serveur : services", ERREUR, f"ccs-auth : {info['auth']}, ccs-web : {info['web']}",
+                         "sudo systemctl enable --now ccs-auth ccs-web"))
+    if info["auth"] == "active":
+        group = info.get("auth_group")
+        if group == "ccs-web":
+            out.append(Check("Serveur : connexion", OK, "ccs-web joint ccs-auth"))
+        else:
+            out.append(Check("Serveur : connexion", ERREUR, "ccs-web ne peut pas joindre ccs-auth (socket "
+                             + (f"du groupe {group}" if group else "absent") + ") : les connexions échouent",
+                             "sudo systemctl restart ccs-auth"))
+    if info["listening"] == "local":
+        out.append(Check("Serveur : écoute", OK, f"{info['listen']} (joignable par nginx seulement)"))
+    elif info["listening"] == "public":
+        out.append(Check("Serveur : écoute", ERREUR, f"le port de {info['listen']} est ouvert sur le réseau : "
+                         "mets 127.0.0.1 dans /etc/ccs/web.json, puis redémarre ccs-web",
+                         "sudo systemctl restart ccs-web"))
+    else:
+        out.append(Check("Serveur : écoute", ERREUR, f"rien n'écoute sur {info['listen']}",
+                         "sudo systemctl restart ccs-web"))
+    host = urlparse(info["origin"]).hostname or ""
+    sub, _, domain = host.partition(".")
+    lnmp = (f"sudo lnmp add --id ccs --domain {domain} --sub {sub} --proxy {info['listen'].rpartition(':')[2]}"
+            " && sudo lnmp add-ssl ccs")
+    if info["health"] is True:
+        out.append(Check("Serveur : site public", OK, f"{info['origin']} répond"))
+    else:
+        out.append(Check("Serveur : site public", ERREUR,
+                         f"{info['origin']} ne répond pas ({info['health'] or 'erreur'}) : enregistrement DNS "
+                         f"« {sub} » vers ce serveur, puis le site nginx", lnmp))
+    if info["cert_days"] is not None:
+        if info["cert_days"] > 14:
+            out.append(Check("Serveur : certificat", OK, f"valable encore {info['cert_days']} jours"))
+        else:
+            out.append(Check("Serveur : certificat", AVERTISSEMENT,
+                             f"expire dans {info['cert_days']} jours", "sudo certbot renew"))
+    if info["members"]:
+        out.append(Check("Serveur : groupe ccs", OK, "comptes autorisés : " + ", ".join(info["members"])))
+    else:
+        out.append(Check("Serveur : groupe ccs", ERREUR, "aucun compte Ubuntu n'a le droit de se connecter",
+                         f"sudo adduser {os.environ.get('USER') or '<utilisateur>'} ccs"))
+    return out
+
+
+CHECKS = (check_service, check_state, check_package, check_daemon_code, check_bureau, check_extension,
+          check_tray, check_integration, check_profiles, check_settings, check_claude, check_tools, check_gpg,
+          check_archive, check_phone, check_tasks, check_vte, check_chat_deps, check_server)
 CHECK_NAMES = {check_service: f"Service {SERVICE}", check_state: "Relevés", check_package: "Version installée",
-               check_daemon_code: "Code du service", check_extension: "Extension AppIndicator",
+               check_daemon_code: "Code du service", check_bureau: "Bureau",
+               check_extension: "Extension AppIndicator",
                check_tray: "Indicateur", check_integration: "Intégration Claude Code", check_profiles: "Comptes",
                check_settings: "Réglages",
                check_claude: "Commande claude", check_tools: "Outils de ccs", check_vte: "Terminal intégré",
                check_gpg: "Chiffrement (gpg)", check_archive: "Archive des conversations",
                check_phone: "Téléphone (ntfy)", check_tasks: "File de tâches",
-               check_chat_deps: "Chat graphique"}
+               check_chat_deps: "Chat graphique", check_server: "Serveur CCS"}
 
 
 def run_checks(probes=None):

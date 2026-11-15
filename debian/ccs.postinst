@@ -1,0 +1,23 @@
+#!/bin/sh
+# ccs : installe Claude Code pour l'utilisateur qui installe le paquet (sudo ou fenêtre de mot
+# de passe), jamais pour root, sans faire échouer l'installation hors ligne. CCS le propose de
+# nouveau à son démarrage s'il manque encore.
+set -e
+
+if [ "$1" = configure ]; then
+  U="${SUDO_USER:-}"
+  if [ -z "$U" ] && [ -n "${PKEXEC_UID:-}" ]; then
+    U="$(getent passwd "$PKEXEC_UID" | cut -d: -f1)"
+  fi
+  if [ -n "$U" ] && [ "$U" != root ] && getent passwd "$U" >/dev/null; then
+    if ! runuser -l "$U" -c 'command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ]'; then
+      echo "Installation de Claude Code pour $U…"
+      runuser -l "$U" -c 'timeout 600 sh -c "curl -fsSL https://claude.ai/install.sh | bash"' \
+        || echo "Claude Code n'a pas pu s'installer maintenant : CCS le proposera à son démarrage."
+    fi
+  fi
+fi
+
+#DEBHELPER#
+
+exit 0

@@ -272,6 +272,22 @@ Renomme un profil.
 .TP
 .BI "ccs rm " nom
 Supprime un profil (le compte n'est pas déconnecté chez Anthropic).
+.TP
+.B ccs tui \fR[\fB\-\-serveur \fInom\fR]
+CCS en plein écran dans le terminal (projets et sessions, chat, feuille de route, comptes
+et usage). Sans option, sur cette machine ; avec \fB\-\-serveur\fR, sur un serveur CCS
+appairé (nom ou adresse).
+.TP
+.B ccs serveur ajouter \fIadresse\fR \fR[\fB\-\-nom \fInom\fR]
+Appaire ce poste avec un serveur CCS (mot de passe Ubuntu et code de double
+authentification) ; le jeton d'application obtenu est gardé dans
+\fI~/.claude\-accounts/serveurs.json\fR (droits 600). \fBccs serveur liste\fR affiche les
+serveurs appairés ; \fBccs serveur retirer\fR \fInom\fR en oublie un, sans révoquer son jeton
+(à faire dans la version web, Réglages, Appareils).
+.TP
+.B sudo ccs totp reinitialiser \fIutilisateur\fR
+Sur le serveur, en root : efface le code de double authentification de l'utilisateur ; le
+prochain accès affiche un nouveau QR code. Voir le paquet \fBccs\-serveur\fR.
 .SH FICHIERS
 .TP
 .I ~/.claude-accounts/
