@@ -84,6 +84,19 @@ class RemoteEngineTest(unittest.TestCase):
         eng.stop(grace_s=1)                               # détache seulement : le chat reste sur le pont
         self.assertEqual(len(self.sync.call_sync("chat.list")["chats"]), 1)
 
+    def test_messages_from_other_devices_shown_own_echo_hidden(self):
+        """Bureau : un message envoyé du téléphone arrive (UserSent) ; l'écho de nos propres
+        envois n'est pas montré une seconde fois."""
+        col = Collector()
+        eng = engine.RemoteChatEngine(self.conn, str(self.project), None, ChatOptions(), on_event=col)
+        eng.send("du bureau")
+        self.assertTrue(col.wait(proto.PermissionRequest))
+        self.assertEqual([e for e in col.events if isinstance(e, chat_engine.UserSent)], [])
+        self.sync.call_sync("chat.send", chat_id=eng.chat_id, text="du téléphone", nonce="tel")
+        self.assertTrue(col.wait(chat_engine.UserSent))
+        sent = [e.text for e in col.events if isinstance(e, chat_engine.UserSent)]
+        self.assertEqual(sent, ["du téléphone"])
+
     def test_methods_exist_like_local(self):
         local = [m for m in ("send", "answer", "answer_questions", "interrupt", "set_options", "request_context",
                              "suspend_if_idle", "background_finished", "stop")]
