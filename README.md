@@ -275,6 +275,14 @@ dans l'extension VS Code.
   s'ajoute au message, un fichier glissé depuis l'arbre insère `@chemin`.
   **Arrêter** (ou Échap) interrompt Claude ; un message écrit pendant qu'il
   travaille rejoint la **file de messages** et part quand il a fini.
+- **Chercher dans le fil** : Ctrl+F ouvre une barre de recherche dans la conversation.
+- **Messages enregistrés** : des textes que tu envoies souvent, communs à tous les projets
+  ou propres au projet ; le menu ☆ de la saisie les insère, et `/` les propose aussi.
+- **Compacter** : l'alerte de contexte lourd du chat a un bouton « Compacter » qui envoie
+  `/compact`.
+- **Commande `!`** : un message qui commence par `!` lance la commande dans le dossier du
+  projet (elle ne part pas chez Claude). Sa sortie s'affiche dans une carte et s'ajoute en
+  tête du prochain message envoyé à Claude.
 - Un chat qui reste **30 minutes** au repos met son processus `claude` en veille
   (réglage `chat.idle_suspend_min`, 0 = jamais) ; il repart tout seul au message
   suivant, sur la même conversation. Rien n'est fermé : l'onglet, l'historique
@@ -299,7 +307,40 @@ replie l'arbre.
 
 La **feuille de route** lit le `ROADMAP.md` du projet : phases avec barre de
 progression, tâches en cases à cocher. Un clic sur une case la coche dans le
-fichier, en ne changeant que ce caractère.
+fichier, en ne changeant que ce caractère. Le bouton ▶ d'une tâche propose **Faire
+maintenant** (Claude la fait dans le chat) ou **Mettre dans la file de nuit**. Si Claude
+finit son tour sans avoir coché la case, un bandeau « Tâche finie ? » propose de la cocher.
+
+Le bouton « Changements de la session » ouvre le volet des **fichiers que Claude a modifiés**
+depuis le début de la conversation, d'après les copies que Claude Code garde de chaque
+fichier. Tu y vois le diff de chaque fichier, tu peux **annuler un fichier** ou **revenir à
+avant un message**. Ces copies n'ont pas de format documenté : si Claude Code le change, le
+volet n'offre plus rien et `ccs doctor` le signale (ligne « Historique des fichiers »).
+
+## Page Git
+
+Une troisième page à gauche, **Git**, inspirée de GiGit :
+elle montre la branche (avance / retard) et les changements en cours du dépôt du projet.
+
+- **Indexer** un fichier, un bloc ou des lignes choisies ; **Tout indexer** ; annuler les
+  modifications d'un fichier ou des lignes choisies (après confirmation) ; ajouter au
+  `.gitignore`.
+- **Commit** (Ctrl+Entrée), avec **Proposer** pour un message suggéré et « Modifier le dernier
+  commit » (amend).
+- **Fetch**, **Pull** et **Push** par la commande `git` de ton système (ta configuration, tes
+  clés SSH et tes hooks comptent comme dans un terminal). Le **push forcé** est gardé : il
+  demande confirmation et refuse d'écraser un commit distant que tu n'as pas vu.
+- **git flow** : démarrer et finir une `feature`, une `release` ou un `hotfix` depuis le menu de
+  la branche (grisé si git flow n'est pas installé).
+- **Graphe des commits**, chargé par pages ; un clic ouvre le détail d'un commit (diff,
+  parents). Avatars des auteurs d'après GitHub ou Gravatar, gardés en cache.
+- **Trois dispositions** : A (changements puis graphe compact à gauche), B (changements à
+  gauche, graphe en cartes dans l'onglet « Historique » à droite) et C (comme A avec le
+  graphe en cartes, panneau de gauche élargi).
+
+Réglages dans `settings.json` (`git`) : `layout` (`A`, `B` ou `C`), `fetch_minutes` (fetch
+automatique, 5 par défaut, 0 = jamais) et `avatars` (faux : aucune image demandée sur le
+réseau).
 
 ## Navigation et apparence
 
@@ -488,7 +529,7 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Raccourcis clavier** | Raccourcis globaux GNOME, même application fermée : ouvrir, sessions, nouvelle session, compte suivant ou meilleur, pause. |
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets ; bilan de la semaine et conseiller de formule. |
 | **File de tâches** | Des tâches pour Claude quand tu n'es pas là : « dès qu'il y a du quota », « cette nuit » ou à une heure. Exécutées sans fenêtre, une à la fois, par la file de Gagarine quand elle existe ; reprise après une limite ; notification à la fin (section Planning de l'Accueil, `ccs tache`). |
-| **Notifications sur le téléphone** | Optionnel, désactivé par défaut : via ntfy, le nom du projet et l'état (session qui attend, tâche finie, bascule, comptes épuisés), jamais le contenu ; lien et QR code dans les Réglages, `ccs telephone`. |
+| **Notifications sur le téléphone** | Optionnel, désactivé par défaut : via ntfy, le nom du projet et l'état (session qui attend, tâche finie, bascule, comptes épuisés), jamais le contenu ; lien et QR code dans les Réglages, `ccs telephone`. Une demande d'autorisation du chat porte les boutons **Autoriser** et **Refuser** (réponse signée, à usage unique, valable 10 min). |
 | **Archive des conversations** | Claude Code efface les conversations de plus de 30 jours : CCS en garde une copie compressée, cherchable, avec aperçu, export et reprise comme les autres. |
 | **Fiche « où j'en étais »** | En un coup d'œil : dernière demande, début de la dernière réponse, fichiers modifiés, liste de tâches, branche, compte. Lue dans le journal, sans appeler Claude (`ccs fiche <id>`, aperçu d'une conversation). |
 | **Sauvegarde chiffrée** | Comptes (jetons compris), réglages, comptes par projet et budgets dans un seul fichier chiffré par gpg ; restauration avec confirmation (Réglages, `ccs sauvegarde`, `ccs restaurer`). |
@@ -497,6 +538,8 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Budget par projet** | Un budget hebdomadaire en équivalent dollars par projet, alertes à 80 % et 100 % ; ne bloque jamais rien (onglet Analyse, `ccs budget`). |
 | **Bilan de santé** | `ccs doctor` : service, versions, barre du haut, intégration, comptes, Claude Code, terminal ; une commande à copier par problème. |
 | **CCS sur un serveur** | Paquet `ccs-serveur` : version web pour le téléphone (`https://ccs.mawena.cloud`), `ccs tui` dans le terminal, bureau GTK connecté ; connexion par compte Ubuntu et double authentification (TOTP), appareil retenu 30 jours (voir plus haut). |
+| **Page Git** | Indexation par fichier, bloc ou ligne, commit et amend, fetch / pull / push (forcé avec garde), git flow, graphe des commits, trois dispositions (voir plus haut). |
+| **Changements de la session** | Les fichiers que Claude a modifiés, diff, annulation d'un fichier, retour à avant un message ; « Faire une tâche » depuis la feuille de route. |
 | **Application** | « CCS » (GTK 4 / libadwaita) : trois onglets (Accueil, Sessions, Analyse), Réglages dans le menu ☰ ; thème clair ou sombre, couleur par compte. |
 | **Icône dans la barre du haut** | Jauge du compte actif (vert / orange / rouge, ⏸ en pause) ; au clic : comptes, recharges, prévisions, sessions, interrupteurs, pause, nouvelle version, journal des bascules, bilan de la semaine. |
 | **Service** | Unité systemd utilisateur : relevé toutes les 5 min, toutes les minutes près des limites ; avec l'orchestrateur, réveil précis aux fins de fenêtre ; nouvelle version cherchée une fois par jour. |
@@ -505,11 +548,37 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 
 CCS peut tourner sur un serveur pour piloter Claude Code sans être devant le PC :
 
-- **depuis le téléphone ou n'importe quel navigateur** : `https://ccs.mawena.cloud` (version web, installable sur l'écran d'accueil) ;
+- **depuis le téléphone ou n'importe quel navigateur** : `https://ccs.mawena.cloud` (version web, installable sur l'écran d'accueil) ; elle fait presque tout ce que fait le bureau (voir plus bas) ;
 - **depuis un terminal** : `ccs tui`, par SSH sur le serveur, ou `ccs tui --serveur <nom>` depuis un autre poste ;
 - **depuis l'application GTK du bureau**, connectée aux projets du serveur.
 
 Le même chat, les mêmes sessions : on les retrouve d'un écran à l'autre.
+
+### Ce que fait la version web
+
+Elle est pensée pour le téléphone (chat en plein écran, bouton Retour du téléphone qui
+revient d'un chat à la liste, confirmations par cartes, messages brefs en bas) et couvre les
+mêmes fonctions que le bureau :
+
+- **Accueil** : comptes avec rythme, prévision et statut lisible, bascule avec confirmation,
+  pause, **bilan de santé** (`ccs doctor` avec la commande qui corrige et un bouton Copier),
+  **tâches de nuit** (nouvelle tâche, journal, reprise dans un chat, annulation, suppression).
+- **Sessions** : section « En cours » (la pastille « attend ta réponse » signale une
+  autorisation en attente), écran **Projet** (conversations, fichiers, feuille de route, Git,
+  nouveau chat, terminal), **nouvelle session** complète (dossiers récents, dépôts du disque,
+  compte, modèle, droits), conversations avec aperçu, renommage, coût et « voir plus ».
+- **Chat** : options (modèle, effort, droits) repliées, brouillon gardé par chat, diff
+  lisible des modifications de Claude, chemins cités ouverts dans le volet Fichiers, complétion
+  `@` et `/`, messages enregistrés, Compacter, commande `!`, recherche dans le fil, volet
+  « Changements de la session ».
+- **Terminal** : barre de touches (Échap, Tab, Ctrl, flèches, symboles), Coller et Copier.
+- **Fichiers** : images, recherche par nom, ouverture à une ligne, édition simple ; **feuille
+  de route** avec « Faire une tâche » (dans ce chat, un nouveau chat ou la file de nuit).
+- **Git** : état, diff, indexation par fichier et par bloc, commit (amend), derniers commits,
+  fetch, pull et push (le push forcé demande confirmation).
+- **Analyse** sur 24 heures, 7, 30 ou 90 jours.
+- **Réglages** : les réglages du bureau, le **téléphone** (ntfy, QR code, essai, « Montrer la
+  commande »), le thème et les appareils connectés.
 
 ### Installer sur le serveur
 
@@ -571,7 +640,7 @@ l'indique, la reconnexion est automatique et les messages tapés attendent.
 
 - Dans le bureau, un chat distant n'a **pas** le panneau Fichiers / Feuille de route : utilise la version web ou `ccs tui`.
 - Retirer un serveur dans le bureau **ne révoque pas** son jeton sur le serveur : fais-le dans la version web, Réglages → Appareils.
-- Les pages Git, « Faire une tâche » et le reste de la phase 14 ne sont pas encore dans la version web.
+- La Git de la version web liste les derniers commits sans graphe ni avatars, et indexe par fichier et par bloc (pas par ligne) ; git flow, l'annulation d'un fichier et le `.gitignore` restent au bureau.
 
 Fonctionnement et sécurité : [docs/architecture.md](docs/architecture.md) ; pas à pas : [docs/utilisation.md](docs/utilisation.md).
 
@@ -735,7 +804,9 @@ marge, tarifs, formule d'un profil), orchestrateur et plage horaire
 (`orchestrator`), warm-up (`warmup`), nouvelles versions (`updates.enabled`).
 Depuis la 0.8.0 : file de tâches (`tasks` : `enabled`, plage de la nuit `night.start` /
 `night.end`, `max_attempts`), téléphone (`phone` : `enabled`, `server`, `topic`,
-`events`), archive (`archive` : `enabled`, `idle_days`, `max_age_days`),
+`events`, `show_content` : « Montrer la commande » dans la notification d'autorisation, faux par défaut ;
+`reply_topic` : canal secret des réponses, tiré par CCS), page Git (`git` : `layout`,
+`fetch_minutes`, `avatars`), archive (`archive` : `enabled`, `idle_days`, `max_age_days`),
 sessions inactives (`sessions.idle_hours`), alerte de contexte lourd
 (`context_alert` : `enabled`, `threshold_tokens`), budgets (`budget` : `enabled`,
 `alert_pcts`). Une valeur invalide (mauvais type,
