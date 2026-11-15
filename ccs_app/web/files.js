@@ -41,16 +41,22 @@ export class FilesPanel {
     if (r.truncated) ul.append(el("li", { class: "subtle" }, "(dossier trop long : liste coupée)"));
   }
 
-  open(relpath) {
+  open(relpath, opts = {}) {
     this.tree.hidden = true;
     const holder = el("div", { class: "file-holder" });
     this.node.append(holder);
-    new FileView(holder, this.api, `${this.root}/${relpath}`, () => { holder.remove(); this.tree.hidden = false; });
+    new FileView(holder, this.api, `${this.root}/${relpath}`, () => { holder.remove(); this.tree.hidden = false; }, opts);
+  }
+
+  // Fichier cité dans le chat : chemin absolu dans le projet ou relatif ; `line` : ligne à montrer.
+  openFile(path, { line = null } = {}) {
+    const rel = path.startsWith(`${this.root}/`) ? path.slice(this.root.length + 1) : path.replace(/^\.?\/+/, "");
+    this.open(rel, { line });
   }
 }
 
 export class FileView {
-  constructor(container, api, path, onBack) {
+  constructor(container, api, path, onBack, opts = {}) {
     this.api = api;
     this.path = path;
     this.stamp = null;

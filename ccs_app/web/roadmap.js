@@ -3,9 +3,11 @@
 import { clear, el } from "./dom.js";
 
 export class RoadmapPanel {
-  constructor(container, api, cwd) {
+  // actions : { send(text) } quand le volet vit dans un chat (sinon {}).
+  constructor(container, api, cwd, actions = {}) {
     this.api = api;
     this.cwd = cwd;
+    this.actions = actions;
     this.node = el("div", { class: "roadmap" });
     container.append(this.node);
     this.load();

@@ -67,3 +67,63 @@ export function ago(ts) {
   const d = Math.floor(s / 86400);
   return d === 1 ? "hier" : `il y a ${d} j`;
 }
+
+// ---- retours à l'utilisateur : toasts, confirmation, chargement, états vides ----------------
+// (à la place d'alert() et de confirm(), illisibles au téléphone)
+
+function toastHost() {
+  let host = document.getElementById("toasts");
+  if (!host) {
+    host = el("div", { id: "toasts", class: "toasts", role: "status", "aria-live": "polite" });
+    document.body.append(host);
+  }
+  return host;
+}
+
+// Message bref en bas de l'écran, effacé seul (4 s, 8 s pour une erreur). `action` :
+// { label, run } ajoute un bouton (« Réessayer », « Annuler »…). Renvoie la fonction qui le ferme.
+export function toast(text, { kind = "info", action = null, timeout = null } = {}) {
+  const node = el("div", { class: `toast ${kind}` }, el("span", { class: "grow" }, text));
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    node.classList.add("leaving");
+    setTimeout(() => node.remove(), 200);
+  };
+  if (action) node.append(el("button", { class: "small flat", onclick: () => { close(); action.run(); } }, action.label));
+  node.append(el("button", { class: "small flat toast-close", "aria-label": "Fermer", onclick: close }, "×"));
+  toastHost().append(node);
+  setTimeout(close, timeout ?? (kind === "error" ? 8000 : 4000));
+  return close;
+}
+
+// Carte de confirmation : promesse vraie si l'on confirme, fausse sinon (Échap, Annuler).
+export function confirmSheet({ title, body = "", confirm = "Confirmer", cancel = "Annuler", danger = false }) {
+  return new Promise((resolve) => {
+    const dlg = el("dialog", { class: "sheet", "aria-label": title });
+    const done = (ok) => { if (dlg.open) dlg.close(); dlg.remove(); resolve(ok); };
+    dlg.append(el("h2", {}, title), body ? el("p", { class: "subtle" }, body) : null,
+      el("div", { class: "sheet-actions" },
+        el("button", { type: "button", onclick: () => done(false) }, cancel),
+        el("button", { type: "button", class: danger ? "danger" : "primary", onclick: () => done(true) }, confirm)));
+    dlg.addEventListener("cancel", (e) => { e.preventDefault(); done(false); });
+    document.body.append(dlg);
+    dlg.showModal();
+  });
+}
+
+export function loading(text = "Chargement…") {
+  return el("div", { class: "state loading", role: "status" }, el("span", { class: "spinner", "aria-hidden": "true" }), text);
+}
+
+// État vide avec, si possible, l'action qui en sort (« Nouveau chat », « Essayer 30 jours »…).
+export function emptyState(text, ...actions) {
+  return el("div", { class: "state empty" }, el("p", {}, text),
+    actions.length ? el("div", { class: "state-actions" }, ...actions) : null);
+}
+
+export function errorState(message, retry = null) {
+  return el("div", { class: "state error", role: "alert" }, el("p", {}, message),
+    retry ? el("button", { class: "small", onclick: retry }, "Réessayer") : null);
+}

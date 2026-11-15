@@ -6,14 +6,15 @@ import { TerminalView } from "./terminal.js";
 
 const base = (p) => (p || "").split("/").filter(Boolean).pop() || p;
 
-export function mountSessions(root, api) {
+export function mountSessions(root, api, ctx = {}) {
   const tabs = new Map();         // chat_id → { tab, view, holder }
   let current = null;
   const search = el("input", { type: "search", placeholder: "Rechercher une conversation", "aria-label": "Rechercher" });
   const list = el("div", { class: "session-list" });
   const tabBar = el("div", { class: "tabs", role: "tablist" });
   const stage = el("div", { class: "stage" });
-  const back = el("button", { class: "flat back", onclick: () => show(null) }, "← Sessions");
+  // « ← Sessions » : comme le bouton Retour du téléphone quand on vient de la liste
+  const back = el("button", { class: "flat back", onclick: () => (history.state?.fromList ? history.back() : show(null)) }, "← Sessions");
   // comme « Nouvelle session… » du bureau : un dossier encore sans conversation (~ accepté)
   const folder = el("input", { type: "text", placeholder: "Dossier, par ex. ~/Repo/projet", "aria-label": "Dossier du projet",
     autocapitalize: "off", autocomplete: "off", spellcheck: "false", enterkeyhint: "go" });
@@ -28,7 +29,11 @@ export function mountSessions(root, api) {
   const layout = el("div", { class: "sessions" }, side, main);
   root.append(layout);
 
-  function show(chatId) {
+  // push : nouvelle entrée d'historique (ouverture depuis la liste), sinon l'adresse est remplacée
+  function show(chatId, { push = false } = {}) {
+    const want = chatId ? `#/sessions/${encodeURIComponent(chatId)}` : "#/sessions";
+    if (location.hash !== want) history[push && !current ? "pushState" : "replaceState"]({ fromList: push && !current }, "", want);
+    document.body.classList.toggle("chat-mode", Boolean(chatId));
     current = chatId;
     for (const [id, t] of tabs) {
       t.holder.hidden = id !== chatId;
@@ -67,7 +72,7 @@ export function mountSessions(root, api) {
       el("span", {}, (isTerm ? "▸ " : "") + (title || base(cwd))), close);
     tabBar.append(tab);
     tabs.set(chatId, { tab, view, holder });
-    show(chatId);
+    show(chatId, { push: true });
   }
 
   async function open(cwd, conv) {
@@ -115,7 +120,8 @@ export function mountSessions(root, api) {
     try {
       for (const t of (await api.call("term.list")).terms || []) addTab(`term-${t.term_id}`, "", "Terminal", null, { termId: t.term_id });
     } catch { /* pas de terminal */ }
-    const keep = sessionStorage.getItem("ccs-chat");
+    const asked = ctx.sub ? decodeURIComponent(ctx.sub) : null;
+    const keep = tabs.has(asked) ? asked : sessionStorage.getItem("ccs-chat");
     show(tabs.has(keep) ? keep : (matchMedia("(max-width: 719px)").matches ? null : [...tabs.keys()][0] || null));
   }
 
@@ -125,5 +131,9 @@ export function mountSessions(root, api) {
   loadList();
   restore();
   const off = api.on("reconnected", loadList);
-  return () => { off(); for (const t of tabs.values()) t.view.destroy(); };
+  return {
+    cleanup: () => { off(); document.body.classList.remove("chat-mode"); for (const t of tabs.values()) t.view.destroy(); },
+    // bouton Retour du téléphone, lien direct : la sous-adresse est l'identifiant du chat
+    route: (sub) => { const id = sub ? decodeURIComponent(sub) : null; show(tabs.has(id) ? id : null); },
+  };
 }

@@ -112,7 +112,7 @@ export class ChatView {
     const body = el("div", { class: "drawer-body" });
     this.drawer.append(body);
     if (kind === "files") new FilesPanel(body, this.api, this.cwd);
-    else new RoadmapPanel(body, this.api, this.cwd);
+    else new RoadmapPanel(body, this.api, this.cwd, { send: (text) => this.sendText(text) });
   }
 
   async call(method, params = {}) {
@@ -143,6 +143,12 @@ export class ChatView {
       thumb.addEventListener("click", () => { this.images.splice(this.images.indexOf(img), 1); thumb.remove(); });
       this.thumbs.append(thumb);
     }
+  }
+
+  // Texte préparé ailleurs (feuille de route, messages enregistrés…) : envoyé comme s'il était tapé.
+  sendText(text) {
+    this.input.value = text;
+    return this.send();
   }
 
   async send() {

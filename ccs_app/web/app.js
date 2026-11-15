@@ -1,10 +1,10 @@
 // Charpente de la version web : connexion, navigation, bandeau de reconnexion, thème.
 import { Api, post, session } from "./api.js";
-import { clear, el } from "./dom.js";
+import { clear, confirmSheet, el } from "./dom.js";
 import { showLogin } from "./login.js";
 import { VIEWS } from "./views.js";
 
-const state = { api: null, user: null, cleanup: null };
+const state = { api: null, user: null, cleanup: null, view: null, route: null, title: "CCS", waiting: 0 };
 
 function banner(text, kind = "info") {
   const b = document.getElementById("banner");
@@ -13,19 +13,57 @@ function banner(text, kind = "info") {
   b.hidden = !text;
 }
 
+// Adresse « #/<page>/<sous-adresse> » : la sous-adresse (un chat ouvert…) va à la page sans la
+// remonter ; ainsi le bouton Retour du téléphone ferme le chat au lieu de quitter CCS.
 function route() {
-  const name = (location.hash.replace(/^#\/?/, "").split("/")[0]) || "accueil";
-  return VIEWS[name] ? name : "accueil";
+  const [name, ...rest] = location.hash.replace(/^#\/?/, "").split("/");
+  return { name: VIEWS[name] ? name : "accueil", sub: rest.join("/") };
+}
+
+function updateTitle() {
+  document.title = (state.waiting ? `(${state.waiting}) ` : "") + state.title;
 }
 
 function render() {
-  const name = route();
-  for (const a of document.querySelectorAll("#nav a")) a.classList.toggle("active", a.dataset.view === name);
+  const { name, sub } = route();
+  if (name === state.view && state.route) { state.route(sub); return; }
+  for (const a of document.querySelectorAll("#nav a")) {
+    a.classList.toggle("active", a.dataset.view === name);
+    if (a.dataset.view === name) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  }
   if (state.cleanup) { try { state.cleanup(); } catch (e) { console.error(e); } }
   const view = clear(document.getElementById("view"));
   view.dataset.view = name;
-  document.title = `${VIEWS[name].title} · CCS`;
-  state.cleanup = VIEWS[name].mount(view, state.api, { user: state.user, banner }) || null;
+  state.view = name;
+  state.title = `${VIEWS[name].title} · CCS`;
+  updateTitle();
+  // mount() renvoie une fonction de nettoyage, ou { cleanup, route(sub) } pour suivre les sous-adresses
+  const out = VIEWS[name].mount(view, state.api, { user: state.user, banner, sub }) || null;
+  state.cleanup = typeof out === "function" ? out : out?.cleanup || null;
+  state.route = out && typeof out === "object" ? out.route || null : null;
+}
+
+// Pastille sur « Sessions » : chats qui attendent ta réponse (autorisation, question), sur
+// tous les appareils ; rafraîchie à chaque événement de chat et toutes les 20 s.
+async function refreshWaiting() {
+  if (!state.api) return;
+  let r;
+  try { r = await state.api.call("chat.list"); } catch { return; }
+  state.waiting = (r.chats || []).filter((c) => c.state === "permission").length;
+  const link = document.querySelector('#nav a[data-view="sessions"]');
+  if (link) {
+    let badge = link.querySelector(".nav-badge");
+    if (!badge) { badge = el("span", { class: "nav-badge" }); link.append(badge); }
+    badge.textContent = String(state.waiting);
+    badge.hidden = !state.waiting;
+    badge.setAttribute("aria-label", `${state.waiting} chat(s) attendent ta réponse`);
+  }
+  updateTitle();
+}
+let waitingTimer = null;
+function soonRefreshWaiting() {
+  clearTimeout(waitingTimer);
+  waitingTimer = setTimeout(refreshWaiting, 400);
 }
 
 function buildNav() {
@@ -45,14 +83,22 @@ function start(user) {
   state.api.on("online", () => banner(""));
   state.api.on("logged-out", () => { state.api.close(); showLogin(start); });
   state.api.on("notice", (d) => banner(d.text, "info"));
+  state.api.on("chat.event", soonRefreshWaiting);
+  state.api.on("reconnected", soonRefreshWaiting);
   state.api.connect();
   buildNav();
   render();
+  refreshWaiting();
 }
+
+setInterval(() => { if (!document.hidden) refreshWaiting(); }, 20000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshWaiting(); });
 
 window.addEventListener("hashchange", () => { if (state.api) render(); });
 
 document.getElementById("logout").addEventListener("click", async () => {
+  if (!await confirmSheet({ title: "Se déconnecter ?", body: "Les chats continuent sur le serveur.",
+    confirm: "Se déconnecter" })) return;
   await post("/api/logout");
   state.api?.close();
   state.api = null;
