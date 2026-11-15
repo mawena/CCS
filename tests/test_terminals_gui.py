@@ -471,6 +471,27 @@ class RealChatTabTest(HomeTestCase):
         self.page.notifier = lambda alert: None
         self.page.phoner = lambda *a, **k: None
 
+    def test_remote_chat_tab_not_saved(self):
+        from ccs_app.remote import engine as remote_engine, servers
+
+        class FakeConn:
+            label, state, listeners = "vps", "online", set()
+
+            def call(self, *a, **k):
+                pass
+        local = self.page.open_chat(self.cwd, None, "Local", None, (), present=False)
+        server = servers.Server("vps", "https://ccs.example", "alice", "T")
+        with mock.patch.object(remote_engine, "connection", return_value=FakeConn()):
+            tab = self.page.open_remote_chat(server, "/srv/distant", title="Distant", present=False)
+        self.assertEqual(tab.remote, "vps")
+        self.assertEqual(tab.display_title(), "Distant · vps")
+        self.assertIsInstance(tab.engine, remote_engine.RemoteChatEngine)
+        records, _sel = self.page.records()
+        self.assertEqual(len(records), 1)                  # seul l'onglet local sera rouvert
+        self.assertIn(tab.remote_state, FakeConn.listeners)
+        for t in (local, tab):
+            t._closed = True
+
     def test_real_chat_in_workspace_without_process(self):
         from ccs_app.gui.chat_tab import ChatTab
         tab = self.page.open_claude(self.cwd, None, "Export", ("--model", "opus"))

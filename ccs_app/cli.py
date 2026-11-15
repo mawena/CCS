@@ -255,6 +255,55 @@ def cmd_tui(args):
     return 0
 
 
+def cmd_shell_distant(args):
+    """Relais entre ce terminal et un shell d'un serveur CCS (onglet « Terminal » distant)."""
+    import asyncio
+    import signal
+    import termios
+    import tty
+    from .remote import client, servers, shell
+    server = servers.get(args.serveur)
+    if server is None:
+        print(f"Serveur inconnu : {args.serveur}", file=sys.stderr)
+        return 1
+
+    def size():
+        try:
+            s = os.get_terminal_size(sys.stdout.fileno())
+            return s.columns, s.lines
+        except OSError:
+            return 80, 24
+
+    async def main():
+        c = client.BridgeClient(client.WebTransport(server), retry_delays=())
+        await c.connect()
+        loop = asyncio.get_running_loop()
+        reader = asyncio.StreamReader()
+        await loop.connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin)
+        resized = asyncio.Event()
+        loop.add_signal_handler(signal.SIGWINCH, resized.set)
+
+        def write(data):
+            sys.stdout.buffer.write(data)
+            sys.stdout.buffer.flush()
+        try:
+            return await shell.relay(c, args.cwd, reader, write, size, resized)
+        finally:
+            await c.close()
+
+    saved = termios.tcgetattr(sys.stdin) if sys.stdin.isatty() else None
+    try:
+        if saved is not None:
+            tty.setraw(sys.stdin)
+        return asyncio.run(main())
+    except (client.AuthError, ConnectionError, OSError) as e:
+        print(f"\r\nServeur {server.name} : {e}\r", file=sys.stderr)
+        return 1
+    finally:
+        if saved is not None:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, saved)
+
+
 def cmd_totp(args):
     """Réinitialise le code de double authentification d'un utilisateur (root)."""
     from .server import totp
@@ -1038,6 +1087,10 @@ def build_parser():
     sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
     sub.add_parser("auth-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_auth_serve)
     sub.add_parser("web-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_web_serve)
+    sd = sub.add_parser("shell-distant", help=argparse.SUPPRESS)
+    sd.add_argument("serveur")
+    sd.add_argument("cwd")
+    sd.set_defaults(func=cmd_shell_distant)
     tu = sub.add_parser("tui", help="CCS en plein écran dans le terminal")
     tu.add_argument("--serveur", help="nom ou adresse d'un serveur appairé (sinon : cette machine)")
     tu.set_defaults(func=cmd_tui)

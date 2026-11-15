@@ -464,7 +464,7 @@ main() {
     tui) exec "$CA" tui "$@" ;;
     serveur|server) exec "$CA" serveur "$@" ;;
     totp) exec "$CA" totp "$@" ;;
-    bridge|web-serve|auth-serve) exec "$CA" "$cmd" "$@" ;;
+    bridge|web-serve|auth-serve|shell-distant) exec "$CA" "$cmd" "$@" ;;
     projet) exec "$CA" projet "$@" ;;
     raccourcis|shortcuts) exec "$CA" raccourcis "$@" ;;
     orch|orchestrateur) exec "$CA" orch "$@" ;;

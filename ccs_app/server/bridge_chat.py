@@ -49,7 +49,7 @@ class ChatHub:
             "chat.open": self.open, "chat.list": self.list, "chat.attach": self.attach,
             "chat.send": self.send, "chat.answer": self.answer, "chat.questions": self.questions,
             "chat.interrupt": self.interrupt, "chat.options": self.options,
-            "chat.close": self.close, "chat.render": self.render,
+            "chat.close": self.close, "chat.render": self.render, "chat.context": self.context,
         })
 
     # ---- état ------------------------------------------------------------------------
@@ -152,6 +152,10 @@ class ChatHub:
     async def options(self, _conn, params):
         chat = self._get(params)
         await asyncio.to_thread(chat.engine.set_options, _options(params.get("options")))
+        return {}
+
+    async def context(self, _conn, params):
+        await asyncio.to_thread(self._get(params).engine.request_context)
         return {}
 
     async def close(self, _conn, params):
