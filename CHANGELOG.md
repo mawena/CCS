@@ -3,6 +3,33 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.15.0] — 2026-11-16
+
+### Ajouté
+
+- **Compactage automatique des chats** : réglage « Compacter automatiquement », désactivé par
+  défaut, sous l'alerte de contexte lourd (bureau et version web). Quand Claude a fini un tour
+  et que le contexte dépasse le seuil du contexte lourd, CCS envoie `/compact` lui-même et
+  l'écrit dans le fil (« Compactage automatique : contexte de N jetons »), à la place de
+  l'alerte et de son bouton.
+  - **Seulement entre deux tours** : jamais pendant que Claude travaille, ni quand une demande
+    d'autorisation attend.
+  - **Chats d'un serveur** (web, téléphone, chat distant du bureau) : le serveur compacte, avec
+    son réglage, même sans appareil ouvert. **Chats locaux du bureau** : l'application compacte.
+  - **Jamais deux fois de suite** : si le contexte reste au-dessus du seuil après le
+    compactage, CCS le dit une fois et attend qu'il repasse dessous ; si le compactage
+    n'aboutit pas (limite d'usage, arrêt), il réessaie après le prochain tour réussi.
+
+### Modifié
+
+- **Jauge du contexte** : elle se met à jour juste après `/compact` ou `/clear`, au bureau et
+  dans la version web (avant, seulement à la fin du tour suivant).
+
+### Corrigé
+
+- **Bureau** : la note « Conversation compactée » ne s'affichait pas quand Claude Code ne
+  donnait pas le nombre de jetons d'avant le compactage.
+
 ## [0.14.1] — 2026-11-16
 
 ### Corrigé

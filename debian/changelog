@@ -1,3 +1,12 @@
+ccs (0.15.0) unstable; urgency=medium
+
+  * Compactage automatique des chats (réglage désactivé par défaut) : au-delà
+    du seuil du contexte lourd, /compact part tout seul entre deux tours, au
+    bureau comme sur le serveur, avec une note dans le fil.
+  * Jauge du contexte à jour juste après /compact ou /clear.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 16 Nov 2026 05:00:00 +0000
+
 ccs (0.14.1) unstable; urgency=medium
 
   * Bureau : un chat du serveur suivi sans y écrire se met à jour en direct.
