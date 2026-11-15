@@ -258,9 +258,26 @@ Documentation et release :
 - [x] Fil borné dans les longues sessions (élagage + « Afficher » depuis le journal), cycles de widgets cassés, mémoire rendue au système
 - [x] Essai réel par Charles, puis release correctif 0.10.2 (`.deb`, release GitHub, dépôt APT)
 
-## Phase 13 — Travailler sans quitter CCS (0.11.0)
+## Phase 13 — CCS sur le VPS : serveur, web, terminal, bureau connecté (0.11.0)
 
-Toutes les propositions retenues le 14/11, conception validée le 15/11.
+Demandée le 15/11, prioritaire. Piloter CCS depuis Internet (`https://ccs.mawena.cloud`,
+surtout depuis le téléphone), depuis un terminal sur le VPS, et depuis l'application GTK du
+bureau. Conception à faire.
+
+- [ ] **Serveur CCS** : service `ccs-web` installé par le paquet, qui écoute `127.0.0.1:8420` ; il fait tourner les chats sans interface (moteur de chat actuel) et expose une API HTTP + WebSocket (aiohttp, paquet Ubuntu) pour les projets, sessions, chats, autorisations, fichiers, feuille de route et git
+- [ ] **Comptes et connexion** : `ccs utilisateur ajouter <nom>` (mot de passe haché), page de connexion, cookie de session sécurisé, jeton pour le bureau et le terminal, essais limités ; double authentification (code TOTP) recommandée, car une session ouverte fait lancer des commandes sur le VPS
+- [ ] **Version web** : mêmes écrans que le bureau (Accueil, Sessions et chat, Fichiers / Feuille de route / Git, Analyse, Réglages), responsive (une colonne et panneaux en tiroirs sur le téléphone), installable sur l'écran d'accueil du téléphone
+- [ ] **Version terminal** : `ccs tui` plein écran (urwid, paquet Ubuntu) : projets, sessions, chat, autorisations, feuille de route ; en local sur le VPS (par SSH) ou contre un serveur distant
+- [ ] **Bureau connecté au VPS** : Réglages → Serveurs (adresse et identifiants) ; les projets du VPS apparaissent dans Sessions avec le nom du serveur, et le chat, les fichiers, la feuille de route et git se pilotent à distance depuis l'interface GTK
+- [ ] **Paquet pour serveur** : `apt install ccs` sur un VPS sans bureau installe et démarre le service web (interface GTK séparée ou en dépendance recommandée)
+- [ ] **Mise en ligne** (VPS relevé le 15/11 : Ubuntu 24.04, nginx + certbot déjà en place, port 8420 libre) : enregistrement DNS `A ccs → 84.46.246.202` chez Hostinger (DNS `dns-parking.com`), site créé par lnmp (le gestionnaire d'hôtes de Charles : `sudo lnmp add --id ccs --domain mawena.cloud --sub ccs --proxy 8420`, qui écrit le proxy avec WebSocket, puis le certificat Let's Encrypt par `lnmp add-ssl`) ; guide dans le README et contrôle par `ccs doctor`
+- [ ] **Le paquet installe Claude Code** (demandé le 15/11) : à l'installation du `.deb` (bureau comme VPS), s'il manque, l'installeur officiel (`curl -fsSL https://claude.ai/install.sh | bash`) est lancé pour l'utilisateur qui installe (`SUDO_USER` ou `PKEXEC_UID`), jamais en root ; sans réseau, l'installation du paquet n'échoue pas et CCS le reprend à son premier démarrage (service web compris) ; la connexion des comptes reste guidée par `ccs doctor` (le VPS n'a pas de navigateur : lien à ouvrir ailleurs)
+- [ ] Documentation (README, guide, architecture, man, CHANGELOG, site)
+- [ ] Release mineure 0.11.0, `.deb`, release GitHub et dépôt APT, installation sur le VPS
+
+## Phase 14 — Travailler sans quitter CCS (0.12.0)
+
+Toutes les propositions retenues le 14/11, conception validée le 15/11. Passée en phase 14 le 15/11 : la partie VPS est prioritaire. Travail sur la branche `feature/phase14`.
 Conception : `docs/superpowers/specs/2026-11-15-phase-13-design.md`.
 Plan détaillé (tests et interfaces de chaque tâche) : `docs/superpowers/plans/2026-11-15-phase-13.md`.
 
@@ -302,4 +319,4 @@ CCS sur le VPS (demandé le 15/11, propositions à choisir, conception à faire)
 Fin de phase :
 - [ ] 18. Documentation (README, guide, architecture, man, CHANGELOG, site)
 - [ ] 19. Essai réel par Charles et corrections
-- [ ] 20. Release mineure 0.11.0, `.deb`, release GitHub et dépôt APT
+- [ ] 20. Release mineure 0.12.0, `.deb`, release GitHub et dépôt APT
