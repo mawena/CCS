@@ -1,0 +1,120 @@
+/* Accueil, Analyse, Réglages et Git (lot « pages » de la phase 14). */
+
+/* ---- thème choisi dans Réglages (gardé dans le navigateur) : prime sur le réglage du système ---- */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #fafafb; --fg: #1e1e22; --card: #ffffff; --line: rgba(0, 0, 0, 0.09); --soft: rgba(0, 0, 0, 0.04);
+  --subtle: rgba(30, 30, 34, 0.62); --shadow: 0 0 0 1px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.10);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #222226; --fg: #f2f2f5; --card: #2e2e33; --line: rgba(255, 255, 255, 0.10); --soft: rgba(255, 255, 255, 0.05);
+  --subtle: rgba(242, 242, 245, 0.62); --shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* ---- communs ---- */
+.page-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.page-head h2 { margin: 0; flex: 1; }
+.section { display: grid; gap: 10px; }
+.section > h2 { margin: 0; }
+.seg { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.seg button { white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.ok-text { color: var(--success); }
+.warn-text { color: var(--warning); }
+.err-text { color: var(--error); }
+.form-error { color: var(--error); margin: 0; min-height: 1.2em; font-size: 0.92em; }
+.field { display: grid; gap: 4px; }
+.field .hint { font-weight: 400; color: var(--subtle); font-size: 0.9em; }
+.stack { display: grid; gap: 10px; }
+dialog.sheet.wide { width: min(640px, calc(100vw - 16px)); max-height: calc(100dvh - 24px); overflow-y: auto; }
+pre.log { max-height: 50dvh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+
+/* ---- squelette de chargement ---- */
+.skeleton { border-radius: var(--radius); min-height: 150px; background: linear-gradient(90deg, var(--soft), var(--line), var(--soft));
+  background-size: 200% 100%; animation: skeleton 1.2s ease-in-out infinite; }
+.skeleton.line { min-height: 44px; }
+@keyframes skeleton { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* ---- cartes de compte ---- */
+.plan { background: var(--soft); color: var(--fg); text-transform: uppercase; }
+.gauge-track[role="progressbar"] { position: relative; }
+.account-status { margin: 0; font-size: 0.95em; }
+.account-status.error { color: var(--error); }
+.account-status.warning { color: var(--warning); }
+.account-status.success { color: var(--success); }
+details.details > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; color: var(--subtle); }
+details.details > div { display: grid; gap: 8px; padding-bottom: 6px; }
+.account-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.account-actions button { flex: 1; }
+
+/* ---- bilan de santé ---- */
+.health-check { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid var(--line); }
+.health-check:first-of-type { border-top: 0; }
+.health-check-head { display: flex; gap: 8px; align-items: baseline; }
+.health-check-cmd { display: flex; gap: 8px; align-items: center; }
+.health-check-cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; background: var(--soft); padding: 8px 10px; border-radius: 8px; }
+
+/* ---- tâches ---- */
+.task { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; font-weight: 400; min-height: 56px;
+  padding: 8px 10px; border-radius: 10px; background: transparent; }
+.task:hover { background: var(--soft); }
+.task .grow strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill { padding: 2px 10px; border-radius: 99px; font-size: 0.8em; font-weight: 700; background: var(--soft); white-space: nowrap; }
+.pill.running { background: var(--accent); color: #fff; }
+.pill.done { background: var(--success); color: #fff; }
+.pill.failed { background: var(--error); color: #fff; }
+.pill.waiting { background: var(--warning); color: #1e1e22; }
+
+/* ---- réglages ---- */
+.settings-group { display: grid; gap: 4px; }
+.settings-group > h2 { margin: 0 0 4px; }
+.qr-box { display: grid; justify-items: center; gap: 8px; padding: 8px 0; }
+.qr-box img { width: 220px; height: 220px; background: #fff; border-radius: 12px; padding: 8px; }
+.qr-box code { overflow-wrap: anywhere; text-align: center; }
+.inline-save { display: flex; gap: 8px; align-items: end; }
+.inline-save > .field { flex: 1; min-width: 0; }
+
+/* ---- analyse ---- */
+.analysis-empty .state-actions button { min-width: 160px; }
+
+/* ---- git ---- */
+.git { display: grid; gap: 10px; align-content: start; min-width: 0; padding: 10px; }
+.git-error { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--error); color: #fff; }
+.git-error span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.git-error button { color: inherit; }
+.git-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.git-head .branch { font-weight: 800; font-family: var(--mono); overflow-wrap: anywhere; }
+.git-sync { display: flex; gap: 6px; flex-wrap: wrap; }
+.git-tabs { display: flex; gap: 6px; }
+.git-tabs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.git-group > h3 { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtle); margin: 6px 0; }
+.git-file { display: flex; align-items: center; gap: 6px; min-height: 44px; }
+.git-file .name { flex: 1; min-width: 0; text-align: left; justify-content: flex-start; background: transparent; font-weight: 400;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; line-height: 44px; }
+.git-file .mark { font-family: var(--mono); font-weight: 800; width: 1.4em; text-align: center; }
+.mark.M, .mark.T { color: var(--warning); }
+.mark.A, .mark.u { color: var(--success); }
+.mark.D { color: var(--error); }
+.mark.R, .mark.C { color: var(--accent); }
+.mark.q { color: var(--subtle); }
+.diff { font-family: var(--mono); font-size: 0.82em; overflow-x: auto; border-radius: 10px; background: var(--soft); }
+.diff-line { display: grid; grid-template-columns: 3.2em 3.2em 1.2em 1fr; white-space: pre; min-width: max-content; }
+.diff-line > span:nth-child(-n+2) { color: var(--subtle); text-align: right; padding-right: 6px; user-select: none; }
+.diff-line.add { background: color-mix(in srgb, var(--success) 22%, transparent); }
+.diff-line.del { background: color-mix(in srgb, var(--error) 22%, transparent); }
+.diff-hunk { display: flex; align-items: center; gap: 8px; padding: 2px 8px; background: color-mix(in srgb, var(--accent) 16%, transparent); position: sticky; left: 0; }
+.diff-hunk code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.git-commit textarea { min-height: 88px; resize: vertical; }
+.git-commits .commit { display: grid; gap: 0; padding: 8px 0; border-top: 1px solid var(--line); }
+.git-commits .commit strong { overflow-wrap: anywhere; }
+
+@media (min-width: 720px) {
+  .git-cols { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.4fr); gap: 12px; align-items: start; }
+}
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.settings-wrap { display: grid; gap: 14px; max-width: 680px; width: 100%; margin: 0 auto; min-width: 0; }
+.theme-choice { display: flex; gap: 6px; }
+.theme-choice button { flex: 1; }
+.theme-choice button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+.form-error:empty { display: none; }

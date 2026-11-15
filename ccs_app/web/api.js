@@ -53,7 +53,11 @@ export class Api {
       this.everOpen = true;
       this.emit("online");
       if (again) this.emit("reconnected");
-      for (const msg of this.queue.splice(0)) ws.send(msg);
+      for (const { id, msg } of this.queue.splice(0)) {
+        const p = this.pending.get(id);
+        if (p) p.sent = true;
+        ws.send(msg);
+      }
     };
     ws.onmessage = (e) => {
       let msg;
@@ -66,8 +70,13 @@ export class Api {
       else p.resolve(msg.result || {});
     };
     ws.onclose = () => {
-      for (const p of this.pending.values()) p.reject(Object.assign(new Error("Connexion perdue."), { code: "hors_ligne" }));
-      this.pending.clear();
+      // Seuls les appels vraiment envoyés sont rejetés (leur sort est inconnu) ; ceux qui attendent
+      // encore dans la file partiront à la reconnexion : les rejeter ferait un doublon au « Réessayer ».
+      for (const [id, p] of [...this.pending]) {
+        if (!p.sent) continue;
+        this.pending.delete(id);
+        p.reject(Object.assign(new Error("Connexion perdue."), { code: "hors_ligne" }));
+      }
       if (this.stopped) return;
       this.emit("offline");
       this.reconnect();
@@ -87,9 +96,10 @@ export class Api {
     return new Promise((resolve, reject) => {
       const id = this.nextId++;
       const msg = JSON.stringify({ id, method, params });
-      this.pending.set(id, { resolve, reject });
-      if (this.online) this.ws.send(msg);
-      else if (this.queue.length < 100) this.queue.push(msg);
+      const online = this.online;
+      this.pending.set(id, { resolve, reject, sent: online });
+      if (online) this.ws.send(msg);
+      else if (this.queue.length < 100) this.queue.push({ id, msg });
       else { this.pending.delete(id); reject(new Error("Trop de demandes en attente.")); }
     });
   }

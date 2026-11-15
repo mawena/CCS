@@ -4,6 +4,7 @@ Chaque terminal est un shell de connexion de l'utilisateur dans un pseudo-termin
 -c` lui donne son terminal de contrôle, comme un vrai terminal). La sortie part en événements
 `term.output` (texte UTF-8, morceaux d'au plus 64 Kio) aux appareils attachés ; les 64 derniers
 Kio sont gardés pour celui qui se rattache. Un terminal sans appareil depuis 12 h est fermé.
+Identifiants `t<boot>-<n>` : `boot` est tiré au hasard à chaque démarrage du pont.
 """
 
 import asyncio
@@ -13,6 +14,7 @@ import itertools
 import os
 import pwd
 import re
+import secrets
 import signal
 import struct
 import subprocess
@@ -21,6 +23,7 @@ import time
 
 from .. import core
 from . import rpc
+from .bridge_data import safe_path
 
 CHUNK = 64 * 1024
 KEEP = 64 * 1024
@@ -38,7 +41,9 @@ def command_argv(command, name):
 
 
 class _Term:
-    def __init__(self, term_id, proc, master):
+    def __init__(self, term_id, proc, master, cwd="", name="Terminal"):
+        self.cwd = cwd
+        self.name = name
         self.term_id = term_id
         self.proc = proc
         self.master = master
@@ -55,6 +60,7 @@ class TermHub:
         self.shell = shell
         self.clock = clock
         self.terms = {}
+        self.boot = secrets.token_hex(3)
         self._ids = itertools.count(1)
         bridge.close_hooks.append(self._forget)
         bridge.tick_hooks.append(self.sweep)
@@ -96,6 +102,7 @@ class TermHub:
             cwd = os.path.normpath(os.path.expanduser(cwd))
         if not isinstance(cwd, str) or not os.path.isdir(cwd):
             raise rpc.RpcError("invalide", "Dossier introuvable.")
+        safe_path(cwd)                       # dossier personnel ou dossiers de sites seulement
         if params.get("command") is not None:
             argv = command_argv(params.get("command"), params.get("name"))
         else:
@@ -112,7 +119,8 @@ class TermHub:
         finally:
             os.close(slave)
         os.set_blocking(master, False)
-        term = _Term(f"t{next(self._ids)}", proc, master)
+        name = params.get("name") if params.get("command") is not None else os.path.basename(cwd.rstrip("/"))
+        term = _Term(f"t{self.boot}-{next(self._ids)}", proc, master, cwd, name or "Terminal")
         term.conns.add(conn)
         self.terms[term.term_id] = term
         asyncio.get_running_loop().add_reader(master, self._readable, term)
@@ -181,7 +189,7 @@ class TermHub:
         return {"output": term.recent}
 
     async def list(self, _conn, _params):
-        return {"terms": [{"term_id": t.term_id} for t in self.terms.values() if not t.closed]}
+        return {"terms": [{"term_id": t.term_id, "cwd": t.cwd, "name": t.name} for t in self.terms.values() if not t.closed]}
 
     async def close(self, _conn, params):
         await self._kill(self._get(params))

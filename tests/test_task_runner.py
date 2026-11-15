@@ -215,6 +215,26 @@ class RunTest(RunnerCase):
         self.assertTrue(res.total)
         self.assertGreater(res.cost, 0.5)
 
+    def test_queue_result_roadmap_unchecked(self):
+        (self.work / "ROADMAP.md").write_text("# P\n\n## Phase 1 — A\n- [ ] ma tâche\n- [ ] autre\n")
+        info = {"path": str(self.work / "ROADMAP.md"), "text": "ma tâche", "phase": "Phase 1 — A"}
+        t = self.new(extra={"roadmap": info})
+        res = self.run_task(t)
+        self.assertTrue(res.ok)
+        self.assertTrue(res.roadmap_unchecked)
+        tasks.update(t.id, state="running")
+        alert = tasks._apply_result(tasks.get(t.id), res, NOW, tasks.config())
+        self.assertIn("— case de la feuille de route non cochée", alert.body)
+        self.assertIn("non cochée", tasks.summary(tasks.get(t.id)))
+
+    def test_queue_result_roadmap_checked(self):
+        (self.work / "ROADMAP.md").write_text("# P\n\n## Phase 1 — A\n- [x] ma tâche\n")
+        info = {"path": str(self.work / "ROADMAP.md"), "text": "ma tâche", "phase": "Phase 1 — A"}
+        res = self.run_task(self.new(extra={"roadmap": info}))
+        self.assertFalse(res.roadmap_unchecked)
+        res = self.run_task(self.new())          # tâche ordinaire
+        self.assertFalse(res.roadmap_unchecked)
+
 
 class ReadableTest(unittest.TestCase):
     def test_lines(self):

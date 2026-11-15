@@ -113,8 +113,46 @@ class StaticTest(unittest.TestCase):
         """Comme « Nouvelle session… » du bureau : un dossier encore sans conversation s'ouvre aussi
         (chat ou terminal) ; l'onglet prend le chemin réel renvoyé par le pont (~ développé)."""
         sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
-        self.assertIn('"aria-label": "Dossier du projet"', sessions)
+        self.assertIn('"aria-label": "Dossier de la session"',            # feuille « Nouvelle session »
+                      (WEB / "sessions-new.js").read_text(encoding="utf-8"))
         self.assertIn("r.cwd", sessions)
+
+    def test_feedback_helpers_replace_alert_and_confirm(self):
+        """Socle de la phase 14 au web : toasts, carte de confirmation, chargement, états vides."""
+        dom = (WEB / "dom.js").read_text(encoding="utf-8")
+        for name in ("toast", "confirmSheet", "loading", "emptyState", "errorState"):
+            self.assertIn(f"export function {name}(", dom)
+
+    def test_one_stylesheet_per_area(self):
+        html = (WEB / "index.html").read_text(encoding="utf-8")
+        for css in ("style.css", "chat.css", "sessions.css", "pages.css"):
+            self.assertTrue((WEB / css).is_file(), css)
+            self.assertIn(f'href="/{css}"', html)
+
+    def test_service_worker_caches_every_module(self):
+        """Hors ligne, la charpente s'ouvre avec toutes ses pages (pas seulement l'accueil)."""
+        sw = (WEB / "sw.js").read_text(encoding="utf-8")
+        for p in sorted(WEB.glob("*.js")) + sorted(WEB.glob("*.css")):
+            if p.name != "sw.js":
+                self.assertIn(f'"/{p.name}"', sw, p.name)
+
+    def test_sub_routes_and_waiting_badge(self):
+        """#/sessions/<chat> : le bouton Retour du téléphone ferme le chat ; pastille « attend ta réponse »."""
+        app = (WEB / "app.js").read_text(encoding="utf-8")
+        self.assertIn("state.route(sub)", app)
+        self.assertIn('c.state === "permission"', app)
+        self.assertIn('aria-current", "page"', app)
+        sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
+        self.assertIn("route: (sub)", sessions)
+        self.assertIn('"chat-mode"', sessions)
+
+    def test_hooks_between_areas(self):
+        """Points d'accroche entre lots : Git dans le chat, fichier cité, envoi depuis la feuille de route."""
+        self.assertIn("export class GitPanel", (WEB / "git.js").read_text(encoding="utf-8"))
+        self.assertIn("openFile(path, { line = null } = {})", (WEB / "files.js").read_text(encoding="utf-8"))
+        chat = (WEB / "chat.js").read_text(encoding="utf-8")
+        self.assertIn("sendText(text)", chat)
+        self.assertIn("send: (text) => this.sendText(text)", chat)
 
     def test_settings_page_lists_devices(self):
         text = (WEB / "settings.js").read_text(encoding="utf-8")

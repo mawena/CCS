@@ -527,6 +527,336 @@ class ChatTabTest(HomeTestCase):
         self.assertEqual(tab.state.title, "Autre titre")
         tab.hang_up()
 
+    ROADMAP = "# P\n\n## Phase 1 — A\n- [ ] ma tâche\n- [ ] autre\n"
+
+    def roadmap_file(self, checked=False):
+        path = self.cwd / "ROADMAP.md"
+        path.write_text(self.ROADMAP.replace("- [ ] ma", "- [x] ma") if checked else self.ROADMAP)
+        return path
+
+    def let_claude_finish(self, tab):
+        """Le scénario demande une autorisation : on l'accorde, le tour se termine."""
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        next(iter(tab.messages._perms.values())).allow.emit("clicked")
+        self.assertTrue(pump_until(lambda: tab._turn_done and tab.engine.state == "idle"))
+
+    def test_do_task_banner_when_unchecked(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        path = self.roadmap_file()
+        self.assertTrue(tab.do_roadmap_task(str(path), "ma tâche", "Phase 1 — A"))
+        self.assertTrue(any("Fais la tâche « ma tâche » (phase « Phase 1 — A »)" in t for t in texts(tab)))
+        self.let_claude_finish(tab)
+        self.assertTrue(pump_until(lambda: tab.task_banner.get_visible()))
+        tab.task_check.emit("clicked")
+        self.assertTrue(pump_until(lambda: "- [x] ma tâche" in path.read_text()))
+        self.assertIn("- [ ] autre", path.read_text())          # la bonne case seulement
+        self.assertFalse(tab.task_banner.get_visible())
+
+    def test_do_task_not_yet_hides_banner(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        path = self.roadmap_file()
+        tab.do_roadmap_task(str(path), "ma tâche", "Phase 1 — A")
+        self.let_claude_finish(tab)
+        self.assertTrue(pump_until(lambda: tab.task_banner.get_visible()))
+        tab.task_later.emit("clicked")
+        self.assertFalse(tab.task_banner.get_visible())
+        self.assertIn("- [ ] ma tâche", path.read_text())
+
+    def test_no_banner_when_claude_checked(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        path = self.roadmap_file()
+        self.assertTrue(tab.do_roadmap_task(str(path), "ma tâche", "Phase 1 — A"))
+        self.roadmap_file(checked=True)                          # Claude a coché pendant le tour
+        self.let_claude_finish(tab)
+        pump_until(lambda: False, 0.6)
+        self.assertFalse(tab.task_banner.get_visible())
+
+    def test_do_task_unknown_task_refused(self):
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        path = self.roadmap_file()
+        self.assertFalse(tab.do_roadmap_task(str(path), "inconnue", "Phase 1 — A"))
+
+    def test_rewind_from_bubble_menu(self):
+        from unittest import mock
+        from ccs_app import sessions
+        from ccs_app.gui.chat_messages import open_rewind_menu
+        tab, _owner = self.make(session_id="sess-rw", spawn=False)
+        win = Gtk.Window()
+        win.set_child(tab)
+        win.present()
+        self.addCleanup(win.destroy)
+        target = self.cwd / "a.txt"
+        target.write_text("après\n")
+        copies = Path(self.home) / ".claude" / "file-history" / "sess-rw"
+        copies.mkdir(parents=True)
+        (copies / "h@v1").write_bytes(b"avant\n")
+        journal = sessions.transcript_path(str(self.cwd), "sess-rw")
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text("\n".join([
+            json.dumps({"type": "user", "uuid": "u1", "message": {"role": "user", "content": "premier"}}),
+            json.dumps({"type": "user", "uuid": "u2", "message": {"role": "user", "content": "second"}}),
+            json.dumps({"type": "file-history-snapshot", "messageId": "u2", "isSnapshotUpdate": False,
+                        "snapshot": {"messageId": "u2", "timestamp": "t", "trackedFileBackups": {
+                            str(target): {"backupFileName": "h@v1", "version": 1, "backupTime": "t"}}}}),
+        ]) + "\n")
+        tab.messages.add_user("premier")
+        row = tab.messages.add_user("second")
+        self.assertEqual(tab.messages.user_index_from_end(row), 0)
+        asked = []
+        with mock.patch.object(tab, "_confirm_rewind", lambda plan, yes: asked.append((plan, yes))):
+            open_rewind_menu(row, tab.rewind_from_bubble)
+            row.rewind_button.emit("clicked")
+            self.assertTrue(pump_until(lambda: asked))
+        plan, yes = asked[0]
+        self.assertEqual([(s.path, s.content) for s in plan], [(str(target), b"avant\n")])
+        self.assertEqual(target.read_text(), "après\n")        # rien avant l'accord
+        yes()
+        self.assertTrue(pump_until(lambda: target.read_text() == "avant\n"))
+
+    def test_rewind_to_message_without_snapshot_explains(self):
+        from unittest import mock
+        from ccs_app import sessions
+        tab, _owner = self.make(session_id="sess-rw0", spawn=False)
+        journal = sessions.transcript_path(str(self.cwd), "sess-rw0")
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text(json.dumps({"type": "file-history-snapshot", "messageId": "u2",
+                                       "isSnapshotUpdate": False, "snapshot": {
+                                           "messageId": "u2", "timestamp": "t",
+                                           "trackedFileBackups": {}}}) + "\n")
+        notices = []
+        with mock.patch.object(tab, "show_notice", notices.append):
+            tab.rewind_to("u1")                                  # u1 : aucun instantané
+            self.assertTrue(pump_until(lambda: notices))
+        self.assertIn("instantané", notices[0])
+
+    def test_ctrl_f_opens_search_bar_and_finds(self):
+        tab, _owner = self.make(spawn=False)
+        tab.messages.add_user("Salut Éléphant", ())
+        tab.messages.add_user("un autre éléphant", ())
+        self.assertFalse(tab.search_bar.get_search_mode())
+        tab.open_find()
+        self.assertTrue(tab.search_bar.get_search_mode())
+        tab.search_entry.set_text("elephant")
+        self.assertTrue(pump_until(lambda: tab.messages.find_count() == 2))
+        self.assertEqual(tab.find_label.get_label(), "1 / 2")
+        tab.find_step(1)
+        self.assertEqual(tab.find_label.get_label(), "2 / 2")
+        tab.search_bar.set_search_mode(False)
+        self.assertEqual(tab.messages.find_count(), 0)
+
+    def test_find_after_trim_reloads(self):
+        journal = Path(self.tmp) / "conv.jsonl"
+        lines = [{"type": "user", "message": {"role": "user", "content": "question retirée"}},
+                 {"type": "assistant", "message": {"id": "m1", "role": "assistant",
+                                                   "content": [{"type": "text", "text": "réponse retirée"}]}}]
+        journal.write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+        tab, _owner = self.make(session_id="sess-9", history_path=str(journal), spawn=False)
+        self.assertTrue(pump_until(lambda: "réponse retirée" in texts(tab)))
+        tab.messages.reset()
+        tab.messages.add_user("récente", ())
+        tab.messages._dropped = 4                                 # comme après un élagage
+        tab.open_find()
+        tab.search_entry.set_text("REPONSE retiree")
+        self.assertTrue(pump_until(lambda: tab.messages.find_count() == 1))
+        self.assertEqual(tab.find_label.get_label(), "1 / 1")
+
+    def test_find_while_busy_keeps_live_thread(self):
+        tab, _owner = self.make(spawn=False)
+        tab.messages.add_user("récente", ())
+        tab.messages._dropped = 4
+        tab.engine.state = "busy"
+        tab.open_find()
+        tab.search_entry.set_text("recente")
+        self.assertTrue(pump_until(lambda: tab.messages.find_count() == 1))
+        self.assertIn("Disponible quand Claude aura fini", tab.find_label.get_label())
+
+    def test_saved_messages_load_and_persist(self):
+        from ccs_app import saved_messages
+        saved_messages.save("global", [saved_messages.Saved("merci", "Merci !", "global")])
+        tab, _owner = self.make(spawn=False)
+        self.assertTrue(pump_until(lambda: [s.name for s in tab.composer.saved] == ["merci"]))
+        tab.composer.add_saved("ici", "Texte du projet", "projet")
+        self.assertTrue(pump_until(lambda: (self.cwd / ".ccs" / "messages.json").exists()))
+        got = {s.name: s.scope for s in saved_messages.load(str(self.cwd))}
+        self.assertEqual(got, {"merci": "global", "ici": "projet"})
+
+    def test_notice_once_per_crossing(self):
+        tab, _owner = self.make(spawn=False)
+        heavy = lambda: [t for t in texts(tab) if t.startswith("Contexte lourd")]   # noqa: E731
+        tab._on_context(chat_engine.ContextUsage(30, 60_000, 200_000))
+        self.assertEqual(heavy(), [])
+        tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+        tab._on_context(chat_engine.ContextUsage(82, 164_000, 200_000))
+        self.assertEqual(len(heavy()), 1)                          # une seule fois
+        self.assertIn("160\u202f000 jetons", heavy()[0])
+        self.assertIn("128\u202f000 jetons", heavy()[0])
+        tab._on_context(chat_engine.ContextUsage(20, 40_000, 200_000))   # après /compact
+        tab._on_context(chat_engine.ContextUsage(81, 162_000, 200_000))
+        self.assertEqual(len(heavy()), 2)                          # nouveau franchissement
+
+    def test_compact_button_sends_command(self):
+        from unittest import mock
+        tab, _owner = self.make(spawn=False)
+        tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))
+        button = next(w for w in descendants(tab.messages.box)
+                      if isinstance(w, Gtk.Button) and w.get_label() == "Compacter")
+        with mock.patch.object(tab, "send_auto") as send:
+            button.emit("clicked")
+        send.assert_called_once_with("/compact")
+
+
+    def test_bang_not_sent_to_claude(self):
+        from unittest import mock
+        tab, _owner = self.make()
+        with mock.patch.object(tab.engine, "send", return_value=True) as send:
+            self.say(tab, "!echo salut-du-shell")
+            self.assertTrue(pump_until(lambda: any("salut-du-shell" in t and "$" not in t for t in texts(tab))))
+            send.assert_not_called()
+        self.assertNotIn("!echo salut-du-shell", texts(tab))        # pas de bulle d'utilisateur
+        self.assertTrue(any(t == "$ echo salut-du-shell" for t in texts(tab)))
+        self.assertTrue(any(t.startswith("code 0") for t in texts(tab)))
+
+    def test_next_message_carries_output(self):
+        from unittest import mock
+        tab, _owner = self.make()
+        self.say(tab, "!echo résultat-42")
+        self.assertTrue(pump_until(lambda: tab._shell_notes))
+        with mock.patch.object(tab.engine, "send", return_value=True) as send:
+            self.say(tab, "que penses-tu de ça ?")
+        sent = send.call_args.args[0]
+        self.assertTrue(sent.startswith("J'ai lancé `echo résultat-42` dans le dossier du projet (code 0) :\n```\n"))
+        self.assertIn("résultat-42", sent)
+        self.assertTrue(sent.endswith("```\n\nque penses-tu de ça ?"))
+        self.assertIn("que penses-tu de ça ?", texts(tab))          # la bulle ne montre que le texte saisi
+        self.assertEqual(tab._shell_notes, [])                       # joint une seule fois
+
+    def test_shell_card_stop_button(self):
+        tab, _owner = self.make()
+        self.say(tab, "!sleep 60")
+        card = next(w for w in descendants(tab.messages.box) if hasattr(w, "stop_button"))
+        self.assertTrue(card.stop_button.get_visible())
+        start = time.monotonic()
+        card.stop_button.emit("clicked")
+        self.assertTrue(pump_until(lambda: not card.stop_button.get_visible(), 5))
+        self.assertLess(time.monotonic() - start, 4)
+
+
+    # ---- autoriser depuis le téléphone ---------------------------------------------------
+
+    def phone_setup(self):
+        from ccs_app import settings
+        from ccs_app.gui import phone_hub
+        s = settings.load_settings()
+        s["phone"].update(enabled=True, server="https://ntfy.example.org", topic="ccs-test-canal-123")
+        settings.save_settings(s)
+        sent, listeners = [], []
+
+        class FakeListener:
+            def __init__(self, cfg, topic, on_body):
+                self.on_body, self.started, self.stopped = on_body, False, False
+                listeners.append(self)
+
+            def start(self):
+                self.started = True
+
+            def stop(self):
+                self.stopped = True
+
+        class Resp:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        def urlopen(req, timeout=None):
+            sent.append(req)
+            return Resp()
+        hub = phone_hub.PhoneHub(urlopen=urlopen, run=lambda f: f(), dispatch=lambda f: f(),
+                                 listener_factory=FakeListener)
+        phone_hub.set_hub(hub)
+        self.addCleanup(phone_hub.set_hub, None)
+        return hub, sent, listeners
+
+    @staticmethod
+    def action_body(req, which="allow"):
+        """Corps (« allow <id> <jeton> ») du bouton demandé, lu dans l'en-tête Actions."""
+        for part in req.get_header("Actions").split("; "):
+            for field in part.split(", "):
+                if field.startswith(f"body={which} "):
+                    return field[len("body="):]
+        raise AssertionError("bouton introuvable")
+
+    def ask_permission(self, tab):
+        self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")
+        self.assertTrue(pump_until(lambda: tab.messages._perms))
+        return next(iter(tab.messages._perms.values()))
+
+    def test_permission_sends_actions(self):
+        hub, sent, listeners = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.ask_permission(tab)
+        self.assertEqual(len(sent), 1)
+        req = sent[0]
+        self.assertEqual(req.full_url, "https://ntfy.example.org/ccs-test-canal-123")
+        self.assertIn("Autoriser", req.get_header("Actions"))
+        self.assertIn("Refuser", req.get_header("Actions"))
+        self.assertTrue(req.get_header("Title").startswith("Commande dans "))
+        self.assertNotIn("touch", req.data.decode())              # contenu masqué par défaut
+        self.assertTrue(listeners and listeners[0].started)
+
+    def test_phone_reply_answers_card(self):
+        hub, sent, listeners = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        card = self.ask_permission(tab)
+        hub._on_body(self.action_body(sent[0], "allow"))
+        self.assertTrue(card.answered)
+        self.assertIn("depuis le téléphone", card.verdict.get_label())
+        self.assertIn("Autorisé", card.verdict.get_label())
+        self.assertTrue(pump_until(lambda: tab.state.waiting_for == "input"))   # Claude a continué
+        self.assertTrue(any(t.strip() == "OK" for t in texts(tab)))
+
+    def test_phone_reply_replayed_or_after_pc_is_ignored(self):
+        hub, sent, _l = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        card = self.ask_permission(tab)
+        body = self.action_body(sent[0], "deny")
+        hub._on_body(body)
+        self.assertIn("Refusé", card.verdict.get_label())
+        hub._on_body(self.action_body(sent[0], "allow"))           # rejouée : sans effet
+        self.assertIn("Refusé", card.verdict.get_label())
+
+    def test_pc_answer_settles_token(self):
+        hub, sent, listeners = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        card = self.ask_permission(tab)
+        self.assertTrue(hub.replies.pending())
+        card.allow.emit("clicked")                                 # réglée sur le PC
+        self.assertFalse(hub.replies.pending())
+        hub._on_body(self.action_body(sent[0], "deny"))            # arrive trop tard
+        self.assertEqual(card.verdict.get_label(), "Autorisé")
+
+    def test_listener_stops_when_nothing_pending(self):
+        hub, sent, listeners = self.phone_setup()
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        card = self.ask_permission(tab)
+        self.assertFalse(listeners[0].stopped)
+        card.allow.emit("clicked")
+        self.assertTrue(listeners[0].stopped)
+        self.assertIsNone(hub.listener)
+
+    def test_no_phone_request_when_disabled(self):
+        from ccs_app.gui import phone_hub
+        hub = phone_hub.PhoneHub(urlopen=lambda *a, **k: self.fail("réseau"), run=lambda f: f())
+        phone_hub.set_hub(hub)
+        self.addCleanup(phone_hub.set_hub, None)
+        tab, _owner = self.make("permissions-allow-toujours.jsonl")
+        self.ask_permission(tab)
+        self.assertFalse(hub.replies.pending())
+        self.assertIsNone(hub.listener)
+
 
 if __name__ == "__main__":
     unittest.main()

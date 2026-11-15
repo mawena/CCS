@@ -184,5 +184,12 @@ class StatuslineTest(HomeTestCase):
         self.assertTrue(text.startswith("⏸ ") and text.endswith("⚠ contexte 180 k"), text)
 
 
+class CompactTest(unittest.TestCase):
+    def test_compact_gain(self):
+        self.assertEqual(ca.COMPACT_KEEP, 0.2)
+        self.assertEqual(ca.compact_gain(150_000), 120_000)
+        self.assertEqual(ca.compact_gain(0), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

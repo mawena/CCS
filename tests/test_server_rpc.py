@@ -33,7 +33,16 @@ class RpcTest(unittest.IsolatedAsyncioTestCase):
             await conn.push("ping", {"n": 1})
             return {}
 
-        self.server = rpc.RpcServer({"add": add, "refuse": refuse, "crash": crash, "ping_me": ping_me},
+        async def big(conn, params):
+            return {"x": "a" * (rpc.MAX_LINE + 10)}
+
+        async def big_event(conn, params):
+            await conn.push("gros", {"x": "a" * (rpc.MAX_LINE + 10)})
+            await conn.push("petit", {"n": 2})
+            return {}
+
+        self.server = rpc.RpcServer({"add": add, "refuse": refuse, "crash": crash, "ping_me": ping_me,
+                                     "big": big, "big_event": big_event},
                                     on_connect=lambda c: self.connections.append(c))
         await self.server.start_unix(self.sock, 0o660)
         self.addAsyncCleanup(self.server.close)
@@ -93,6 +102,45 @@ class RpcTest(unittest.IsolatedAsyncioTestCase):
         writer.close()
         c = await self.client()                                # le serveur tient
         self.assertEqual(await c.call("add", a=1, b=1), {"sum": 2})
+
+    async def test_too_big_result_fails_this_call_only(self):
+        """C6 : une réponse plus grosse que MAX_LINE devient `trop_gros`, la connexion reste."""
+        c = await self.client()
+        with self.assertRaises(rpc.RpcError) as cm:
+            await c.call("big")
+        self.assertEqual(cm.exception.code, "trop_gros")
+        self.assertTrue(c.connected)
+        self.assertEqual(await c.call("add", a=1, b=2), {"sum": 3})
+
+    async def test_too_big_event_is_dropped(self):
+        c = await self.client()
+        got = []
+        c.on_event = lambda name, data: got.append(name)
+        with self.assertLogs("ccs.rpc", "WARNING"):
+            await c.call("big_event")
+        for _ in range(50):
+            if got:
+                break
+            await asyncio.sleep(0.01)
+        self.assertEqual(got, ["petit"])
+        self.assertEqual(await c.call("add", a=1, b=1), {"sum": 2})
+
+    async def test_too_big_request_refused_before_sending(self):
+        c = await self.client()
+        with self.assertRaises(rpc.RpcError) as cm:
+            await c.call("add", a="a" * (rpc.MAX_LINE + 10), b="")
+        self.assertEqual(cm.exception.code, "trop_gros")
+        self.assertEqual(await c.call("add", a=2, b=2), {"sum": 4})
+
+    async def test_wait_closed_returns_when_server_goes_away(self):
+        c = await self.client()
+        await c.call("add", a=0, b=0)
+        waiting = asyncio.ensure_future(c.wait_closed())
+        await asyncio.sleep(0.05)
+        self.assertFalse(waiting.done())
+        await self.server.close()
+        await asyncio.wait_for(waiting, 5)
+        self.assertFalse(c.connected)
 
     async def test_invalid_json_line(self):
         reader, writer = await asyncio.open_unix_connection(self.sock)

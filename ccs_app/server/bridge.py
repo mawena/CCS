@@ -244,9 +244,9 @@ def build(user, key, local=False, chat=None, **kwargs):
     """Pont complet, tel que le lance `ccs bridge` : comptes et réglages, chats, données
     (projets, fichiers, feuille de route, tâches, analyse) et terminaux. `chat` : options du
     moteur de chat (`claude`, `environ`), pour le banc d'essai."""
-    from . import bridge_chat, bridge_data, bridge_term
+    from . import bridge_admin, bridge_chat, bridge_data, bridge_git, bridge_term, bridge_work
     b = Bridge(user, key, local=local, **kwargs)
-    bridge_chat.ChatHub(b, **(chat or {}))
-    bridge_data.DataApi(b)
-    bridge_term.TermHub(b)
+    b.hubs = {"chat": bridge_chat.ChatHub(b, **(chat or {})), "data": bridge_data.DataApi(b),
+              "term": bridge_term.TermHub(b), "work": bridge_work.WorkApi(b),
+              "admin": bridge_admin.AdminApi(b), "git": bridge_git.GitApi(b)}
     return b

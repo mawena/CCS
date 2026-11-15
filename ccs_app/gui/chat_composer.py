@@ -17,6 +17,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("GtkSource", "5")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, GtkSource, Pango  # noqa: E402
 
+from ..saved_messages import SCOPES, Saved  # noqa: E402
 from .chat_messages import install_css  # noqa: E402
 
 IMAGE_EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
@@ -72,6 +73,8 @@ class Composer(Gtk.Box):
         "queue-move": (GObject.SignalFlags.RUN_FIRST, None, (int, int)),
         "queue-remove": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
         "queue-send-now": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
+        # messages enregistrés modifiés par l'utilisateur : la liste complète (`Saved`)
+        "saved-changed": (GObject.SignalFlags.RUN_FIRST, None, (object,)),
     }
 
     def __init__(self, base_dir=None):
@@ -85,6 +88,8 @@ class Composer(Gtk.Box):
         self.images = []                 # [(type MIME, octets)]
         self.files = []                  # fichiers joints (chemins absolus) : `@chemin` à l'envoi
         self._commands = []              # [(nom, description)]
+        self.saved = []                  # messages enregistrés (`Saved`)
+        self.saved_buttons = {}          # nom → bouton « insérer » du menu ☆
         self._files = lambda: []
         self._token = None               # (type, début, fin) de la complétion en cours
         self._queue_shown = None
@@ -124,6 +129,11 @@ class Composer(Gtk.Box):
         self.attach_button.connect("clicked", self.choose_files)
         # Boutons à droite du texte, comme dans VS Code : pas de ligne à part sous la saisie.
         buttons = Gtk.Box(spacing=6, valign=Gtk.Align.END, margin_bottom=4, margin_end=2)
+        self.star_button = Gtk.MenuButton(icon_name="starred-symbolic", css_classes=["circular", "flat"],
+                                          tooltip_text="Mes messages enregistrés")
+        self.star_popover = Gtk.Popover()
+        self.star_button.set_popover(self.star_popover)
+        buttons.append(self.star_button)
         buttons.append(self.attach_button)
         buttons.append(self.stop_button)
         buttons.append(self.send_button)
@@ -135,6 +145,7 @@ class Composer(Gtk.Box):
         self.append(card)
 
         self._build_popover()
+        self._build_saved_menu()
         keys = Gtk.EventControllerKey(propagation_phase=Gtk.PropagationPhase.CAPTURE)
         keys.connect("key-pressed", self._on_key)
         self.view.add_controller(keys)
@@ -448,6 +459,109 @@ class Composer(Gtk.Box):
                 out.append((name, desc))
         self._commands = sorted(out)
 
+    # ---- messages enregistrés ------------------------------------------------------------
+
+    def set_saved(self, items):
+        """Messages enregistrés proposés après `/` (section « Mes messages ») et par le menu ☆."""
+        self.saved = list(items or ())
+        self._build_saved_menu()
+
+    def _build_saved_menu(self):
+        self.saved_buttons = {}
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, margin_top=6, margin_bottom=6,
+                      margin_start=6, margin_end=6)
+        if not self.saved:
+            box.append(Gtk.Label(label="Aucun message enregistré.", css_classes=["dim-label"],
+                                 margin_start=6, margin_end=6))
+        for item in self.saved:
+            row = Gtk.Box(spacing=2)
+            insert = Gtk.Button(label=item.name if item.scope == "global" else f"{item.name} (projet)",
+                                hexpand=True, css_classes=["flat"], tooltip_text=item.text[:300])
+            insert.get_child().set_halign(Gtk.Align.START)
+            insert.connect("clicked", lambda _b, n=item.name: (self.star_popover.popdown(),
+                                                               self.insert_saved(n)))
+            edit = Gtk.Button(icon_name="document-edit-symbolic", css_classes=["flat", "circular"],
+                              tooltip_text="Modifier")
+            edit.connect("clicked", lambda _b, it=item: (self.star_popover.popdown(),
+                                                         self.edit_saved_dialog(it)))
+            drop = Gtk.Button(icon_name="user-trash-symbolic", css_classes=["flat", "circular"],
+                              tooltip_text="Supprimer")
+            drop.connect("clicked", lambda _b, n=item.name: (self.star_popover.popdown(),
+                                                             self.delete_saved(n)))
+            for w in (insert, edit, drop):
+                row.append(w)
+            box.append(row)
+            self.saved_buttons[item.name] = insert
+        box.append(Gtk.Separator(margin_top=4, margin_bottom=4))
+        add = Gtk.Button(label="Ajouter le texte saisi…", css_classes=["flat"])
+        add.get_child().set_halign(Gtk.Align.START)
+        add.connect("clicked", lambda _b: (self.star_popover.popdown(), self.edit_saved_dialog(None)))
+        box.append(add)
+        self.star_popover.set_child(box)
+
+    def insert_saved(self, name):
+        item = next((s for s in self.saved if s.name == name), None)
+        if item is None:
+            return False
+        self.buffer.begin_user_action()
+        self.buffer.insert_at_cursor(item.text)
+        self.buffer.end_user_action()
+        self.view.grab_focus()
+        return True
+
+    def add_saved(self, name, text, scope="global"):
+        name = name.strip()
+        if not name or scope not in SCOPES:
+            return False
+        self.saved = [s for s in self.saved if not (s.name == name and s.scope == scope)]
+        self.saved.append(Saved(name, text, scope))
+        self._saved_done()
+        return True
+
+    def update_saved(self, old_name, name, text, scope):
+        self.saved = [s for s in self.saved if s.name != old_name]
+        return self.add_saved(name, text, scope)
+
+    def delete_saved(self, name):
+        self.saved = [s for s in self.saved if s.name != name]
+        self._saved_done()
+
+    def _saved_done(self):
+        self._build_saved_menu()
+        self.emit("saved-changed", list(self.saved))
+
+    def edit_saved_dialog(self, item):
+        """Ajouter (texte saisi) ou modifier un message enregistré."""
+        name = Gtk.Entry(placeholder_text="Nom", text=item.name if item else "")
+        body = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR, top_margin=4, bottom_margin=4,
+                            left_margin=6, right_margin=6)
+        body.get_buffer().set_text(item.text if item else self.text)
+        scroll = Gtk.ScrolledWindow(min_content_height=90, max_content_height=200, child=body)
+        scroll.add_css_class("card")
+        scope = Gtk.DropDown.new_from_strings(["Commun à tous les projets", "Ce projet seulement"])
+        scope.set_selected(1 if item and item.scope == "projet" else 0)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        for w in (name, scroll, scope):
+            box.append(w)
+        d = Adw.AlertDialog(heading="Modifier le message" if item else "Enregistrer ce message",
+                            extra_child=box)
+        d.add_response("cancel", "Annuler")
+        d.add_response("ok", "Enregistrer")
+        d.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(_d, response):
+            if response != "ok":
+                return
+            buf = body.get_buffer()
+            text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
+            chosen = SCOPES[scope.get_selected()]
+            if item:
+                self.update_saved(item.name, name.get_text(), text, chosen)
+            else:
+                self.add_saved(name.get_text(), text, chosen)
+        d.connect("response", done)
+        d.present(self.get_root())
+
     def set_file_source(self, source):
         """`source()` renvoie les fichiers du projet (chemins relatifs) proposés après `@`."""
         self._files = source
@@ -455,11 +569,24 @@ class Composer(Gtk.Box):
     def _build_popover(self):
         self.choices = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE, css_classes=["navigation-sidebar"])
         self.choices.connect("row-activated", lambda _l, row: self._accept(row))
+        self.choices.set_header_func(self._choice_header)
         scroll = Gtk.ScrolledWindow(child=self.choices, hscrollbar_policy=Gtk.PolicyType.NEVER,
                                     propagate_natural_height=True, max_content_height=240, min_content_width=360)
         self.popover = Gtk.Popover(child=scroll, autohide=False, has_arrow=False, position=Gtk.PositionType.TOP)
         self.popover.set_parent(self.card)
         self.popover.set_halign(Gtk.Align.START)
+
+    @staticmethod
+    def _choice_header(row, before):
+        """En-têtes de la complétion de `/` : « Mes messages » puis « Commandes »."""
+        kind = getattr(row, "kind", None)
+        before_kind = getattr(before, "kind", None) if before is not None else None
+        title = {"saved": "Mes messages", "command": "Commandes"}.get(kind)
+        if title and kind != before_kind and (kind == "saved" or before_kind == "saved"):
+            row.set_header(Gtk.Label(label=title, xalign=0, margin_start=8, margin_top=4,
+                                     css_classes=["dim-label", "caption-heading"]))
+        else:
+            row.set_header(None)
 
     def _close_popover(self):
         self._token = None
@@ -474,12 +601,16 @@ class Composer(Gtk.Box):
         offset = cursor.get_offset()
         items, token = [], None
         m = COMMAND_TOKEN.match(before)
-        if m and self._commands:
+        if m and (self._commands or self.saved):
             q = m.group(1).lower()
             token = ("/", 0, offset)
-            items = [("/" + n, d, "/" + n + " ") for n, d in self._commands if q in n.lower()
+            mine = [("★ " + s.name, " ".join(s.text.split())[:80], s.text, "saved") for s in self.saved
+                    if q in s.name.lower()]
+            mine.sort(key=lambda it: not it[0][2:].lower().startswith(q))
+            items = [("/" + n, d, "/" + n + " ", "command") for n, d in self._commands if q in n.lower()
                      ][:MAX_CHOICES]
             items.sort(key=lambda it: not it[0][1:].lower().startswith(q))
+            items = mine[:MAX_CHOICES] + items
         else:
             m = FILE_TOKEN.search(before)
             if m:
@@ -491,16 +622,18 @@ class Composer(Gtk.Box):
                     files = []
                 hits = [f for f in files if q in f.lower()]
                 hits.sort(key=lambda f: (not os.path.basename(f).lower().startswith(q), len(f)))
-                items = [(os.path.basename(f) or f, os.path.dirname(f), "@" + f + " ") for f in hits[:MAX_CHOICES]]
+                items = [(os.path.basename(f) or f, os.path.dirname(f), "@" + f + " ", "file")
+                         for f in hits[:MAX_CHOICES]]
         if not items:
             self._close_popover()
             return
         self._token = token
         while (child := self.choices.get_first_child()) is not None:
             self.choices.remove(child)
-        for title, sub, insert in items:
+        for title, sub, insert, kind in items:
             row = Gtk.ListBoxRow()
             row.insert_text = insert
+            row.kind = kind
             box = Gtk.Box(spacing=10, margin_start=6, margin_end=6, margin_top=3, margin_bottom=3)
             box.append(Gtk.Label(label=title, xalign=0, css_classes=["heading"] if token[0] == "/" else []))
             box.append(Gtk.Label(label=sub, xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.MIDDLE,

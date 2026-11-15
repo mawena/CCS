@@ -271,3 +271,58 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
   .chat-body { position: relative; }
   .term-box { height: 300px; }
 }
+
+/* ---- toasts, carte de confirmation, chargement et états vides (dom.js) ---- */
+.toasts {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 50;
+  display: grid; gap: 8px; width: min(520px, calc(100vw - 24px)); pointer-events: none;
+}
+.toast {
+  display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-radius: var(--radius);
+  background: var(--fg); color: var(--bg); box-shadow: var(--shadow); pointer-events: auto;
+  animation: toast-in 0.18s ease-out;
+}
+.toast.error { background: var(--error); color: #fff; }
+.toast.success { background: var(--success); color: #fff; }
+.toast button { color: inherit; min-height: 36px; }
+.toast.leaving { opacity: 0; transition: opacity 0.2s; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+dialog.sheet {
+  border: 0; border-radius: var(--radius); padding: 18px; width: min(440px, calc(100vw - 24px));
+  background: var(--card); color: var(--fg); box-shadow: var(--shadow);
+}
+dialog.sheet::backdrop { background: rgb(0 0 0 / 0.45); }
+dialog.sheet h2 { margin: 0 0 6px; font-size: 1.1em; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.state { display: grid; justify-items: center; align-content: center; gap: 8px; padding: 24px 12px; text-align: center; color: var(--subtle); }
+.stage > .state { flex: 1; }                     /* aucun chat ouvert : centré dans la zone */
+.state p { margin: 0; }
+.state.loading { grid-auto-flow: column; justify-content: center; align-items: center; }
+.state.error { color: var(--error); }
+.state-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.spinner {
+  width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.nav a { position: relative; }
+.nav-badge {
+  position: absolute; top: 2px; right: 4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--error); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
+}
+
+/* ---- téléphone : un chat ouvert prend tout l'écran (sessions.js pose body.chat-mode) ---- */
+@media (max-width: 719px) {
+  body.chat-mode .topbar, body.chat-mode .nav { display: none; }
+  body.chat-mode .view[data-view="sessions"] { padding-bottom: 0; }
+  body.chat-mode .sessions { height: 100dvh; padding-top: env(safe-area-inset-top); }
+  .toasts { bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom)); }
+  body.chat-mode .toasts { bottom: 90px; }
+}
+
+/* Une grille d'une seule colonne ne s'élargit jamais au-delà de son conteneur : sans cela, une
+   ligne sans retour (adresse e-mail d'un compte, chemin, commande) élargit la colonne, et les
+   barres et boutons débordent de la carte. */
+.view, .account, .gauge, .section, .stack, details.details > div, .health-check, .settings-group,
+.settings-wrap, .settings, .running, .changes, .git, .new-sheet, .preview-body, .file-results,
+.saved-list, .permission, .composer { grid-template-columns: minmax(0, 1fr); }

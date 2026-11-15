@@ -70,6 +70,21 @@ class RoadmapViewTest(unittest.TestCase):
         self.assertEqual(self.file.read_text(), TEXT.replace("- [ ] d", "- [x] d"))
         self.assertTrue(pump(lambda: v.task_rows[9].check.get_active()))
 
+    def test_play_button_only_on_open_tasks(self):
+        calls = []
+        v = self.view(on_do_task=lambda task, phase, where: calls.append((task.text, phase.title, where)))
+        self.assertIsNone(v.task_rows[4].play)        # « a » est cochée
+        self.assertIsNone(v.task_rows[8].play)        # « c » aussi
+        self.assertIsNotNone(v.task_rows[9].play)     # « d » ne l'est pas
+        v.task_rows[9].do_task("chat")
+        v.task_rows[10].do_task("nuit")
+        self.assertEqual(calls, [("d", "Phase 2 — Suite (0.2.0)", "chat"),
+                                 ("e", "Phase 2 — Suite (0.2.0)", "nuit")])
+
+    def test_no_play_button_without_handler(self):
+        v = self.view()
+        self.assertIsNone(v.task_rows[9].play)
+
     def test_changed_file_toast_and_reload(self):
         v = self.view()
         self.file.write_text(TEXT.replace("- [ ] d", "- [ ] autre"))

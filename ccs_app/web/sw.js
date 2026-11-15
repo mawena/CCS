@@ -1,7 +1,13 @@
 // Service worker : la charpente reste disponible hors ligne (la page affiche alors
 // « reconnexion »). L'API n'est jamais mise en cache.
-const CACHE = "ccs-v1";
-const SHELL = ["/", "/style.css", "/app.js", "/api.js", "/dom.js", "/login.js", "/views.js",
+const CACHE = "ccs-v6";
+const SHELL = ["/", "/style.css", "/chat.css", "/sessions.css", "/pages.css",
+  "/app.js", "/api.js", "/dom.js", "/login.js", "/views.js", "/home.js", "/sessions.js", "/chat.js",
+  "/files.js", "/roadmap.js", "/terminal.js", "/analysis.js", "/settings.js", "/git.js",
+  "/chat-changes.js", "/chat-complete.js", "/chat-diff.js", "/chat-links.js", "/chat-saved.js", "/chat-search.js",
+  "/project.js", "/sessions-conv.js", "/sessions-new.js",
+  "/pages-util.js", "/pages-health.js", "/pages-tasks.js", "/pages-phone.js",
+  "/vendor/xterm/xterm.js", "/vendor/xterm/xterm.css", "/vendor/xterm/addon-fit.js",
   "/icons/ccs.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
@@ -19,6 +25,6 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
   // réseau d'abord (toujours la dernière version), cache si hors ligne
   e.respondWith(fetch(e.request)
-    .then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return r; })
+    .then((r) => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); } return r; })
     .catch(() => caches.match(e.request).then((r) => r || caches.match("/"))));
 });

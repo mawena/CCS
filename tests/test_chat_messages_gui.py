@@ -546,5 +546,46 @@ class TrimTest(unittest.TestCase):
         self.assertEqual(ml.row_count(), 1)
 
 
+@unittest.skipUnless(GTK, "tests graphiques : CCS_GUI_TESTS=1 avec xvfb-run")
+class FindTest(unittest.TestCase):
+    def filled(self):
+        ml = MessageList()
+        ml.add_user("Où est l'Éléphant ?", ())
+        ml.start_assistant("m1")
+        ml.finish_assistant("m1", "L'éléphant est dans le **jardin**.")
+        ml.add_user("Merci", ())
+        pump()
+        return ml
+
+    def test_find_ignores_accents_and_case(self):
+        ml = self.filled()
+        self.assertEqual(ml.find("ELEPHANT"), 2)
+        self.assertEqual(ml.find("jardin"), 1)
+        self.assertEqual(ml.find("introuvable"), 0)
+        self.assertEqual(ml.find(""), 0)
+
+    def test_find_next_wraps(self):
+        ml = self.filled()
+        self.assertEqual(ml.find("e"), 3)
+        self.assertEqual(ml.find_position(), 1)
+        ml.find_next()
+        self.assertEqual(ml.find_position(), 2)
+        ml.find_next()
+        ml.find_next()
+        self.assertEqual(ml.find_position(), 1)       # reboucle
+        ml.find_prev()
+        self.assertEqual(ml.find_position(), 3)
+        ml.find_clear()
+        self.assertEqual((ml.find_position(), ml.find_count()), (0, 0))
+
+    def test_find_in_tool_card(self):
+        ml = MessageList()
+        ml.add_user("lance", ())
+        ml.add_tool(proto.ToolUse("t1", "Bash", {"command": "pytest -q tests/spécial"}))
+        pump()
+        self.assertEqual(ml.find("SPECIAL"), 1)
+        self.assertEqual(ml.find("bash"), 1)          # le titre de la carte
+
+
 if __name__ == "__main__":
     unittest.main()

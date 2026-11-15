@@ -107,6 +107,14 @@ class PhoneGroup(Adw.PreferencesGroup):
             row.connect("notify::active", self.on_event, key)
             self.events[key] = row
             self.add(row)
+
+        self.show_content = Adw.SwitchRow(
+            title="Montrer la commande dans la notification",
+            subtitle="Pour Autoriser ou Refuser depuis le téléphone. Le contenu passe en clair par le "
+                     "serveur ntfy ; un serveur personnel est conseillé.",
+            active=cfg["show_content"])
+        self.show_content.connect("notify::active", self.on_show_content)
+        self.add(self.show_content)
         self._updating = False
         self.refresh()
 
@@ -125,7 +133,8 @@ class PhoneGroup(Adw.PreferencesGroup):
         texture = qr_texture(url) if url else None
         self.qr.set_paintable(texture)
         self.qr_row.set_visible(texture is not None)
-        for row in (self.server, self.topic, self.link, self.try_row, *self.events.values()):
+        for row in (self.server, self.topic, self.link, self.try_row, self.show_content,
+                    *self.events.values()):
             row.set_sensitive(cfg["enabled"] or row in (self.server, self.topic, self.link, self.try_row))
 
     def _store(self, **changes):
@@ -163,6 +172,11 @@ class PhoneGroup(Adw.PreferencesGroup):
         events = dict(self.cfg()["events"])
         events[key] = row.get_active()
         self._store(events=events)
+
+    def on_show_content(self, row, _pspec):
+        if self._updating:
+            return
+        self._store(show_content=row.get_active())
 
     def copy_link(self):
         url = phone.subscribe_url(self.cfg())

@@ -2,8 +2,9 @@
 
 Requête `{"id", "method", "params"}` ; réponse `{"id", "result"}` ou `{"id", "error":
 {"code", "message"}}` ; événement poussé par le serveur `{"event", "data"}`. Une ligne fait au
-plus `MAX_LINE` octets ; au-delà, l'autre côté reçoit l'erreur `trop_gros` et la connexion est
-fermée.
+plus `MAX_LINE` octets. Rien de plus gros n'est envoyé : une réponse devient l'erreur `trop_gros`
+pour cet appel seulement, un événement est laissé de côté, une requête est refusée avant
+l'envoi ; la connexion reste utilisable. Une ligne reçue trop grosse ferme la connexion.
 """
 
 import asyncio
@@ -16,7 +17,7 @@ import shutil
 log = logging.getLogger("ccs.rpc")
 
 MAX_LINE = 8 * 1024 * 1024
-CODES = ("refuse", "introuvable", "invalide", "trop_gros", "interne", "conflit")
+CODES = ("refuse", "introuvable", "invalide", "trop_gros", "interne", "conflit", "occupe")
 
 
 class RpcError(Exception):
@@ -65,9 +66,15 @@ class Connection:
     async def send(self, msg):
         if self.closed:
             return
+        data = encode(msg)
+        if len(data) > MAX_LINE:
+            if "event" in msg:
+                log.warning("événement %s trop gros (%d octets) : non envoyé", msg.get("event"), len(data))
+                return
+            data = encode(_error(msg.get("id"), "trop_gros", "Réponse trop grosse pour être envoyée."))
         async with self._lock:
             try:
-                self._writer.write(encode(msg))
+                self._writer.write(data)
                 await self._writer.drain()
             except (ConnectionError, RuntimeError):
                 self.closed = True
@@ -177,6 +184,7 @@ class RpcClient:
         self._ids = itertools.count(1)
         self._task = None
         self._lock = asyncio.Lock()
+        self._ended = asyncio.Event()
 
     async def connect_unix(self, path):
         reader, writer = await asyncio.open_unix_connection(str(path), limit=MAX_LINE + 1)
@@ -218,15 +226,23 @@ class RpcClient:
                 if not fut.done():
                     fut.set_exception(RpcError("interne", "Connexion fermée."))
             self._pending.clear()
+            self._ended.set()
+
+    async def wait_closed(self):
+        """Attend la fin de la connexion (fermée par l'autre côté, coupée ou illisible)."""
+        await self._ended.wait()
 
     async def call(self, method, **params):
         if not self.connected:
             raise RpcError("interne", "Connexion fermée.")
         mid = next(self._ids)
+        data = encode({"id": mid, "method": method, "params": params})
+        if len(data) > MAX_LINE:
+            raise RpcError("trop_gros", "Requête trop grosse.")
         fut = asyncio.get_running_loop().create_future()
         self._pending[mid] = fut
         async with self._lock:
-            self._writer.write(encode({"id": mid, "method": method, "params": params}))
+            self._writer.write(data)
             await self._writer.drain()
         return await fut
 

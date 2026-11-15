@@ -78,6 +78,13 @@ raccourcis clavier.
 | `markdown_render` | Markdown (markdown-it) en blocs simples (`Heading`, `Paragraph`, `ListBlock`, `Code`, `Table`, `Quote`, `Rule`, `Image`) et balisage Pango échappé ; sert au chat et à l'aperçu des fichiers |
 | `file_tree` | Sans GTK : marques git (`git status --porcelain`, sans verrou), fichiers ignorés, type d'un fichier (texte, image, binaire, trop gros), lecture sûre, empreinte, enregistrement atomique qui garde les droits |
 | `roadmap` | `ROADMAP.md` : `parse` (phases `##`, tâches `- [ ]`, version des parenthèses), `toggle` (change un seul caractère, relit si le fichier a changé), `newly_done` (cases cochées depuis la lecture précédente) |
+| `git_repo` | Dépôt git d'un projet par la commande `git` du système (sans GTK, appelée hors du fil de l'interface) : journal par pages, références, branche et avance / retard, état, diff ; indexation par fichier, bloc et ligne, annulation, commit (amend), `ignore`, `fetch` / `pull` / `push` (`push(force=True)` : `--force-with-lease --force-if-includes`), `flow(kind, action)` pour git flow |
+| `git_graph` | Disposition du graphe façon ungit, portée de GiGit : ligne principale (premiers parents depuis HEAD) en colonne 0, les autres commits dans la colonne de la référence qui les possède |
+| `avatars` | Avatars des auteurs : GitHub pour les adresses `noreply`, Gravatar sinon, cache disque (un avatar absent est redemandé après 7 jours), réseau seulement si `git.avatars` est vrai |
+| `file_history` | Copies de Claude Code (`file-history-snapshot` du journal de la conversation) : `read`, changements d'une session, points de reprise (`user_messages`), `rewind_plan` / `apply` ; renvoie `None` si le format change (`check` alimente `ccs doctor`) |
+| `saved_messages` | Messages enregistrés du chat : `messages.json` commun, `.ccs/messages.json` par projet (le nom du projet l'emporte) ; fichier illisible = liste vide |
+| `shell_command` | Commande `!` du chat : `bash -lc` dans son propre groupe de processus, sortie bornée (`MAX_OUTPUT` = 20 000 caractères), arrêt de la commande et de ses enfants |
+| `phone_reply` | Autoriser ou Refuser depuis le téléphone : `Replies` (jetons à usage unique, `TOKEN_TTL` = 600 s), `Listener` (écoute du canal `phone.reply_topic`), en-tête d'actions ntfy, message de la demande |
 | `account_colors` | Couleur de chaque compte : palette attribuée dans l'ordre alphabétique des profils, remplacée par le choix de `appearance.account_colors` |
 | `gui/` | Application GTK 4 / libadwaita (trois onglets : `gui/home_page`, `gui/sessions_page` + `gui/terminals`, `gui/analysis_hub`) ; `gui/sessions_page` : onglet Sessions, avec `gui/project_list` (projets), `gui/session_cards` (sessions ouvertes) et `gui/conversation_list` (conversations) ; `gui/terminals` : onglets de session, chats et shells (VTE, importé à la demande), `gui/terminal_split` : deux onglets côte à côte ; dialogues `gui/doctor_dialog`, `gui/preview_dialog`, `gui/new_session_dialog` (`Adw.Dialog`, libadwaita ≥ 1.5) ; `gui/history` : courbes et journal des bascules (`Reflow` : légende et en-tête qui se replient, onglet utilisable dès 252 px) ; `gui/project_account_dialog` : bascule proposée avant d'ouvrir, « Compte de ce projet… » ; `gui/advisor_cards` : cartes du bilan et du conseiller (onglet Analyse) ; `gui/shortcuts_group` : groupe « Raccourcis clavier » des Réglages ; `gui/update_dialog` : dialogue de mise à jour en un clic ; `gui/tasks_view` : tâches de la section Planning de l'Accueil ; `gui/budget_view` : budgets de l'onglet Analyse ; `gui/phone_group`, `gui/backup_group` : groupes « Téléphone » et « Sauvegarde » des Réglages ; `gui/fiche_view` : fiche de l'aperçu ; chat : `gui/chat_tab`, `gui/chat_messages`, `gui/chat_composer`, `gui/chat_bar`, `gui/markdown_view` ; espace de session : `gui/session_workspace`, `gui/file_panel`, `gui/file_editor`, `gui/roadmap_view` ; `gui/prefs_dialog` (Réglages en `Adw.PreferencesDialog`), `gui/style` (CSS commun, couleurs des comptes, thème) ; carte « Meilleur moment » (`gui/planning`) et carte « Rapport mensuel » (`gui/advisor_cards`) |
 | `tray` | Indicateur AyatanaAppIndicator (GTK 3, processus séparé) : jauge, prévisions, pause, nouvelle version (« Installer CCS x.y.z… ») ; sous-menu Sessions (une entrée par session, en attente d'abord ; un clic ouvre la session par la même route que les notifications ; « · 💬 n » dans le libellé) ; entrée « Ne pas déranger » du menu principal (sous-menu 1 heure, 4 heures, Jusqu'à demain 08:00, Reprendre les notifications ; 🔕 dans le libellé pendant un silence) ; `APP_ENTRIES` (« Journal des bascules » → `gui --page historique`, « Bilan de la semaine » → `gui --page analyse`, « Ouvrir CCS ») ; `switch_to` (bascule notée « icone ») ; se relance seul quand le code installé change |
@@ -928,6 +935,37 @@ navigateur / téléphone / bureau GTK / ccs tui distant
   déconnexions. Si le service `ccs-daemon` de l'utilisateur n'est pas actif, le pont fait
   tourner la même boucle. Arrêté après 12 h sans client ni chat en cours.
 
+### Modules du pont
+
+`bridge.py` (`build`) monte un « hub » par module (`ChatHub`, `DataApi`, `TermHub`,
+`WorkApi`, `AdminApi`, `GitApi`) ; chacun déclare ses méthodes. Aucun n'importe GTK.
+
+| Module | Méthodes |
+|---|---|
+| `bridge_chat` | `chat.open`, `chat.send`, `chat.answer`, `chat.interrupt`, `chat.options`, `chat.list`… |
+| `bridge_data` | Projets, conversations (messages, renommage, coût), fichiers (lire, écrire, images, recherche), feuille de route (lire, cocher, `roadmap.task_prompt`), analyse, tâches (`tasks.list`, `add`, `cancel`), dossiers (`projects.folders`) et compte par projet (`projects.account`) |
+| `bridge_term` | `term.open`, `term.input`, `term.resize`, `term.list`… (pseudo-terminaux) ; la liste donne aussi le dossier et le nom de chaque terminal |
+| `bridge_work` | Travail dans le chat : `work.commands` (commandes `/`), `work.files` (fichiers après `@`), `work.saved.list` / `save` / `delete`, `work.shell.run` / `stop` / `poll` (commande `!`), `work.changes`, `work.undo_file`, `work.rewind_plan` / `rewind_apply` |
+| `bridge_admin` | Accueil et réglages : `accounts.cards` (rythme, prévision, statut), `doctor.run`, `tasks.log`, `tasks.remove`, `phone.test`, `phone.new_topic`, `phone.qr` |
+| `bridge_git` | `git.status`, `git.log`, `git.diff`, `git.stage`, `git.unstage`, `git.hunk`, `git.commit`, `git.fetch`, `git.pull`, `git.push` |
+
+Chaque chemin venu du client passe par `bridge_data.safe_path`. `bridge_work` n'écrit rien
+que le client n'ait demandé après sa carte de confirmation. `bridge_git` lance `git_repo` dans
+un fil, à la racine du dépôt, une commande à la fois par dépôt, sans jamais demander de mot de
+passe ; le diff est tronqué à 2 000 lignes. `bridge_admin` copie les quelques fonctions de
+texte de `gui/accounts.py`, qui dépend de GTK et qu'un serveur sans écran ne peut pas importer.
+
+### Interface web (`ccs_app/web/`)
+
+JavaScript sans bundler, modules chargés par `index.html`. `app.js` gère la navigation par
+adresse (`#/<page>/<sous-adresse>` : un chat ouvert a la sienne, d'où le bouton Retour du
+téléphone) ; `dom.js` donne les toasts, les cartes de confirmation, les états vides et les
+chargements. Un module par zone : `sessions*.js`, `project.js`, `chat*.js` (diff, liens,
+complétion, messages enregistrés, recherche, changements), `terminal.js`, `files.js`,
+`roadmap.js`, `git.js`, `home.js` et `pages-*.js` (bilan de santé, tâches de nuit, téléphone),
+`analysis.js`, `settings.js` ; une feuille de style par zone. Le service worker (`sw.js`,
+cache `ccs-v5`) met l'interface en cache.
+
 ### Protocole
 
 JSON par lignes sur les sockets Unix (une ligne = un objet) ; entre `ccs-web` et le pont :
@@ -958,6 +996,46 @@ piloter un compte. La clé est gardée par root et jamais lue à travers un lien
   (Réglages → Appareils de la version web) ; gardés dans `~/.claude-accounts/serveurs.json`
   (`0600`). Retirer un serveur côté bureau ne les révoque pas.
 - Les WebSocket se ferment (code 4001) à la déconnexion et à l'expiration de la session.
+
+## Phase 14 : travailler sans quitter CCS
+
+**Git.** `git_repo` lit et écrit par la commande `git` du système (configuration, hooks et
+clés SSH de l'utilisateur ; jamais de demande de mot de passe côté serveur). Les délais sont
+de 120 s pour `fetch`, 300 s pour `pull` et `push`. Le push forcé n'existe qu'avec
+`force=True` et utilise `--force-with-lease --force-if-includes`. `git_graph` calcule la
+disposition, `avatars` les images. Côté bureau, `gui/git_page` (page du panneau de gauche),
+`gui/git_changes` (indexation, commit), `gui/git_commit_view` (détail, choix de lignes) et
+`gui/git_graph_view` (une `Gtk.DrawingArea`, seule la partie visible est peinte, commits par
+pages de 200). `gui/session_workspace` porte le panneau et les dispositions A, B et C
+(`git.layout`) ; l'éditeur accepte un onglet portant un widget quelconque (« Historique » en B).
+Réglages : `git.layout`, `git.fetch_minutes` (0 à 1440), `git.avatars`.
+
+**Le travail de Claude.** `file_history` lit les copies de Claude Code ; `gui/session_changes`
+est le volet « Changements de la session » (diff, annuler un fichier, un point de reprise par
+message). La lecture dépend d'un format non documenté : en cas de changement, `read` renvoie
+`None`, rien n'est proposé et la ligne « Historique des fichiers » de `ccs doctor` avertit.
+« Faire une tâche » (`gui/roadmap_view`, `gui/chat_tab.do_roadmap_task`) envoie
+`roadmap.task_prompt` au chat ; à la fin d'un tour sans erreur, si la case n'est pas cochée,
+le bandeau « Tâche finie ? » apparaît. L'autre choix met la tâche dans la file (`tasks`).
+
+**Le chat.** Recherche (Ctrl+F, `gui/chat_messages`), `saved_messages` (menu ☆ et section
+« Mes messages » de la complétion `/`), bouton « Compacter » de l'alerte de contexte lourd
+(envoie `/compact`), commande `!` par `shell_command` (la sortie est ajoutée en tête du
+prochain message à Claude).
+
+**Le téléphone.** `phone_reply` : une demande d'autorisation part en notification ntfy avec
+deux boutons ; chacun publie `"<allow|deny> <id de la demande> <jeton>"` sur `phone.reply_topic`.
+Le jeton est tiré au hasard pour cette demande, sert une fois, expire après 600 s et disparaît
+dès que la demande est réglée sur le PC ; tout le reste est ignoré et journalisé sans le jeton.
+`gui/phone_hub` garde un seul `Replies` et un seul `Listener` pour toute l'application ;
+l'écoute ne tourne que tant qu'une demande attend. `phone.show_content` (faux par défaut)
+ajoute la commande exacte au message ; sinon il ne porte que le type et le projet.
+
+**La version web.** Elle reprend ces fonctions par les modules du pont décrits plus haut
+(`bridge_work`, `bridge_admin`, `bridge_git`, et des méthodes de plus dans `bridge_data` et
+`bridge_term`). Elle n'a ni graphe de commits, ni avatars, ni indexation par ligne, ni git
+flow, ni annulation d'un fichier ou `.gitignore` côté Git ; ses réglages `git.*` et
+`phone.show_content` passent par les mêmes validations que ceux du bureau.
 
 ## Règles de sécurité des jetons
 

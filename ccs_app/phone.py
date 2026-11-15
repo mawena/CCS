@@ -31,6 +31,8 @@ DEFAULTS = {
     "server": "https://ntfy.sh",
     "topic": "",
     "events": {"waiting": True, "task": True, "switch": True, "exhausted": True},
+    "show_content": False,
+    "reply_topic": "",
 }
 EVENTS = (
     ("waiting", "Session qui attend ta réponse"),
@@ -67,6 +69,9 @@ def config(settings=None):
            "topic": topic.strip() if isinstance(topic, str) else ""}
     ev = raw.get("events") if isinstance(raw.get("events"), dict) else {}
     cfg["events"] = {k: ev[k] if isinstance(ev.get(k), bool) else v for k, v in DEFAULTS["events"].items()}
+    cfg["show_content"] = raw.get("show_content") is True
+    reply = raw.get("reply_topic")
+    cfg["reply_topic"] = reply if isinstance(reply, str) and valid_topic(reply) else ""
     return cfg
 
 
@@ -185,8 +190,9 @@ def _header(text):
         return "=?UTF-8?B?" + base64.b64encode(text.encode("utf-8")).decode("ascii") + "?="
 
 
-def build_request(cfg, msg):
-    """Requête POST de `msg`, ou None si le serveur ou le canal est invalide."""
+def build_request(cfg, msg, actions=None):
+    """Requête POST de `msg`, ou None si le serveur ou le canal est invalide. `actions` : valeur
+    de l'en-tête `Actions` de ntfy (boutons de la notification)."""
     url = subscribe_url(cfg)
     if url is None:
         return None
@@ -194,14 +200,16 @@ def build_request(cfg, msg):
                "Content-Type": "text/plain; charset=utf-8"}
     if msg.tags:
         headers["Tags"] = ",".join(msg.tags)
+    if actions:
+        headers["Actions"] = actions
     return urllib.request.Request(url, data=msg.body.encode("utf-8"), headers=headers, method="POST")
 
 
-def deliver(cfg, msg, urlopen=None):
+def deliver(cfg, msg, urlopen=None, actions=None):
     """Envoie `msg` tout de suite (appel bloquant, délai `TIMEOUT_S`). (réussi, raison).
     Ne lève jamais ; le canal n'est jamais écrit dans le journal."""
     try:
-        req = build_request(cfg, msg)
+        req = build_request(cfg, msg, actions)
         if req is None:
             return False, "serveur ou canal invalide"
         with (urlopen or urllib.request.urlopen)(req, timeout=TIMEOUT_S) as resp:

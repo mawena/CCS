@@ -3,7 +3,63 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
-## [Non publié]
+## [0.12.0] — 2026-11-15
+
+### Ajouté
+
+- **Page Git** (bureau), inspirée de GiGit : indexation par fichier, bloc et ligne, annulation,
+  `.gitignore`, commit et amend avec message proposé, fetch (automatique, `git.fetch_minutes`),
+  pull et push (le push forcé demande confirmation et refuse d'écraser un commit distant non
+  vu), git flow, graphe des commits par pages, détail d'un commit, avatars des auteurs en cache.
+  Trois dispositions (`git.layout` : A, B ou C). Réglages `git.layout`, `git.fetch_minutes`
+  et `git.avatars`.
+- **Faire une tâche** depuis la feuille de route : dans le chat ou dans la file de nuit ; le
+  bandeau « Tâche finie ? » propose de cocher la case que Claude n'a pas cochée.
+- **Changements de la session** : volet des fichiers modifiés par Claude (d'après les copies de
+  Claude Code), annulation d'un fichier, retour à avant un message. `ccs doctor` contrôle le
+  format de ces copies (ligne « Historique des fichiers »).
+- **Chat** : recherche dans le fil (Ctrl+F), messages enregistrés (communs ou par projet),
+  bouton « Compacter » dans l'alerte de contexte lourd, commande `!` lancée dans le dossier du
+  projet.
+- **Téléphone** : boutons Autoriser et Refuser dans la notification ntfy (réponses signées, à
+  usage unique, valables 10 minutes) ; réglage « Montrer la commande » (`phone.show_content`,
+  désactivé par défaut) ; canal de réponses `phone.reply_topic`.
+- **Version web au niveau du bureau**, pensée pour le téléphone : messages brefs et cartes de
+  confirmation, chat en plein écran, bouton Retour du téléphone, pastille « attend ta
+  réponse » ; Sessions (« En cours », écran Projet, nouvelle session complète, conversations
+  avec aperçu, renommage, coût) ; chat (options repliées, brouillon, diff des modifications,
+  liens de fichiers, complétion `@` et `/`, messages enregistrés, Compacter, `!`, recherche,
+  changements de la session) ; barre de touches du terminal ; fichiers (images, recherche,
+  ouverture à une ligne) ; Accueil (rythme et prévision, bilan de santé, tâches de nuit) ;
+  Réglages (tous les réglages, téléphone avec QR code et essai, thème) ; Analyse de 24 heures
+  à 90 jours ; Git (état, diff, indexation par fichier et par bloc, commit, fetch, pull, push).
+- Pont : modules `bridge_work`, `bridge_admin` et `bridge_git` (méthodes `work.*`,
+  `doctor.run`, `tasks.log`, `phone.*`, `git.*`…) et méthodes de plus dans `bridge_data` et
+  `bridge_term`.
+
+### Corrigé
+
+- **Web** : un onglet restauré n'affiche plus de messages en double (le journal s'arrête là où
+  commence le tampon du pont) ; rouvrir une conversation déjà ouverte montre aussi ses anciens
+  messages. Onglets recalés sur le pont après une reconnexion (arrêt, reprise, options réelles),
+  appels sans doublon, Maj+Tab sans « Tout autoriser ».
+- **Pont** : identifiants de chat et de terminal uniques d'un démarrage à l'autre ; une réponse
+  trop grosse échoue seule, la connexion reste ; diffs et états Git plafonnés, `git.diff` reste
+  dans le dépôt, l'indexation d'un bloc garde les octets exacts ; annuler un fichier ou revenir
+  en arrière est refusé si le fichier a changé depuis l'affichage ou pendant que Claude
+  travaille ; chat et terminal limités aux dossiers permis ; renommage limité aux journaux de
+  Claude Code ; la commande `!` ne reste plus bloquée par un processus en arrière-plan.
+- **Mise en page web** : les cartes de l'Accueil ne débordent plus, au téléphone comme sur grand
+  écran ; la page Sessions sans chat ouvert n'affiche plus de bouton géant ; les titres courts
+  des projets et conversations sont alignés à gauche.
+- **Doctor** : l'indicateur renommé `ccs-tray` est reconnu (plus de fausse alerte « Indicateur
+  non lancé »).
+- **Git** : fetch, pull et push du serveur ne demandent jamais de mot de passe ; le bureau garde
+  sa fenêtre de mot de passe pour pull et push.
+- **Bureau** : un retour en arrière vers un message sans copie des fichiers est expliqué ; les
+  messages enregistrés communs masqués par un projet sont gardés.
+- **Chat** : les copies de fichiers de Claude Code sont activées (volet « Changements de la
+  session » et retour en arrière).
 
 ## [0.11.0] — 2026-11-15
 

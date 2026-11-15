@@ -20,14 +20,16 @@ import gi
 
 gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Adw, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
-from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, preview, sessions, settings  # noqa: E402
+from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, file_history, preview  # noqa: E402
+from .. import roadmap, saved_messages, sessions, settings, shell_command  # noqa: E402
 from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
 from .chat_composer import Composer  # noqa: E402
-from .chat_messages import MessageList, TodosBar, tool_label  # noqa: E402
+from . import phone_hub  # noqa: E402
+from .chat_messages import MessageList, PermissionCard, TodosBar, tool_label, tool_target  # noqa: E402
 from .common import in_thread  # noqa: E402
 
 SUSPEND_CHECK_S = 60
@@ -48,6 +50,11 @@ def scan_files(root, limit=FILE_SCAN_MAX):
                 if len(out) >= limit:
                     return out
     return out
+
+
+def _thousands(n):
+    """12 345 → « 12 345 » (espace insécable fine)."""
+    return f"{int(n):,}".replace(",", "\u202f")
 
 
 class _NoTerm:
@@ -109,7 +116,7 @@ class ChatTab(Gtk.Box):
         self.messages = MessageList(on_diff=lambda p, o, n: self.emit("show-diff", p, o, n),
                                     on_open=lambda p, line: self.emit("open-file", p, line),
                                     on_link=self.open_link, base_dir=launch.cwd,
-                                    on_older=self._show_older)
+                                    on_older=self._show_older, on_rewind=self.rewind_from_bubble)
         self.composer = Composer(base_dir=launch.cwd)
         self.bar = ChatBar()
         self.bar.set_options(self.options)
@@ -130,12 +137,31 @@ class ChatTab(Gtk.Box):
                                             propagate_natural_height=True)
         self.todos_bar = TodosBar()           # liste de tâches épinglée au-dessus de la saisie
         self.offline_banner = Adw.Banner(title="Serveur injoignable : reconnexion…", revealed=False)
-        for w in (self.offline_banner, self.agent_bar, self.view_stack, self.todos_bar, self.composer, self.bar):
+        self._roadmap_task = None             # (chemin, texte, phase) de la tâche lancée d'un clic
+        self._phone_ids = {}                  # id de demande du chat → id de demande du téléphone
+        self._shells = []                     # commandes `!` en cours (ShellRun)
+        self._shell_notes = []                # sorties à joindre au prochain message
+        self._context_heavy = False           # contexte au-dessus du seuil (alerte déjà montrée)
+        self.task_banner = Gtk.Box(spacing=8, visible=False, margin_start=12, margin_end=12,
+                                   margin_top=4, margin_bottom=4)
+        self.task_banner.add_css_class("toolbar")
+        self.task_banner_label = Gtk.Label(label="Tâche finie ?", xalign=0, hexpand=True, wrap=True)
+        self.task_check = Gtk.Button(label="Cocher", css_classes=["suggested-action"])
+        self.task_later = Gtk.Button(label="Pas encore")
+        for w in (self.task_banner_label, self.task_check, self.task_later):
+            self.task_banner.append(w)
+        self.task_check.connect("clicked", lambda _b: self._check_task_box())
+        self.task_later.connect("clicked", lambda _b: self.task_banner.set_visible(False))
+        self._build_search()
+        for w in (self.offline_banner, self.search_bar, self.agent_bar, self.view_stack, self.todos_bar,
+                  self.task_banner, self.composer, self.bar):
             self.panel.append(w)
         self.append(self.panel)
 
         self.composer.set_file_source(self._file_source)
         self.composer.connect("send", self._on_send)
+        self.composer.connect("saved-changed", self._on_saved_changed)
+        in_thread(lambda: saved_messages.load(launch.cwd), self._set_saved)
         self.composer.connect("cycle-rights", lambda *_: self.bar.cycle_rights())
         self.composer.connect("stop", lambda *_: self.stop_turn())
         self.composer.connect("queue-edit", lambda _c, i, text, old: self.edit_message(i, text, old))
@@ -156,12 +182,14 @@ class ChatTab(Gtk.Box):
 
     # ---- historique ----------------------------------------------------------------------
 
-    def _load_history(self, history_path):
+    def _load_history(self, history_path, then=None):
         path = history_path
         if path is None and self.state.session_id:
             path = sessions.transcript_path(self.state.cwd, self.state.session_id)
         reader = self._history_reader or preview.read_messages
         if path is None or (self._history_reader is None and not os.path.exists(path)):
+            if then is not None:
+                then()
             return
 
         def read():
@@ -173,6 +201,8 @@ class ChatTab(Gtk.Box):
         def show(messages):
             if messages and not self._closed:
                 self.messages.load_history(messages)
+            if then is not None and not self._closed:
+                then()
         in_thread(read, show)
 
     def _show_older(self):
@@ -221,6 +251,9 @@ class ChatTab(Gtk.Box):
         """Ferme le chat : `claude` s'arrête (stdin fermé, puis SIGTERM, puis SIGKILL), la
         conversation est déjà enregistrée par Claude Code."""
         self._closed = True
+        self._settle_phone()
+        for run in list(self._shells):
+            run.stop()
         engine = self.engine
         threading.Thread(target=engine.stop, daemon=True).start()
 
@@ -298,17 +331,42 @@ class ChatTab(Gtk.Box):
         """Entrée dans la zone de saisie : envoi tout de suite, même pendant que Claude travaille
         (la CLI le lit en cours de route ou juste après ; la page n'a rien à mettre en file)."""
         self.state.typed_at = time.time()
-        if not self._send(text, images):
+        command = text.strip()[1:].strip() if text.lstrip().startswith("!") and not images else ""
+        if command:
+            self._run_shell(command)        # une commande `!` ne part pas chez Claude
+            return
+        prefix = "".join(self._shell_notes)
+        if not self._send(text, images, prefix=prefix):
             self.composer.restore(text, images)
+        else:
+            self._shell_notes = []
 
-    def _send(self, text, images=()):
+    def _run_shell(self, command):
+        """Commande `!` : lancée dans le dossier du projet, montrée dans une carte ; sa sortie
+        est ajoutée en tête du prochain message envoyé à Claude."""
+        card = self.messages.add_shell_card(command)
+        run = shell_command.ShellRun(command, self.launch.cwd,
+                                     dispatch=lambda f: GLib.idle_add(lambda: (f(), False)[1]))
+        self._shells.append(run)
+
+        def done(code, text, truncated):
+            if run in self._shells:
+                self._shells.remove(run)
+            card.set_output(code, text, truncated)
+            shown = text + ("\n[sortie tronquée]" if truncated else "")
+            self._shell_notes.append(
+                f"J'ai lancé `{command}` dans le dossier du projet (code {code}) :\n```\n{shown}\n```\n\n")
+        card.stop_button.connect("clicked", lambda _b: run.stop())
+        run.start(done)
+
+    def _send(self, text, images=(), prefix=""):
         """Envoie au moteur et montre la bulle ; faux si Claude ne démarre pas. Pendant un tour,
         le message part aussi tout de suite (bulle marquée « envoyé pendant que Claude travaille »)."""
         during = self._engine_busy()
         self.todos_bar.new_turn()
         if not during and not self.state.running:
             self.spawn()
-        if not self.engine.send(text, images):
+        if not self.engine.send(prefix + text, images):
             if not self._engine_busy():
                 self._start_failed("Claude Code n'a pas pu démarrer.")
             return False
@@ -332,6 +390,235 @@ class ChatTab(Gtk.Box):
             return False
         self.state.sent_at = time.time()
         return True
+
+    # ---- messages enregistrés ------------------------------------------------------------
+
+    def _set_saved(self, items):
+        if not self._closed:
+            self.composer.set_saved(items)
+
+    def _on_saved_changed(self, _composer, items):
+        """Le menu ☆ a changé la liste : chaque portée (commune, projet) est réécrite."""
+        cwd = self.launch.cwd
+
+        def work():
+            for scope in saved_messages.SCOPES:
+                try:
+                    saved_messages.save(scope, saved_messages.with_hidden(scope, items, cwd), cwd)
+                except (OSError, ValueError):
+                    pass
+        in_thread(work, lambda _r: None)
+
+    # ---- chercher dans le fil (Ctrl+F) ---------------------------------------------------
+
+    def _build_search(self):
+        self.search_bar = Gtk.SearchBar()
+        self.search_entry = Gtk.SearchEntry(hexpand=True, placeholder_text="Chercher dans la conversation")
+        self.find_label = Gtk.Label(label="", width_chars=14)
+        self.find_label.add_css_class("dim-label")
+        prev = Gtk.Button(icon_name="go-up-symbolic", tooltip_text="Précédent (Maj+Entrée)",
+                          css_classes=["flat"])
+        nxt = Gtk.Button(icon_name="go-down-symbolic", tooltip_text="Suivant (Entrée)",
+                         css_classes=["flat"])
+        box = Gtk.Box(spacing=6)
+        for w in (self.search_entry, self.find_label, prev, nxt):
+            box.append(w)
+        self.search_bar.set_child(box)
+        self.search_bar.connect_entry(self.search_entry)
+        self.search_entry.connect("search-changed", self._find_changed)
+        self.search_entry.connect("activate", lambda _e: self.find_step(1))
+        prev.connect("clicked", lambda _b: self.find_step(-1))
+        nxt.connect("clicked", lambda _b: self.find_step(1))
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self._find_key)
+        self.search_entry.add_controller(keys)
+        self.search_bar.connect("notify::search-mode-enabled", self._find_mode)
+        shortcuts = Gtk.ShortcutController()
+        shortcuts.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string("<Control>f"),
+                                            action=Gtk.CallbackAction.new(
+                                                lambda *_a: (self.open_find(), True)[1])))
+        self.add_controller(shortcuts)
+
+    def open_find(self):
+        self.search_bar.set_search_mode(True)
+        self.search_entry.grab_focus()
+
+    def _find_mode(self, bar, _p):
+        if not bar.get_search_mode():
+            self.messages.find_clear()
+            self.find_label.set_label("")
+
+    def _find_key(self, _ctrl, keyval, _code, state):
+        if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and state & Gdk.ModifierType.SHIFT_MASK:
+            self.find_step(-1)
+            return True
+        return False
+
+    def _find_changed(self, entry):
+        query = entry.get_text()
+        if not query.strip():
+            self.messages.find_clear()
+            self.find_label.set_label("")
+        elif self.messages.trimmed():
+            # fil élagué : relire le journal d'abord (comme « Afficher »), sauf pendant un tour
+            if self._engine_busy():
+                self.find_label.set_label("Disponible quand Claude aura fini de répondre.")
+                self._run_find(query, keep_label=True)
+            else:
+                self.messages.reset()
+                self._load_history(self._history_path, then=lambda: self._run_find(query))
+        else:
+            self._run_find(query)
+
+    def _run_find(self, query, keep_label=False):
+        if query != self.search_entry.get_text():
+            return                                  # la saisie a changé depuis
+        n = self.messages.find(query)
+        if keep_label:
+            return
+        self.find_label.set_label(f"{self.messages.find_position()} / {n}" if n else "Aucun résultat")
+
+    def find_step(self, direction):
+        if direction > 0:
+            self.messages.find_next()
+        else:
+            self.messages.find_prev()
+        n = self.messages.find_count()
+        if n:
+            self.find_label.set_label(f"{self.messages.find_position()} / {n}")
+
+    # ---- revenir en arrière --------------------------------------------------------------
+
+    def journal_info(self):
+        """(journal, identifiant de session) de la conversation, ou None (pas encore écrite,
+        ou chat d'un serveur distant)."""
+        sid = getattr(self.engine, "session_id", None)
+        if not sid or self.remote:
+            return None
+        return sessions.transcript_path(self.launch.cwd, sid), sid
+
+    def rewind_from_bubble(self, row):
+        """Menu d'une bulle : le k-ième message du fil (compté depuis la fin) est le k-ième du
+        journal ; relu au moment du clic."""
+        info = self.journal_info()
+        k = self.messages.user_index_from_end(row)
+        if info is None or k is None:
+            self.show_notice("Retour en arrière impossible : conversation introuvable.")
+            return
+        in_thread(lambda: file_history.user_messages(info[0]), lambda users: self._rewind_at(users, k))
+
+    def _rewind_at(self, users, k):
+        if k >= len(users):
+            self.show_notice("Retour en arrière impossible : ce message n'est pas dans le journal.")
+            return
+        self.rewind_to(users[len(users) - 1 - k].message_id)
+
+    def rewind_to(self, message_id):
+        """Ouvre la confirmation du retour à l'état d'avant `message_id`."""
+        info = self.journal_info()
+        if info is None:
+            self.show_notice("Retour en arrière impossible : conversation introuvable.")
+            return
+        transcript, sid = info
+        no_snapshot = object()
+
+        def work():
+            snaps = file_history.read(transcript)
+            if snaps is None:
+                return None
+            try:
+                return file_history.rewind_plan(snaps, sid, message_id)
+            except file_history.NoSnapshot:
+                return no_snapshot
+
+        def show(plan):
+            if plan is None:
+                self.show_notice("Format de l'historique des fichiers inconnu : retour impossible "
+                                 "(voir « ccs doctor »).")
+            elif plan is no_snapshot:
+                self.show_notice("Retour en arrière impossible : Claude Code n'a pas gardé "
+                                 "d'instantané des fichiers pour ce message.")
+            elif not plan:
+                self.show_notice("Aucun fichier à remettre : tout est déjà comme avant ce message.")
+            else:
+                self._confirm_rewind(plan, lambda: in_thread(
+                    lambda: file_history.apply(plan), lambda _r: self.show_notice(
+                        f"{len(plan)} fichier(s) remis comme avant ce message.")))
+        in_thread(work, show)
+
+    def _confirm_rewind(self, plan, on_yes):
+        """Liste les fichiers touchés ; ceux modifiés depuis par l'utilisateur sont marqués."""
+        lines = []
+        for step in plan:
+            mark = " (supprimé)" if step.content is None else ""
+            if step.user_edited:
+                mark += " — modifié depuis par toi"
+            lines.append(f"• {step.path}{mark}")
+        d = Adw.AlertDialog(heading="Revenir à avant ce message ?",
+                            body="Ces fichiers seront remis comme avant ce message :\n" + "\n".join(lines)
+                                 + "\nC'est définitif.")
+        d.add_response("cancel", "Annuler")
+        d.add_response("ok", "Revenir en arrière")
+        d.set_response_appearance("ok", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.connect("response", lambda _d, r: on_yes() if r == "ok" else None)
+        d.present(self.get_root())
+
+    def do_roadmap_task(self, path, text, phase_title):
+        """« Faire maintenant » depuis la feuille de route : demande la tâche à Claude. À la fin du
+        tour, si la case n'est pas cochée, un bandeau propose de la cocher. Faux si la tâche
+        n'existe plus ou si l'envoi est refusé."""
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                rm = roadmap.parse(f.read())
+        except OSError:
+            return False
+        task = roadmap.locate(rm, text, phase_title)
+        phase = next((p for p in rm.phases if p.title == phase_title), None)
+        if task is None or phase is None:
+            return False
+        self.task_banner.set_visible(False)
+        if not self.send_auto(roadmap.task_prompt(task, phase)):
+            return False
+        self._roadmap_task = (path, text, phase_title)
+        return True
+
+    def _after_roadmap_turn(self):
+        """Fin d'un tour sans erreur d'une tâche lancée d'un clic : la case est-elle cochée ?"""
+        info, self._roadmap_task = self._roadmap_task, None
+        if info is None:
+            return
+        path, text, phase = info
+
+        def read():
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    return roadmap.locate(roadmap.parse(f.read()), text, phase)
+            except OSError:
+                return None
+
+        def show(task):
+            if task is not None and not task.done and not self._closed:
+                self._roadmap_task = (path, text, phase)
+                self.task_banner_label.set_label(f"Tâche finie ? « {text} »")
+                self.task_banner.set_visible(True)
+        in_thread(read, show)
+
+    def _check_task_box(self):
+        info = self._roadmap_task
+        self.task_banner.set_visible(False)
+        if info is None:
+            return
+        path, text, phase = info
+
+        def work():
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    task = roadmap.locate(roadmap.parse(f.read()), text, phase)
+            except OSError:
+                return False
+            return task is not None and (task.done or roadmap.toggle(path, task.line, task.text))
+        in_thread(work, lambda ok: ok or self.show_notice("La feuille de route a changé : case non cochée."))
+        self._roadmap_task = None
 
     def stop_turn(self):
         """Bouton Arrêter (Échap) : interrompt le tour ; la CLI s'arrête puis repart au message suivant."""
@@ -612,7 +899,8 @@ class ChatTab(Gtk.Box):
                                           question=question)
 
     def _on_permission(self, ev):
-        self.messages.add_permission(ev, self._answer, on_questions=self._answer_questions)
+        card = self.messages.add_permission(ev, self._answer, on_questions=self._answer_questions)
+        self._notify_phone(ev, card)
         self._sync_permission_keys()
         self.messages.set_busy(False)
         self.attention()
@@ -621,7 +909,38 @@ class ChatTab(Gtk.Box):
         self.engine.answer_questions(request_id, answers)
         GLib.idle_add(lambda: (self._sync_permission_keys(), False)[1])
 
+    def _notify_phone(self, ev, card):
+        """Notification du téléphone avec « Autoriser » / « Refuser » (si activée dans les
+        réglages) ; la réponse verte du téléphone revient par `_phone_answer`."""
+        hub = phone_hub.get()
+        if hub is None or not isinstance(card, PermissionCard):
+            return
+        detail = tool_target(ev.tool_name, ev.input, self.launch.cwd)
+        pid = hub.notify(ev.tool_name, sessions.project_name(self.state.cwd), detail,
+                         lambda decision, rid=ev.request_id: self._phone_answer(rid, decision))
+        if pid is not None:
+            self._phone_ids[ev.request_id] = pid
+
+    def _phone_answer(self, request_id, decision):
+        """Réponse venue du téléphone (déjà vérifiée) : la carte la montre, le moteur la reçoit."""
+        card = self.messages._perms.get(request_id)
+        if self._closed or not isinstance(card, PermissionCard) or card.answered:
+            return
+        card.resolve(decision)
+        card.verdict.set_label(card.verdict.get_label() + " — depuis le téléphone")
+        self._answer(request_id, decision)
+
+    def _settle_phone(self, request_id=None):
+        """Plus de réponse du téléphone pour cette demande (ou pour toutes)."""
+        hub = phone_hub.get()
+        ids = [request_id] if request_id is not None else list(self._phone_ids)
+        for rid in ids:
+            pid = self._phone_ids.pop(rid, None)
+            if pid is not None and hub is not None:
+                hub.settle(pid)
+
     def _answer(self, request_id, decision, message=""):
+        self._settle_phone(request_id)
         self.engine.answer(request_id, decision, message)
         GLib.idle_add(lambda: (self._sync_permission_keys(), False)[1])
 
@@ -676,15 +995,30 @@ class ChatTab(Gtk.Box):
                                      "ou change de compte."), "warning")
         elif not ev.ok:
             self.messages.add_notice(ev.text or "Claude n'a pas pu finir sa réponse.", "error")
+        if ev.ok and not ev.interrupted and not getattr(ev, "is_limit", False):
+            self._after_roadmap_turn()
+        else:
+            self._roadmap_task = None
         self.messages.cancel_permissions()
+        self._settle_phone()
         self._sync_permission_keys()
         self.messages.trim()                     # longue session : mémoire bornée
         self.engine.request_context()
 
     def _on_context(self, ev):
-        threshold = context_alert.config(settings.load_settings())["threshold_tokens"]
+        cfg = context_alert.config(settings.load_settings())
+        threshold = cfg["threshold_tokens"]
         pct = threshold * 100 / ev.maximum if ev.maximum else None
         self.bar.set_context(ev.percentage, pct)
+        over = ev.total >= threshold
+        if over and not self._context_heavy and cfg["enabled"]:
+            # franchissement du seuil vers le haut : une seule fois, jusqu'à ce que le contexte retombe
+            gain = context_alert.compact_gain(ev.total)
+            self.messages.add_notice(
+                f"Contexte lourd : {_thousands(ev.total)} jetons. Compacter libérerait environ "
+                f"{_thousands(gain)} jetons (estimation).", "warning",
+                action=("Compacter", lambda: self.send_auto("/compact")))
+        self._context_heavy = over
 
     def _on_exited(self, ev):
         self.state.pid = None

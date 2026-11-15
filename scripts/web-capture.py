@@ -22,6 +22,8 @@ PORT = 9333
 
 
 async def run(args):
+    global PORT
+    PORT = args.cdp_port
     profile = tempfile.mkdtemp(prefix="ccs-capture-")
     chrome = subprocess.Popen([shutil.which("google-chrome") or "chromium", "--headless=new", "--disable-gpu",
                                "--no-first-run", f"--user-data-dir={profile}", f"--remote-debugging-port={PORT}",
@@ -80,6 +82,7 @@ if __name__ == "__main__":
     p.add_argument("--width", type=int, default=375)
     p.add_argument("--height", type=int, default=780)
     p.add_argument("--first-wait", type=int, default=1500)
+    p.add_argument("--cdp-port", type=int, default=PORT, help="port de débogage de Chrome (captures en parallèle)")
     p.add_argument("--out", default="capture.png")
     p.add_argument("--js", action=Step, dest="steps", default=[])
     p.add_argument("--wait", action=Step, dest="steps")

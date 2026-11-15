@@ -169,6 +169,10 @@ class EntryPointTest(unittest.TestCase):
         for m in self.METHODS:
             self.assertIn(m, names)
 
+    def test_build_attaches_every_hub(self):
+        b = bridge.build("alice", KEY, start_daemon=False, install_claude=False)
+        self.assertEqual(set(b.hubs), {"chat", "data", "term", "work", "admin", "git"})
+
     def test_build_passes_chat_options(self):
         b = bridge.build("alice", KEY, start_daemon=False, install_claude=False,
                          chat={"claude": "/faux/claude"})

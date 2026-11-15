@@ -140,6 +140,9 @@ class ChatSession:
         env = dict(self._environ) if self._environ is not None else task_runner.environment()
         for v in SESSION_VARS:
             env.pop(v, None)
+        # `claude -p` (stream-json) n'écrit les instantanés de fichiers, base du retour en
+        # arrière, qu'avec cette variable ; sans effet si la version l'ignore.
+        env["CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING"] = "1"
         return env
 
     def _spawn(self):

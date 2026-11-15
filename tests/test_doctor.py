@@ -47,6 +47,7 @@ def healthy(**over):
         phone=lambda: {"enabled": False, "server": "https://ntfy.sh", "channel": False},
         dead_tasks=lambda: [],
         server=lambda: None,
+        file_history=lambda: (True, "format reconnu"),
     )
     values.update(over)
     return Probes(**values)
@@ -76,6 +77,15 @@ class RunChecksTest(unittest.TestCase):
         self.assertEqual(checks["Extension AppIndicator"].statut, AVERTISSEMENT)
         self.assertIn("D-Bus indisponible", checks["Extension AppIndicator"].detail)
         self.assertEqual(checks["Commande claude"].statut, OK)
+
+
+class FileHistoryCheckTest(unittest.TestCase):
+    def test_doctor_file_history_check(self):
+        ok = by_name(doctor.run_checks(healthy()))["Historique des fichiers"]
+        self.assertEqual((ok.statut, ok.detail), (OK, "format reconnu"))
+        bad = by_name(doctor.run_checks(healthy(file_history=lambda: (False, "format inconnu"))))
+        self.assertEqual(bad["Historique des fichiers"].statut, AVERTISSEMENT)
+        self.assertIn("format inconnu", bad["Historique des fichiers"].detail)
 
 
 class ServiceTest(unittest.TestCase):
@@ -385,6 +395,14 @@ class ProcessTest(unittest.TestCase):
         self.proc(10, ["/usr/bin/python3", "/usr/bin/claude-accounts", "daemon"])
         self.assertFalse(doctor.tray_running(proc=str(self.tmp / "proc")))
         self.proc(11, ["/usr/bin/python3", "/usr/bin/claude-accounts", "tray"])
+        self.assertTrue(doctor.tray_running(proc=str(self.tmp / "proc")))
+
+    def test_tray_running_renamed_by_setproctitle(self):
+        """Avec python3-setproctitle, l'indicateur s'appelle `ccs-tray` : sa ligne de commande
+        d'origine est écrasée (reste des octets nuls)."""
+        d = self.tmp / "proc" / "12"
+        d.mkdir(parents=True)
+        (d / "cmdline").write_bytes(b"ccs-tray" + b"\0" * 40)
         self.assertTrue(doctor.tray_running(proc=str(self.tmp / "proc")))
 
     def test_process_code(self):

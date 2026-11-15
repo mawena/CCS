@@ -33,9 +33,10 @@ from . import core
 
 VERSION = 2
 DEFAULT_CHAT = {"model": None, "effort": None, "ultracode": False, "rights": None}
+# "C" : largeur du panneau de gauche quand la page Git est affichée en disposition C.
 DEFAULT_PANES = {"A": {"tree": 240, "side": 460}, "B": {"tree": 240, "side": 460},
-                 "tree_visible": True, "left": "fichiers"}
-LEFT_VALUES = ("fichiers", "feuille")
+                 "C": {"tree": 520}, "tree_visible": True, "left": "fichiers"}
+LEFT_VALUES = ("fichiers", "feuille", "git")
 DEFAULT_OPTIONS = {"auto_resume": True, "reopen_at_start": False}
 KINDS = ("claude", "shell")
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
@@ -148,7 +149,7 @@ def _width(value, default):
 def _panes(raw):
     raw = raw if isinstance(raw, dict) else {}
     out = {}
-    for layout in ("A", "B"):
+    for layout in ("A", "B", "C"):
         sub = raw.get(layout) if isinstance(raw.get(layout), dict) else {}
         out[layout] = {k: _width(sub.get(k), v) for k, v in DEFAULT_PANES[layout].items()}
     out["tree_visible"] = (raw["tree_visible"] if isinstance(raw.get("tree_visible"), bool)
