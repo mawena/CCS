@@ -282,11 +282,11 @@ Le pont (un par utilisateur) :
 - [x] 10. Service de fond lancé par le pont, Claude Code installé s'il manque
 
 Serveur web et version web :
-- [ ] 11. Service `ccs-web` (127.0.0.1:8420) : connexion, relais WebSocket, en-têtes de sécurité
-- [ ] 12. Version web : charpente, connexion avec code, navigation responsive, installable sur le téléphone
-- [ ] 13. Accueil, Analyse, Réglages (dont Appareils)
-- [ ] 14. Sessions et chat
-- [ ] 15. Fichiers, Feuille de route, terminal (xterm.js)
+- [x] 11. Service `ccs-web` (127.0.0.1:8420) : connexion, relais WebSocket, en-têtes de sécurité
+- [x] 12. Version web : charpente, connexion avec code, navigation responsive, installable sur le téléphone
+- [x] 13. Accueil, Analyse, Réglages (dont Appareils)
+- [x] 14. Sessions et chat
+- [x] 15. Fichiers, Feuille de route, terminal (xterm.js)
 
 Terminal et bureau :
 - [ ] 16. Client commun (local ou par le web) et appairage (`ccs serveur ajouter`)
