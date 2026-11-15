@@ -192,23 +192,28 @@ class WorkApi:
         items = await asyncio.to_thread(saved_messages.load, cwd)
         return {"items": [{"name": s.name, "text": s.text, "scope": s.scope} for s in items]}
 
-    @staticmethod
-    def _scope(params):
+    def _scope(self, params, cwd):
+        """Portée demandée ; celle du projet seulement dans le dossier d'un chat ouvert (seul
+        endroit où `.ccs/` peut être créé)."""
         scope = params.get("scope")
         if scope not in saved_messages.SCOPES:
             raise rpc.RpcError("invalide", "Portée inconnue.")
+        if scope == "projet" and not any(os.path.realpath(c.cwd) == cwd
+                                         for c in self.bridge.hubs["chat"].chats.values()):
+            raise rpc.RpcError("refuse", "Messages du projet : ouvre d'abord un chat dans ce dossier.")
         return scope
 
     async def saved_save(self, _conn, params):
-        cwd, scope = self._cwd(params), self._scope(params)
+        cwd = self._cwd(params)
+        scope = self._scope(params, cwd)
         name, text = params.get("name"), params.get("text")
         if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_NAME:
             raise rpc.RpcError("invalide", "Donne un nom court au message.")
         if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT:
             raise rpc.RpcError("invalide", "Le texte est vide ou trop long.")
 
-        def work():
-            mine = [s for s in saved_messages.load(cwd) if s.scope == scope and s.name != name.strip()]
+        def work():          # la portée telle qu'enregistrée : rien de caché n'est perdu
+            mine = [s for s in saved_messages.read_scope(scope, cwd) if s.name != name.strip()]
             mine.append(saved_messages.Saved(name.strip(), text, scope))
             saved_messages.save(scope, mine, cwd)
         try:
@@ -218,11 +223,12 @@ class WorkApi:
         return {}
 
     async def saved_delete(self, _conn, params):
-        cwd, scope = self._cwd(params), self._scope(params)
+        cwd = self._cwd(params)
+        scope = self._scope(params, cwd)
         name = params.get("name")
 
         def work():
-            mine = [s for s in saved_messages.load(cwd) if s.scope == scope and s.name != name]
+            mine = [s for s in saved_messages.read_scope(scope, cwd) if s.name != name]
             saved_messages.save(scope, mine, cwd)
         try:
             await asyncio.to_thread(work)

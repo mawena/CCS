@@ -53,6 +53,26 @@ def load(project_dir=None):
     return [s for s in _read(global_path(), "global") if s.name not in taken] + mine
 
 
+def read_scope(scope, project_dir=None):
+    """Messages d'une seule portée, tels qu'enregistrés : sans le masquage de `load`, à
+    utiliser pour réécrire cette portée."""
+    if scope == "projet":
+        return _read(project_path(project_dir), "projet") if project_dir else []
+    return _read(global_path(), "global")
+
+
+def with_hidden(scope, items, project_dir=None):
+    """`items` (la liste vue, issue de `load`) plus, pour la portée commune, les messages
+    communs que `load` cachait derrière un message du projet de même nom (lu sur le disque,
+    avant la réécriture du projet) : réécrire la portée commune depuis la liste vue ne les
+    efface pas."""
+    if scope != "global" or not project_dir:
+        return list(items)
+    shown = {s.name for s in items if s.scope == "global"}
+    hidden = {s.name for s in read_scope("projet", project_dir)}
+    return list(items) + [s for s in read_scope("global") if s.name in hidden and s.name not in shown]
+
+
 def save(scope, items, project_dir=None):
     """Écrit (atomiquement) les messages de la portée `scope` ; crée `.ccs/` au besoin."""
     if scope not in SCOPES:
@@ -64,6 +84,8 @@ def save(scope, items, project_dir=None):
     else:
         path = global_path()
     data = [{"name": s.name, "text": s.text} for s in items if s.scope == scope]
+    if not data and scope == "projet" and not path.exists():
+        return                      # rien à écrire : pas de `.ccs/` créé pour rien
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
     try:

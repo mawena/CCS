@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ccs_app import chat_protocol as proto, file_history, sessions
+from ccs_app import chat_protocol as proto, file_history, saved_messages, sessions
 from ccs_app.server import bridge, bridge_chat, bridge_work, events, rpc
 from tests.helpers import HomeTestCase
 from tests.test_file_history import snap_line
@@ -102,6 +102,29 @@ class SavedTest(WorkTest):
         self.call("work.saved.save", cwd=cwd, scope="global", name="A", text="2")
         items = self.call("work.saved.list", cwd=cwd)["items"]
         self.assertEqual([i["text"] for i in items], ["2"])
+
+    def test_global_hidden_by_project_is_kept(self):
+        """Constat 7 : écrire un message commun n'efface pas un commun de même nom qu'un
+        message du projet."""
+        cwd = str(self.project)
+        self.call("work.saved.save", cwd=cwd, scope="global", name="Revue", text="globale")
+        self.call("work.saved.save", cwd=cwd, scope="projet", name="Revue", text="du projet")
+        self.call("work.saved.save", cwd=cwd, scope="global", name="Merci", text="merci")
+        self.call("work.saved.delete", cwd=cwd, scope="global", name="Merci")
+        self.assertEqual([(s.name, s.text) for s in saved_messages.read_scope("global")], [("Revue", "globale")])
+        items = self.call("work.saved.list", cwd=cwd)["items"]
+        self.assertEqual([(i["name"], i["scope"]) for i in items], [("Revue", "projet")])
+
+    def test_project_messages_only_in_an_open_chat_folder(self):
+        """Constat 11 : `.ccs/` n'est créé que dans le dossier d'un chat ouvert."""
+        other = self.home / "ailleurs"
+        other.mkdir()
+        e = self.fails("work.saved.save", cwd=str(other), scope="projet", name="a", text="b")
+        self.assertEqual(e.code, "refuse")
+        self.assertEqual(self.fails("work.saved.delete", cwd=str(other), scope="projet", name="a").code, "refuse")
+        self.assertFalse((other / ".ccs").exists())
+        self.call("work.saved.save", cwd=str(other), scope="global", name="a", text="b")   # commun : permis
+        self.assertFalse((other / ".ccs").exists())
 
     def test_invalid_and_forbidden(self):
         self.assertEqual(self.fails("work.saved.save", cwd=str(self.project), scope="x", name="a", text="b").code, "invalide")
