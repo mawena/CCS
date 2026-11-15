@@ -1,1 +1,91 @@
 /* Chat : fil, saisie, cartes d'outils, volets (lot « chat » de la phase 14). */
+
+/* ---- en-tête : titre lisible, état en pastille, boutons avec libellé ---- */
+.chat { position: relative; }
+.chat-head { flex-wrap: nowrap; gap: 6px; padding: 6px 10px; }
+.chat-title { display: grid; gap: 2px; min-width: 0; }
+.chat-title .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-sub { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.chat-sub .cwd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85em; }
+.chat-state { flex: none; padding: 1px 10px; border-radius: 99px; font-size: 0.8em; font-weight: 600; white-space: nowrap;
+  background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--fg); }
+.chat-state[data-state="permission"] { background: color-mix(in srgb, var(--warning) 30%, transparent); }
+.chat-state[data-state="busy"] { background: color-mix(in srgb, var(--success) 22%, transparent); }
+.chat-actions { display: flex; gap: 2px; flex: none; }
+.chat-actions .act { min-height: 44px; white-space: nowrap; }
+.phone-only { display: none; }
+.chat-menu { position: absolute; top: 100%; right: 8px; z-index: 30; min-width: 200px; display: grid; background: var(--card);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 4px; }
+.chat-menu .menu-item { background: transparent; justify-content: flex-start; text-align: left; min-height: 44px; }
+.chat-menu[hidden] { display: none; }
+
+/* ---- saisie ---- */
+.composer { position: relative; }
+.composer-row .icon { min-width: 44px; padding: 0 8px; }
+.composer-row .stop { flex: none; }
+.composer-foot { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.composer-foot .opt { gap: 8px; min-width: 0; max-width: 100%; }
+.composer-foot .opt-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-foot .opt::after { content: "▾"; }
+.composer-foot .opt[aria-expanded="true"]::after { content: "▴"; }
+.composer-foot .context { margin-left: auto; white-space: nowrap; }
+.chat-bar select { flex: 1 1 140px; min-height: 44px; }
+
+.complete { position: absolute; left: 8px; right: 8px; bottom: 100%; z-index: 25; display: grid; background: var(--card);
+  border-radius: var(--radius); box-shadow: var(--shadow); max-height: 50vh; overflow-y: auto; }
+.complete[hidden] { display: none; }
+.complete .choice { display: flex; gap: 10px; align-items: baseline; justify-content: flex-start; text-align: left;
+  background: transparent; border-radius: 0; min-height: 44px; }
+.complete .choice.current { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.complete .choice .subtle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ---- notes, liens, recherche ---- */
+.notice { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.file-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.file-link code { color: inherit; }
+.findbar { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.findbar[hidden] { display: none; }
+.findbar input { flex: 1; min-width: 0; }
+.find-count { white-space: nowrap; font-size: 0.85em; }
+.hit { outline: 2px solid color-mix(in srgb, var(--warning) 55%, transparent); outline-offset: 2px; border-radius: 6px; }
+.hit-current { outline: 3px solid var(--warning); }
+
+/* ---- diff des modifications ---- */
+.tool.edit summary .path, .change summary .path { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; direction: rtl; text-align: left; }
+.stat { font-family: var(--mono); font-size: 0.85em; font-weight: 700; flex: none; }
+.stat.add, .dl.add .sign { color: var(--success); }
+.stat.del, .dl.del .sign { color: var(--error); }
+pre.diff { margin: 6px 0; padding: 0; font-family: var(--mono); font-size: 0.85em; overflow: auto; max-height: 360px; white-space: pre; background: var(--bg); border-radius: 8px; }
+.dl { display: block; padding: 0 8px; min-width: max-content; }
+.dl .sign { display: inline-block; width: 1.4em; user-select: none; }
+.dl.add { background: color-mix(in srgb, var(--success) 18%, transparent); }
+.dl.del { background: color-mix(in srgb, var(--error) 16%, transparent); }
+.dl.hunk { color: var(--subtle); background: var(--soft); font-style: italic; }
+.tool-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.tool.shell .path { font-family: var(--mono); }
+
+/* ---- messages enregistrés, changements ---- */
+dialog.sheet p { white-space: pre-line; overflow-wrap: anywhere; max-height: 40vh; overflow-y: auto; }
+dialog.saved { width: min(520px, calc(100vw - 24px)); }
+.saved-list { display: grid; gap: 6px; max-height: 45vh; overflow-y: auto; }
+.saved-item { display: flex; align-items: center; gap: 6px; }
+.saved-pick { flex: 1; min-width: 0; display: grid; justify-items: start; text-align: left; background: var(--soft); gap: 2px; padding: 8px 12px; height: auto; }
+.saved-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.saved-new { display: grid; gap: 6px; margin-top: 12px; }
+.changes { display: grid; gap: 8px; }
+.change { background: var(--soft); border-radius: 10px; padding: 6px 10px; }
+.change summary { cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.kind { font-size: 0.8em; padding: 1px 8px; border-radius: 99px; background: var(--soft); }
+.point { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.point-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 719px) {
+  .desk-only { display: none; }
+  .phone-only { display: inline-flex; }
+  .chat-head .chat-sub .cwd { display: none; }
+  .composer-row .icon { min-width: 40px; }
+  .complete { left: 0; right: 0; }
+}
+@media (min-width: 720px) {
+  .chat-menu { display: none; }
+}
