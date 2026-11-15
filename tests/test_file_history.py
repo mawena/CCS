@@ -131,6 +131,15 @@ class RewindTest(FileHistoryCase):
         self.assertTrue(steps[a].user_edited)
         self.assertNotIn(d, steps)                          # déjà identique : rien à écrire
 
+    def test_rewind_refuses_message_without_snapshot(self):
+        """Sans instantané pour ce message, l'état d'avant lui est inconnu : erreur, et non un
+        retour à l'état d'avant la conversation."""
+        a, c, d = self.prepare()
+        (self.proj / "a.txt").write_text("A1\n")
+        with self.assertRaises(fh.NoSnapshot):
+            fh.rewind_plan(fh.read(self.journal), self.SESSION, "m-sans-instantane")
+        self.assertIsInstance(fh.NoSnapshot("x"), LookupError)
+
     def test_apply_atomic(self):
         target = self.proj / "sous" / "x.txt"
         gone = self.proj / "y.txt"

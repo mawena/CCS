@@ -404,7 +404,7 @@ class ChatTab(Gtk.Box):
         def work():
             for scope in saved_messages.SCOPES:
                 try:
-                    saved_messages.save(scope, items, cwd)
+                    saved_messages.save(scope, saved_messages.with_hidden(scope, items, cwd), cwd)
                 except (OSError, ValueError):
                     pass
         in_thread(work, lambda _r: None)

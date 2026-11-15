@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from ccs_app import sessions
 from ccs_app.server import bridge, bridge_chat, rpc
 from tests.helpers import make_home
 
@@ -24,7 +25,10 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         env = mock.patch.dict(os.environ, {"HOME": str(home)})
         env.start()
         self.addCleanup(env.stop)
-        self.project = Path(self.tmp) / "projet"
+        for var in ("CLAUDE_CONFIG_DIR", "CCS_HOME"):      # jamais le vrai dossier de Claude Code
+            os.environ.pop(var, None)
+        self.home = home
+        self.project = home / "projet"              # sous le dossier personnel (dossiers permis)
         self.project.mkdir()
         self.sock = Path(self.tmp) / "b.sock"
         self.bridge = bridge.Bridge("alice", None, local=True, start_daemon=False, install_claude=False)
@@ -133,6 +137,57 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cm.exception.code, "introuvable")
         with self.assertRaises(rpc.RpcError):
             await c.call("chat.open", cwd="/dossier/inexistant")
+
+    async def test_open_only_in_allowed_folders(self):
+        """Constat 11 : un chat ouvert sur / permettrait de lister le système."""
+        c = await self.client()
+        outside = Path(self.tmp) / "dehors"
+        outside.mkdir()
+        for bad in ("/", str(outside), str(self.home / ".." / "dehors")):
+            with self.assertRaises(rpc.RpcError) as cm:
+                await c.call("chat.open", cwd=bad)
+            self.assertEqual(cm.exception.code, "refuse", bad)
+        os.symlink("/", self.home / "racine")
+        with self.assertRaises(rpc.RpcError) as cm:
+            await c.call("chat.open", cwd="~/racine")
+        self.assertEqual(cm.exception.code, "refuse")
+        for bad in ("../../x", "a/b", 3):
+            with self.assertRaises(rpc.RpcError) as cm:
+                await c.call("chat.open", cwd=str(self.project), session_id=bad)
+            self.assertEqual(cm.exception.code, "invalide", bad)
+        self.assertEqual((await c.call("chat.list"))["chats"], [])
+
+    async def test_ids_unique_across_bridge_restarts(self):
+        """C1 : `c<boot>-<n>`, boot tiré au hasard à la création du hub."""
+        c = await self.client()
+        one = (await c.call("chat.open", cwd=str(self.project)))["chat_id"]
+        self.assertRegex(one, r"^c[0-9a-f]{6}-1$")
+        self.assertEqual(one, f"c{self.hub.boot}-1")
+        other = bridge_chat.ChatHub(bridge.Bridge("bob", None, local=True, start_daemon=False, install_claude=False))
+        self.assertRegex(other.boot, r"^[0-9a-f]{6}$")
+        self.assertNotEqual(other.boot, self.hub.boot)
+
+    async def test_options_session_and_journal_path(self):
+        """C2 : options du moteur, conversation et journal dans chat.open, chat.attach et chat.list."""
+        c = await self.client()
+        r = await c.call("chat.open", cwd=str(self.project), options={"model": "sonnet", "effort": "high"})
+        want = {"model": "sonnet", "effort": "high", "ultracode": False, "rights": "manual"}
+        self.assertEqual((r["options"], r["session_id"], r["path"]), (want, None, None))
+        r2 = await c.call("chat.open", cwd=str(self.project), session_id="abc")
+        self.assertEqual((r2["session_id"], r2["path"]), ("abc", None))       # journal pas encore écrit
+        journal = sessions.transcript_path(str(self.project), "abc")
+        self.assertTrue(str(journal).startswith(str(self.home)))
+        journal.parent.mkdir(parents=True)
+        journal.write_text("{}\n")
+        again = await c.call("chat.open", cwd=str(self.project), session_id="abc")   # le même chat
+        self.assertEqual((again["chat_id"], again["path"]), (r2["chat_id"], str(journal)))
+        self.assertEqual(again["options"]["rights"], "manual")
+        listing = {x["chat_id"]: x for x in (await c.call("chat.list"))["chats"]}
+        self.assertEqual((listing[r["chat_id"]]["path"], listing[r["chat_id"]]["options"]), (None, want))
+        self.assertEqual(listing[r2["chat_id"]]["path"], str(journal))
+        att = await c.call("chat.attach", chat_id=r2["chat_id"], since=0)
+        self.assertEqual((att["session_id"], att["path"]), ("abc", str(journal)))
+        self.assertEqual(set(att["options"]), set(want))
 
     async def test_busy_check_and_close(self):
         c = await self.client()

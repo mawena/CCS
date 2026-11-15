@@ -7,6 +7,7 @@ module ne touche à GTK ; l'interface les appelle hors de son fil (`in_thread`).
 
 import os
 import re
+import stat
 import subprocess
 from dataclasses import dataclass, field
 
@@ -34,14 +35,17 @@ def _env(extra=None):
     return env
 
 
-def run(repo, *args, input=None, env=None, timeout=60, ok_codes=(0,)):
+def run(repo, *args, input=None, env=None, timeout=60, ok_codes=(0,), detach=False):
     """`git -C repo args…` ; sortie standard en octets. Lève `GitError` si le code n'est pas
-    dans `ok_codes` (ou si git est introuvable, ou trop long)."""
+    dans `ok_codes` (ou si git est introuvable, ou trop long). Sans `input`, l'entrée standard
+    est vide : git ne lit jamais celle de l'appelant. `detach` : nouvelle session, sans
+    terminal où une invite pourrait s'afficher."""
     argv = ["git", "-c", "core.quotePath=false", "-C", str(repo), *args]
     command = " ".join(["git", *args])
+    feed = {"input": input} if input is not None else {"stdin": subprocess.DEVNULL}
     try:
-        proc = subprocess.run(argv, input=input, capture_output=True, env=_env(env),
-                              timeout=timeout)
+        proc = subprocess.run(argv, capture_output=True, env=_env(env), timeout=timeout,
+                              start_new_session=detach, **feed)
     except FileNotFoundError:
         raise GitError(command, "La commande git est introuvable.", 127) from None
     except subprocess.TimeoutExpired as e:
@@ -223,6 +227,8 @@ class DiffLine:
     text: str
     old_no: object
     new_no: object
+    raw: bytes = None     # octets de la ligne tels que git les donne (correctifs : jamais `text`)
+    no_eol: bool = False  # suivie de « \ No newline at end of file »
 
 
 @dataclass
@@ -243,6 +249,7 @@ class FileDiff:
     hunks: list
     new_file: bool = False
     deleted: bool = False
+    too_big: bool = False         # diff non calculé : fichier plus gros que la limite demandée
 
 
 _ESC = {b"n": b"\n", b"t": b"\t", b"\\": b"\\", b'"': b'"', b"a": b"\a", b"b": b"\b",
@@ -302,16 +309,17 @@ def parse_diff(raw):
         if hunk is not None and line[:1] in (b" ", b"+", b"-") and not (
                 line.startswith(b"--- ") and hunk_done(hunk, old_no, new_no)):
             kind = line[:1].decode()
-            text = _text(line[1:])
+            raw = line[1:]
+            text = _text(raw)
             if kind == " ":
-                hunk.lines.append(DiffLine(" ", text, old_no, new_no))
+                hunk.lines.append(DiffLine(" ", text, old_no, new_no, raw))
                 old_no += 1
                 new_no += 1
             elif kind == "-":
-                hunk.lines.append(DiffLine("-", text, old_no, None))
+                hunk.lines.append(DiffLine("-", text, old_no, None, raw))
                 old_no += 1
             else:
-                hunk.lines.append(DiffLine("+", text, None, new_no))
+                hunk.lines.append(DiffLine("+", text, None, new_no, raw))
                 new_no += 1
             continue
         if line.startswith(b"@@"):
@@ -323,8 +331,10 @@ def parse_diff(raw):
                 cur.hunks.append(hunk)
                 old_no, new_no = int(o), int(n)
             continue
-        if line.startswith(b"\\"):
-            continue            # « \ No newline at end of file »
+        if line.startswith(b"\\"):        # « \ No newline at end of file » : ligne précédente
+            if hunk is not None and hunk.lines:
+                hunk.lines[-1].no_eol = True
+            continue
         hunk = None
         if line.startswith(b"new file mode"):
             cur.new_file = True
@@ -357,26 +367,84 @@ def hunk_done(hunk, old_no, new_no):
 
 
 _DIFF_OPTS = ("--no-color", "--no-ext-diff", "-M")
+_LITERAL = {"GIT_LITERAL_PATHSPECS": "1"}     # un chemin est un nom de fichier, jamais un motif
 
 
 def _untracked(repo, path):
-    try:
-        run(repo, "ls-files", "--error-unmatch", "--", path)
+    """Vrai seulement pour un fichier non suivi que git liste lui-même (`ls-files -o`, exactement
+    ce chemin) : jamais un fichier ignoré, derrière un lien ou hors du dépôt, ni « - » (l'entrée
+    standard pour `--no-index`), ni un dossier ou un lien vers un dossier (que `--no-index`
+    parcourrait)."""
+    if path == "-":
         return False
+    try:
+        out = run(repo, "ls-files", "-z", "-o", "--exclude-standard", "--", path, env=_LITERAL)
     except GitError:
-        return True
+        return False
+    if out.split(b"\0")[:-1] != [os.fsencode(path)]:
+        return False
+    full = os.path.join(str(repo), path)
+    try:
+        mode = os.lstat(full).st_mode
+    except OSError:
+        return False
+    if stat.S_ISLNK(mode):
+        return not os.path.isdir(full)
+    return stat.S_ISREG(mode)
 
 
-def diff(repo, path, staged):
-    """Diff d'un fichier : indexé (`staged`) ou non indexé ; fichier non suivi : contre
-    /dev/null. None s'il n'y a pas de différence."""
+def _file_size(repo, path):
+    try:
+        st = os.lstat(os.path.join(str(repo), path))
+    except OSError:
+        return 0
+    return st.st_size if stat.S_ISREG(st.st_mode) else 0
+
+
+def _blob_size(repo, spec):
+    try:
+        return int(run(repo, "cat-file", "-s", spec, ok_codes=(0, 128)).strip() or 0)
+    except (GitError, ValueError):
+        return 0
+
+
+def _too_big(repo, path, staged, untracked, max_bytes):
     if staged:
-        raw = run(repo, "diff", "--cached", *_DIFF_OPTS, "--", path)
-    elif _untracked(repo, path):
+        sizes = (_blob_size(repo, f":0:{path}"), _blob_size(repo, f"HEAD:{path}"))
+    elif untracked:
+        sizes = (_file_size(repo, path),)
+    else:
+        sizes = (_file_size(repo, path), _blob_size(repo, f":0:{path}"))
+    return max(sizes) > max_bytes
+
+
+def _differs(repo, path, staged):
+    try:
+        run(repo, "diff", "--quiet", *(("--cached",) if staged else ()), "--", path, env=_LITERAL)
+    except GitError as e:
+        if e.code == 1:
+            return True
+        raise
+    return False
+
+
+def diff(repo, path, staged, max_bytes=None):
+    """Diff d'un fichier : indexé (`staged`) ou non indexé ; fichier non suivi : contre
+    /dev/null. None s'il n'y a pas de différence, ou si git ne suit pas ce chemin et ne le
+    liste pas comme non suivi (ignoré, derrière un lien…). `max_bytes` : si la copie de
+    travail, l'index ou HEAD dépasse cette taille, le diff n'est pas calculé (`too_big`)."""
+    untracked = not staged and _untracked(repo, path)
+    if max_bytes is not None and _too_big(repo, path, staged, untracked, max_bytes):
+        if not untracked and not _differs(repo, path, staged):
+            return None
+        return FileDiff(path, None, False, [], new_file=untracked, too_big=True)
+    if staged:
+        raw = run(repo, "diff", "--cached", *_DIFF_OPTS, "--", path, env=_LITERAL)
+    elif untracked:
         raw = run(repo, "diff", "--no-index", *_DIFF_OPTS, "--", "/dev/null", path,
                   ok_codes=(0, 1))
     else:
-        raw = run(repo, "diff", *_DIFF_OPTS, "--", path)
+        raw = run(repo, "diff", *_DIFF_OPTS, "--", path, env=_LITERAL)
     files = parse_diff(raw)
     return files[0] if files else None
 
@@ -457,8 +525,34 @@ def _quote(path):
     return '"' + "".join(out) + '"'
 
 
+_NO_EOL = b"\\ No newline at end of file"
+
+
+def _fix_eol(lines):
+    """`lines` : [type, octets, sans fin de ligne] d'un bloc retouché. De chaque côté du
+    correctif (ancien : contexte et `-`, nouveau : contexte et `+`), seule la dernière ligne
+    peut manquer de saut de ligne : une ligne qui n'est plus la dernière de son côté le
+    retrouve ; une ligne de contexte qui ne l'est plus que d'un côté est dédoublée (`-` et
+    `+`, chacune avec sa fin)."""
+    out = []
+    for i, (kind, raw, no_eol) in enumerate(lines):
+        if no_eol:
+            later = lines[i + 1:]
+            more_old = any(k in " -" for k, _r, _e in later)
+            more_new = any(k in " +" for k, _r, _e in later)
+            if kind == " " and more_old != more_new:
+                out += [["-", raw, not more_old], ["+", raw, not more_new]]
+                continue
+            if (kind == "-" and more_old) or (kind == "+" and more_new) or (more_old and more_new):
+                no_eol = False
+        out.append([kind, raw, no_eol])
+    return out
+
+
 def patch_for(fd, keep, reverse=False):
-    """Correctif ne gardant que les lignes `(bloc, ligne)` de `keep`.
+    """Correctif ne gardant que les lignes `(bloc, ligne)` de `keep`, en octets : les lignes
+    sont recopiées telles que git les a données (fichier qui n'est pas en UTF-8 intact) et
+    « \\ No newline at end of file » est réécrit après la ligne qu'il suit.
 
     Sens direct (indexer) : un `+` non choisi disparaît, un `-` non choisi devient du
     contexte. Sens inverse (`reverse`, appliqué avec `-R` : désindexer, annuler) : un `-` non
@@ -472,17 +566,19 @@ def patch_for(fd, keep, reverse=False):
         lines, chosen = [], False
         for li, l in enumerate(h.lines):
             picked = (hi, li) in keep
+            raw = l.raw if l.raw is not None else l.text.encode("utf-8")
             if l.kind == " ":
-                lines.append(" " + l.text)
+                lines.append([" ", raw, l.no_eol])
             elif picked:
-                lines.append(l.kind + l.text)
+                lines.append([l.kind, raw, l.no_eol])
                 chosen = True
             elif (l.kind == "-") != reverse:
-                lines.append(" " + l.text)      # garde la ligne telle qu'elle est des deux côtés
+                lines.append([" ", raw, l.no_eol])     # garde la ligne telle qu'elle est des deux côtés
         if not chosen:
             continue
-        old_len = sum(1 for x in lines if x[0] in " -")
-        new_len = sum(1 for x in lines if x[0] in " +")
+        lines = _fix_eol(lines)
+        old_len = sum(1 for k, _r, _e in lines if k in " -")
+        new_len = sum(1 for k, _r, _e in lines if k in " +")
         if reverse:
             new_start = h.new_start
             old_start = new_start - delta
@@ -490,8 +586,11 @@ def patch_for(fd, keep, reverse=False):
             old_start = h.old_start
             new_start = old_start + delta
         delta += new_len - old_len
-        body.append(f"@@ -{old_start},{old_len} +{new_start},{new_len} @@")
-        body.extend(lines)
+        body.append(f"@@ -{old_start},{old_len} +{new_start},{new_len} @@".encode())
+        for kind, raw, no_eol in lines:
+            body.append(kind.encode() + raw)
+            if no_eol:
+                body.append(_NO_EOL)
     if not body:
         return b""
     head = [f"diff --git {_quote('a/' + old)} {_quote('b/' + fd.path)}"]
@@ -500,7 +599,7 @@ def patch_for(fd, keep, reverse=False):
     if fd.deleted:
         head.append("deleted file mode 100644")
     head += [f"--- {a}", f"+++ {b}"]
-    return ("\n".join(head + body) + "\n").encode("utf-8")
+    return b"\n".join([h.encode("utf-8") for h in head] + body) + b"\n"
 
 
 def _apply(repo, patch, *flags):
@@ -552,16 +651,35 @@ def ignore(repo, relpath):
         f.write(text + entry + "\n")
 
 
-# Jamais de demande de mot de passe : ni terminal, ni fenêtre, ni phrase de passe SSH.
-_NO_PROMPT = {"GIT_ASKPASS": "", "SSH_ASKPASS": "", "GIT_SSH_COMMAND": "ssh -o BatchMode=yes"}
+# Jamais de demande de mot de passe : ni terminal, ni fenêtre (askpass, gestionnaire
+# d'identifiants), ni phrase de passe SSH ; agent SSH et identifiants enregistrés marchent.
+_NO_PROMPT = {"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": "",
+              "SSH_ASKPASS_REQUIRE": "never", "GCM_INTERACTIVE": "never"}
+
+
+def _config(repo, key):
+    try:
+        return _text(run(repo, "config", "--get", key, ok_codes=(0, 1))).strip()
+    except GitError:
+        return ""
+
+
+def _network_env(repo):
+    """Variables de fetch, pull et push : sans invite ; SSH en BatchMode, sauf si l'utilisateur
+    ou le dépôt choisit déjà sa commande SSH (`core.sshCommand` n'est jamais écrasé)."""
+    env = dict(_NO_PROMPT)
+    if not (os.environ.get("GIT_SSH_COMMAND") or os.environ.get("GIT_SSH")
+            or _config(repo, "core.sshCommand")):
+        env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes"
+    return env
 
 
 def fetch(repo):
-    run(repo, "fetch", "--prune", "--quiet", env=_NO_PROMPT, timeout=120)
+    run(repo, "fetch", "--prune", "--quiet", env=_network_env(repo), timeout=120, detach=True)
 
 
 def pull(repo):
-    run(repo, "pull", "--ff-only", "--quiet", timeout=300)
+    run(repo, "pull", "--ff-only", "--quiet", env=_network_env(repo), timeout=300, detach=True)
 
 
 def _remote(repo):
@@ -582,7 +700,7 @@ def push(repo, force=False):
         args += ["--force-with-lease", "--force-if-includes"]
     if b.upstream is None:
         args += ["--set-upstream", _remote(repo), b.name]
-    run(repo, *args, timeout=300)
+    run(repo, *args, env=_network_env(repo), timeout=300, detach=True)
 
 
 FLOW_KINDS = ("feature", "release", "hotfix")
@@ -613,10 +731,10 @@ _VERBS = {"A": "ajoute", "M": "modifie", "D": "supprime", "R": "renomme", "C": "
           "T": "modifie"}
 
 
-def propose_message(repo):
+def propose_message(repo, files=None):
     """Message de commit proposé d'après les seuls fichiers indexés (sans appel à Claude) ;
-    vide si rien n'est indexé."""
-    staged = [s for s in status(repo) if s.staged not in (".", "?")]
+    vide si rien n'est indexé. `files` : résultat de `status` déjà lu."""
+    staged = [s for s in (status(repo) if files is None else files) if s.staged not in (".", "?")]
     if not staged:
         return ""
     paths = [s.path for s in staged]

@@ -163,9 +163,14 @@ class DataApi:
         return await asyncio.to_thread(work)
 
     async def rename(self, _conn, params):
+        """Titre ajouté au journal : seulement `<session_id>.jsonl` sous le dossier des projets
+        de Claude Code (liens suivis), jamais un autre fichier du dossier personnel."""
         path, session_id = safe_path(params.get("path")), params.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             raise rpc.RpcError("invalide", "Conversation inconnue.")
+        projects = os.path.realpath(sessions.projects_dir())
+        if path.name != f"{session_id}.jsonl" or str(path) == projects or not _under(str(path), projects):
+            raise rpc.RpcError("refuse", "Ce fichier n'est pas un journal de conversation.")
         try:
             title = await asyncio.to_thread(conversations.rename, session_id, params.get("title"), None, str(path))
         except ValueError as e:
@@ -289,13 +294,30 @@ class DataApi:
         return await asyncio.to_thread(work)
 
     async def roadmap_toggle(self, _conn, params):
+        """Coche ou décoche la case `line` de texte `text`. `done` (facultatif) : l'état voulu ;
+        si la case y est déjà (autre appareil, double envoi), rien ne change : `changed` faux."""
         path = safe_path(params.get("path"))
-        line, text = params.get("line"), params.get("text")
-        if not isinstance(line, int) or not isinstance(text, str):
+        line, text, done = params.get("line"), params.get("text"), params.get("done")
+        if not isinstance(line, int) or not isinstance(text, str) or not isinstance(done, (bool, type(None))):
             raise rpc.RpcError("invalide", "Case invalide.")
-        if not await asyncio.to_thread(roadmap.toggle, path, line, text):
+
+        def work():
+            if done is not None:
+                try:
+                    content = path.read_bytes().decode("utf-8", errors="surrogateescape")
+                except OSError:
+                    return None
+                task = next((t for p in roadmap.parse(content, path).phases for t in p.tasks
+                             if t.line == line), None)
+                if task is None or task.text != text:
+                    return None
+                if task.done == done:
+                    return False
+            return True if roadmap.toggle(path, line, text) else None
+        changed = await asyncio.to_thread(work)
+        if changed is None:
             raise rpc.RpcError("conflit", "La feuille de route a changé : relis-la.")
-        return {}
+        return {"changed": changed}
 
     async def roadmap_task_prompt(self, _conn, params):
         """Message qui demande à Claude de faire une tâche (retrouvée par texte et phase)."""

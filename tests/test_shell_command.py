@@ -24,6 +24,24 @@ def run(command, cwd=None, wait=15):
     return got[0]
 
 
+def alive(pid):
+    """Le processus tourne (ni absent, ni zombie)."""
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return f.read().rsplit(") ", 1)[1][:1] != "Z"
+    except OSError:
+        return False
+
+
+def wait_dead(pid, timeout):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not alive(pid):
+            return True
+        time.sleep(0.05)
+    return False
+
+
 class ShellRunTest(unittest.TestCase):
     def test_run_output_and_code(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -59,6 +77,34 @@ class ShellRunTest(unittest.TestCase):
         time.sleep(0.4)
         r.stop()
         self.assertTrue(done.wait(5))                       # SIGKILL après 2 s
+
+    def test_background_process_does_not_hold_the_result(self):
+        """Constat 6 : un processus laissé en fond garde la sortie ouverte ; la main est rendue
+        peu après la fin de bash, et il continue de tourner."""
+        done = threading.Event()
+        got = []
+        r = sc.ShellRun("echo a; sleep 30 & echo $!", tempfile.gettempdir())
+        start = time.monotonic()
+        r.start(lambda code, text, truncated: (got.append((code, text)), done.set()))
+        self.addCleanup(r.stop)
+        self.assertTrue(done.wait(sc.AFTER_EXIT_S + 3), "la commande ne rend pas la main")
+        self.assertLess(time.monotonic() - start, sc.AFTER_EXIT_S + 2)
+        code, text = got[0]
+        self.assertEqual(code, 0)
+        first, pid = text.split()
+        self.assertEqual(first, "a")
+        self.assertTrue(alive(int(pid)))                    # le processus en fond vit encore
+
+    def test_stop_after_bash_exit_kills_background(self):
+        done = threading.Event()
+        got = []
+        r = sc.ShellRun("sleep 30 & echo $!", tempfile.gettempdir())
+        r.start(lambda code, text, truncated: (got.append(text), done.set()))
+        self.assertTrue(done.wait(sc.AFTER_EXIT_S + 3))
+        pid = int(got[0].split()[0])
+        self.assertTrue(alive(pid))
+        r.stop()                                            # bash est fini : le groupe reste visé
+        self.assertTrue(wait_dead(pid, sc.KILL_AFTER_S + 3))
 
     def test_missing_directory_reports_error(self):
         code, text, _t = run("true", "/dossier/qui/n/existe/pas", wait=5)

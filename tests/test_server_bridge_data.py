@@ -98,6 +98,28 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
         empty = await self.c.call("roadmap.read", cwd=str(self.project / "src"))
         self.assertIsNone(empty["path"])
 
+    async def test_roadmap_toggle_to_wanted_state(self):
+        """C3 : `done` est l'état voulu ; déjà dans cet état (autre appareil, double envoi) :
+        rien ne change et pas d'erreur."""
+        r = await self.c.call("roadmap.read", cwd=str(self.project))
+        task = r["phases"][0]["tasks"][0]                      # « écrire », pas cochée
+        args = dict(path=r["path"], line=task["line"], text=task["text"])
+        read = lambda: (self.project / "ROADMAP.md").read_text()
+        self.assertEqual(await self.c.call("roadmap.toggle", done=False, **args), {"changed": False})
+        self.assertIn("- [ ] écrire", read())
+        self.assertEqual(await self.c.call("roadmap.toggle", done=True, **args), {"changed": True})
+        self.assertEqual(await self.c.call("roadmap.toggle", done=True, **args), {"changed": False})
+        self.assertIn("- [x] écrire", read())
+        self.assertEqual(await self.c.call("roadmap.toggle", **args), {"changed": True})   # sans done : bascule
+        self.assertIn("- [ ] écrire", read())
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("roadmap.toggle", done="oui", **args)
+        self.assertEqual(cm.exception.code, "invalide")
+        with self.assertRaises(rpc.RpcError) as cm:
+            await self.c.call("roadmap.toggle", done=True, path=r["path"], line=task["line"], text="autre")
+        self.assertEqual(cm.exception.code, "conflit")
+        self.assertIn("- [ ] écrire", read())
+
     async def test_projects_list_shape(self):
         r = await self.c.call("projects.list")
         self.assertIn("entries", r)
@@ -202,6 +224,28 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("short", r)
         self.assertIn("text", r)
         await self.refused("conversation.cost", path="/etc/passwd")
+
+    async def test_conversation_rename_only_claude_journals(self):
+        """Constat 12 : seulement un `<session_id>.jsonl` sous le dossier des projets de Claude Code."""
+        bashrc = self.home / ".bashrc"
+        bashrc.write_text("export A=1\n")
+        await self.refused("conversation.rename", session_id="abc", title="x", path=str(bashrc))
+        other = self.home / "notes" / "abc.jsonl"
+        other.parent.mkdir()
+        other.write_text("{}\n")
+        await self.refused("conversation.rename", session_id="abc", title="x", path=str(other))
+        d = self.home / ".claude" / "projects" / "-p"
+        d.mkdir(parents=True)
+        journal = d / "abc.jsonl"
+        journal.write_text('{"type":"user","message":{"content":"salut"}}\n')
+        await self.refused("conversation.rename", session_id="autre", title="x", path=str(journal))
+        os.symlink(bashrc, d / "lien.jsonl")
+        await self.refused("conversation.rename", session_id="lien", title="x", path=str(d / "lien.jsonl"))
+        (d / "notes.txt").write_text("x\n")
+        await self.refused("conversation.rename", session_id="notes.txt", title="x", path=str(d / "notes.txt"))
+        self.assertEqual(bashrc.read_text(), "export A=1\n")
+        self.assertNotIn("custom-title", other.read_text())
+        self.assertNotIn("custom-title", journal.read_text())
 
     async def test_roadmap_task_prompt(self):
         r = await self.c.call("roadmap.read", cwd=str(self.project))

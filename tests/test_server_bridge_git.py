@@ -1,9 +1,12 @@
 """Pont : git d'un projet (état, diff, indexation, commit, fetch / pull / push, journal), sur de
 vrais petits dépôts temporaires ; un dépôt nu local sert de distant, aucun réseau."""
 
+import os
 import subprocess
+import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ccs_app.server import bridge, bridge_git, rpc
 from tests.git_helpers import GitTestCase, commit_file, g, many_commits
@@ -131,17 +134,38 @@ class GitBridgeTest(GitTestCase, unittest.IsolatedAsyncioTestCase):
         (self.repo / "a.txt").write_text("".join(lines))
         d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
         self.assertEqual(len(d["hunks"]), 2)
-        await self.call("git.hunk", path="a.txt", index=1, action="stage")
+        await self.call("git.hunk", path="a.txt", index=1, action="stage", header=d["hunks"][1]["header"])
         staged = g(self.repo, "diff", "--cached")
         self.assertIn("CHANGE2", staged)
         self.assertNotIn("CHANGE1", staged)
-        await self.call("git.hunk", path="a.txt", index=0, action="stage")
-        await self.call("git.hunk", path="a.txt", index=0, action="unstage")
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        await self.call("git.hunk", path="a.txt", index=0, action="stage", header=d["hunks"][0]["header"])
+        d = (await self.call("git.diff", path="a.txt", staged=True))["diff"]
+        await self.call("git.hunk", path="a.txt", index=0, action="unstage", header=d["hunks"][0]["header"])
         staged = g(self.repo, "diff", "--cached")
         self.assertNotIn("CHANGE1", staged)
         self.assertIn("CHANGE2", staged)
-        await self.fails("invalide", "git.hunk", path="a.txt", index=9, action="stage")
-        await self.fails("invalide", "git.hunk", path="a.txt", index=0, action="jeter")
+        h = d["hunks"][0]["header"]
+        await self.fails("conflit", "git.hunk", path="a.txt", index=9, action="stage", header=h)
+        await self.fails("invalide", "git.hunk", path="a.txt", index=0, action="jeter", header=h)
+        await self.fails("invalide", "git.hunk", path="a.txt", index=-1, action="stage", header=h)
+
+    async def test_hunk_checks_shown_header(self):
+        """C5 : le bloc indexé est celui qui a été montré, sinon `conflit`."""
+        base = "".join(f"l{i}\n" for i in range(40))
+        commit_file(self.repo, "a.txt", base)
+        lines = base.splitlines(keepends=True)
+        lines[1] = "CHANGE1\n"
+        lines[38] = "CHANGE2\n"
+        (self.repo / "a.txt").write_text("".join(lines))
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        shown = d["hunks"][1]["header"]
+        lines.insert(20, "AJOUT\n")                       # le fichier change avant le clic
+        (self.repo / "a.txt").write_text("".join(lines))
+        e = await self.fails("conflit", "git.hunk", path="a.txt", index=1, action="stage", header=shown)
+        self.assertEqual(e.message, "Le fichier a changé : actualise.")
+        self.assertEqual(g(self.repo, "diff", "--cached"), "")
+        await self.fails("invalide", "git.hunk", path="a.txt", index=1, action="stage")   # sans en-tête
 
     # ---- commit ----------------------------------------------------------------------
 
@@ -220,6 +244,92 @@ class GitBridgeTest(GitTestCase, unittest.IsolatedAsyncioTestCase):
         await self.call("git.push", force=True)
         await self.fails("invalide", "git.push", force="oui")
         self.assertEqual((await self.call("git.status"))["branch"]["ahead"], 0)
+
+
+    # ---- revue phase 14 : confinement et plafonds (C7) ---------------------------------
+
+    async def test_diff_refuses_dash_and_stays_in_repo(self):
+        commit_file(self.repo, "a.txt", "un\n")
+        await self.fails("invalide", "git.diff", path="-", staged=False)
+        outside = Path(self.tmp) / "dehors"
+        outside.mkdir()
+        (outside / "hostname").write_text("secret-dehors\n")
+        os.symlink(outside, self.repo / "lnk")
+        try:
+            r = await self.call("git.diff", path="lnk/hostname", staged=False)
+            self.assertIsNone(r["diff"])
+        except rpc.RpcError as e:
+            self.assertNotIn("secret-dehors", e.message)
+
+    async def test_diff_of_too_big_file(self):
+        self.assertEqual(bridge_git.MAX_FILE_BYTES, 2 * 1024 * 1024)
+        (self.repo / "app.js.map").write_bytes(b"x" * (bridge_git.MAX_FILE_BYTES + 1))   # une seule ligne
+        d = (await self.call("git.diff", path="app.js.map", staged=False))["diff"]
+        self.assertTrue(d["too_big"])
+        self.assertEqual(d["hunks"], [])
+
+    async def test_diff_long_lines_are_cut(self):
+        self.assertEqual(bridge_git.MAX_LINE_CHARS, 4000)
+        commit_file(self.repo, "a.txt", "un\n")
+        (self.repo / "a.txt").write_text("y" * 10000 + "\n")
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        self.assertFalse(d["too_big"])
+        longest = max(len(l["text"]) for h in d["hunks"] for l in h["lines"])
+        self.assertLessEqual(longest, bridge_git.MAX_LINE_CHARS + 1)
+
+    async def test_diff_total_size_capped(self):
+        commit_file(self.repo, "a.txt", "un\n")
+        (self.repo / "a.txt").write_text("".join(f"{i:05d}" + "z" * 3000 + "\n" for i in range(600)))
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        self.assertTrue(d["truncated"])
+        total = sum(len(l["text"]) for h in d["hunks"] for l in h["lines"])
+        self.assertLessEqual(total, bridge_git.MAX_DIFF_CHARS + bridge_git.MAX_LINE_CHARS + 1)
+
+    async def test_status_capped(self):
+        self.assertEqual(bridge_git.MAX_STATUS_FILES, 2000)
+        for i in range(5):
+            (self.repo / f"f{i}.txt").write_text("x\n")
+        with mock.patch.object(bridge_git, "MAX_STATUS_FILES", 3):
+            r = await self.call("git.status")
+        self.assertTrue(r["truncated"])
+        self.assertEqual(len(r["files"]), 3)
+        self.assertFalse((await self.call("git.status"))["truncated"])
+
+
+    async def test_hunk_at_end_of_file_without_newline(self):
+        commit_file(self.repo, "a.txt", "un\ndeux")
+        (self.repo / "a.txt").write_text("un\ntrois")
+        d = (await self.call("git.diff", path="a.txt", staged=False))["diff"]
+        await self.call("git.hunk", path="a.txt", index=0, action="stage", header=d["hunks"][0]["header"])
+        self.assertEqual(g(self.repo, "show", ":a.txt"), "un\ntrois")
+
+    async def test_hunk_keeps_non_utf8_bytes(self):
+        base = b"".join(b"ligne %d\n" % i for i in range(1, 21)) + b"caf\xe9\n"
+        (self.repo / "l1.txt").write_bytes(base)
+        g(self.repo, "add", "l1.txt")
+        g(self.repo, "commit", "-q", "-m", "latin-1")
+        (self.repo / "l1.txt").write_bytes(base.replace(b"caf\xe9", b"th\xe9"))
+        d = (await self.call("git.diff", path="l1.txt", staged=False))["diff"]
+        await self.call("git.hunk", path="l1.txt", index=0, action="stage", header=d["hunks"][0]["header"])
+        staged = subprocess.run(["git", "-C", str(self.repo), "show", ":l1.txt"], capture_output=True).stdout
+        self.assertEqual(staged, base.replace(b"caf\xe9", b"th\xe9"))
+
+
+    async def test_network_ops_use_their_own_executor(self):
+        """Fetch, pull et push (jusqu'à 300 s) n'occupent pas le pool commun d'asyncio.to_thread."""
+        seen = []
+
+        def record(root, **_kw):
+            seen.append(threading.current_thread().name)
+        commit_file(self.repo, "a.txt", "un\n")
+        with mock.patch.object(bridge_git.git_repo, "fetch", record), \
+                mock.patch.object(bridge_git.git_repo, "pull", record), \
+                mock.patch.object(bridge_git.git_repo, "push", record):
+            await self.call("git.fetch")
+            await self.call("git.pull")
+            await self.call("git.push")
+        self.assertEqual(len(seen), 3)
+        self.assertTrue(all(n.startswith("ccs-git-reseau") for n in seen), seen)
 
 
 if __name__ == "__main__":
