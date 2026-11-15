@@ -297,6 +297,16 @@ class ChatEngineTest(EngineCase):
         self.col.wait_state("idle")
         self.assertEqual(s.session_id, "abc-123")  # le faux reprend l'identifiant demandé
 
+    def test_file_checkpointing_enabled(self):
+        """Constat 15 : sans CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=1, `claude -p` en
+        stream-json n'écrit pas les instantanés de fichiers (retour en arrière impossible)."""
+        s = self.make(SCEN_LOCAL, CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING="0")
+        s.send("x")
+        self.col.wait_state("idle")
+        with open(f"/proc/{s.pid}/environ", "rb") as f:          # le faux claude, en vie
+            env = dict(item.split(b"=", 1) for item in f.read().split(b"\0") if b"=" in item)
+        self.assertEqual(env.get(b"CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING"), b"1")
+
     def test_context_usage_event(self):
         s = self.make(SCEN_LOCAL)
         s.send("x")
