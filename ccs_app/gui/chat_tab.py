@@ -698,6 +698,8 @@ class ChatTab(Gtk.Box):
             return False
         handler = {
             chat_engine.StateChanged: self._on_state,
+            chat_engine.UserSent: lambda e: self.messages.add_user(   # envoyé d'un autre appareil
+                e.text, (), during=self._engine_busy()),
             chat_engine.ProcessExited: self._on_exited,
             chat_engine.ContextUsage: self._on_context,
             chat_engine.OptionRefused: self._on_option_refused,

@@ -3,6 +3,24 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.12.1] — 2026-11-15
+
+### Corrigé
+
+- **Changements de la session et retour en arrière** : fonctionnent avec Claude Code 2.1.3xx
+  lancé par le pont. Les chemins relatifs des copies (`realParentDir`) sont résolus depuis le
+  dossier du projet (plus depuis celui du pont), et la copie d'avant la première modification,
+  présente sur disque mais jamais citée dans le journal, sert d'état « avant ».
+- **Surveillance des sessions sans bus D-Bus** (serveur sans bureau) : le dossier des
+  sessions est surveillé même quand le bus de session manque.
+- **Messages entre appareils** : un message envoyé du téléphone, du web ou du bureau s'affiche
+  sur tous les appareils qui suivent le chat ; un onglet rechargé garde aussi ses propres
+  messages.
+- **Web, questions à choix** : boutons radio à leur taille, libellés alignés à gauche.
+- **Web, grand écran** : le fil et la zone de saisie forment une colonne centrée.
+- **Web, téléphone** : les actions qui se suivent sont regroupées en une ligne repliable
+  (« 7 actions · … ») ; cartes plus compactes. La recherche ouvre le groupe trouvé.
+
 ## [0.12.0] — 2026-11-15
 
 ### Ajouté

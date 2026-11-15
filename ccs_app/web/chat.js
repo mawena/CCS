@@ -267,7 +267,10 @@ export class ChatView {
   // Envoie au pont ; le texte et les images ne sont retirés de la saisie qu'après sa réponse.
   async deliver(text, images = [], retry = null) {
     let r = null;
-    try { r = await this.api.call("chat.send", { chat_id: this.chatId, text: this.shellNotes.join("") + text, images }); } catch (e) {
+    const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    (this.ownSent ||= new Set()).add(nonce);        // l'écho du pont n'est pas affiché deux fois
+    try { r = await this.api.call("chat.send", { chat_id: this.chatId, text: this.shellNotes.join("") + text, images, shown: text, nonce }); } catch (e) {
+      this.ownSent.delete(nonce);
       this.sendFailed(e.message, retry);
       return false;
     }
@@ -519,9 +522,23 @@ export class ChatView {
 
   append(node) {
     const stick = this.stuck();
-    this.thread.append(node);
+    const last = this.thread.lastElementChild;
+    if (isToolNode(node) && last?.classList.contains("tool-group")) { last.body.append(node); refreshGroup(last); }
+    else if (isToolNode(node) && isToolNode(last)) { const g = toolGroup(); last.replaceWith(g); g.body.append(last, node); refreshGroup(g); }
+    else this.thread.append(node);
     if (stick) this.thread.scrollTop = this.thread.scrollHeight;
     return node;
+  }
+
+  // Actions qui se suivent (commandes, lectures, modifications) : une ligne repliable.
+  regroup() {
+    let run = [];
+    const flush = () => {
+      if (run.length >= 2) { const g = toolGroup(); run[0].before(g); g.body.append(...run); refreshGroup(g); }
+      run = [];
+    };
+    for (const n of [...this.thread.children]) { if (isToolNode(n)) run.push(n); else flush(); }
+    flush();
   }
 
   userBubble(text, nImages = 0) {
@@ -680,6 +697,7 @@ export class ChatView {
       }
       case "Todos": this.setTodos(ev.items || []); break;
       case "PermissionRequest": this.permissionCard(ev); break;
+      case "UserSent": if (!this.ownSent?.delete(ev.nonce)) this.userBubble(ev.text, ev.images || 0); break;
       case "PermissionSettled": { const c = this.perms.get(ev.request_id); if (c) { c.remove(); this.perms.delete(ev.request_id); } break; }
       case "ControlReply": break;
       case "TurnResult":
@@ -731,6 +749,7 @@ export class ChatView {
     h.full = msgs.length < HISTORY_LIMIT;
     const first = this.thread.firstChild;
     for (const m of msgs) { const n = this.historyNode(m); if (n) this.thread.insertBefore(n, first); }
+    this.regroup();
     this.thread.scrollTop = this.thread.scrollHeight;
   }
 
@@ -744,5 +763,26 @@ export class ChatView {
     const older = (r.messages || []).slice(0, Math.max(0, (r.messages || []).length - h.loaded));
     const first = this.thread.firstChild;
     for (const m of older) { const n = this.historyNode(m); if (n) this.thread.insertBefore(n, first); }
+    this.regroup();
   }
+}
+
+function isToolNode(n) {
+  return Boolean(n) && n.matches?.("details.tool") && !n.classList.contains("shell");
+}
+
+function toolGroup() {
+  const count = el("strong", {});
+  const last = el("span", { class: "subtle" });
+  const body = el("div", { class: "tool-group-body" });
+  const g = el("details", { class: "tool-group" }, el("summary", {}, count, " ", last), body);
+  Object.assign(g, { body, count, last });
+  return g;
+}
+
+function refreshGroup(g) {
+  const tools = [...g.body.children];
+  g.count.textContent = `${tools.length} actions`;
+  const sum = tools[tools.length - 1]?.querySelector("summary");
+  g.last.textContent = sum ? `· ${sum.textContent.trim()}` : "";
 }

@@ -290,3 +290,36 @@ process.exit(0);
         self.assertIn("done: want", (WEB / "roadmap.js").read_text())
         self.assertIn("header: h.header", (WEB / "git.js").read_text())
         self.assertIn("if (r.ok)", (WEB / "sw.js").read_text())
+
+
+class WideScreenTest(unittest.TestCase):
+    def test_thread_and_composer_share_centered_column(self):
+        """Grand écran : le fil et la zone de saisie forment une même colonne centrée (pas de fil
+        calé à gauche avec les messages de l'utilisateur tout à droite de l'écran)."""
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        self.assertRegex(css, r"--chat-column:\s*\d+px")
+        col = r"padding-inline:\s*max\(\d+px,\s*calc\(\(100% - var\(--chat-column\)\) / 2\)\)"
+        for sel in (".thread", ".composer"):
+            rules = re.findall(r"(?:^|\n)([^{}\n]*)\{([^}]*)\}", css)
+            hit = [body for head, body in rules
+                   if sel in [s.strip() for s in head.split(",")] and re.search(col, body)]
+            self.assertTrue(hit, f"{sel} : pas de colonne centrée")
+
+    def test_radio_and_checkbox_keep_native_size(self):
+        """Question à choix (web) : les boutons radio ne prennent pas le style des champs de
+        texte (largeur 100 %, grands ronds, libellé repoussé à droite)."""
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        rule = re.search(r'\ninput\[type="checkbox"\], input\[type="radio"\] \{([^}]*)\}', css)
+        self.assertTrue(rule, "pas de règle commune case à cocher / radio")
+        for decl in ("width: 22px", "min-height: 0", "flex: none"):
+            self.assertIn(decl, rule.group(1), decl)
+
+    def test_consecutive_tools_grouped(self):
+        """Fil (surtout au téléphone) : les actions qui se suivent forment une ligne repliable
+        « N actions », aussi dans l'historique rechargé ; la recherche ouvre le groupe."""
+        js = (WEB / "chat.js").read_text(encoding="utf-8")
+        self.assertIn('class: "tool-group"', js)
+        self.assertEqual(js.count("this.regroup();"), 2)
+        self.assertIn('closest("details.tool-group")', (WEB / "chat-search.js").read_text(encoding="utf-8"))
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".tool-group-body", css)
