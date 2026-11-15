@@ -131,6 +131,23 @@ class SessionWorkspaceGuiTest(HomeTestCase):
         self.ws.show_left("feuille")
         self.assertEqual(terminal_store.load_panes()["left"], "feuille")
 
+    def test_layout_c_widens_then_restores(self):
+        base = terminal_store.load_panes()["B"]["tree"]
+        wide = terminal_store.load_panes()["C"]["tree"]
+        self.assertGreater(wide, base)
+        self.ws.git_page.set_layout("C")
+        self.ws.show_left("git")
+        self.assertTrue(spin(lambda: abs(self.ws.outer.get_position() - wide) <= 2))
+        self.ws.show_left("fichiers")
+        self.assertTrue(spin(lambda: abs(self.ws.outer.get_position() - base) <= 2))
+
+    def test_left_page_remembered(self):
+        self.ws.show_left("git")
+        self.assertEqual(terminal_store.load_panes()["left"], "git")
+        ws = SessionWorkspace(self.project, FakeChat())
+        self.addCleanup(ws.close)
+        self.assertEqual(ws.left_stack.get_visible_child_name(), "git")
+
     def test_diff_signal_opens_editor(self):
         self.chat.emit("show-diff", str(self.project / "a.py"), "un\n", "deux\n")
         self.assertTrue(self.ws.editor_box.get_visible())

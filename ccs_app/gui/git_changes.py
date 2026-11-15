@@ -13,6 +13,14 @@ _LETTERS = {"M": "modifié", "A": "ajouté", "D": "supprimé", "R": "renommé", 
             "T": "type changé", "?": "nouveau", "U": "conflit"}
 
 
+def hscroll(child):
+    """Rangée de boutons qui défile au lieu d'imposer sa largeur au panneau."""
+    sw = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+                            vscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True)
+    sw.set_child(child)
+    return sw
+
+
 class ChangesView(Gtk.Box):
     __gsignals__ = {
         "changed": (GObject.SignalFlags.RUN_FIRST, None, ()),
@@ -56,7 +64,7 @@ class ChangesView(Gtk.Box):
         self.btn_discard_sel.connect("clicked", lambda _b: self.discard_selection())
         for b in (self.btn_stage_sel, self.btn_unstage_sel, self.btn_discard_sel):
             bar.append(b)
-        self.append(bar)
+        self.append(hscroll(bar))
         self.diff_holder = Gtk.ScrolledWindow(vexpand=True, hexpand=True,
                                               min_content_height=120)
         self.append(self.diff_holder)
@@ -83,7 +91,7 @@ class ChangesView(Gtk.Box):
         self.btn_commit.add_css_class("suggested-action")
         self.btn_commit.connect("clicked", lambda _b: self.commit())
         row.append(self.btn_commit)
-        self.append(row)
+        self.append(hscroll(row))
 
     # ---- construction -------------------------------------------------------------------
 

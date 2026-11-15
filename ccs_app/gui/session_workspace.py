@@ -6,8 +6,9 @@ Deux `Gtk.Paned` imbriqués (les widgets ne sont jamais recréés quand la dispo
                                                                     rien n'est ouvert)
     disposition A          :  [ gauche ] | [ fichier ] | [ chat ]
 
-« gauche » est une pile à deux pages (« Fichiers » : `FileTree`, « Feuille de route » :
-`RoadmapView`) avec son sélecteur. Les largeurs sont gardées par disposition
+« gauche » est une pile à trois pages (« Fichiers » : `FileTree`, « Feuille de route » :
+`RoadmapView`, « Git » : `GitPage`) avec son sélecteur. Disposition C de la page Git : le
+panneau de gauche s'élargit à `panes["C"]["tree"]` tant que la page est affichée. Les largeurs sont gardées par disposition
 (`terminal_store.save_panes`).
 """
 
@@ -18,6 +19,8 @@ from gi.repository import Adw, GLib, GObject, Gtk
 from .. import roadmap, settings, terminal_store
 from .file_editor import FileEditor
 from .file_panel import FileTree
+from .git_changes import hscroll
+from .git_page import GitPage
 from .roadmap_view import RoadmapView
 
 ASK_CREATE_TEXT = ("Crée une feuille de route ROADMAP.md pour ce projet "
@@ -64,17 +67,20 @@ class SessionWorkspace(Gtk.Box):
         self.tree = FileTree(self.cwd, self.open_file, show_ignored=_show_ignored())
         self.tree.connect("insert-reference", self._on_insert_reference)
         self.roadmap = RoadmapView(self.cwd, on_ask_create=self.ask_create)
-        self.left_stack = Gtk.Stack(vexpand=True, hexpand=True)
+        self.left_stack = Gtk.Stack(vexpand=True, hexpand=True, hhomogeneous=False)
         self.tree_holder = Gtk.Box(vexpand=True, hexpand=True)   # l'arbre change avec le dossier du projet
         self.tree_holder.append(self.tree)
         self.left_stack.add_titled(self.tree_holder, "fichiers", "Fichiers")
         self.left_stack.add_titled(self.roadmap, "feuille", "Feuille de route")
+        self.git_page = GitPage(self.cwd, self._open_in_editor, self._on_git_layout)
+        self.left_stack.add_titled(self.git_page, "git", "Git")
         self.left_stack.set_visible_child_name(self._panes["left"])
         self.left_stack.connect("notify::visible-child-name", self._on_left_changed)
+        self._wide = False       # panneau de gauche élargi (page Git en disposition C)
         switcher = Gtk.StackSwitcher(stack=self.left_stack, halign=Gtk.Align.CENTER, margin_top=4,
                                      margin_bottom=4)
         self.left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
-        self.left.append(switcher)
+        self.left.append(hscroll(switcher))
         self.left.append(self.left_stack)
         self.left.set_size_request(MIN_TREE, -1)
         self.left.set_visible(self._panes["tree_visible"])
@@ -162,7 +168,9 @@ class SessionWorkspace(Gtk.Box):
         self._applying += 1
         try:
             keep = self._panes[self.layout]
-            self.outer.set_position(keep["tree"] if self.left.get_visible() else 0)
+            tree = self._panes["C"]["tree"] if self._c_mode() else keep["tree"]
+            self._wide = self._c_mode()
+            self.outer.set_position(tree if self.left.get_visible() else 0)
             inner_width = self.inner.get_width() or max(width - keep["tree"], 0)
             if self.editor_box.get_visible() and inner_width > 0:
                 self.inner.set_position(max(inner_width - keep["side"], 0))
@@ -176,7 +184,8 @@ class SessionWorkspace(Gtk.Box):
     def sizes(self):
         """{"tree": largeur de l'arbre, "side": largeur du panneau de droite} mesurées."""
         out = dict(self._panes[self.layout])
-        if self.left.get_visible() and self.outer.get_position() >= MIN_TREE:
+        if self.left.get_visible() and self.outer.get_position() >= MIN_TREE \
+                and not self._c_mode():
             out["tree"] = self.outer.get_position()
         inner_width = self.inner.get_width()
         if self.editor_box.get_visible() and inner_width > 0:
@@ -205,11 +214,15 @@ class SessionWorkspace(Gtk.Box):
     def save_sizes(self):
         """Garde les largeurs de la disposition affichée (et le reste de l'état des volets)."""
         self._panes[self.layout] = self.sizes()
+        if self._c_mode() and self.left.get_visible() \
+                and self.outer.get_position() >= MIN_TREE:
+            self._panes["C"] = {"tree": self.outer.get_position()}
         self.persist()
 
     def persist(self):
         fresh = terminal_store.load_panes()   # un autre espace a pu garder l'autre disposition
         fresh[self.layout] = self._panes[self.layout]
+        fresh["C"] = self._panes["C"]
         fresh["tree_visible"] = self._panes["tree_visible"]
         fresh["left"] = self._panes["left"]
         self._panes = fresh
@@ -228,18 +241,59 @@ class SessionWorkspace(Gtk.Box):
         show = (not self.left.get_visible()) if show is None else bool(show)
         self.left.set_visible(show)
         self._panes["tree_visible"] = show
-        self.outer.set_position(self._panes[self.layout]["tree"] if show else 0)
+        wide = self._c_mode()
+        tree = self._panes["C"]["tree"] if wide else self._panes[self.layout]["tree"]
+        self.outer.set_position(tree if show else 0)
         self.persist()
 
     def show_left(self, name):
-        if name in ("fichiers", "feuille"):
+        if name in ("fichiers", "feuille", "git"):
             self.left_stack.set_visible_child_name(name)
 
     def _on_left_changed(self, *_):
         name = self.left_stack.get_visible_child_name()
-        if name in ("fichiers", "feuille") and name != self._panes["left"]:
+        if self._wide != self._c_mode():
+            self.flush_save_for_width()
+            self._apply_left_width()
+        if name in ("fichiers", "feuille", "git") and name != self._panes["left"]:
             self._panes["left"] = name
             self.persist()
+
+    def _c_mode(self):
+        """Vrai quand la page Git est affichée en disposition C (panneau de gauche élargi)."""
+        return (self.left_stack.get_visible_child_name() == "git"
+                and self.git_page.layout() == "C")
+
+    def flush_save_for_width(self):
+        """Garde la largeur mesurée dans la configuration qui vient de finir (large ou non)."""
+        if not self.left.get_visible() or self.outer.get_width() <= 0 or self._applying:
+            return
+        pos = self.outer.get_position()
+        if pos < MIN_TREE:
+            return
+        if self._wide:
+            self._panes["C"] = {"tree": pos}
+        else:
+            self._panes[self.layout] = dict(self._panes[self.layout], tree=pos)
+
+    def _apply_left_width(self):
+        self._applying += 1
+        try:
+            self._wide = self._c_mode()
+            tree = self._panes["C"]["tree"] if self._wide else self._panes[self.layout]["tree"]
+            if self.left.get_visible():
+                self.outer.set_position(tree)
+        finally:
+            GLib.idle_add(self._settle)
+
+    def _on_git_layout(self, _layout):
+        self.flush_save_for_width()
+        self._apply_left_width()
+
+    def _open_in_editor(self, key, title, widget):
+        """Onglet sur mesure (commit, historique git) dans la zone de droite."""
+        self.reveal_editor()
+        self.editor.open_widget(key, title, widget)
 
     # ---- projet de la conversation ----------------------------------------------------
 
@@ -271,6 +325,7 @@ class SessionWorkspace(Gtk.Box):
         self.tree_holder.remove(old)
         self.tree_holder.append(self.tree)
         self.roadmap.set_root(folder)
+        self.git_page.set_root(folder)
 
     def ask_create(self):
         """« Demander à Claude d'en créer une » : un message pour le chat."""
@@ -326,3 +381,4 @@ class SessionWorkspace(Gtk.Box):
     def close(self):
         """Libère ce qui surveille le disque (la feuille de route)."""
         self.roadmap.close()
+        self.git_page.close()
