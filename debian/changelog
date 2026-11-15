@@ -1,3 +1,10 @@
+ccs (0.12.6) unstable; urgency=medium
+
+  * Web : installer CCS comme une application (Chrome : bouton Installer ;
+    iPhone : marche à suivre vers l'écran d'accueil).
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 16 Nov 2026 00:00:00 +0000
+
 ccs (0.12.5) unstable; urgency=medium
 
   * Web au téléphone : une seule barre en haut, saisie plus large, envoi en
