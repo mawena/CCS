@@ -36,6 +36,7 @@ class Bridge:
         self.clients = set()
         self.busy_checks = []        # fonctions qui disent « un travail est en cours »
         self.close_hooks = []        # appelées à la fermeture d'une connexion
+        self.tick_hooks = []         # coroutines appelées chaque minute (ménage)
         self.last_activity = clock()
         self._server = None
         self._handlers = {}
@@ -115,6 +116,11 @@ class Bridge:
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=60)
             except asyncio.TimeoutError:
+                for hook in self.tick_hooks:
+                    try:
+                        await hook()
+                    except Exception:
+                        log.exception("ménage du pont")
                 if self.should_stop():
                     log.info("pont de %s arrêté : inactif depuis 12 h", self.user)
                     break
