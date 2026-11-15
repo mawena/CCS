@@ -1,3 +1,15 @@
+ccs (0.11.0) unstable; urgency=medium
+
+  * CCS sur un serveur : version web responsive (https), connexion par les
+    comptes Ubuntu du groupe ccs et code TOTP obligatoire, pont par
+    utilisateur (chats, fichiers, feuille de route, terminaux).
+  * ccs tui : CCS en plein écran dans le terminal, local ou vers un serveur.
+  * Bureau : section Serveurs CCS, chats et terminaux d'un serveur.
+  * Quatre paquets : ccs, ccs-bureau, ccs-serveur et le métapaquet ccs-all.
+  * Le paquet installe Claude Code pour l'utilisateur qui l'installe.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 15 Nov 2026 14:00:00 +0000
+
 ccs (0.10.2) unstable; urgency=medium
 
   * Longues sessions à mémoire bornée : les plus anciens messages sont

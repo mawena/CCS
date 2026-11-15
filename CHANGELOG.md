@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [0.11.0] — 2026-11-15
+
 ### Ajouté
 
 - **CCS sur un serveur (VPS).** Nouveau paquet `ccs-serveur` : trois services (`ccs-auth`,
