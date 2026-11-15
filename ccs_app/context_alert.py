@@ -9,6 +9,10 @@ lecture du cache du modèle, `costs`) et le conseil `/compact` ou nouvelle sessi
 L'état « déjà prévenu » est un petit fichier du store (`context-alerts.json`, 600), purgé des
 sessions terminées ; si le contexte retombe sous le seuil (après un `/compact`), la session
 pourra être signalée de nouveau. Une lecture impossible ne lève jamais.
+
+Compactage automatique (`auto_compact`, désactivé par défaut) : dans un chat, CCS envoie
+`/compact` lui-même quand le contexte dépasse ce même seuil, entre deux tours. La décision
+(`AutoCompact`) est commune au pont (chats du serveur) et au bureau (chats locaux).
 """
 
 import json
@@ -19,7 +23,7 @@ from dataclasses import dataclass
 from . import core, costs, sessions
 from .alerts import Alert
 
-DEFAULTS = {"enabled": True, "threshold_tokens": 150_000}
+DEFAULTS = {"enabled": True, "threshold_tokens": 150_000, "auto_compact": False}
 COMPACT_KEEP = 0.2            # part du contexte gardée après `/compact` (moyenne estimée)
 TAIL_BYTES = 256 * 1024
 TAIL_MAX = 4 * 1024 * 1024    # une réponse d'outil énorme peut éloigner le dernier usage
@@ -36,9 +40,16 @@ def config(settings=None):
         threshold = DEFAULTS["threshold_tokens"]
     if threshold <= 0:
         threshold = DEFAULTS["threshold_tokens"]
-    enabled = raw.get("enabled", DEFAULTS["enabled"])
-    return {"enabled": enabled if isinstance(enabled, bool) else DEFAULTS["enabled"],
-            "threshold_tokens": threshold}
+    out = {"threshold_tokens": threshold}
+    for key in ("enabled", "auto_compact"):
+        value = raw.get(key, DEFAULTS[key])
+        out[key] = value if isinstance(value, bool) else DEFAULTS[key]
+    return out
+
+
+def auto_on(cfg):
+    """Le compactage automatique est-il demandé ? Il suit l'alerte : sans elle, rien ne se fait."""
+    return bool(cfg and cfg.get("enabled") and cfg.get("auto_compact"))
 
 
 def compact_gain(tokens):
@@ -234,3 +245,84 @@ def tick(found, settings=None, now=None):
     if new != notified:
         save_state(new)
     return alerts
+
+
+# --------------------------------------------------------------------------
+# Compactage automatique des chats
+# --------------------------------------------------------------------------
+
+COMPACT_COMMAND = "/compact"
+
+
+class AutoCompact:
+    """Compactage automatique d'un chat : état et décision, sans entrée-sortie. Le pont (chats
+    du serveur) et le bureau (chats locaux) lui passent ce qu'ils voient du moteur :
+
+      measured(cfg, tokens)  après chaque mesure du contexte : « compact » (envoyer `/compact`
+                             si Claude est au repos, puis appeler `sent`), « stuck » (à dire une
+                             fois : le contexte est resté lourd après le compactage) ou None ;
+      sent(ok)               `/compact` est parti, ou non (Claude n'était plus au repos) ;
+      on_compacted()         la conversation vient d'être compactée ;
+      on_state(state)        le moteur change d'état : « failed » (à dire : le compactage
+                             demandé n'a pas abouti) ou None ;
+      on_turn(ok)            un tour de Claude est fini.
+
+    Jamais deux compactages de suite : après un compactage, rien ne repart tant que le contexte
+    n'est pas repassé sous le seuil ; après un compactage qui n'a pas abouti (limite d'usage,
+    arrêt), rien avant la fin réussie d'un nouveau tour."""
+
+    def __init__(self):
+        self.state = "armed"          # armed | fired | check | stuck | failed
+        self._compacted = False       # un compactage a eu lieu depuis l'envoi de `/compact`
+
+    def measured(self, cfg, tokens):
+        if not auto_on(cfg):
+            self.state = "armed"
+            return None
+        if self.state == "fired":     # mesure prise avant la fin du compactage en cours
+            return None
+        if tokens < cfg["threshold_tokens"]:
+            self.state = "armed"
+            return None
+        if self.state == "armed":
+            self.state, self._compacted = "fired", False
+            return "compact"
+        if self.state == "check":
+            self.state = "stuck"
+            return "stuck"
+        return None
+
+    def sent(self, ok):
+        if not ok and self.state == "fired":
+            self.state = "armed"      # pas parti : nouvelle décision à la prochaine mesure
+
+    def on_compacted(self):
+        self._compacted = True
+
+    def on_state(self, state):
+        if self.state != "fired" or state not in ("idle", "stopped", "suspended"):
+            return None
+        if state == "idle" and self._compacted:
+            self.state = "check"      # la prochaine mesure dit si le contexte est redescendu
+            return None
+        self.state = "failed"
+        return "failed"
+
+    def on_turn(self, ok):
+        if ok and self.state == "failed":
+            self.state = "armed"
+
+
+def _grouped(tokens):
+    """152000 → « 152 000 » (espace insécable fine)."""
+    return f"{int(tokens):,}".replace(",", " ")
+
+
+def auto_note(kind, tokens=0):
+    """(texte, genre) de la note écrite dans le fil pour une décision de `AutoCompact`."""
+    if kind == "compact":
+        return f"Compactage automatique : contexte de {_grouped(tokens)} jetons.", "info"
+    if kind == "stuck":
+        return (f"Contexte encore lourd après le compactage ({_grouped(tokens)} jetons) : pas de nouveau "
+                "compactage automatique tant qu'il ne repasse pas sous le seuil.", "warning")
+    return "Compactage automatique non abouti : nouvel essai après le prochain tour.", "warning"

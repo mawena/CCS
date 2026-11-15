@@ -45,6 +45,7 @@ const GROUPS = [
     { path: "alerts.waiting_reminder_min", label: "Rappel après (minutes)", type: "number", min: 1, max: 1440 },
     { path: "context_alert.enabled", label: "Alerte de contexte lourd", type: "bool" },
     { path: "context_alert.threshold_tokens", label: "Seuil du contexte lourd (jetons)", type: "number", min: 1000, max: 10000000 },
+    { path: "context_alert.auto_compact", label: "Compacter automatiquement les chats au-delà du seuil", type: "bool" },
     { path: "budget.enabled", label: "Budgets par projet", type: "bool" },
   ]],
   ["Ne pas déranger", [

@@ -78,12 +78,20 @@ class CostTest(unittest.TestCase):
         self.assertNotIn("coûte", ca.advice_text(ca.Context(182_400, "?")))
 
     def test_config_with_fallbacks(self):
-        self.assertEqual(ca.config(None), {"enabled": True, "threshold_tokens": 150_000})
+        default = {"enabled": True, "threshold_tokens": 150_000, "auto_compact": False}
+        self.assertEqual(ca.config(None), default)
         self.assertEqual(ca.config({"context_alert": {"enabled": False, "threshold_tokens": 90000}}),
-                         {"enabled": False, "threshold_tokens": 90000})
-        for bad in ({"context_alert": {"threshold_tokens": "x", "enabled": 3}},
+                         {"enabled": False, "threshold_tokens": 90000, "auto_compact": False})
+        self.assertEqual(ca.config({"context_alert": {"auto_compact": True}}), {**default, "auto_compact": True})
+        for bad in ({"context_alert": {"threshold_tokens": "x", "enabled": 3, "auto_compact": "oui"}},
                     {"context_alert": {"threshold_tokens": -5}}, {"context_alert": []}):
-            self.assertEqual(ca.config(bad), {"enabled": True, "threshold_tokens": 150_000})
+            self.assertEqual(ca.config(bad), default)
+
+    def test_auto_compact_follows_the_alert(self):
+        self.assertFalse(ca.auto_on(None))
+        self.assertFalse(ca.auto_on(ca.config(None)))                    # désactivé par défaut
+        self.assertTrue(ca.auto_on(ca.config({"context_alert": {"auto_compact": True}})))
+        self.assertFalse(ca.auto_on(ca.config({"context_alert": {"auto_compact": True, "enabled": False}})))
 
 
 class DecideTest(HomeTestCase):
@@ -189,6 +197,91 @@ class CompactTest(unittest.TestCase):
         self.assertEqual(ca.COMPACT_KEEP, 0.2)
         self.assertEqual(ca.compact_gain(150_000), 120_000)
         self.assertEqual(ca.compact_gain(0), 0)
+
+
+ON = {"enabled": True, "threshold_tokens": 150_000, "auto_compact": True}
+OFF = {**ON, "auto_compact": False}
+
+
+class AutoCompactTest(unittest.TestCase):
+    """Décision du compactage automatique, commune au pont et au bureau."""
+
+    def fired(self, tokens=160_000):
+        auto = ca.AutoCompact()
+        self.assertEqual(auto.measured(ON, tokens), "compact")
+        auto.sent(True)
+        return auto
+
+    def test_nothing_when_disabled_or_light(self):
+        auto = ca.AutoCompact()
+        self.assertIsNone(auto.measured(OFF, 500_000))
+        self.assertIsNone(auto.measured({**ON, "enabled": False}, 500_000))   # suit l'alerte
+        self.assertIsNone(auto.measured(ON, 149_999))
+        self.assertEqual(auto.state, "armed")
+
+    def test_compacts_at_the_threshold_then_rearms_when_light_again(self):
+        auto = self.fired(150_000)                       # le seuil lui-même compte
+        self.assertIsNone(auto.measured(ON, 160_000))    # mesure d'avant la fin : ignorée
+        self.assertIsNone(auto.on_state("busy"))
+        auto.on_compacted()
+        self.assertIsNone(auto.on_state("idle"))
+        self.assertEqual(auto.state, "check")
+        self.assertIsNone(auto.measured(ON, 30_000))     # redescendu : prêt pour la prochaine fois
+        self.assertEqual(auto.state, "armed")
+        self.assertEqual(auto.measured(ON, 155_000), "compact")
+
+    def test_never_twice_in_a_row_while_context_stays_heavy(self):
+        auto = self.fired()
+        auto.on_compacted()
+        auto.on_state("idle")
+        self.assertEqual(auto.measured(ON, 151_000), "stuck")     # dit une seule fois
+        for _ in range(3):
+            auto.on_turn(True)
+            auto.on_state("idle")
+            self.assertIsNone(auto.measured(ON, 170_000))
+        self.assertIsNone(auto.measured(ON, 100_000))             # repassé sous le seuil
+        self.assertEqual(auto.measured(ON, 150_000), "compact")
+
+    def test_not_sent_is_decided_again_at_the_next_measure(self):
+        auto = ca.AutoCompact()
+        self.assertEqual(auto.measured(ON, 160_000), "compact")
+        auto.sent(False)                                 # Claude n'était plus au repos
+        self.assertEqual(auto.state, "armed")
+        self.assertEqual(auto.measured(ON, 165_000), "compact")
+
+    def test_failed_compaction_waits_for_a_successful_turn(self):
+        for state in ("idle", "stopped"):                # erreur de la CLI, ou arrêt du processus
+            auto = self.fired()
+            self.assertEqual(auto.on_state(state), "failed")
+            self.assertIsNone(auto.on_state("idle"))     # dit une seule fois
+            self.assertIsNone(auto.measured(ON, 160_000))
+            auto.on_turn(False)                          # tour en échec (limite d'usage…) : toujours rien
+            self.assertIsNone(auto.measured(ON, 160_000))
+            auto.on_turn(True)
+            self.assertEqual(auto.measured(ON, 160_000), "compact")
+
+    def test_manual_compaction_outside_ours_changes_nothing(self):
+        auto = ca.AutoCompact()
+        auto.on_compacted()                              # `/compact` tapé par l'utilisateur
+        self.assertIsNone(auto.on_state("idle"))
+        self.assertEqual(auto.state, "armed")
+        self.assertEqual(auto.measured(ON, 160_000), "compact")
+        auto.sent(True)
+        self.assertEqual(auto.on_state("idle"), "failed")    # l'ancien compactage ne compte pas
+
+    def test_disabling_in_flight_resets(self):
+        auto = self.fired()
+        self.assertIsNone(auto.measured(OFF, 160_000))
+        self.assertEqual(auto.state, "armed")
+        self.assertIsNone(auto.on_state("idle"))
+
+    def test_notes(self):
+        text, kind = ca.auto_note("compact", 152_340)
+        self.assertEqual((text, kind), ("Compactage automatique : contexte de 152\u202f340 jetons.", "info"))
+        text, kind = ca.auto_note("stuck", 151_000)
+        self.assertIn("151\u202f000 jetons", text)
+        self.assertEqual(kind, "warning")
+        self.assertEqual(ca.auto_note("failed")[1], "warning")
 
 
 if __name__ == "__main__":

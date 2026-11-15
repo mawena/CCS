@@ -51,6 +51,9 @@ class ContextUsage:
     percentage: int
     total: int
     maximum: int
+    # Le pont compacte tout seul au-delà du seuil (réglage du serveur) : les appareils ne
+    # montrent pas l'alerte de contexte lourd et son bouton « Compacter ».
+    auto_compact: bool = False
 
 
 @dataclass(frozen=True)
@@ -371,6 +374,19 @@ class ChatSession:
             self._expected += 1
             self._set_state("busy")  # avant l'écriture : le fil de lecture peut conclure aussitôt
             ok = self._write(proto.user_message(text, list(images))) and ok
+            self.last_activity = self._clock()
+        return ok  # faux : le processus est mort, le fil de lecture signale la sortie
+
+    def send_if_idle(self, text):
+        """Envoi décidé par CCS (compactage automatique), seulement entre deux tours : processus
+        en vie, Claude au repos, aucune demande d'autorisation en attente. Sinon faux, et rien
+        n'est écrit. Ne lance ni ne relance jamais le processus."""
+        with self._lock:
+            if self.state != "idle" or self._proc is None or self._perms:
+                return False
+            self._expected += 1
+            self._set_state("busy")  # avant l'écriture : le fil de lecture peut conclure aussitôt
+            ok = self._write(proto.user_message(text))
             self.last_activity = self._clock()
         return ok  # faux : le processus est mort, le fil de lecture signale la sortie
 

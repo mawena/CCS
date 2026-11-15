@@ -651,9 +651,13 @@ class PrefsPage(Adw.PreferencesPage):
                                 "d'un message et le conseil /compact", "context_alert", "enabled")
         tokens = self.spin_row("Seuil du contexte lourd (tokens)", "Taille du contexte au-delà de laquelle "
                                "prévenir", "context_alert", "threshold_tokens", 10000, 1000000, 10000)
-        self.depends_on(alert, tokens)
+        auto = self.switch_row("Compacter automatiquement", "Dans un chat, /compact part tout seul au-delà du "
+                               "seuil, entre deux tours ; une note le dit dans le fil",
+                               "context_alert", "auto_compact")
+        self.depends_on(alert, tokens, auto)
         g.add(alert)
         g.add(tokens)
+        g.add(auto)
         return g
 
     LAYOUTS = (("A : fichier au centre", "A"), ("B : chat au centre", "B"))

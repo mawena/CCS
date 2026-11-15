@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ccs_app import chat_protocol, sessions
+from ccs_app import chat_protocol, sessions, settings
 from ccs_app.server import bridge, bridge_chat, rpc
 from tests.helpers import make_home
 
@@ -243,3 +243,164 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AutoCompactBridgeTest(unittest.IsolatedAsyncioTestCase):
+    """Compactage automatique : le pont mesure le contexte quand Claude revient au repos et
+    envoie `/compact` lui-même. Faux `claude` sans scénario : chaque message a un tour minimal."""
+
+    CONTEXT = {"FAKE_CLAUDE_CONTEXT": "160000"}
+
+    async def asyncSetUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="ccs-bauto-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.home = make_home(self.tmp)
+        env = mock.patch.dict(os.environ, {"HOME": str(self.home)})
+        env.start()
+        self.addCleanup(env.stop)
+        for var in ("CLAUDE_CONFIG_DIR", "CCS_HOME"):
+            os.environ.pop(var, None)
+        self.project = self.home / "projet"
+        self.project.mkdir()
+        self.sock = Path(self.tmp) / "b.sock"
+        self.bridge = bridge.Bridge("alice", None, local=True, start_daemon=False, install_claude=False)
+
+    def configure(self, **context_alert):
+        settings.save_settings({"context_alert": {"auto_compact": True, **context_alert}})
+
+    async def hub(self, **env):
+        environ = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), **self.CONTEXT, **env}
+        hub = bridge_chat.ChatHub(self.bridge, claude=FAKE, environ=environ)
+        await self.bridge.start(self.sock)
+        self.addAsyncCleanup(self.bridge.stop)
+        self.addAsyncCleanup(hub.close_all)
+        return hub
+
+    async def client(self):
+        c = rpc.RpcClient()
+        c.got = []
+        c.on_event = lambda name, data: c.got.append((name, data))
+        await c.connect_unix(self.sock)
+        self.addAsyncCleanup(c.close)
+        await c.call("hello")
+        return c
+
+    async def wait(self, pred, timeout=20):
+        for _ in range(int(timeout * 50)):
+            if pred():
+                return True
+            await asyncio.sleep(0.02)
+        return pred()
+
+    @staticmethod
+    def events(hub, chat_id, kind=None):
+        return [i["event"] for i in hub.chats[chat_id].buf if kind is None or i["event"]["type"] == kind]
+
+    def kinds(self, hub, chat_id):
+        return [e["type"] for e in self.events(hub, chat_id)]
+
+    async def settled(self, hub, chat_id, idles):
+        """Attend le `idles`-ième retour au repos, puis la mesure du contexte qui le suit."""
+        def done():
+            kinds = self.kinds(hub, chat_id)
+            states = [e["state"] for e in self.events(hub, chat_id, "StateChanged")]
+            return states.count("idle") >= idles and kinds[-1] in ("ContextUsage", "Notice")
+        self.assertTrue(await self.wait(done), self.kinds(hub, chat_id))
+        await asyncio.sleep(0.3)                    # rien d'autre ne part ensuite
+
+    async def test_compacts_without_any_device_attached(self):
+        self.configure()
+        hub = await self.hub()
+        c = await self.client()
+        chat_id = (await c.call("chat.open", cwd=str(self.project)))["chat_id"]
+        await c.call("chat.send", chat_id=chat_id, text="bonjour")
+        await c.close()                             # le téléphone s'en va : le pont continue seul
+        await self.settled(hub, chat_id, idles=2)
+        kinds = self.kinds(hub, chat_id)
+        self.assertEqual(kinds.count("Compacted"), 1)
+        notes = self.events(hub, chat_id, "Notice")
+        self.assertEqual([(n["text"], n["kind"]) for n in notes],
+                         [("Compactage automatique : contexte de 160\u202f000 jetons.", "info")])
+        usages = self.events(hub, chat_id, "ContextUsage")
+        self.assertEqual([(u["total"], u["auto_compact"]) for u in usages], [(160000, True), (30000, True)])
+        self.assertLess(kinds.index("Notice"), kinds.index("Compacted"))     # annoncé avant
+        self.assertNotIn("UserSent", kinds[kinds.index("Notice"):])          # pas une bulle de l'utilisateur
+        self.assertEqual(hub.chats[chat_id].auto.state, "armed")
+        self.assertEqual(hub.chats[chat_id].engine.state, "idle")
+
+    async def test_nothing_when_the_setting_is_off(self):
+        hub = await self.hub()
+        for cfg in ({"auto_compact": False}, {"enabled": False}):
+            self.configure(**cfg)                   # relu à chaque retour au repos
+            c = await self.client()
+            chat_id = (await c.call("chat.open", cwd=str(self.project)))["chat_id"]
+            await c.call("chat.send", chat_id=chat_id, text="bonjour")
+            self.assertTrue(await self.wait(lambda: hub.chats[chat_id].engine.state == "idle"
+                                            and "TurnResult" in self.kinds(hub, chat_id)))
+            await asyncio.sleep(0.3)
+            self.assertNotIn("ContextUsage", self.kinds(hub, chat_id), cfg)  # aucune mesure de lui-même
+            await c.call("chat.context", chat_id=chat_id)                    # mesure demandée par un appareil
+            self.assertTrue(await self.wait(lambda: "ContextUsage" in self.kinds(hub, chat_id)))
+            await asyncio.sleep(0.3)
+            kinds = self.kinds(hub, chat_id)
+            self.assertFalse(self.events(hub, chat_id, "ContextUsage")[0]["auto_compact"], cfg)
+            self.assertFalse({"Compacted", "Notice"} & set(kinds), cfg)
+
+    async def test_below_the_threshold_nothing_is_sent(self):
+        self.configure(threshold_tokens=170000)
+        hub = await self.hub()
+        c = await self.client()
+        chat_id = (await c.call("chat.open", cwd=str(self.project)))["chat_id"]
+        await c.call("chat.send", chat_id=chat_id, text="bonjour")
+        await self.settled(hub, chat_id, idles=1)
+        kinds = self.kinds(hub, chat_id)
+        self.assertEqual(kinds.count("ContextUsage"), 1)
+        self.assertFalse({"Compacted", "Notice"} & set(kinds))
+
+    async def test_never_twice_in_a_row_when_context_stays_heavy(self):
+        self.configure()
+        hub = await self.hub(FAKE_CLAUDE_COMPACT_TO="155000")
+        c = await self.client()
+        chat_id = (await c.call("chat.open", cwd=str(self.project)))["chat_id"]
+        await c.call("chat.send", chat_id=chat_id, text="un")
+        await self.settled(hub, chat_id, idles=2)
+        await c.call("chat.send", chat_id=chat_id, text="deux")
+        await self.settled(hub, chat_id, idles=3)
+        kinds = self.kinds(hub, chat_id)
+        self.assertEqual(kinds.count("Compacted"), 1)
+        notes = self.events(hub, chat_id, "Notice")
+        self.assertEqual([n["kind"] for n in notes], ["info", "warning"])
+        self.assertIn("Contexte encore lourd après le compactage (155\u202f000 jetons)", notes[1]["text"])
+        self.assertEqual(hub.chats[chat_id].auto.state, "stuck")
+
+    async def test_failed_compaction_is_retried_after_the_next_turn_only(self):
+        self.configure()
+        hub = await self.hub(FAKE_CLAUDE_COMPACT_FAIL="1")
+        c = await self.client()
+        chat_id = (await c.call("chat.open", cwd=str(self.project)))["chat_id"]
+        await c.call("chat.send", chat_id=chat_id, text="un")
+        await self.settled(hub, chat_id, idles=2)
+        notes = self.events(hub, chat_id, "Notice")
+        self.assertEqual([n["kind"] for n in notes], ["info", "warning"])
+        self.assertIn("non abouti", notes[1]["text"])
+        self.assertEqual(hub.chats[chat_id].auto.state, "failed")            # pas de boucle
+        self.assertNotIn("Compacted", self.kinds(hub, chat_id))
+        await c.call("chat.send", chat_id=chat_id, text="deux")              # un tour réussi : nouvel essai
+        await self.settled(hub, chat_id, idles=4)
+        self.assertEqual([n["kind"] for n in self.events(hub, chat_id, "Notice")],
+                         ["info", "warning", "info", "warning"])
+
+    async def test_devices_see_the_note_and_the_flag(self):
+        self.configure()
+        hub = await self.hub()
+        a, b = await self.client(), await self.client()
+        chat_id = (await a.call("chat.open", cwd=str(self.project)))["chat_id"]
+        await b.call("chat.attach", chat_id=chat_id, since=0)
+        await a.call("chat.send", chat_id=chat_id, text="bonjour")
+        await self.settled(hub, chat_id, idles=2)
+        for c in (a, b):
+            got = [d["event"] for name, d in c.got if name == "chat.event"]
+            self.assertEqual([e["text"] for e in got if e["type"] == "Notice"],
+                             ["Compactage automatique : contexte de 160\u202f000 jetons."])
+            self.assertTrue(all(e["auto_compact"] for e in got if e["type"] == "ContextUsage"))
+

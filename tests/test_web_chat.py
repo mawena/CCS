@@ -142,6 +142,40 @@ class SearchTest(unittest.TestCase):
         self.assertEqual(node("chat-search.js", "[m.step(0, 3, 1), m.step(2, 3, 1), m.step(0, 3, -1), m.step(0, 0, 1)]"), [1, 0, 2, -1])
 
 
+@unittest.skipUnless(NODE, "node absent")
+class ContextAlertTest(unittest.TestCase):
+    """Alerte de contexte lourd du chat web, et sa disparition quand le pont compacte tout seul."""
+    CFG = '{enabled: true, threshold_tokens: 150000}'
+
+    def alert(self, ev, heavy="false", cfg=None):
+        return node("chat-context.js", f"m.contextAlert({ev}, {cfg or self.CFG}, {heavy})")
+
+    def test_alert_once_when_crossing_the_threshold(self):
+        self.assertEqual(self.alert("{total: 160000}"), {"heavy": True, "gain": 128000})
+        self.assertEqual(self.alert("{total: 170000}", heavy="true"), {"heavy": True, "gain": None})
+        self.assertEqual(self.alert("{total: 40000}", heavy="true"), {"heavy": False, "gain": None})
+        self.assertEqual(self.alert("{total: 160000}", cfg="{enabled: false, threshold_tokens: 150000}"),
+                         {"heavy": False, "gain": None})
+
+    def test_no_alert_when_the_bridge_compacts_by_itself(self):
+        self.assertEqual(self.alert("{total: 160000, auto_compact: true}"), {"heavy": False, "gain": None})
+        # réglage coupé ensuite : l'alerte et son bouton reviennent à la mesure suivante
+        self.assertEqual(self.alert("{total: 160000, auto_compact: false}"), {"heavy": True, "gain": 128000})
+
+    def test_same_estimate_as_the_desktop(self):
+        from ccs_app import context_alert
+        self.assertEqual(node("chat-context.js", "m.COMPACT_KEEP"), context_alert.COMPACT_KEEP)
+        self.assertEqual(self.alert("{total: 150001}")["gain"], context_alert.compact_gain(150001))
+
+    def test_chat_wiring(self):
+        chat = (WEB / "chat.js").read_text()
+        self.assertIn("contextAlert(ev, (await this.workInfo()).context, this.heavy)", chat)
+        self.assertIn('case "Notice": this.notice(ev.text', chat)                  # note du pont
+        local = chat[chat.index('case "LocalCommand":'):chat.index('case "TextDelta":')]
+        self.assertIn("this.requestContext()", local)                             # jauge à jour après /compact
+        self.assertIn('"context_alert.auto_compact"', (WEB / "settings.js").read_text())
+
+
 class StaticChatTest(unittest.TestCase):
     def text(self):
         return {p.name: p.read_text(encoding="utf-8") for p in CHAT_JS}

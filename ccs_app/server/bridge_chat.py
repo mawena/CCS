@@ -2,7 +2,11 @@
 déconnexions). Chaque événement est numéroté et gardé (2000 par chat) : un appareil qui revient
 demande ce qu'il a manqué depuis son dernier numéro ; tous les appareils attachés reçoivent les
 mêmes événements. Identifiants `c<boot>-<n>` : `boot` est tiré au hasard à chaque démarrage du
-pont, un identifiant d'avant un redémarrage ne désigne donc jamais un autre chat."""
+pont, un identifiant d'avant un redémarrage ne désigne donc jamais un autre chat.
+
+Compactage automatique (réglage `context_alert.auto_compact`) : quand Claude revient au repos, le
+pont mesure le contexte ; au-delà du seuil il envoie `/compact` lui-même, même sans appareil
+attaché, et l'écrit dans le fil (`events.Notice`)."""
 
 import asyncio
 import base64
@@ -15,7 +19,8 @@ import re
 import secrets
 import time
 
-from .. import chat_engine, chat_options, markdown_render, sessions
+from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, markdown_render, \
+    sessions, settings
 from ..chat_engine import ChatSession
 from . import events, rpc
 from .bridge_data import safe_path
@@ -34,6 +39,7 @@ class _Chat:
         self.seq = 0
         self.opened_at = time.time()
         self.conns = set()
+        self.auto = context_alert.AutoCompact()
 
 
 def transcript_of(cwd, session_id):
@@ -102,20 +108,62 @@ class ChatHub:
             raise rpc.RpcError("introuvable", "Chat inconnu ou fermé.")
         return chat
 
-    def _record(self, chat, ev):
+    def _record(self, chat, ev, cfg=None):
+        """Garde l'événement et l'envoie aux appareils attachés. `cfg` : réglages du contexte lus
+        par `_on_event` (retour au repos, mesure du contexte), pour le compactage automatique."""
         if chat.chat_id not in self.chats:
             return
+        auto = context_alert.auto_on(cfg)
+        if auto and isinstance(ev, chat_engine.ContextUsage):
+            ev = dataclasses.replace(ev, auto_compact=True)     # les appareils ne proposent rien
         chat.seq += 1
         item = {"seq": chat.seq, "ts": time.time(), "event": events.to_json(ev)}
         chat.buf.append(item)
         for conn in list(chat.conns):
             if not conn.closed:
                 asyncio.ensure_future(conn.push("chat.event", {"chat_id": chat.chat_id, **item}))
+        note = self._auto_compact(chat, ev, cfg, auto)
+        if note:
+            self._record(chat, events.Notice(*note))
+
+    @staticmethod
+    def _auto_compact(chat, ev, cfg, auto):
+        """Suit le moteur pour le compactage automatique (`context_alert.AutoCompact`) : mesure
+        le contexte à chaque retour au repos, envoie `/compact` au-delà du seuil. Renvoie la note
+        (texte, genre) à écrire dans le fil, ou None."""
+        state, engine = chat.auto, chat.engine
+        kind = None
+        if isinstance(ev, proto.Compacted):
+            state.on_compacted()
+        elif isinstance(ev, proto.TurnResult):
+            state.on_turn(ev.ok and not ev.interrupted and not ev.is_limit)
+        elif isinstance(ev, chat_engine.StateChanged):
+            kind = state.on_state(ev.state)
+            if auto and ev.state == "idle":
+                engine.request_context()        # la réponse (ContextUsage) repasse par ici
+        elif isinstance(ev, chat_engine.ContextUsage) and cfg is not None:
+            kind = state.measured(cfg, ev.total)
+            if kind == "compact":
+                ok = engine.send_if_idle(context_alert.COMPACT_COMMAND)
+                state.sent(ok)
+                kind = kind if ok else None
+        return context_alert.auto_note(kind, getattr(ev, "total", 0)) if kind else None
+
+    @staticmethod
+    def _context_cfg():
+        try:
+            return context_alert.config(settings.load_settings())
+        except Exception:         # réglages illisibles : pas de compactage automatique
+            return None
 
     def _on_event(self, chat):
         def handler(ev):          # appelé par le fil de lecture du moteur
+            cfg = None
+            if isinstance(ev, chat_engine.ContextUsage) or (
+                    isinstance(ev, chat_engine.StateChanged) and ev.state == "idle"):
+                cfg = self._context_cfg()       # lu ici, hors de la boucle du pont
             if self._loop is not None and not self._loop.is_closed():
-                self._loop.call_soon_threadsafe(self._record, chat, ev)
+                self._loop.call_soon_threadsafe(self._record, chat, ev, cfg)
         return handler
 
     # ---- méthodes --------------------------------------------------------------------

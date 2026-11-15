@@ -26,7 +26,7 @@ class Phase11SettingsTest(HomeTestCase):
                       "events": {"task": False}},
             "archive": {"enabled": False, "idle_days": 3, "max_age_days": 90},
             "sessions": {"idle_hours": 0.5},
-            "context_alert": {"enabled": False, "threshold_tokens": 100000},
+            "context_alert": {"enabled": False, "threshold_tokens": 100000, "auto_compact": True},
             "budget": {"enabled": False, "alert_pcts": [50, 90, 100]}})
         self.assertFalse(s["tasks"]["enabled"])
         self.assertEqual(s["tasks"]["night"], {"start": "22:30", "end": "06:00"})
@@ -37,7 +37,8 @@ class Phase11SettingsTest(HomeTestCase):
                                                 "exhausted": True})
         self.assertEqual(s["archive"], {"enabled": False, "idle_days": 3, "max_age_days": 90})
         self.assertEqual(s["sessions"]["idle_hours"], 0.5)
-        self.assertEqual(s["context_alert"]["threshold_tokens"], 100000)
+        self.assertEqual(s["context_alert"],
+                         {"enabled": False, "threshold_tokens": 100000, "auto_compact": True})
         self.assertEqual(s["budget"]["alert_pcts"], [50, 90, 100])
         self.assertEqual(settings.problems(), [])
 
@@ -47,7 +48,7 @@ class Phase11SettingsTest(HomeTestCase):
             "phone": {"enabled": 1, "server": "ftp://x", "topic": "court", "events": {"waiting": "non"}},
             "archive": {"enabled": None, "idle_days": -1, "max_age_days": 1.5},
             "sessions": {"idle_hours": 0},
-            "context_alert": {"enabled": [], "threshold_tokens": 10},
+            "context_alert": {"enabled": [], "threshold_tokens": 10, "auto_compact": "oui"},
             "budget": {"enabled": "x", "alert_pcts": [80, "cent"]}})
         d = settings.DEFAULTS
         self.assertEqual(s["tasks"], d["tasks"])
@@ -58,7 +59,7 @@ class Phase11SettingsTest(HomeTestCase):
         self.assertEqual(s["budget"], d["budget"])
         for key in ("tasks.max_attempts", "tasks.night.start", "phone.server", "phone.topic",
                     "phone.events.waiting", "archive.max_age_days", "context_alert.threshold_tokens",
-                    "budget.alert_pcts", "sessions.idle_hours"):
+                    "context_alert.auto_compact", "budget.alert_pcts", "sessions.idle_hours"):
             self.assertIn(key, settings.problems())
 
     def test_a_non_dict_section_falls_back(self):

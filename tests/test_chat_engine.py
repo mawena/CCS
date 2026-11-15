@@ -317,6 +317,35 @@ class ChatEngineTest(EngineCase):
         self.assertGreater(usage.maximum, 0)
         self.assertGreaterEqual(usage.total, 0)
 
+    def test_send_if_idle_never_starts_nor_interrupts(self):
+        """Envoi décidé par CCS (compactage automatique) : seulement entre deux tours."""
+        s = self.make(SCEN_PERM)
+        self.assertFalse(s.send_if_idle("/compact"))             # pas de processus : rien n'est lancé
+        self.assertEqual((s.state, self.argvs()), ("stopped", []))
+        s.send("un")
+        self.assertFalse(s.send_if_idle("/compact"))             # tour en cours
+        self.col.wait_state("permission")
+        self.assertFalse(s.send_if_idle("/compact"))             # demande d'autorisation en attente
+        s.answer(self.col.of(proto.PermissionRequest)[0].request_id, "allow")
+        self.col.wait_state("idle")
+        time.sleep(0.2)
+        self.assertEqual(len(self.col.of(proto.TurnResult)), 1)  # rien n'a été écrit en plus
+        self.assertEqual(s.state, "idle")
+
+    def test_send_if_idle_compacts_between_turns(self):
+        s = self.make("", FAKE_CLAUDE_CONTEXT=160000)
+        s.send("un")
+        self.col.wait_state("idle")
+        self.assertTrue(s.send_if_idle("/compact"))
+        self.assertEqual(s.state, "busy")
+        self.col.wait_state("idle", 2)
+        self.assertEqual(self.col.of(proto.Compacted), [proto.Compacted(160000, "manual")])
+        self.assertEqual(self.col.of(proto.LocalCommand), [proto.LocalCommand("")])
+        self.assertTrue(s.request_context())
+        self.col.wait(lambda evs: any(isinstance(e, eng.ContextUsage) for e in evs))
+        self.assertEqual(self.col.of(eng.ContextUsage)[0], eng.ContextUsage(15, 30000, 200000))
+        self.assertEqual(len(self.wait_argvs(1)), 1)             # le même processus
+
     def test_suspend_after_idle_and_resume_on_send(self):
         now = [1000.0]
         s = self.make(SCEN_LOCAL, clock=lambda: now[0])

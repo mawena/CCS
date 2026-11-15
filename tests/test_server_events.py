@@ -21,9 +21,10 @@ SAMPLES = [
     proto.TurnResult(True, "success", 0.5, {"in": 1}, 200000, "fin", False, True),
     proto.Compacted(1000, "auto"), proto.Retrying(2, 1.5), proto.Unknown({"type": "zzz"}),
     chat_engine.StateChanged("busy"), chat_engine.UserSent("bonjour", 1, "n1"),
-    chat_engine.ContextUsage(12, 24000, 200000),
+    chat_engine.ContextUsage(12, 24000, 200000, True),
     chat_engine.OptionRefused("model", "non"), chat_engine.UnhandledRequest("x", "y"),
     chat_engine.ProcessExited(1, "trace", True), events.PermissionSettled("r1", "allow"),
+    events.Notice("Compactage automatique : contexte de 152 000 jetons.", "warning"),
 ]
 
 
@@ -38,6 +39,11 @@ class EventsTest(unittest.TestCase):
             self.assertEqual(back, ev, type(ev).__name__)
             seen.add(type(ev).__name__)
         self.assertEqual(seen, set(events.TYPES))           # chaque type connu a un exemple
+
+    def test_context_usage_from_an_older_bridge(self):
+        """Pont d'avant le compactage automatique : pas de champ `auto_compact`, donc faux."""
+        back = events.from_json({"type": "ContextUsage", "percentage": 80, "total": 160000, "maximum": 200000})
+        self.assertEqual(back, chat_engine.ContextUsage(80, 160000, 200000, False))
 
     def test_unknown_type_is_unknown(self):
         back = events.from_json({"type": "Inconnu", "a": 1})
