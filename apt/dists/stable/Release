@@ -1,28 +1,28 @@
 Architectures: all amd64
 Codename: stable
 Components: main
-Date: Sun, 15 Nov 2026 14:32:42 +0000
+Date: Sun, 15 Nov 2026 21:16:50 +0000
 Description: CCS, comptes Claude Code
 Label: CCS
 Origin: CCS
 Suite: stable
 MD5Sum:
- 17ae621777eaae18253bfb8fe2f3a2b0            22301 main/binary-all/Packages
- 056505eb59888dd54fbf7585207bd567             3551 main/binary-all/Packages.gz
+ 12f52c6da09de3b5dc0019c712fc7d63            26771 main/binary-all/Packages
+ 0895713695889ddc71b63c333d161a89             4038 main/binary-all/Packages.gz
  d41d8cd98f00b204e9800998ecf8427e                0 main/binary-amd64/Packages
  4a4dd3598707603b3f76a2378a4504aa               20 main/binary-amd64/Packages.gz
 SHA1:
- 04c5fd032ebb119b114be193784e0318c1c22c48            22301 main/binary-all/Packages
- 5b417457d74b33dfd663fd49bc42f35d7e479b85             3551 main/binary-all/Packages.gz
+ 6b4a8cf6c9d939e5b495d9d6381c66fd19024e85            26771 main/binary-all/Packages
+ dc707f65058bc2443a747e685383aee9411c12ac             4038 main/binary-all/Packages.gz
  da39a3ee5e6b4b0d3255bfef95601890afd80709                0 main/binary-amd64/Packages
  a0fddd5458378c1bf3c10dd2f5c060d1347741ed               20 main/binary-amd64/Packages.gz
 SHA256:
- b846342fbb75cc347866143052592d5cc332c2a225a00d9f0c31e6b12eca2bda            22301 main/binary-all/Packages
- b7a1a126c78e2779b8361f9bb93a7da0422776510f6af4ff4df00e719d391745             3551 main/binary-all/Packages.gz
+ 4997d41f06b81c6d8428ca7aaea2c8eebab64a073dbc3e42d0a544ea209a294f            26771 main/binary-all/Packages
+ 27a11d137dec311462adbee304b1e72fba64146cd86698bf9903cb7a163ab783             4038 main/binary-all/Packages.gz
  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855                0 main/binary-amd64/Packages
  f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec               20 main/binary-amd64/Packages.gz
 SHA512:
- ae869ba78878c72d6b233c77bea135dbc97cb85aaa81429aafac142142e32f7af386f7c094868810727fb5faded87115bd50b5aea6fd7e6ed9cfb3193aabfcb9            22301 main/binary-all/Packages
- dd19bc7f0cccca686bdf4a0c2d143b721a1069ac44bf23cfc6406b045ff0d9e245f75581ee8a90036db44a401a856a2aab9ffc6f54d6df1000baa77faa8dbdfc             3551 main/binary-all/Packages.gz
+ ece309e61712c3281d6e3272e1454be540412bed1a6838a41443660710050f3bebaf51d3ac3e4e9db8f5ff4129d31352bfca8cc42cf7c087f686e245b905be76            26771 main/binary-all/Packages
+ 3cfa150f648fb522f42fa170702f1f7e9a6914fec14b23c70c180ab25002065a5ce2065d1154fa83ee3033f7f6371450d67adc4a7535814fa4bae98658245836             4038 main/binary-all/Packages.gz
  cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e                0 main/binary-amd64/Packages
  1b46b9b08d5b338be9d732a1724795b2eab63daffde377218727c90857b79fe6a47bceed495117fcde60f7339812ef75ef4c69f82dd79fb69b6cbf8006b521f2               20 main/binary-amd64/Packages.gz
