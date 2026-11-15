@@ -347,3 +347,25 @@ class FollowAndCopyTest(unittest.TestCase):
         """Web : chaque bloc de code des réponses a un bouton Copier."""
         self.assertIn('class: "copy-code', self.js)
         self.assertIn("clipboard", self.js)
+
+
+class RoadmapOrderAndPanesTest(unittest.TestCase):
+    def test_roadmap_phases_in_file_order(self):
+        """Web : les phases dans l'ordre du fichier (comme au bureau), pas inversées."""
+        js = (WEB / "roadmap.js").read_text(encoding="utf-8")
+        self.assertNotIn(".reverse()", js)
+        self.assertIn("for (const phase of r.phases)", js)
+
+    def test_sections_resizable_and_hideable(self):
+        """Web : la liste des sessions et le volet (Fichiers, Feuille de route, Git…) se
+        redimensionnent à la souris (largeur gardée) ; la liste peut être masquée."""
+        dom = (WEB / "dom.js").read_text(encoding="utf-8")
+        self.assertIn("export function resizable", dom)
+        self.assertIn("localStorage", dom)
+        self.assertIn("resizable(this.drawer", (WEB / "chat.js").read_text(encoding="utf-8"))
+        sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
+        self.assertIn("resizable(side", sessions)
+        self.assertIn("side-hidden", sessions)
+        css = (WEB / "style.css").read_text(encoding="utf-8")
+        self.assertIn(".resize-handle", css)
+        self.assertIn(".side-hidden", css)

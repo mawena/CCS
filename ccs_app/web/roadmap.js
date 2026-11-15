@@ -28,7 +28,9 @@ export class RoadmapPanel {
     this.path = r.path;
     if (!r.path) { this.node.append(emptyState("Pas de ROADMAP.md dans ce projet.")); return; }
     if (r.title) this.node.append(el("h3", {}, r.title));
-    for (const phase of [...r.phases].reverse()) this.node.append(this.phaseBox(phase));   // la phase en cours en haut
+    for (const phase of r.phases) this.node.append(this.phaseBox(phase));   // ordre du fichier, comme au bureau
+    // la phase en cours (première non finie) à l'écran
+    this.node.querySelector("details.phase[open]")?.scrollIntoView({ block: "start" });
   }
 
   phaseBox(phase) {
