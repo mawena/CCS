@@ -64,14 +64,17 @@ def good_net(content=CONTENT, sums=SUMS):
 class Runner:
     """`run` simulé : dpkg-deb et pkexec ; journal des commandes."""
 
-    def __init__(self, pkg="ccs", version=V, pkexec=(0, "")):
-        self.pkg, self.version, self.pkexec = pkg, version, pkexec
+    def __init__(self, pkg="ccs", version=V, pkexec=(0, ""), installed=("ccs",)):
+        self.pkg, self.version, self.pkexec, self.installed = pkg, version, pkexec, installed
         self.cmds = []
 
     def __call__(self, cmd):
         self.cmds.append(list(cmd))
-        if cmd[0] == "dpkg-deb":
-            return 0, f"Package: {self.pkg}\nVersion: {self.version}\n"
+        if cmd[0] == "dpkg-deb":       # pkg=None : le paquet que le nom du fichier annonce
+            pkg = self.pkg or os.path.basename(cmd[2]).split("_")[0]
+            return 0, f"Package: {pkg}\nVersion: {self.version}\n"
+        if cmd[0] == "dpkg-query":
+            return 0, "".join(f"{p} installed\n" for p in self.installed)
         if cmd[0] == "dpkg":
             return 0, "ccs: /usr/lib/ccs/ccs_app/installer.py\n"
         return self.pkexec
@@ -199,10 +202,13 @@ class VerificationTests(unittest.TestCase):
         self.assertFalse(installer.is_package_install(lambda c: (None, "")))
 
     def test_commande_d_installation(self):
-        cmd = installer.install_command("rel/ccs.deb")
-        self.assertEqual(cmd[:4], ["pkexec", "apt-get", "install", "-y"])
-        self.assertTrue(os.path.isabs(cmd[4]))
-        self.assertEqual(installer.manual_command("/tmp/a b/ccs.deb"), "sudo apt install '/tmp/a b/ccs.deb'")
+        cmd = installer.install_command(["rel/ccs.deb", "rel/ccs-bureau.deb"])
+        # --no-remove : apt-get -y ne retire jamais un paquet (ccs-bureau…) pour se débrouiller
+        self.assertEqual(cmd[:5], ["pkexec", "apt-get", "install", "-y", "--no-remove"])
+        self.assertEqual(len(cmd), 7)
+        self.assertTrue(all(os.path.isabs(c) for c in cmd[5:]))
+        self.assertEqual(installer.manual_command(["/tmp/a b/ccs.deb", "/tmp/c.deb"]),
+                         "sudo apt install '/tmp/a b/ccs.deb' /tmp/c.deb")
 
 
 class InstallTests(unittest.TestCase):
@@ -223,8 +229,8 @@ class InstallTests(unittest.TestCase):
         r = self.go(run=run, progress=lambda p, f: steps.append(p))
         self.assertTrue(r.ok)
         self.assertEqual(r.version, V)
-        self.assertEqual(run.cmds[-1][:4], ["pkexec", "apt-get", "install", "-y"])
-        self.assertTrue(run.cmds[-1][4].endswith(DEB))
+        self.assertEqual(run.cmds[-1][:5], ["pkexec", "apt-get", "install", "-y", "--no-remove"])
+        self.assertTrue(run.cmds[-1][-1].endswith(DEB))
         self.assertEqual(sorted(set(steps), key=steps.index), ["download", "verify", "install"])
         self.assertEqual(self.leftovers(), [])
 
@@ -234,8 +240,8 @@ class InstallTests(unittest.TestCase):
 
         def spy(cmd):
             if cmd[0] == "pkexec":
-                d = os.path.dirname(cmd[4])
-                modes.append((os.stat(d).st_mode & 0o777, os.stat(cmd[4]).st_mode & 0o777))
+                d = os.path.dirname(cmd[-1])
+                modes.append((os.stat(d).st_mode & 0o777, os.stat(cmd[-1]).st_mode & 0o777))
             return run(cmd)
         self.go(run=spy)
         self.assertEqual(modes, [(0o700, 0o600)])
@@ -308,6 +314,67 @@ class InstallTests(unittest.TestCase):
         net = good_net()
         self.go(net=net)
         self.assertTrue(all(ua == "ccs" for _, ua in net.calls))
+
+
+ALL = ("ccs", "ccs-bureau", "ccs-serveur", "ccs-all")
+ALL_CONTENT = {p: f"paquet {p}".encode() for p in ALL}
+ALL_SUMS = "".join(f"{hashlib.sha256(c).hexdigest()}  {p}_{V}_all.deb\n" for p, c in ALL_CONTENT.items())
+RELEASE_ALL = dict(RELEASE, assets=[{"name": f"{p}_{V}_all.deb", "browser_download_url": BASE + f"{p}_{V}_all.deb"}
+                                    for p in ALL] + [{"name": "SHA256SUMS",
+                                                      "browser_download_url": BASE + "SHA256SUMS"}])
+
+
+def net_all(sums=ALL_SUMS):
+    files = {BASE + f"{p}_{V}_all.deb": c for p, c in ALL_CONTENT.items()}
+    files[BASE + "SHA256SUMS"] = sums.encode()
+    return Net(files)
+
+
+class MultiPackageTests(unittest.TestCase):
+    """ccs-bureau et ccs-serveur exigent ccs de même version : les paquets CCS installés sont mis
+    à jour ensemble, sinon apt-get -y retirerait ccs-bureau (l'application disparaîtrait)."""
+
+    def setUp(self):
+        self.root = tempfile.TemporaryDirectory()
+        self.addCleanup(self.root.cleanup)
+
+    def go(self, release, run, net):
+        plan = installer.plan_from_release(release)
+        return installer.install(plan, "0.6.1", net, run, tmp_root=self.root.name)
+
+    def test_installed_packages(self):
+        self.assertEqual(installer.installed_packages(Runner(installed=("ccs-serveur", "ccs"))),
+                         ["ccs", "ccs-serveur"])
+        self.assertEqual(installer.installed_packages(lambda c: (None, "")), ["ccs"])
+
+    def test_every_installed_package_updated_together(self):
+        run = Runner(pkg=None, installed=("ccs", "ccs-bureau"))
+        self.assertTrue(self.go(RELEASE_ALL, run, net_all()).ok)
+        names = [f"ccs_{V}_all.deb", f"ccs-bureau_{V}_all.deb"]
+        self.assertEqual([os.path.basename(c) for c in run.cmds[-1][5:]], names)
+        self.assertEqual([os.path.basename(c[2]) for c in run.cmds if c[0] == "dpkg-deb"], names)
+        self.assertEqual(os.listdir(self.root.name), [])
+
+    def test_deb_announcing_another_package_refused(self):
+        run = Runner(pkg="ccs", installed=("ccs", "ccs-bureau"))     # ccs-bureau_….deb se dit « ccs »
+        with self.assertRaises(InstallError):
+            self.go(RELEASE_ALL, run, net_all())
+        self.assertFalse([c for c in run.cmds if c[0] == "pkexec"])
+
+    def test_bad_sum_of_second_package_refused(self):
+        bad = ALL_SUMS.replace(hashlib.sha256(ALL_CONTENT["ccs-bureau"]).hexdigest(), "0" * 64)
+        run = Runner(pkg=None, installed=("ccs", "ccs-bureau"))
+        with self.assertRaises(InstallError):
+            self.go(RELEASE_ALL, run, net_all(bad))
+        self.assertFalse([c for c in run.cmds if c[0] == "pkexec"])
+
+    def test_release_missing_an_installed_package_refused(self):
+        run = Runner(pkg=None, installed=("ccs", "ccs-bureau"))
+        with self.assertRaises(InstallError) as cm:
+            self.go(RELEASE, run, good_net())                       # release sans ccs-bureau
+        self.assertIn("ccs-bureau", str(cm.exception))
+        self.assertFalse([c for c in run.cmds if c[0] == "pkexec"])
+        self.assertEqual(os.listdir(self.root.name), [])
 
 
 class CommandTests(unittest.TestCase):

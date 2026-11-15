@@ -22,6 +22,13 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   est installé pour l'utilisateur qui installe, s'il manque. `ccs doctor` vérifie le serveur ;
   sans `ccs-bureau`, il ne vérifie plus l'interface graphique (dans une session graphique, il
   propose d'installer `ccs-bureau`).
+- La mise à jour en un clic installe ensemble tous les paquets CCS présents (`ccs`,
+  `ccs-bureau`, `ccs-serveur`, `ccs-all`) et n'en retire jamais aucun.
+
+### Mise à jour depuis 0.10
+
+- L'application graphique passe dans le paquet `ccs-bureau`. Sur un poste de bureau, mettre à
+  jour par apt plutôt que par le bouton : `sudo apt update && sudo apt install ccs-all`.
 
 ### Sécurité
 
