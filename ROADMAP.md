@@ -449,6 +449,14 @@ Poser un ou plusieurs mots-clés sur un message (« important », « à revoir �
 - [x] Bouton flottant en bas à droite du fil, visible seulement quand on est remonté ; un appui ramène en bas et reprend le suivi (`downBtn`, `offerDown`, `.thread-wrap`)
 - [x] Tests, documentation, release mineure 0.18.0, dépôt APT compris
 
+## Phase 19 — Gérer et télécharger les fichiers depuis le web (0.19.0)
+
+- [x] 1. Pont : `bridge_files` (`files.download`, `files.upload` par morceaux, `files.mkdir`, `files.create`, `files.rename`, `files.delete`, `files.info`), chemins confinés, racines protégées
+- [x] 2. Web : `files-manage.js` (transferts, feuilles de saisie et d'actions), barre « + Fichier / + Dossier / Envoyer », bouton « ⋯ » par entrée, bouton « ⤓ » du fichier ouvert
+- [x] 3. Tests (pont et web), documentation, release mineure 0.19.0, dépôt APT compris
+- [ ] 4. Essai réel par Charles : envoyer, télécharger, renommer, supprimer depuis le téléphone
+- [ ] 5. Plus tard, si utile : télécharger un dossier entier (archive), déplacer une entrée, même gestion sur le bureau
+
 ## À venir — Séparateur après `/clear`
 
 Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde les anciens messages sans aucun signe : on croit que rien ne s'est passé.

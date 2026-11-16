@@ -1,7 +1,9 @@
 // Fichiers d'un projet : arbre (chargé dossier par dossier, marques git), recherche par nom,
 // fichier ouvert (lecture, image, ouverture à une ligne, retour à la ligne au choix, édition
-// simple avec enregistrement et conflit signalé, aperçu Markdown rendu par le pont).
+// simple avec enregistrement et conflit signalé, aperçu Markdown rendu par le pont), gestion
+// (créer, envoyer, renommer, supprimer, télécharger : files-manage.js).
 import { clear, confirmSheet, el, errorState, loading, setHtml, toast } from "./dom.js";
+import { download, FileManager } from "./files-manage.js";
 
 const MARKS = { M: "modifié", A: "ajouté", "?": "nouveau", D: "supprimé" };
 const WRAP_KEY = "ccs-file-wrap";
@@ -17,7 +19,12 @@ export class FilesPanel {
     this.search = el("input", { type: "search", class: "file-search", placeholder: "Chercher un fichier par nom",
       "aria-label": "Chercher un fichier", autocapitalize: "off", autocomplete: "off", spellcheck: "false" });
     this.search.addEventListener("input", () => { clearTimeout(this.timer); this.timer = setTimeout(() => this.find(), 300); });
-    this.browser = el("div", { class: "file-browser" }, this.search, this.results, this.tree);
+    this.manager = new FileManager(api, root);
+    const top = (label, run) => el("button", { type: "button", class: "small flat", onclick: async () => { if (await run()) this.expand(this.tree, ""); } }, label);
+    this.tools = el("div", { class: "file-tools" },
+      top("+ Fichier", () => this.manager.create("", "file")), top("+ Dossier", () => this.manager.create("", "dir")),
+      top("Envoyer", () => this.manager.upload("")));
+    this.browser = el("div", { class: "file-browser" }, this.search, this.tools, this.results, this.tree);
     this.node.append(this.browser);
     container.append(this.node);
     this.expand(this.tree, "");
@@ -41,20 +48,32 @@ export class FilesPanel {
           row.classList.toggle("open", !sub.hidden);
           if (!sub.hidden && !sub.dataset.loaded) { sub.dataset.loaded = "1"; this.expand(sub, entry.path); }
         } }, el("span", { class: "twisty" }, "▸"), el("span", { class: "grow" }, entry.name), mark);
-        ul.append(el("li", {}, row, sub));
+        const inside = () => { sub.dataset.loaded = "1"; sub.hidden = false; row.classList.add("open"); this.expand(sub, entry.path); };
+        ul.append(el("li", {}, el("div", { class: "tree-line" }, row, this.more(entry, () => this.expand(ul, rel), inside)), sub));
       } else {
-        ul.append(el("li", {}, el("button", { class: "tree-row", onclick: () => this.open(entry.path) },
-          el("span", { class: "twisty" }, " "), el("span", { class: "grow" }, entry.name), mark)));
+        ul.append(el("li", {}, el("div", { class: "tree-line" },
+          el("button", { class: "tree-row", onclick: () => this.open(entry.path) },
+            el("span", { class: "twisty" }, " "), el("span", { class: "grow" }, entry.name), mark),
+          this.more(entry, () => this.expand(ul, rel)))));
       }
     }
     if (r.truncated) ul.append(el("li", { class: "subtle" }, "(dossier trop long : liste coupée)"));
+  }
+
+  // Bouton « ⋯ » d'une entrée : ses actions de gestion ; recharge ensuite le dossier touché.
+  more(entry, reload, inside = null) {
+    return el("button", { type: "button", class: "flat tree-more", "aria-label": `Actions sur ${entry.name}`, title: "Actions",
+      onclick: async () => {
+        const r = await this.manager.menu(entry);
+        if (r.changed) (r.inside && inside ? inside : reload)();
+      } }, "⋯");
   }
 
   // Recherche par nom dans tout l'arbre (méthode bornée du pont) ; champ vide : retour à l'arbre.
   async find() {
     const query = this.search.value.trim();
     this.results.hidden = !query;
-    this.tree.hidden = Boolean(query);
+    this.tree.hidden = this.tools.hidden = Boolean(query);
     if (!query) return;
     clear(this.results).append(loading("Recherche…"));
     let r;
@@ -124,7 +143,9 @@ export class FileView {
     const back = async () => { if (await this.confirmLeave()) onBack(); };
     container.append(el("div", { class: "file-head" },
       el("button", { class: "small flat", "aria-label": "Retour", onclick: back }, "←"),
-      el("strong", { class: "grow file-name", title: path }, path.split("/").pop()), this.wrapBtn, this.mdBtn, this.editBtn, this.saveBtn),
+      el("strong", { class: "grow file-name", title: path }, path.split("/").pop()),
+      el("button", { class: "small flat", "aria-label": "Télécharger", title: "Télécharger", onclick: () => download(this.api, this.path) }, "⤓"),
+      this.wrapBtn, this.mdBtn, this.editBtn, this.saveBtn),
       this.state, this.text, this.code, this.image, this.preview);
     this.applyWrap();
     this.load();
