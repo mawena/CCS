@@ -40,10 +40,12 @@ class StateChanged:
 @dataclass(frozen=True)
 class UserSent:
     """Message de l'utilisateur reçu par le pont : les autres appareils l'affichent ; celui qui
-    l'a envoyé le reconnaît à son `nonce` et ne le montre pas deux fois."""
+    l'a envoyé le reconnaît à son `nonce` et ne le montre pas deux fois. `uuid` : identifiant du
+    message dans le journal (étiquettes)."""
     text: str
     images: int = 0
     nonce: str = ""
+    uuid: str = ""
 
 
 @dataclass(frozen=True)
@@ -341,9 +343,10 @@ class ChatSession:
 
     # ------------------------------------------------------------------- API
 
-    def send(self, text, images=()):
+    def send(self, text, images=(), uuid=None):
         """Envoie un message (lance ou relance le processus), même pendant un tour. Faux si le
-        processus ne peut pas démarrer ou que l'écriture échoue."""
+        processus ne peut pas démarrer ou que l'écriture échoue. `uuid` : identifiant de sa ligne
+        du journal (voir `proto.user_message`)."""
         if (self._relaunch_needed and self._proc is not None and not self._background
                 and self.state not in ("busy", "permission")):
             self._relaunch_needed = False
@@ -358,7 +361,7 @@ class ChatSession:
                 # Pendant un tour : écrit tout de suite, la CLI le lit (après le tour ou en cours
                 # de route) ; l'état ne bouge pas, le message sera soldé par un result ou le filet.
                 self._expected += 1
-                ok = self._write(proto.user_message(text, list(images)))
+                ok = self._write(proto.user_message(text, list(images), uuid))
                 self.last_activity = self._clock()
                 return ok
             if self._proc is None:
@@ -373,7 +376,7 @@ class ChatSession:
             self._pending_cmds.clear()
             self._expected += 1
             self._set_state("busy")  # avant l'écriture : le fil de lecture peut conclure aussitôt
-            ok = self._write(proto.user_message(text, list(images))) and ok
+            ok = self._write(proto.user_message(text, list(images), uuid)) and ok
             self.last_activity = self._clock()
         return ok  # faux : le processus est mort, le fil de lecture signale la sortie
 

@@ -78,6 +78,7 @@ class ReadMessagesTest(PreviewTestCase):
         self.assertEqual(msgs[3].text, "C'est corrigé.")
         self.assertIsNotNone(msgs[0].ts)
         self.assertNotIn("secret", json.dumps([m.text for m in msgs]))
+        self.assertEqual((msgs[0].uuid, msgs[1].msg_id), (user("corrige le calcul", minute=0)["uuid"], "m1"))
 
     def test_text_blocks_of_one_answer_are_merged(self):
         p = self.journal([user("salut"), assistant("m1", [text("Première partie.")]),

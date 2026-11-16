@@ -18,9 +18,10 @@ import os
 import re
 import secrets
 import time
+import uuid as uuidlib
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, markdown_render, \
-    sessions, settings
+    message_tags, sessions, settings
 from ..chat_engine import ChatSession
 from . import events, rpc
 from .bridge_data import safe_path
@@ -69,6 +70,15 @@ def _info(chat):
             "path": transcript_of(chat.cwd, sid), "history_before": _history_before(chat)}
 
 
+def _uuid(raw):
+    """Identifiant du message envoyé : celui proposé par l'appareil s'il a la forme d'un uuid
+    (il le connaît ainsi sans attendre), sinon un nouveau."""
+    try:
+        return str(uuidlib.UUID(raw)) if isinstance(raw, str) else str(uuidlib.uuid4())
+    except ValueError:
+        return str(uuidlib.uuid4())
+
+
 def _options(raw):
     raw = raw if isinstance(raw, dict) else {}
     names = {f.name for f in dataclasses.fields(chat_options.ChatOptions)}
@@ -91,6 +101,7 @@ class ChatHub:
             "chat.send": self.send, "chat.answer": self.answer, "chat.questions": self.questions,
             "chat.interrupt": self.interrupt, "chat.options": self.options,
             "chat.close": self.close, "chat.render": self.render, "chat.context": self.context,
+            "chat.tags": self.tags, "chat.tag": self.tag,
         })
 
     # ---- état ------------------------------------------------------------------------
@@ -215,13 +226,14 @@ class ChatHub:
                 images.append((str(img["media_type"]), base64.b64decode(img["data"], validate=True)))
             except (KeyError, TypeError, binascii.Error):
                 raise rpc.RpcError("invalide", "Image illisible.") from None
-        ok = await asyncio.to_thread(chat.engine.send, text, images)
+        uid = _uuid(params.get("uuid"))
+        ok = await asyncio.to_thread(chat.engine.send, text, images, uid)
         if ok:
             shown, nonce = params.get("shown"), params.get("nonce")
             self._record(chat, chat_engine.UserSent(
                 shown if isinstance(shown, str) else text, len(images),
-                nonce if isinstance(nonce, str) else ""))
-        return {"ok": bool(ok)}
+                nonce if isinstance(nonce, str) else "", uid))
+        return {"ok": bool(ok), "uuid": uid}
 
     async def answer(self, _conn, params):
         chat = self._get(params)
@@ -262,6 +274,31 @@ class ChatHub:
         chats, self.chats = list(self.chats.values()), {}
         for chat in chats:
             await asyncio.to_thread(chat.engine.stop)
+
+    # ---- étiquettes ----------------------------------------------------------------------
+
+    async def tags(self, _conn, params):
+        """Messages étiquetés d'une conversation, et les étiquettes déjà utilisées ailleurs."""
+        sid = params.get("session_id")
+        if not message_tags.valid_session(sid):
+            raise rpc.RpcError("invalide", "Conversation inconnue.")
+        msgs, known = await asyncio.to_thread(
+            lambda: (message_tags.load(sid), message_tags.known_tags()))
+        return {"messages": msgs, "known": known}
+
+    async def tag(self, _conn, params):
+        """Pose (ou retire, liste vide) les étiquettes d'un message ; les appareils connectés
+        reçoivent `chat.tags` et mettent leur fil à jour."""
+        sid, msg_id, tags = params.get("session_id"), params.get("msg_id"), params.get("tags")
+        if not message_tags.valid_session(sid) or not message_tags.valid_message(msg_id) \
+                or not isinstance(tags, list):
+            raise rpc.RpcError("invalide", "Étiquettes invalides.")
+        text, role = params.get("text"), params.get("role")
+        entry = await asyncio.to_thread(
+            message_tags.set_tags, sid, msg_id, tags, text if isinstance(text, str) else "",
+            role if isinstance(role, str) else "")
+        await self.bridge.broadcast("chat.tags", {"session_id": sid, "msg_id": msg_id, "entry": entry})
+        return {"entry": entry}
 
     async def render(self, _conn, params):
         text = params.get("markdown")

@@ -190,11 +190,12 @@ class RemoteChatEngine:
 
     # ---- interface du moteur local -------------------------------------------------------
 
-    def send(self, text, images=()):
+    def send(self, text, images=(), uuid=None):
         payload = [{"media_type": mt, "data": base64.b64encode(data).decode("ascii")} for mt, data in images or ()]
         nonce = secrets.token_hex(8)
         self._own.add(nonce)
-        self._open(lambda: self._call("chat.send", text=text, images=payload, nonce=nonce))
+        self._open(lambda: self._call("chat.send", text=text, images=payload, nonce=nonce,
+                                           **({"uuid": uuid} if uuid else {})))
         return True
 
     def answer(self, request_id, decision, message=""):
