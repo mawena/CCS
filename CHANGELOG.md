@@ -3,6 +3,15 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.17.1] — 2026-11-16
+
+### Corrigé
+
+- **Chat web : le fil ne descendait plus tout seul** pendant que la discussion continuait. Le
+  suivi du bas se décrochait dès que la zone du fil changeait de taille (clavier du téléphone,
+  liste des tâches, texte mis en forme après coup). Maintenant, seul un geste vers le haut
+  l'arrête, et il reprend dès qu'on revient en bas ou qu'on envoie un message.
+
 ## [0.17.0] — 2026-11-16
 
 ### Ajouté

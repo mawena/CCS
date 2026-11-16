@@ -439,6 +439,11 @@ Poser un ou plusieurs mots-clés sur un message (« important », « à revoir �
 - [x] 6. Tests des modules touchés
 - [x] 7. Documentation (README, docs, CHANGELOG) et release mineure 0.17.0, dépôt APT compris
 
+## Correctif 0.17.1 — le fil du chat web suit le bas
+
+- [x] Le fil ne descendait plus pendant la réponse : le suivi se décrochait sur tout événement de défilement ; seul un geste vers le haut l'arrête (`scrolled`, `restick`, observateurs de taille et de contenu)
+- [x] Release corrective 0.17.1, dépôt APT compris
+
 ## À venir — Séparateur après `/clear`
 
 Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde les anciens messages sans aucun signe : on croit que rien ne s'est passé.
