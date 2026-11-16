@@ -982,7 +982,7 @@ d'actions d'un message, `chat-quote.js` : format de la citation, `chat-tags.js` 
 `terminal.js`, `files.js`,
 `roadmap.js`, `git.js`, `home.js` et `pages-*.js` (bilan de santé, tâches de nuit, téléphone),
 `analysis.js`, `settings.js` ; une feuille de style par zone. Le service worker (`sw.js`,
-cache `ccs-v13`) met l'interface en cache.
+cache `ccs-v14`) met l'interface en cache.
 
 ### Protocole
 

@@ -66,7 +66,7 @@ def tearDownModule():
 
 def run(body):
     script = _copy() / "scenario.mjs"
-    script.write_text(PRELUDE + body + "\nconsole.log(JSON.stringify(out));\n", encoding="utf-8")
+    script.write_text(PRELUDE + body + "\nconsole.log(JSON.stringify(out));\nprocess.exit(0);\n", encoding="utf-8")
     r = subprocess.run([NODE, str(script)], capture_output=True, text=True, timeout=60, cwd=_copy())
     if r.returncode:
         raise AssertionError(r.stderr[-1500:])
@@ -108,6 +108,11 @@ await settle();
 out = { tools: panel.tools.querySelectorAll("button").map((b) => b.textContent) };
 const more = panel.tree.querySelectorAll(".tree-more");
 out.more = more.map((b) => b.getAttribute("aria-label"));
+const save = panel.tree.querySelectorAll(".tree-save");
+out.save = save.map((b) => b.getAttribute("aria-label"));
+store.set("/p/a.txt", new Uint8Array([1, 2, 3]));
+save[0].click(); await settle();
+out.direct = named("files.download").map((p) => p.path);
 more[1].click(); await settle();
 out.file = sheet().querySelectorAll(".menu-item").map((b) => b.textContent);
 await press("Supprimer");                 // l'action du menu
@@ -126,6 +131,8 @@ out.left = document.querySelectorAll("dialog").length;
 """)
         self.assertEqual(out["tools"], ["+ Fichier", "+ Dossier", "Envoyer"])
         self.assertEqual(out["more"], ["Actions sur src", "Actions sur a.txt"])
+        self.assertEqual(out["save"], ["Télécharger a.txt"])            # les fichiers seulement, pas les dossiers
+        self.assertEqual(out["direct"], ["/p/a.txt"])
         self.assertEqual(out["file"], ["Télécharger", "Renommer", "Supprimer"])
         self.assertEqual(out["ask"], "Supprimer « a.txt » ?")
         self.assertEqual(out["deleted"], [{"path": "/p/a.txt", "root": "/p"}])

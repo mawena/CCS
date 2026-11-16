@@ -54,10 +54,16 @@ export class FilesPanel {
         ul.append(el("li", {}, el("div", { class: "tree-line" },
           el("button", { class: "tree-row", onclick: () => this.open(entry.path) },
             el("span", { class: "twisty" }, " "), el("span", { class: "grow" }, entry.name), mark),
-          this.more(entry, () => this.expand(ul, rel)))));
+          this.save(entry), this.more(entry, () => this.expand(ul, rel)))));
       }
     }
     if (r.truncated) ul.append(el("li", { class: "subtle" }, "(dossier trop long : liste coupée)"));
+  }
+
+  // Bouton « ⤓ » d'un fichier : le télécharge tout de suite, sans passer par le menu.
+  save(entry) {
+    return el("button", { type: "button", class: "flat tree-save", "aria-label": `Télécharger ${entry.name}`, title: "Télécharger",
+      onclick: () => download(this.api, this.manager.abs(entry.path)) }, "⤓");
   }
 
   // Bouton « ⋯ » d'une entrée : ses actions de gestion ; recharge ensuite le dossier touché.

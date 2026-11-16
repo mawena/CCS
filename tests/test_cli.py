@@ -793,7 +793,7 @@ class NotifierCliTest(HomeTestCase):
     def test_pause_notifies(self):
         code, out = run("pause", "1h", "--notifier")
         self.assertEqual(code, 0)
-        self.assertRegex(self.titles()[0][0], r"^Pause jusqu'à \d\d:\d\d$")
+        self.assertRegex(self.titles()[0][0], r"^Pause jusqu'à (demain )?\d\d:\d\d$")
         self.sent.clear()
         run("pause", "off", "--notifier")
         self.assertEqual(self.titles()[0][0], "Pause levée")
@@ -901,7 +901,7 @@ class SilenceCliTest(HomeTestCase):
 
     def test_notifier(self):
         run("silence", "1h", "--notifier")
-        self.assertRegex(self.sent[0][0], r"^Ne pas déranger jusqu'à \d\d:\d\d$")
+        self.assertRegex(self.sent[0][0], r"^Ne pas déranger jusqu'à (demain )?\d\d:\d\d$")
         self.sent.clear()
         run("silence", "off", "--notifier")
         self.assertEqual(self.sent[0][0], "Silence levé")

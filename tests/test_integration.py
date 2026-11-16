@@ -341,7 +341,7 @@ class PauseHookTest(HookBase):
         self.assertEqual(msg, "en pause")
         self.assertEqual(len(self.sent), 1)
         self.assertIn("GiGit", self.sent[0].title)
-        self.assertEqual(self.sent[0].body, f"CCS est en pause jusqu'à {until.astimezone():%H:%M} : "
+        self.assertEqual(self.sent[0].body, f"CCS est en pause jusqu'à {pause._when(until, now)} : "
                                             "pas de bascule automatique.")
         e = self.event()
         self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", None, False, "paused"))

@@ -321,7 +321,7 @@ Dans la **version web**, le volet Fichiers sert aussi à gérer les fichiers du 
 - le bouton **⋯** d'un fichier propose Télécharger, Renommer et Supprimer ; celui d'un dossier
   propose d'y créer un fichier ou un dossier, d'y envoyer un fichier, de le renommer ou de le
   supprimer ;
-- un fichier ouvert a aussi son bouton **⤓** pour le télécharger.
+- chaque fichier de l'arbre, et le fichier ouvert, a son bouton **⤓** pour le télécharger d'un appui.
 
 Un transfert va jusqu'à 200 Mo. Une suppression demande toujours confirmation et elle est
 définitive (pas de corbeille) ; le dossier du projet lui-même ne peut être ni renommé ni
