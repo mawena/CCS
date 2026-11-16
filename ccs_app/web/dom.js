@@ -88,13 +88,14 @@ export function toast(text, { kind = "info", action = null, timeout = null } = {
   const close = () => {
     if (closed) return;
     closed = true;
+    clearTimeout(timer);
     node.classList.add("leaving");
     setTimeout(() => node.remove(), 200);
   };
   if (action) node.append(el("button", { class: "small flat", onclick: () => { close(); action.run(); } }, action.label));
   node.append(el("button", { class: "small flat toast-close", "aria-label": "Fermer", onclick: close }, "×"));
   toastHost().append(node);
-  setTimeout(close, timeout ?? (kind === "error" ? 8000 : 4000));
+  const timer = setTimeout(close, timeout ?? (kind === "error" ? 8000 : 4000));
   return close;
 }
 
