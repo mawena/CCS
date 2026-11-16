@@ -127,6 +127,40 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         r = await replay.call("chat.attach", chat_id=chat_id, since=0)
         self.assertIn("UserSent", [e["event"]["type"] for e in r["events"]])
 
+    async def test_sent_message_keeps_its_uuid(self):
+        """L'identifiant du message (proposé par l'appareil, sinon tiré par le pont) est rendu et
+        diffusé : c'est celui de sa ligne du journal, pour les étiquettes."""
+        a, b = await self.client(), await self.client()
+        chat_id = (await a.call("chat.open", cwd=str(self.project)))["chat_id"]
+        await b.call("chat.attach", chat_id=chat_id, since=0)
+        uid = "0b9d2c0e-6f7a-4e55-9a39-2f0e8c1d4b11"
+        r = await a.call("chat.send", chat_id=chat_id, text="bonjour", nonce="n1", uuid=uid)
+        self.assertEqual(r["uuid"], uid)
+        self.assertTrue(await self.wait(lambda: "UserSent" in self.types(b)))
+        self.assertEqual(self.find(b, "UserSent")["uuid"], uid)
+        other = await a.call("chat.send", chat_id=chat_id, text="encore", uuid="pas-un-uuid")
+        self.assertRegex(other["uuid"], r"^[0-9a-f-]{36}$")
+
+    async def test_tags_set_listed_and_broadcast(self):
+        a, b = await self.client(), await self.client()
+        r = await a.call("chat.tag", session_id="s1", msg_id="msg_1", tags=["important", " Important "],
+                         text="Une réponse\nsur deux lignes", role="assistant")
+        self.assertEqual(r["entry"]["tags"], ["important"])
+        self.assertTrue(await self.wait(lambda: any(n == "chat.tags" for n, _ in b.got)))
+        pushed = next(d for n, d in b.got if n == "chat.tags")
+        self.assertEqual((pushed["session_id"], pushed["msg_id"]), ("s1", "msg_1"))
+        got = await b.call("chat.tags", session_id="s1")
+        self.assertEqual(got["messages"]["msg_1"]["excerpt"], "Une réponse sur deux lignes")
+        self.assertEqual(got["known"], ["important"])
+        r = await a.call("chat.tag", session_id="s1", msg_id="msg_1", tags=[])
+        self.assertIsNone(r["entry"])
+        self.assertEqual((await a.call("chat.tags", session_id="s1"))["messages"], {})
+        for bad in ({"session_id": "../x", "msg_id": "m", "tags": []},
+                    {"session_id": "s1", "msg_id": "a/b", "tags": []},
+                    {"session_id": "s1", "msg_id": "m", "tags": "x"}):
+            with self.assertRaises(rpc.RpcError):
+                await a.call("chat.tag", **bad)
+
     async def test_answer_permission_settles_for_others(self):
         a, b = await self.client(), await self.client()
         chat_id = (await a.call("chat.open", cwd=str(self.project)))["chat_id"]

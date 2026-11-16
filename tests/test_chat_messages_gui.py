@@ -11,7 +11,7 @@ if GTK:
     from ccs_app import chat_protocol as proto
     from ccs_app import chat_quote as quote, preview
     from ccs_app.gui.chat_messages import (MessageList, PermissionCard, TodosCard, ToolCard, ToolGroup, edit_info,
-                                           open_bubble_menu, selected_text)
+                                           open_bubble_menu, open_tag_editor, selected_text)
 
 
 def pump(ms=50):
@@ -652,7 +652,7 @@ class ReplyTest(unittest.TestCase):
 
     def test_user_bubble_hover_button_and_menu(self):
         row = self.ml.add_user("Ajoute un bouton", ())
-        self.assertEqual(row.reply_hover.get_opacity(), 0)
+        self.assertEqual(row.hover_actions.get_opacity(), 0)
         row.reply_hover.emit("clicked")
         open_bubble_menu(row, reply=self.ml._reply_from)
         row.reply_button.emit("clicked")
@@ -701,3 +701,91 @@ class ReplyTest(unittest.TestCase):
         row = ml.add_user("demande", ())
         self.assertFalse(hasattr(ml._segs["m1"].bubble, "reply_button"))
         self.assertFalse(hasattr(row, "reply_hover"))
+
+
+@unittest.skipUnless(GTK, "tests graphiques : CCS_GUI_TESTS=1 avec xvfb-run")
+class TagsTest(unittest.TestCase):
+    """Étiquettes sur les messages : bouton, menu, fenêtre « Étiqueter », pastilles, retrouver."""
+
+    def setUp(self):
+        self.tagged = []
+        self.ml = MessageList(on_tag=lambda *a: self.tagged.append(a), on_reply=lambda *a: None)
+        self.win = Gtk.Window()
+        self.win.set_child(self.ml)
+        self.win.present()
+        self.addCleanup(self.win.destroy)
+
+    @staticmethod
+    def pills(row):
+        return [w.get_label() for w in descendants(row.tags_box) if isinstance(w, Gtk.Label)]
+
+    def test_answer_gets_a_tag_button_and_the_editor_calls_back(self):
+        self.ml.known_tags = ["important", "à revoir", "idée"]
+        self.ml.update_tags("m1", {"tags": ["idée"], "role": "assistant", "excerpt": "", "ts": 1.0})
+        self.ml.finish_assistant("m1", "Deux options")
+        bubble = self.ml._segs["m1"].bubble
+        self.assertEqual(self.pills(bubble), ["idée"])                    # déjà connue : pastille tout de suite
+        bubble.tag_hover.emit("clicked")
+        pop = bubble.tag_popover
+        self.assertEqual(pop.tag_entry.get_text(), "idée")                # prérempli
+        self.assertEqual([b.tag for b in pop.tag_suggestions], ["important", "à revoir"])
+        pop.tag_suggestions[0].emit("clicked")                            # suggestion : ajoutée
+        self.assertEqual(pop.tag_entry.get_text(), "idée, important")
+        pop.tag_ok.emit("clicked")
+        self.assertEqual(self.tagged, [("m1", ["idée", "important"], "Deux options", "assistant")])
+
+    def test_empty_field_removes_and_cancel_does_nothing(self):
+        row = self.ml.add_user("Ajoute un bouton", (), msg_id="u-1")
+        pop = self.ml.edit_tags(row)
+        pop.tag_cancel.emit("clicked")
+        self.assertEqual(self.tagged, [])
+        pop = self.ml.edit_tags(row)
+        pop.tag_entry.set_text("  ,  ")
+        pop.tag_entry.emit("activate")                                    # Entrée valide aussi
+        self.assertEqual(self.tagged, [("u-1", [], "Ajoute un bouton", "utilisateur")])
+
+    def test_user_bubble_menu_and_pills_update_without_reload(self):
+        row = self.ml.add_user(quote.compose("claude", "A ou B ?", "La B"), (), msg_id="u-1")
+        self.assertIsNotNone(row.tag_hover)
+        self.assertFalse(row.tags_box.get_visible())
+        open_bubble_menu(row, tag=self.ml.edit_tags)
+        row.tag_button.emit("clicked")
+        row.tag_popover.tag_entry.set_text("décision, Décision, à revoir")
+        row.tag_popover.tag_ok.emit("clicked")
+        self.assertEqual(self.tagged[-1], ("u-1", ["décision", "à revoir"], "La B", "utilisateur"))
+        self.ml.update_tags("u-1", {"tags": ["décision", "à revoir"], "role": "utilisateur", "excerpt": "La B"})
+        self.assertEqual(self.pills(row), ["décision", "à revoir"])
+        self.assertTrue(row.tags_box.get_visible())
+        self.ml.update_tags("u-1", None)                                  # retirées
+        self.assertFalse(row.tags_box.get_visible())
+        self.assertEqual(self.ml.tagged(), {})
+
+    def test_no_tag_without_identifier_or_handler(self):
+        row = self.ml.add_user("sans identifiant", ())
+        self.assertFalse(hasattr(row, "tag_hover"))
+        ml = MessageList()
+        ml.finish_assistant("m1", "texte")
+        self.assertFalse(hasattr(ml._segs["m1"].bubble, "tag_hover"))
+        self.assertIsNone(ml.edit_tags(ml._segs["m1"].bubble))
+
+    def test_history_rows_carry_their_identifiers_and_can_be_found(self):
+        msgs = [preview.Message(preview.USER, f"demande {i}", uuid=f"u-{i}") if i % 2 == 0
+                else preview.Message(preview.ASSISTANT, f"réponse {i}", msg_id=f"m-{i}") for i in range(160)]
+        self.ml.set_tags({"u-0": {"tags": ["début"], "role": "utilisateur", "excerpt": "demande 0", "ts": 1.0}})
+        self.ml.load_history(msgs)
+        self.assertFalse(self.ml._tagged_rows("u-0"))                    # pas encore construit
+        self.assertTrue(self.ml.show_message("u-0"))                      # construit pour le retrouver
+        row = self.ml._tagged_rows("u-0")[0]
+        self.assertEqual(self.pills(row), ["début"])
+        self.assertTrue(row.has_css_class("ccs-tag-flash"))
+        self.assertEqual(self.ml._tagged_rows("m-1")[0].tag_role, "assistant")
+        self.assertFalse(self.ml.show_message("absent"))
+
+    def test_editor_alone(self):
+        got = []
+        row = self.ml.add_user("x", ())
+        pop = open_tag_editor(row, ["a"], ["A", "b"], got.append)
+        self.assertEqual([b.tag for b in pop.tag_suggestions], ["b"])     # « A » est déjà là (casse ignorée)
+        pop.tag_entry.set_text("a, c")
+        pop.tag_ok.emit("clicked")
+        self.assertEqual(got, [["a", "c"]])

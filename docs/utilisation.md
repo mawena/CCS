@@ -84,7 +84,8 @@ continuent sur le serveur si on ferme la page.
   de contexte lourd, la commande `!` et la recherche dans le fil marchent comme au bureau.
   Le [compactage automatique](#compactage-automatique) se règle dans Réglages → Alertes.
   Pour [répondre en citant un message](#répondre-en-citant-un-message), touche-le (ou
-  survole-le à la souris) : le bouton « Répondre » apparaît dessous.
+  survole-le à la souris) : le bouton « Répondre » apparaît dessous, à côté d'« Étiqueter »
+  pour [poser des étiquettes](#étiquettes-sur-les-messages).
   Le volet **Changements de la session** montre les fichiers changés par Claude avec leur
   diff ; annuler un fichier ou revenir à avant un message demande une confirmation.
 - **Terminal.** Sur écran tactile ou étroit, une barre de touches complète le clavier : Échap,
@@ -1123,6 +1124,34 @@ vide, puis ta réponse. Répondre à un message qui citait déjà quelque chose 
 pas ce qu'il citait. Dans l'historique, le titre par défaut d'une conversation, « Dernière
 demande », la fiche « où j'en étais » et la liste « Revenir avant un message » montrent ta
 réponse, sans la citation.
+
+### Étiquettes sur les messages
+
+Pose un ou plusieurs mots-clés (« important », « à revoir », « idée »…) sur un message du
+chat, le tien ou celui de Claude, pour le retrouver plus tard.
+
+- **Étiqueter** : au bureau, bouton « Étiqueter… » au survol d'un message, ou clic droit sur
+  ta bulle. Une petite fenêtre s'ouvre (Entrée pour valider). Dans la version web, « Étiqueter » est dans la rangée
+  d'actions du message (survol à la souris, toucher au téléphone).
+- Tape les étiquettes **séparées par des virgules**. Les étiquettes déjà utilisées dans tes
+  autres conversations sont proposées dessous : un clic les ajoute. Vider le champ (ou « Tout
+  retirer ») enlève toutes les étiquettes du message. Dix étiquettes au plus par message,
+  40 caractères chacune ; « Important » et « important » sont la même étiquette.
+- Les étiquettes s'affichent en **pastilles sous le message**. Un clic sur une pastille ouvre
+  le volet « Étiquettes » sur elle.
+- **Volet « Étiquettes »** (au bureau : Ctrl+Maj+E ou « Messages étiquetés… » dans le menu de
+  l'onglet ; au web : bouton « Étiquettes » en haut du chat, menu « Plus » au téléphone) : les messages étiquetés de la conversation, groupés par étiquette, avec leur
+  début. Un clic ramène au message dans le fil et le fait clignoter ; s'il est trop ancien
+  pour être affiché, toute la conversation est chargée d'abord.
+- Les étiquettes suivent la conversation : tu les retrouves quand tu la rouvres, et un chat
+  du serveur les montre sur tous tes appareils (un changement fait au téléphone apparaît
+  aussitôt au bureau). Elles sont gardées par la machine où tourne le chat : celles d'un
+  chat local restent sur ton PC, celles d'un chat du serveur sur le serveur.
+
+Les étiquettes ne sont pas envoyées à Claude. Elles sont rangées dans
+`~/.claude-accounts/etiquettes/<conversation>.json`, un fichier par conversation.
+Un message envoyé avant la version 0.17.0 de CCS (ou depuis le terminal de Claude Code) peut
+être étiqueté quand il est relu depuis le journal.
 
 ### Chercher, enregistrer, compacter, lancer une commande
 

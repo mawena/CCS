@@ -25,6 +25,7 @@ class RemoteConnection:
         self.label = label
         self.engines = {}
         self.listeners = set()
+        self.tag_listeners = set()  # moteurs ouverts, même pas encore branchés sur un chat
         self.state = "online"
         sync.on_event = self._event
         sync.on_state = self._state
@@ -41,6 +42,11 @@ class RemoteConnection:
             eng = self.engines.get(data.get("chat_id"))
             if eng is not None:
                 eng.receive(data)
+        elif name == "chat.tags":
+            # étiquettes changées (ici ou sur un autre appareil) : les chats de cette conversation
+            for eng in list(self.tag_listeners):
+                if data.get("session_id") and eng.session_id == data.get("session_id"):
+                    eng.tags_changed(data)
 
     def _state(self, state):
         self.state = state
@@ -86,6 +92,8 @@ class RemoteChatEngine:
         self._then = []
         self._own = set()           # nonces de nos envois : leur écho du pont est ignoré
         self._stopped = False
+        if hasattr(conn, "tag_listeners"):
+            conn.tag_listeners.add(self)
         if chat_id:                 # rejoindre un chat qui tourne déjà : fil rejoué, puis direct
             self._join(chat_id)
         elif session_id:            # conversation reprise : la suivre si elle tourne (ou tournera) ailleurs
@@ -188,13 +196,43 @@ class RemoteChatEngine:
         self.conn.call(method, chat_id=self.chat_id, **params)
         return True
 
+    # ---- étiquettes (RPC du pont, sans chat ouvert) --------------------------------------
+
+    def load_tags(self, callback):
+        """callback(messages, connues) : messages étiquetés de la conversation et étiquettes déjà
+        utilisées ; ({}, []) si la conversation n'est pas encore connue ou en cas d'erreur."""
+        if not self.session_id:
+            callback({}, [])
+            return
+        self.conn.call("chat.tags", callback=lambda r, e: callback(
+            *(((r or {}).get("messages") or {}, (r or {}).get("known") or []) if e is None else ({}, []))),
+            session_id=self.session_id)
+
+    def set_tags(self, msg_id, tags, text="", role="", callback=None):
+        """Pose les étiquettes d'un message ; callback(entrée, erreur). Le pont diffuse aussi le
+        changement (`chat.tags`), reçu ici comme sur les autres appareils."""
+        if not self.session_id:
+            if callback is not None:
+                callback(None, "Conversation pas encore enregistrée.")
+            return
+        self.conn.call("chat.tag", callback=lambda r, e: callback and callback(
+            (r or {}).get("entry") if e is None else None,
+            None if e is None else getattr(e, "message", str(e))),
+            session_id=self.session_id, msg_id=msg_id, tags=list(tags), text=text, role=role)
+
+    def tags_changed(self, data):
+        entry = data.get("entry")
+        self._emit(chat_engine.TagsChanged(data.get("session_id") or "", str(data.get("msg_id") or ""),
+                                           entry if isinstance(entry, dict) else None))
+
     # ---- interface du moteur local -------------------------------------------------------
 
-    def send(self, text, images=()):
+    def send(self, text, images=(), uuid=None):
         payload = [{"media_type": mt, "data": base64.b64encode(data).decode("ascii")} for mt, data in images or ()]
         nonce = secrets.token_hex(8)
         self._own.add(nonce)
-        self._open(lambda: self._call("chat.send", text=text, images=payload, nonce=nonce))
+        self._open(lambda: self._call("chat.send", text=text, images=payload, nonce=nonce,
+                                           **({"uuid": uuid} if uuid else {})))
         return True
 
     def answer(self, request_id, decision, message=""):
@@ -224,3 +262,4 @@ class RemoteChatEngine:
         """Fermer l'onglet ne coupe pas le chat sur le serveur : on se détache seulement."""
         self._stopped = True
         self.conn.unregister(self)
+        getattr(self.conn, "tag_listeners", set()).discard(self)

@@ -29,7 +29,9 @@ const api = {
     switch (method) {
       case "chat.attach": return { seq: 0, events: [], state: "idle", session_id: "s1", options: { model: "", effort: "", rights: "manual" } };
       case "chat.render": if (api.failRender) throw new Error("coupure"); return { html: params.markdown };
-      case "chat.send": if (api.failSend) throw new Error("coupure"); return { ok: true };
+      case "chat.send": if (api.failSend) throw new Error("coupure"); return { ok: true, uuid: params.uuid };
+      case "chat.tags": return { messages: api.tagMap || {}, known: ["important", "à revoir"] };
+      case "chat.tag": return { entry: params.tags.length ? { tags: params.tags, role: params.role, excerpt: params.text, ts: 1 } : null };
       case "work.commands": return { commands: [], context: { enabled: true, threshold_tokens: 150000 } };
       case "work.files": return { files: [] };
       case "conversation.messages": return { messages: history };
@@ -337,6 +339,94 @@ out = { afterLink, afterText: quoted.classList.contains("open") };
 
 
 @unittest.skipUnless(NODE, "node absent")
+class TagsTest(unittest.TestCase):
+    """Étiquettes sur les messages : identifiant stable, feuille « Étiqueter », pastilles, volet."""
+
+    def test_sent_message_has_an_uuid_and_claude_its_msg_id(self):
+        out = run("""
+const view = open({ sessionId: "s1" });
+await settle();
+await live(view, { type: "UserSent", text: "D'ailleurs", images: 0, nonce: "x", uuid: "u-autre" },
+                 { type: "AssistantText", msg_id: "msg_1", text: "Oui" });
+type(view, "Bonjour");
+await submit(view);
+out = { ids: msgs(view).map((m) => m.msgId), uuid: sent()[0].uuid };
+""")
+        self.assertRegex(out["uuid"], r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+        self.assertEqual(out["ids"], ["u-autre", "msg_1", out["uuid"]])
+
+    def test_tag_a_message_then_remove(self):
+        out = run("""
+const view = open({ sessionId: "s1" });
+await settle();
+await live(view, { type: "AssistantText", msg_id: "msg_1", text: "Réponse **utile**" });
+const claude = msgs(view)[0];
+act(claude, "tag").click();
+await settle();
+const dlg = document.body.querySelector("dialog.tag-sheet");
+const suggestions = dlg.querySelectorAll(".tag-suggest .tag-chip").map((b) => b.textContent);
+const input = dlg.querySelector("input");
+input.value = "Important, à revoir ,important";
+dlg.querySelectorAll("button").find((b) => b.textContent === "Valider").click();
+await settle();
+const tagCall = calls.find((c) => c[0] === "chat.tag")[1];
+const chips = claude.querySelectorAll(".msg-tags .tag-chip").map((b) => b.textContent);
+const order = claude.children.map((c) => c.className);
+// retrait annoncé par un autre appareil
+handlers.get("chat.tags")({ session_id: "s1", msg_id: "msg_1", entry: null });
+out = { suggestions, tagCall, chips, order, after: claude.querySelectorAll(".tag-chip").length,
+        sheetGone: !document.body.querySelector("dialog.tag-sheet") };
+""")
+        self.assertEqual(out["suggestions"], ["+ important", "+ à revoir"])
+        self.assertEqual(out["tagCall"], {"session_id": "s1", "msg_id": "msg_1", "tags": ["Important", "à revoir"],
+                                          "text": "Réponse **utile**", "role": "assistant"})
+        self.assertEqual(out["chips"], ["Important", "à revoir"])
+        self.assertEqual(out["order"], ["md", "msg-tags", "msg-actions"])
+        self.assertEqual(out["after"], 0)
+        self.assertTrue(out["sheetGone"])
+
+    def test_history_tags_panel_and_jump(self):
+        out = run("""
+api.tagMap = { "u-1": { tags: ["important"], role: "utilisateur", excerpt: "Ajoute un bouton", ts: 2 },
+               "msg_1": { tags: ["important", "doc"], role: "assistant", excerpt: "Voilà", ts: 1 } };
+history = [{ role: "utilisateur", text: "Ajoute un bouton", uuid: "u-1" },
+           { role: "assistant", text: "Voilà", msg_id: "msg_1" }];
+const view = open({ sessionId: "s1", history: { path: "/j.jsonl", loaded: 0, full: false } });
+await settle();
+view.startHistory(0);
+await settle();
+const chips = msgs(view).map((m) => m.querySelectorAll(".tag-chip").map((b) => b.textContent));
+msgs(view)[0].querySelector(".tag-chip").click();
+await settle();
+const panel = view.drawer.querySelector(".tags-panel");
+const groups = panel.querySelectorAll(".tag-group").map((g) => [g.querySelector("strong").textContent, g.open,
+  g.querySelectorAll(".tag-item").map((b) => b.textContent)]);
+panel.querySelectorAll(".tag-item")[0].click();
+await settle();
+const target = msgs(view)[1];
+out = { chips, kind: view.drawer.dataset.kind, hidden: view.drawer.hidden, groups,
+        jumped: target.scrolledIntoView || 0, flash: target.classList.contains("flash") };
+""")
+        self.assertEqual(out["chips"], [["important"], ["important", "doc"]])
+        self.assertEqual((out["kind"], out["hidden"]), ("tags", False))
+        self.assertEqual(out["groups"], [["doc", False, ["ClaudeVoilà"]],
+                                         ["important", True, ["ClaudeVoilà", "MoiAjoute un bouton"]]])
+        self.assertEqual((out["jumped"], out["flash"]), (1, True))
+
+    def test_no_session_yet_no_tagging(self):
+        out = run("""
+api.call = (orig => async (m, p) => m === "chat.attach" ? { seq: 0, events: [], state: "idle", options: {} } : orig(m, p))(api.call);
+const view = open();
+await settle();
+await live(view, { type: "AssistantText", msg_id: "msg_1", text: "Oui" });
+act(msgs(view)[0], "tag").click();
+await settle();
+out = { sheet: Boolean(document.body.querySelector("dialog.tag-sheet")), tagsCalls: calls.filter((c) => c[0] === "chat.tags").length };
+""")
+        self.assertEqual(out, {"sheet": False, "tagsCalls": 0})
+
+
+@unittest.skipUnless(NODE, "node absent")
 class ConversationPreviewTest(unittest.TestCase):
     def test_preview_shows_the_quote_apart(self):
         out = run("""
@@ -361,7 +451,7 @@ out = pv.map((n) => [n.className, n.querySelector(".quoted")?.dataset.author || 
 class StaticTest(unittest.TestCase):
     def test_new_modules_are_cached_by_the_service_worker(self):
         sw = (WEB / "sw.js").read_text()
-        for name in ("/chat-message.js", "/chat-quote.js"):
+        for name in ("/chat-message.js", "/chat-quote.js", "/chat-tags.js"):
             self.assertIn(f'"{name}"', sw)
 
     def test_action_labels_come_from_the_stylesheet(self):

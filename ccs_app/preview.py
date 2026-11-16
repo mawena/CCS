@@ -71,6 +71,7 @@ class Message:
     ts: float | None = None
     tool: ToolCall | None = None
     msg_id: str = ""             # identifiant de la réponse (réunion des blocs)
+    uuid: str = ""               # message de l'utilisateur : identifiant de sa ligne du journal
 
 
 # ---- lecture -------------------------------------------------------------------------
@@ -227,7 +228,7 @@ class _Reader:
             elif t == "image":
                 parts.append("[image]")
         if parts:
-            self.add(Message(USER, "\n\n".join(parts), ts))
+            self.add(Message(USER, "\n\n".join(parts), ts, uuid=str(d.get("uuid") or "")))
         if interrupted:
             self.add(Message(NOTE, "Demande interrompue par l'utilisateur.", ts))
 

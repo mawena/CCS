@@ -83,6 +83,7 @@ raccourcis clavier.
 | `avatars` | Avatars des auteurs : GitHub pour les adresses `noreply`, Gravatar sinon, cache disque (un avatar absent est redemandé après 7 jours), réseau seulement si `git.avatars` est vrai |
 | `file_history` | Copies de Claude Code (`file-history-snapshot` du journal de la conversation) : `read`, changements d'une session, points de reprise (`user_messages`), `rewind_plan` / `apply` ; renvoie `None` si le format change (`check` alimente `ccs doctor`) |
 | `chat_quote` | Répondre en citant un message : `compose` (citation en bloc Markdown `> **Claude :**` ou `> **Moi :**`, puis la réponse), `split` (la retrouver à la relecture), `excerpt` (début d'un long message), `reply_text` (la réponse sans sa citation) ; sans entrée-sortie, même code que `web/chat-quote.js` |
+| `message_tags` | Étiquettes sur les messages : `etiquettes/<session_id>.json` dans le dossier de CCS, `{identifiant: {tags, role, excerpt, ts}}` ; `set_tags` (liste vide : retire), `clean_tags` / `parse` (même nettoyage que `web/chat-tags.js`), `by_tag`, `known_tags` (suggestions) ; fichier illisible = aucune étiquette |
 | `saved_messages` | Messages enregistrés du chat : `messages.json` commun, `.ccs/messages.json` par projet (le nom du projet l'emporte) ; fichier illisible = liste vide |
 | `shell_command` | Commande `!` du chat : `bash -lc` dans son propre groupe de processus, sortie bornée (`MAX_OUTPUT` = 20 000 caractères), arrêt de la commande et de ses enfants |
 | `phone_reply` | Autoriser ou Refuser depuis le téléphone : `Replies` (jetons à usage unique, `TOKEN_TTL` = 600 s), `Listener` (écoute du canal `phone.reply_topic`), en-tête d'actions ntfy, message de la demande |
@@ -956,7 +957,7 @@ navigateur / téléphone / bureau GTK / ccs tui distant
 
 | Module | Méthodes |
 |---|---|
-| `bridge_chat` | `chat.open`, `chat.send`, `chat.answer`, `chat.interrupt`, `chat.options`, `chat.list`… |
+| `bridge_chat` | `chat.open`, `chat.send`, `chat.answer`, `chat.interrupt`, `chat.options`, `chat.list`…, étiquettes `chat.tags` / `chat.tag` (poussée `chat.tags` à tous les appareils) |
 | `bridge_data` | Projets, conversations (messages, renommage, coût), fichiers (lire, écrire, images, recherche), feuille de route (lire, cocher, `roadmap.task_prompt`), analyse, tâches (`tasks.list`, `add`, `cancel`), dossiers (`projects.folders`) et compte par projet (`projects.account`) |
 | `bridge_term` | `term.open`, `term.input`, `term.resize`, `term.list`… (pseudo-terminaux) ; la liste donne aussi le dossier et le nom de chaque terminal |
 | `bridge_work` | Travail dans le chat : `work.commands` (commandes `/`), `work.files` (fichiers après `@`), `work.saved.list` / `save` / `delete`, `work.shell.run` / `stop` / `poll` (commande `!`), `work.changes`, `work.undo_file`, `work.rewind_plan` / `rewind_apply` |
@@ -976,10 +977,11 @@ adresse (`#/<page>/<sous-adresse>` : un chat ouvert a la sienne, d'où le bouton
 téléphone) ; `dom.js` donne les toasts, les cartes de confirmation, les états vides et les
 chargements. Un module par zone : `sessions*.js`, `project.js`, `chat*.js` (diff, liens,
 complétion, messages enregistrés, recherche, changements, `chat-message.js` : bulles et rangée
-d'actions d'un message, `chat-quote.js` : format de la citation), `terminal.js`, `files.js`,
+d'actions d'un message, `chat-quote.js` : format de la citation, `chat-tags.js` : étiquettes),
+`terminal.js`, `files.js`,
 `roadmap.js`, `git.js`, `home.js` et `pages-*.js` (bilan de santé, tâches de nuit, téléphone),
 `analysis.js`, `settings.js` ; une feuille de style par zone. Le service worker (`sw.js`,
-cache `ccs-v9`) met l'interface en cache.
+cache `ccs-v10`) met l'interface en cache.
 
 ### Protocole
 
@@ -1054,6 +1056,26 @@ d'un message de l'utilisateur reste tel quel, comme dans sa bulle. Sur un écran
 la souris, elle apparaît au survol. Les boutons d'un message du web n'ont pas de texte dans la
 page (icône, libellé posé par la feuille de style) : la recherche dans le fil lit le texte des
 messages.
+
+**Étiquettes.** Un message a un identifiant stable, le même en direct et à la relecture du
+journal : pour une réponse de Claude, l'identifiant de la réponse (`msg_…`, `AssistantText.msg_id`,
+`preview.Message.msg_id`) ; pour un message de l'utilisateur, un uuid tiré à l'envoi et passé à
+Claude Code dans la ligne `user` du flux (`chat_protocol.user_message(..., uuid=)`), qui le
+reprend tel quel comme `uuid` de sa ligne du journal (`preview.Message.uuid` à la relecture,
+`UserSent.uuid` pour les autres appareils). Dans le web, l'appareil propose l'uuid à
+`chat.send` (le pont en tire un s'il est absent ou mal formé, et le rend). Les étiquettes sont
+rangées par `message_tags` sous le `session_id` de la conversation, avec un extrait du message
+pour lister sans relire le journal. `chat.tags {session_id}` rend `{messages, known}` ;
+`chat.tag {session_id, msg_id, tags, text, role}` rend `{entry}` (None : retirées) et pousse
+l'événement `chat.tags {session_id, msg_id, entry}` à tous les appareils connectés. Le web
+(`ChatView.loadTags`, relu quand la conversation change) les montre en pastilles sous le
+message et dans le volet « Étiquettes » (`TagsPanel`) ; « aller au message » charge tout le
+journal (`loadFullHistory`) si le message n'est pas dans le fil.
+Au bureau, `chat_messages` porte l'identifiant de chaque bulle, ses pastilles et la fenêtre
+« Étiqueter » ; `chat_tab` lit et écrit les étiquettes dans un fil (chat local : `message_tags`,
+chat d'un serveur : `RemoteChatEngine.load_tags` et `set_tags`, poussée reçue en événement
+`chat_engine.TagsChanged`) et ouvre le volet sous la recherche (Ctrl+Maj+E). On ne peut pas
+étiqueter avant la première réponse de Claude : la conversation n'a pas encore d'identifiant.
 
 **Tests du web.** `tests/web_dom.mjs` est un faux DOM minimal (arbre, classes, événements
 qui remontent, sélecteurs simples, formulaires) : `tests/test_web_chat_view.py` y exécute la

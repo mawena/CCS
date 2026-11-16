@@ -1,3 +1,9 @@
+ccs (0.17.0) unstable; urgency=medium
+
+  * Étiquettes sur les messages du chat (bureau et web), volet « Étiquettes ».
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 16 Nov 2026 12:00:00 +0000
+
 ccs (0.16.1) unstable; urgency=medium
 
   * Bilan de santé lancé depuis le web : le service n'est plus annoncé à tort
