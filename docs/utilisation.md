@@ -1701,7 +1701,7 @@ attente de ta réponse comptent comme inactives : vérifie avant de fermer.
 ## Alerte de contexte lourd
 
 Plus le contexte d'une conversation grossit, plus chaque message coûte cher en quota.
-Au-delà de **150 000 tokens** (`context_alert.threshold_tokens`), CCS envoie **une seule
+Au-delà de **300 000 tokens** (`context_alert.threshold_tokens`), CCS envoie **une seule
 notification par session**. Elle donne le coût d'un message en équivalent dollars et
 le conseil : `/compact` pour résumer, ou une nouvelle session.
 
