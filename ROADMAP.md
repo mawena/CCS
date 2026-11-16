@@ -431,10 +431,10 @@ Comme sur WhatsApp : on choisit un message du chat (le sien ou celui de Claude),
 
 Poser un ou plusieurs mots-clés sur un message (« important », « à revoir »…) et retrouver ensuite les messages par étiquette.
 
-- [ ] 1. Identifiant stable d'un message, le même en direct et à la relecture du journal (réponse de Claude : identifiant de la réponse ; message de l'utilisateur : identifiant de sa ligne du journal)
-- [ ] 2. Stockage des étiquettes (`message_tags.py`) : par conversation, avec un extrait du message pour le retrouver sans relire le journal
-- [ ] 3. Pont : lire, poser et retirer les étiquettes d'un chat du serveur ; changement diffusé aux autres appareils
-- [ ] 4. Web : action « Étiqueter » sur chaque message, étiquettes affichées sous le message, volet « Étiquettes » (liste par étiquette, saut au message)
-- [ ] 5. Bureau : mêmes fonctions (chat local et chat d'un serveur)
-- [ ] 6. Tests des modules touchés
-- [ ] 7. Documentation (README, docs, CHANGELOG) et release mineure 0.17.0, dépôt APT compris
+- [x] 1. Identifiant stable d'un message, le même en direct et à la relecture du journal (réponse de Claude : identifiant de la réponse ; message de l'utilisateur : identifiant de sa ligne du journal)
+- [x] 2. Stockage des étiquettes (`message_tags.py`) : par conversation, avec un extrait du message pour le retrouver sans relire le journal
+- [x] 3. Pont : lire, poser et retirer les étiquettes d'un chat du serveur ; changement diffusé aux autres appareils
+- [x] 4. Web : action « Étiqueter » sur chaque message, étiquettes affichées sous le message, volet « Étiquettes » (liste par étiquette, saut au message)
+- [x] 5. Bureau : mêmes fonctions (chat local et chat d'un serveur)
+- [x] 6. Tests des modules touchés
+- [x] 7. Documentation (README, docs, CHANGELOG) et release mineure 0.17.0, dépôt APT compris

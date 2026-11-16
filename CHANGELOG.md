@@ -3,6 +3,21 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.17.0] — 2026-11-16
+
+### Ajouté
+
+- **Étiquettes sur les messages** : pose un ou plusieurs mots-clés (« important », « à revoir »…)
+  sur un message du chat, le tien ou celui de Claude, puis retrouve les messages par étiquette.
+  Saisie séparée par des virgules, étiquettes déjà utilisées proposées, pastilles sous le
+  message, volet « Étiquettes » qui ramène au message. Rangées par conversation sur la machine
+  du chat et partagées entre appareils (poussée `chat.tags`).
+  - **Bureau** : « Étiqueter… » au survol ou au clic droit ; volet par Ctrl+Maj+E ou « Messages
+    étiquetés… » dans le menu de l'onglet ; chat local comme chat d'un serveur.
+  - **Version web** : « Étiqueter » dans la rangée d'actions du message, volet « Étiquettes ».
+- Chaque message envoyé porte maintenant un identifiant (uuid), repris dans le journal de
+  Claude Code : le même message se retrouve en direct et à la relecture.
+
 ## [0.16.1] — 2026-11-16
 
 ### Corrigé
