@@ -3,6 +3,14 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.18.0] — 2026-11-16
+
+### Ajouté
+
+- **Chat web : bouton « Aller en bas »**. Quand tu es remonté lire dans le fil, un bouton rond
+  apparaît en bas à droite ; un appui ramène au dernier message et le fil recommence à suivre
+  la réponse. Il disparaît dès que tu es en bas.
+
 ## [0.17.1] — 2026-11-16
 
 ### Corrigé
