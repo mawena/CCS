@@ -366,7 +366,7 @@ class FollowAndCopyTest(unittest.TestCase):
     def test_thread_follows_new_messages(self):
         """Web : le fil descend tout seul quand Claude écrit (texte rendu après coup compris),
         tant que l'utilisateur n'est pas remonté lire plus haut."""
-        self.assertIn('this.thread.addEventListener("scroll"', self.js)
+        self.assertIn('t.addEventListener("scroll", () => this.scrolled()', self.js)
         render = re.search(r"\n  async render\(node, markdown\) \{(.*?)\n  \}\n", self.js, re.S)
         self.assertTrue(render)
         self.assertIn("this.follow", render.group(1))
