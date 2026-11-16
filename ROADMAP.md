@@ -438,3 +438,12 @@ Poser un ou plusieurs mots-clés sur un message (« important », « à revoir �
 - [x] 5. Bureau : mêmes fonctions (chat local et chat d'un serveur)
 - [x] 6. Tests des modules touchés
 - [x] 7. Documentation (README, docs, CHANGELOG) et release mineure 0.17.0, dépôt APT compris
+
+## À venir — Séparateur après `/clear`
+
+Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde les anciens messages sans aucun signe : on croit que rien ne s'est passé.
+
+- [ ] 1. Détecter le changement de conversation (nouvel identifiant de session après `/clear`)
+- [ ] 2. Web et bureau : séparateur visible « Nouvelle conversation » dans le fil, les anciens messages restant lisibles (et citables) au-dessus, grisés
+- [ ] 3. Même séparateur à la relecture du journal
+- [ ] 4. Tests des modules touchés, documentation, release
