@@ -62,18 +62,39 @@ class ProcessCode:
 # Sondes réelles
 # --------------------------------------------------------------------------
 
-def _run(args, timeout=10):
+def _run(args, timeout=10, env=None):
     """(code de retour, sortie) ; code None si la commande est introuvable."""
     try:
         r = subprocess.run(args, capture_output=True, text=True, timeout=timeout,
-                           env=dict(os.environ, LC_ALL="C"))
+                           env=dict(env or os.environ, LC_ALL="C"))
     except (OSError, subprocess.SubprocessError):
         return None, ""
     return r.returncode, r.stdout
 
 
+def user_bus_env(environ=None, runtime_root="/run/user"):
+    """Environnement pour `systemctl --user`. Le pont du serveur est un service système, sans
+    `XDG_RUNTIME_DIR` : sans lui, systemctl ne trouve pas le systemd de l'utilisateur et le
+    bilan croirait le service arrêté. On le remet s'il manque et que le dossier existe."""
+    env = dict(os.environ if environ is None else environ)
+    if not env.get("XDG_RUNTIME_DIR"):
+        runtime = os.path.join(runtime_root, str(os.getuid()))
+        if os.path.isdir(runtime):
+            env["XDG_RUNTIME_DIR"] = runtime
+    return env
+
+
 def systemctl(*args):
-    return _run(["systemctl", "--user", *args])
+    return _run(["systemctl", "--user", *args], env=user_bus_env())
+
+
+def in_service(pid, proc="/proc"):
+    """Vrai si le processus `pid` appartient à l'unité systemd du service (lu dans son cgroup) :
+    sert quand systemd ne répond pas."""
+    try:
+        return f"/{SERVICE}.service" in Path(proc, str(pid), "cgroup").read_text()
+    except OSError:
+        return False
 
 
 def package_version():
@@ -364,6 +385,7 @@ def server_info():
 @dataclass
 class Probes:
     systemctl: Callable = systemctl
+    in_service: Callable = in_service
     daemon_pid: Callable = daemon.running_pid
     state: Callable = lambda: core.load_json(daemon.state_path())
     now: Callable = time.time
@@ -436,6 +458,9 @@ def check_service(p):
     pid = p.once("daemon_pid")
     if state == "active":
         return Check(nom, OK, f"actif (pid {pid})" if pid else "actif")
+    if pid and not state and p.once("in_service", pid):
+        # systemd de l'utilisateur injoignable d'ici, mais le processus est bien dans son unité
+        return Check(nom, OK, f"actif (pid {pid})")
     if pid:
         return Check(nom, AVERTISSEMENT, f"le service tourne (pid {pid}) hors de systemd : il ne redémarrera "
                                          "pas tout seul", f"systemctl --user enable --now {SERVICE}")
