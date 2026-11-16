@@ -3,6 +3,17 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.19.1] — 2026-11-16
+
+### Modifié
+
+- **Web : bouton « ⤓ » sur chaque fichier de l'onglet Fichiers.** Le téléchargement se fait d'un
+  seul appui, sans passer par le menu « ⋯ » (où il reste aussi).
+
+### Corrigé
+
+- Web : un message (toast) fermé à la main gardait son minuteur actif jusqu'au bout.
+
 ## [0.19.0] — 2026-11-16
 
 ### Ajouté
