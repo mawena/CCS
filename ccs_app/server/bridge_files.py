@@ -1,4 +1,5 @@
-"""Gestion des fichiers depuis le web : télécharger, envoyer, créer, renommer, supprimer.
+"""Gestion des fichiers depuis le web : télécharger, envoyer, créer, renommer, supprimer, copier,
+déplacer ; `files.roots` donne les dossiers de départ du gestionnaire de fichiers.
 
 Tout reste dans les dossiers permis (`bridge_data.safe_path`). Les transferts passent par le RPC,
 morceau par morceau (`CHUNK` octets au plus), parce qu'une ligne RPC est bornée ; un envoi s'écrit
@@ -16,6 +17,7 @@ from .bridge_data import EXTRA_ROOTS, _home, _under, safe_path
 
 CHUNK = 1024 * 1024                    # octets par morceau (≈ 1,4 Mo une fois en base64)
 MAX_TRANSFER = 200 * 1024 * 1024       # taille maximale d'un fichier téléchargé ou envoyé
+MAX_COPY = 2 * 1024 * 1024 * 1024      # taille maximale d'une copie (le disque du serveur est compté)
 PART = ".ccs-envoi"
 
 
@@ -60,14 +62,89 @@ def _count(path):
     return n
 
 
+def _weight(path):
+    """Octets d'un fichier ou d'un dossier entier ; s'arrête dès que `MAX_COPY` est dépassé."""
+    if not path.is_dir() or path.is_symlink():
+        return path.lstat().st_size
+    total = 0
+    for folder, _dirs, files in os.walk(path):
+        for name in files:
+            try:
+                total += os.lstat(os.path.join(folder, name)).st_size
+            except OSError:
+                pass
+        if total > MAX_COPY:
+            break
+    return total
+
+
+def _free_name(folder, name):
+    """« nom (copie).ext », « nom (copie 2).ext »… : premier nom libre dans `folder`."""
+    stem, ext = os.path.splitext(name)
+    for i in range(1, 1000):
+        candidate = f"{stem} (copie{'' if i == 1 else f' {i}'}){ext}"
+        if not os.path.lexists(folder / candidate):
+            return candidate
+    raise rpc.RpcError("existe", f"« {name} » existe déjà.")
+
+
 class FileOps:
     def __init__(self, bridge):
         bridge.add_handlers({
             "files.download": self.download, "files.upload": self.upload,
             "files.mkdir": self.mkdir, "files.create": self.create,
             "files.rename": self.rename, "files.delete": self.delete,
-            "files.info": self.info,
+            "files.info": self.info, "files.roots": self.roots, "files.paste": self.paste,
         })
+
+    async def roots(self, _conn, _params):
+        """Dossiers de départ du gestionnaire : le dossier personnel, puis les racines du serveur."""
+        home = _home()
+        return {"home": home, "roots": [home] + [r for r in EXTRA_ROOTS if os.path.isdir(r)]}
+
+    async def paste(self, _conn, params):
+        """Colle `path` dans le dossier `dir` : copie (`mode` « copy ») ou déplacement (« move »).
+        Une copie dans son propre dossier prend un nom libre (« nom (copie) »)."""
+        path = _entry(params.get("path"))
+        folder = _folder(params.get("dir"))
+        mode, root = params.get("mode"), params.get("root")
+        if mode not in ("copy", "move"):
+            raise rpc.RpcError("invalide", "Action inconnue.")
+
+        def work():
+            if not os.path.lexists(path):
+                raise rpc.RpcError("introuvable", "Fichier introuvable.")
+            is_dir = path.is_dir() and not path.is_symlink()
+            if is_dir and _under(str(folder), str(path)):
+                raise rpc.RpcError("refuse", "Un dossier ne se colle pas dans lui-même.")
+            name = path.name
+            if mode == "move":
+                if _protected(path, root):
+                    raise rpc.RpcError("refuse", "Ce dossier ne se déplace pas d'ici.")
+                if folder == path.parent:
+                    raise rpc.RpcError("invalide", f"« {name} » est déjà dans ce dossier.")
+                if os.path.lexists(folder / name):
+                    raise rpc.RpcError("existe", f"« {name} » existe déjà dans ce dossier.")
+            else:
+                if _weight(path) > MAX_COPY:
+                    raise rpc.RpcError("trop_gros", "Trop gros pour être copié d'ici (2 Go au plus).")
+                if os.path.lexists(folder / name):
+                    if folder != path.parent:
+                        raise rpc.RpcError("existe", f"« {name} » existe déjà dans ce dossier.")
+                    name = _free_name(folder, name)
+            target = folder / name
+            try:
+                if mode == "move":
+                    shutil.move(str(path), str(target))
+                elif is_dir:
+                    shutil.copytree(path, target, symlinks=True)
+                else:
+                    shutil.copy2(path, target, follow_symlinks=False)
+            except (OSError, shutil.Error) as e:
+                raise rpc.RpcError("refuse", f"{'Déplacement' if mode == 'move' else 'Copie'} impossible : "
+                                             f"{getattr(e, 'strerror', None) or e}.") from None
+            return {"path": str(target)}
+        return await asyncio.to_thread(work)
 
     async def info(self, _conn, params):
         """Ce qu'une suppression emporterait : dossier ou non, nombre d'entrées dedans."""

@@ -3,14 +3,15 @@
 // simple avec enregistrement et conflit signalé, aperçu Markdown rendu par le pont), gestion
 // (créer, envoyer, renommer, supprimer, télécharger : files-manage.js).
 import { clear, confirmSheet, el, errorState, loading, setHtml, toast } from "./dom.js";
-import { download, FileManager } from "./files-manage.js";
+import { clipboard, download, FileManager } from "./files-manage.js";
 
 const MARKS = { M: "modifié", A: "ajouté", "?": "nouveau", D: "supprimé" };
 const WRAP_KEY = "ccs-file-wrap";
 const CODE_LINES = 5000;        // au-delà, la lecture reste dans la zone de texte (pas de numéros)
 
 export class FilesPanel {
-  constructor(container, api, root) {
+  // opts.extra : actions en plus sur les dossiers (gestionnaire de fichiers), voir FileManager.
+  constructor(container, api, root, opts = {}) {
     this.api = api;
     this.root = root;
     this.node = el("div", { class: "files" });
@@ -19,18 +20,28 @@ export class FilesPanel {
     this.search = el("input", { type: "search", class: "file-search", placeholder: "Chercher un fichier par nom",
       "aria-label": "Chercher un fichier", autocapitalize: "off", autocomplete: "off", spellcheck: "false" });
     this.search.addEventListener("input", () => { clearTimeout(this.timer); this.timer = setTimeout(() => this.find(), 300); });
-    this.manager = new FileManager(api, root);
+    this.manager = new FileManager(api, root, opts.extra || null);
     const top = (label, run) => el("button", { type: "button", class: "small flat", onclick: async () => { if (await run()) this.expand(this.tree, ""); } }, label);
     this.tools = el("div", { class: "file-tools" },
       top("+ Fichier", () => this.manager.create("", "file")), top("+ Dossier", () => this.manager.create("", "dir")),
       top("Envoyer", () => this.manager.upload("")));
+    this.pasteBtn = top("Coller", () => this.manager.paste(""));
+    this.tools.append(this.pasteBtn);
     this.browser = el("div", { class: "file-browser" }, this.search, this.tools, this.results, this.tree);
     this.node.append(this.browser);
     container.append(this.node);
     this.expand(this.tree, "");
   }
 
+  // « Coller » n'apparaît que s'il y a quelque chose de copié ou de coupé.
+  syncPaste() {
+    const held = clipboard();
+    this.pasteBtn.hidden = !held;
+    this.pasteBtn.textContent = held ? `Coller « ${held.name} »` : "Coller";
+  }
+
   async expand(ul, rel) {
+    this.syncPaste();
     clear(ul).append(el("li", {}, loading()));
     let r;
     try { r = await this.api.call("files.list", { root: this.root, rel }); } catch (e) {
@@ -71,7 +82,9 @@ export class FilesPanel {
     return el("button", { type: "button", class: "flat tree-more", "aria-label": `Actions sur ${entry.name}`, title: "Actions",
       onclick: async () => {
         const r = await this.manager.menu(entry);
-        if (r.changed) (r.inside && inside ? inside : reload)();
+        this.syncPaste();
+        if (r.all) this.expand(this.tree, "");        // déplacement : l'ancien dossier a changé aussi
+        else if (r.changed) (r.inside && inside ? inside : reload)();
       } }, "⋯");
   }
 
