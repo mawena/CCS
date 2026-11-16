@@ -12,7 +12,7 @@ from ccs_app.server import web
 
 WEB = Path(web.WEB_DIR)
 SERVER = WEB.parent / "server"
-MINE = ["sessions.js", "files.js", "roadmap.js", "terminal.js", "project.js", "sessions-conv.js", "sessions-new.js"]
+MINE = ["sessions.js", "files.js", "files-manage.js", "roadmap.js", "terminal.js", "project.js", "sessions-conv.js", "sessions-new.js"]
 NODE = shutil.which("node")
 
 

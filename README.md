@@ -314,6 +314,19 @@ page Sessions) : **B**, arbre | chat | fichier (par défaut), ou **A**, arbre |
 fichier | chat, comme VS Code. Les séparations se tirent à la souris ; Ctrl+B
 replie l'arbre.
 
+Dans la **version web**, le volet Fichiers sert aussi à gérer les fichiers du projet :
+
+- **+ Fichier**, **+ Dossier** et **Envoyer** (un ou plusieurs fichiers du téléphone ou du PC)
+  agissent à la racine du projet ;
+- le bouton **⋯** d'un fichier propose Télécharger, Renommer et Supprimer ; celui d'un dossier
+  propose d'y créer un fichier ou un dossier, d'y envoyer un fichier, de le renommer ou de le
+  supprimer ;
+- un fichier ouvert a aussi son bouton **⤓** pour le télécharger.
+
+Un transfert va jusqu'à 200 Mo. Une suppression demande toujours confirmation et elle est
+définitive (pas de corbeille) ; le dossier du projet lui-même ne peut être ni renommé ni
+supprimé d'ici.
+
 La **feuille de route** lit le `ROADMAP.md` du projet : phases avec barre de
 progression, tâches en cases à cocher. Un clic sur une case la coche dans le
 fichier, en ne changeant que ce caractère. Le bouton ▶ d'une tâche propose **Faire

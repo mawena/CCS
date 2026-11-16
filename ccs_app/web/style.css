@@ -286,7 +286,16 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .drawer-body { flex: 1; overflow: auto; padding: 8px; }
 .tree { list-style: none; margin: 0; padding-left: 12px; }
 .drawer-body > .files > .tree { padding-left: 0; }
-.tree-row { width: 100%; min-height: 36px; justify-content: flex-start; background: transparent; font-weight: 400; padding: 0 6px; gap: 4px; text-align: left; }
+.tree-line { display: flex; align-items: center; }
+.tree-more { flex: none; width: 36px; min-height: 36px; padding: 0; color: var(--muted, inherit); }
+.file-tools { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.file-tools[hidden] { display: none; }
+.sheet-list { display: flex; flex-direction: column; }
+.sheet-list .menu-item { background: transparent; justify-content: flex-start; text-align: left; min-height: 44px; }
+.sheet-list .danger-text { color: var(--error); }
+.sheet-name { overflow-wrap: anywhere; }
+dialog.sheet input[type="text"] { width: 100%; }
+.tree-row { flex: 1; min-width: 0; min-height: 36px; justify-content: flex-start; background: transparent; font-weight: 400; padding: 0 6px; gap: 4px; text-align: left; }
 .tree-row:hover { background: var(--soft); }
 .tree-row .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .twisty { width: 14px; display: inline-block; transition: transform 0.1s; }

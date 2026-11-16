@@ -66,7 +66,7 @@ dialog.sheet.wide { width: min(560px, calc(100vw - 16px)); max-height: calc(100d
 /* ---- fichiers ---- */
 .file-search { margin-bottom: 6px; }
 .file-results { display: grid; gap: 2px; }
-.tree-row.found { min-height: 44px; }
+.tree-row.found { min-height: 44px; width: 100%; }
 .file-empty { padding: 6px 8px; }
 .file-state:empty { display: none; }
 .file-head { position: sticky; top: 0; background: var(--bg); z-index: 1; padding: 4px 0; }

@@ -3,6 +3,18 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.19.0] — 2026-11-16
+
+### Ajouté
+
+- **Web : gérer les fichiers du projet.** Dans le volet Fichiers, « + Fichier », « + Dossier » et
+  « Envoyer » (depuis le téléphone ou le PC) à la racine ; le bouton « ⋯ » d'une entrée permet de
+  renommer, supprimer, et, pour un dossier, d'y créer ou d'y envoyer un fichier.
+- **Web : télécharger un fichier**, par le bouton « ⋯ » de l'arbre ou le bouton « ⤓ » du fichier
+  ouvert. Transferts jusqu'à 200 Mo, par morceaux.
+- Pont : nouveau module `bridge_files`. Une suppression demande confirmation et elle est
+  définitive ; le dossier personnel, les racines permises et le projet ouvert sont protégés.
+
 ## [0.18.0] — 2026-11-16
 
 ### Ajouté
