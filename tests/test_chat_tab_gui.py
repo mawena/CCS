@@ -1047,6 +1047,116 @@ class ChatTabTest(HomeTestCase):
         shown = texts(tab)
         self.assertEqual([t for t in shown if t in ("Claude", "A ou B ?", "La B")], ["Claude", "A ou B ?", "La B"])
 
+    # ---- étiquettes sur les messages -----------------------------------------------------
+
+    def shown(self, tab):
+        """L'onglet dans une fenêtre : la fenêtre « Étiqueter » (popover) en a besoin."""
+        win = Gtk.Window()
+        win.set_child(tab)
+        win.present()
+        self.addCleanup(win.destroy)
+        return tab
+
+    def test_sent_message_has_an_identifier_and_can_be_tagged(self):
+        from unittest import mock
+        from ccs_app import message_tags
+        tab, _owner = self.make(session_id="sess-1")
+        self.shown(tab)
+        with mock.patch.object(tab.engine, "send", return_value=True) as send:
+            self.say(tab, "Ajoute un bouton")
+        uid = send.call_args.kwargs["uuid"]
+        self.assertTrue(uid)
+        row = tab.messages._tagged_rows(uid)[0]                             # la bulle connaît son identifiant
+        tab.messages.known_tags = ["important"]
+        pop = tab.messages.edit_tags(row)
+        pop.tag_suggestions[0].emit("clicked")
+        pop.tag_ok.emit("clicked")
+        self.assertTrue(pump_until(lambda: tab.messages.tags_of(uid) == ["important"]))
+        entry = message_tags.load("sess-1")[uid]
+        self.assertEqual((entry["tags"], entry["role"], entry["excerpt"]), (["important"], "utilisateur",
+                                                                            "Ajoute un bouton"))
+        self.assertIn("important", [w.get_label() for w in descendants(row.tags_box)])
+
+    def test_tags_are_loaded_and_the_panel_goes_to_the_message(self):
+        from ccs_app import message_tags
+        message_tags.set_tags("sess-2", "m-1", ["à revoir"], "Deux options", "assistant")
+        tab, _owner = self.make(session_id="sess-2", spawn=False)
+        tab.messages.finish_assistant("m-1", "Deux options")
+        self.assertTrue(pump_until(lambda: tab.messages.tags_of("m-1") == ["à revoir"]))
+        bubble = tab.messages._tagged_rows("m-1")[0]
+        self.assertIn("à revoir", [w.get_label() for w in descendants(bubble.tags_box)])
+        tab.toggle_tags(True)
+        self.assertTrue(tab.tags_panel.get_reveal_child())
+        self.assertIn("à revoir (1)", labels_in(tab.tags_list))
+        self.assertIn("Claude : Deux options", labels_in(tab.tags_list))
+        button = next(w for w in descendants(tab.tags_list) if getattr(w, "msg_id", None) == "m-1")
+        button.emit("clicked")
+        self.assertTrue(bubble.has_css_class("ccs-tag-flash"))
+        tab.go_to_message("absent")
+        self.assertTrue(tab.tags_note.get_visible())                        # dit qu'il n'est pas dans le fil
+        tab.toggle_tags()
+        self.assertFalse(tab.tags_panel.get_reveal_child())
+
+    def test_tags_reload_when_the_session_becomes_known(self):
+        from types import SimpleNamespace
+        from ccs_app import message_tags
+        message_tags.set_tags("sess-3", "u-1", ["idée"], "Une idée", "utilisateur")
+        tab, _owner = self.make(spawn=False)
+        tab.messages.add_user("Une idée", (), msg_id="u-1")
+        tab.engine.session_id = "sess-3"
+        tab._on_init(SimpleNamespace(session_id="sess-3"))
+        self.assertTrue(pump_until(lambda: tab.messages.tags_of("u-1") == ["idée"]))
+
+    def test_tagging_before_the_session_is_known_says_so(self):
+        tab, _owner = self.make(spawn=False)
+        self.shown(tab)
+        row = tab.messages.add_user("tôt", (), msg_id="u-1")
+        tab.messages.edit_tags(row).tag_ok.emit("clicked")
+        self.assertIn("Étiquettes possibles une fois la conversation enregistrée (après la première réponse "
+                      "de Claude).", texts(tab))
+
+    def test_message_from_another_device_keeps_its_identifier(self):
+        tab, _owner = self.make(spawn=False)
+        tab._dispatch(chat_engine.UserSent("De mon téléphone", 0, "autre", "u-42"))
+        self.assertEqual(len(tab.messages._tagged_rows("u-42")), 1)
+
+    def test_remote_chat_tags_go_through_the_server(self):
+        calls = []
+
+        class FakeRemote:
+            def __init__(self, cwd, session_id, options, on_event):
+                self.cwd, self.session_id, self.state, self.pid, self.started_at = cwd, session_id, "stopped", None, None
+                self.effort = None
+
+            def load_tags(self, callback):
+                calls.append("load")
+                callback({"m-1": {"tags": ["serveur"], "role": "assistant", "excerpt": "x", "ts": 1.0}}, ["serveur"])
+
+            def set_tags(self, msg_id, tags, text="", role="", callback=None):
+                calls.append(("set", msg_id, tags, text, role))
+                callback({"tags": tags, "role": role, "excerpt": text, "ts": 2.0}, None)
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+        launch = terminal.claude_launch("/srv/projet", "sess-r", "Projet")
+        tab = self.shown(ChatTab(FakeOwner(), launch, engine_factory=FakeRemote, remote="vps"))
+        self.assertEqual(calls, ["load"])
+        tab.messages.finish_assistant("m-1", "x")
+        bubble = tab.messages._tagged_rows("m-1")[0]
+        self.assertEqual(tab.messages.tags_of("m-1"), ["serveur"])
+        self.assertEqual(tab.messages.known_tags, ["serveur"])
+        pop = tab.messages.edit_tags(bubble)
+        pop.tag_entry.set_text("serveur, publié")
+        pop.tag_ok.emit("clicked")
+        self.assertEqual(calls[-1], ("set", "m-1", ["serveur", "publié"], "x", "assistant"))
+        self.assertEqual(tab.messages.tags_of("m-1"), ["serveur", "publié"])
+        # changement poussé par le pont (autre appareil) : le fil suit, sans recharger
+        tab._dispatch(chat_engine.TagsChanged("sess-r", "m-1", None))
+        self.assertEqual(tab.messages.tags_of("m-1"), [])
+        self.assertFalse(bubble.tags_box.get_visible())
+        tab._dispatch(chat_engine.TagsChanged("autre-session", "m-1", {"tags": ["non"]}))
+        self.assertEqual(tab.messages.tags_of("m-1"), [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -641,6 +641,7 @@ class TerminalsPage(Gtk.Box):
         tab_menu.append_item(menu_item("Côte à côte", "tabs.split", SPLIT_ACCEL))
         tab_menu.append_item(menu_item("Revenir aux onglets", "tabs.unsplit", SPLIT_ACCEL))
         tab_menu.append_item(menu_item("Messages en attente…", "tabs.queue", QUEUE_ACCEL))
+        tab_menu.append_item(menu_item("Messages étiquetés…", "tabs.tags", "<Control><Shift>e"))
         tab_menu.append("Dossier du projet…", "tabs.project")
         tab_menu.append("Ouvrir cette conversation dans un terminal", "tabs.terminal")
         tab_menu.append("Fermer l'onglet", "tabs.close")
@@ -649,6 +650,7 @@ class TerminalsPage(Gtk.Box):
         self.tab_actions = Gio.SimpleActionGroup()
         for name, handler in (("rename", self.rename_tab), ("folder", self.folder_of_tab),
                               ("split", self.split_with), ("queue", lambda tab: tab.toggle_queue()),
+                              ("tags", lambda tab: is_chat(tab) and tab.toggle_tags()),
                               ("terminal", self.open_in_terminal), ("project", self.project_folder),
                               ("close", self.close)):
             a = Gio.SimpleAction.new(name, None)
@@ -1363,6 +1365,7 @@ class TerminalsPage(Gtk.Box):
         self.tab_actions.lookup_action("terminal").set_enabled(
             bool(tab and is_chat(tab) and tab.state.session_id))
         self.tab_actions.lookup_action("project").set_enabled(bool(tab and is_chat(tab)))
+        self.tab_actions.lookup_action("tags").set_enabled(bool(tab and is_chat(tab)))
 
     def with_tab(self, handler):
         tab = self.menu_target()

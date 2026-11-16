@@ -49,6 +49,15 @@ class UserSent:
 
 
 @dataclass(frozen=True)
+class TagsChanged:
+    """Étiquettes d'un message changées (sur cet appareil ou un autre, chat d'un serveur) :
+    `entry` est la nouvelle entrée de `message_tags`, None si elles ont toutes été retirées."""
+    session_id: str
+    msg_id: str
+    entry: dict = None
+
+
+@dataclass(frozen=True)
 class ContextUsage:
     percentage: int
     total: int
