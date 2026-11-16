@@ -444,6 +444,11 @@ Poser un ou plusieurs mots-clés sur un message (« important », « à revoir �
 - [x] Le fil ne descendait plus pendant la réponse : le suivi se décrochait sur tout événement de défilement ; seul un geste vers le haut l'arrête (`scrolled`, `restick`, observateurs de taille et de contenu)
 - [x] Release corrective 0.17.1, dépôt APT compris
 
+## Bouton « Aller en bas » du chat web (0.18.0)
+
+- [x] Bouton flottant en bas à droite du fil, visible seulement quand on est remonté ; un appui ramène en bas et reprend le suivi (`downBtn`, `offerDown`, `.thread-wrap`)
+- [x] Tests, documentation, release mineure 0.18.0, dépôt APT compris
+
 ## À venir — Séparateur après `/clear`
 
 Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde les anciens messages sans aucun signe : on croit que rien ne s'est passé.

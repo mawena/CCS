@@ -53,6 +53,8 @@ function readImage(file) {
   });
 }
 
+const DOWN_ICON = [["path", { d: "M12 5v14" }], ["path", { d: "m6 13 6 6 6-6" }]];
+
 export class ChatView {
   // sessionId, options ({ model, effort, ultracode, rights }) : connus à l'ouverture ou au rattachement ;
   // host : { resume(view) } appelé par « Reprendre la conversation » quand le pont a perdu ce chat.
@@ -97,6 +99,9 @@ export class ChatView {
     this.follow = true;
     this.lastTop = 0;
     this.touching = false;
+    // Bouton flottant : revient en bas du fil, visible seulement quand on en est loin.
+    this.downBtn = el("button", { type: "button", class: "to-bottom", hidden: true, "aria-label": "Aller en bas",
+      title: "Aller en bas", onclick: () => this.toBottom() }, icon(DOWN_ICON));
     this.watchThread();
     this.thread.addEventListener("click", (e) => this.pick(e));
     this.working = el("div", { class: "working", hidden: true, role: "status" }, el("span", { class: "spinner" }), el("span", {}, "Claude travaille…"));
@@ -169,7 +174,7 @@ export class ChatView {
           el("div", { class: "chat-sub" }, this.state, el("span", { class: "subtle cwd" }, cwd))),
         actions, this.menu),
       this.findbar.node,
-      el("div", { class: "chat-body" }, this.drawer, el("div", { class: "chat-main" }, this.thread, this.form)));
+      el("div", { class: "chat-body" }, this.drawer, el("div", { class: "chat-main" }, el("div", { class: "thread-wrap" }, this.thread, this.downBtn), this.form)));
     this.node.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") { e.preventDefault(); this.findbar.show(); }
     });
@@ -712,7 +717,12 @@ export class ChatView {
 
   // ---- fil ----------------------------------------------------------------------------
 
-  toBottom() { this.follow = true; this.thread.scrollTop = this.thread.scrollHeight; this.lastTop = this.thread.scrollTop; }
+  toBottom() {
+    this.follow = true;
+    this.thread.scrollTop = this.thread.scrollHeight;
+    this.lastTop = this.thread.scrollTop;
+    this.downBtn.hidden = true;
+  }
 
   // Seul un geste vers le haut détache du bas. « scroll » arrive aussi quand le fil grandit ou
   // que sa zone rétrécit (clavier du téléphone, liste des tâches) sans que personne ait bougé :
@@ -722,11 +732,14 @@ export class ChatView {
     if (this.stuck()) this.follow = true;
     else if (top < this.lastTop) this.follow = false;
     this.lastTop = top;
+    this.offerDown();
   }
+
+  offerDown() { this.downBtn.hidden = this.stuck(); }
 
   // Tout ce qui change la hauteur sans passer par append() (texte rendu après coup, résultat
   // d'un outil, image chargée, zone de saisie qui grandit) ramène en bas tant qu'on suit.
-  restick() { if (this.follow && !this.touching) this.toBottom(); }
+  restick() { if (this.follow && !this.touching) this.toBottom(); else this.offerDown(); }
 
   watchThread() {
     const t = this.thread;

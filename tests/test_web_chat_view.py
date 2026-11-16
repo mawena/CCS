@@ -113,6 +113,11 @@ out.back = t.scrollTop;
 out.up = at(300, 1500);                   // l'utilisateur remonte : on lâche
 view.restick();
 out.left = t.scrollTop;
+const btn = view.node.querySelector(".to-bottom");
+out.button = [view.node.querySelector(".thread-wrap").contains(btn), btn.hidden];   // remonté : le bouton s'offre
+btn.click();
+out.button.push(btn.hidden && view.follow && t.scrollTop === 1500);                 // un appui ramène en bas
+at(300, 1500);
 out.down = at(500, 1500);                 // il redescend sans atteindre le bas : toujours lâché
 out.end = at(1090, 1500);                 // revenu en bas : on suit de nouveau
 t.dispatchEvent(Object.assign(new win.Event("wheel"), { deltaY: -3 }));
@@ -125,6 +130,7 @@ t.dispatchEvent(new win.Event("touchend"));
 view.restick();
 out.released = t.scrollTop;
 """)
+        self.assertEqual(out.pop("button"), [True, False, True])
         self.assertEqual(out, {"bottom": True, "grew": True, "back": 1500, "up": False, "left": 300,
                                "down": False, "end": True, "wheel": False, "touching": 1000,
                                "released": 1500})

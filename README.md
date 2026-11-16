@@ -282,6 +282,8 @@ dans l'extension VS Code.
   (« important », « à revoir »…) sur un message ; ils s'affichent sous le message, et le
   volet « Étiquettes » liste les messages par étiquette et ramène à chacun.
 - **Chercher dans le fil** : Ctrl+F ouvre une barre de recherche dans la conversation.
+- **Aller en bas** (web) : le fil suit la réponse tant que tu restes en bas ; si tu remontes lire,
+  un bouton rond apparaît en bas à droite pour y revenir d'un appui.
 - **Messages enregistrés** : des textes que tu envoies souvent, communs à tous les projets
   ou propres au projet ; le menu ☆ de la saisie les insère, et `/` les propose aussi.
 - **Compacter** : l'alerte de contexte lourd du chat a un bouton « Compacter » qui envoie
