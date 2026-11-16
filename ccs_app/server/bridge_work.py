@@ -14,7 +14,7 @@ import os
 import re
 import threading
 
-from .. import context_alert, file_history, saved_messages, sessions, settings, shell_command
+from .. import chat_quote, context_alert, file_history, saved_messages, sessions, settings, shell_command
 from . import rpc
 from .bridge_chat import BUSY
 from .bridge_data import safe_path
@@ -301,7 +301,8 @@ class WorkApi:
             budget = [MAX_DIFF_TOTAL]
             files = [_change_json(c, budget) for c in file_history.changes(snaps, sid)]
             with_snapshot = {s.message_id for s in snaps}     # seuls points de retour possibles
-            points = [{"message_id": u.message_id, "text": u.text[:300], "time": u.time}
+            # réponse à un message cité (chat_quote.py) : la réponse, pas la citation qui la précède
+            points = [{"message_id": u.message_id, "text": chat_quote.reply_text(u.text)[:300], "time": u.time}
                       for u in file_history.user_messages(transcript)
                       if u.message_id in with_snapshot][-POINTS_MAX:]
             return {"unknown": False, "files": files, "points": points}

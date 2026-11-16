@@ -19,10 +19,13 @@ export function icon(shapes) {                       // petite icône 14 px au t
 export const REPLY_ICON = [["path", { d: "m9 14-5-5 5-5" }], ["path", { d: "M4 9h10.5a5.5 5.5 0 0 1 0 11H11" }]];
 
 // Citation montrée dans une bulle : l'auteur (posé par la feuille de style) et le passage, replié
-// sur quelques lignes (un clic le déplie).
-export function quoteBlock(q) {
-  return el("blockquote", { class: "quoted", dataset: { author: SHOWN[q.author], key: q.author } },
-    el("div", { class: "quoted-text" }, q.text));
+// sur quelques lignes (un clic le déplie). `render(nœud, markdown)` : rend le passage d'une réponse
+// de Claude (du Markdown) ; sans lui, ou en attendant, le texte tel quel. Un message de
+// l'utilisateur cité reste tel quel, comme dans sa bulle (ses retours à la ligne comptent).
+export function quoteBlock(q, render = null) {
+  const text = el("div", { class: "quoted-text" }, q.text);
+  if (q.author === CLAUDE) render?.(text, q.text);
+  return el("blockquote", { class: "quoted", dataset: { author: SHOWN[q.author], key: q.author } }, text);
 }
 
 // Sélection de texte faite en entier dans `node` : { text, quoted } (`quoted` : l'auteur du passage
@@ -61,9 +64,9 @@ function messageNode(kind, author, content, actions) {
 }
 
 // Bulle d'un message de l'utilisateur ; `text` peut commencer par une citation (chat-quote.js).
-export function userNode(text, nImages = 0, actions = []) {
+export function userNode(text, nImages = 0, actions = [], renderQuote = null) {
   const q = split(text);
-  const bubble = el("div", { class: "bubble" }, q ? quoteBlock(q) : null, q ? q.body : text,
+  const bubble = el("div", { class: "bubble" }, q ? quoteBlock(q, renderQuote) : null, q ? q.body : text,
     nImages ? el("div", { class: "subtle" }, `${nImages} image(s) jointe(s)`) : null);
   const node = messageNode("user", ME, bubble, actions);
   node.raw = text;

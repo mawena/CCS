@@ -53,6 +53,15 @@ class ScanTest(ConversationsTestCase):
                          ("propose deux options", "Prends la B"))
         self.assertEqual(found["s-seule"].last_prompt, "> **Moi :** > bonjour")     # citation seule : rien d'autre
 
+    def test_first_prompt_of_a_reply_is_the_reply(self):
+        """Après `/clear`, le fil montre encore les anciens messages : le premier message de la
+        nouvelle conversation peut en citer un. Son titre par défaut est la réponse."""
+        from ccs_app import chat_quote as quote
+        cwd = str(self.app)
+        self.journal(cwd, "s-suite", [prompt(quote.compose("claude", "Option A ou option B ?", "Prends la B"), cwd)])
+        found = {c.session_id: c for c in conv.scan()}
+        self.assertEqual((found["s-suite"].first_prompt, found["s-suite"].last_prompt), ("Prends la B", "Prends la B"))
+
     def test_title_priority_and_fields(self):
         cwd = str(self.app)
         vscode_prompt = {"type": "user", "cwd": cwd, "entrypoint": "claude-vscode", "gitBranch": "dev",

@@ -82,6 +82,7 @@ export class ChatView {
     this.quote = null;           // message cité par la prochaine réponse : { author, text }
     this.quoteKey = `ccs-quote:${cwd}|${chatId}`;
     this.msgActions = [{ key: "reply", label: "Répondre", icon: REPLY_ICON, run: (msg) => this.replyTo(msg) }];
+    this.renderQuote = (node, markdown) => this.quoteHtml(node, markdown);
 
     this.state = el("span", { class: "chat-state", hidden: true }, "");
     this.stopBtn = el("button", { type: "button", class: "small danger stop", hidden: true, onclick: () => this.call("chat.interrupt") }, "Arrêter");
@@ -166,6 +167,9 @@ export class ChatView {
     const outside = (e) => { if (!this.menu.hidden && !this.menu.contains(e.target) && !e.target.closest?.(".chat-actions")) this.menu.hidden = true; };
     document.addEventListener("click", outside);
     this.offs.push(() => document.removeEventListener("click", outside));
+    const selected = () => this.selectionChanged();
+    document.addEventListener("selectionchange", selected);
+    this.offs.push(() => document.removeEventListener("selectionchange", selected));
     root.append(this.node);
 
     this.input.value = this.loadDraft();
@@ -218,17 +222,37 @@ export class ChatView {
 
   // ---- répondre en citant un message -------------------------------------------------------
 
-  // Clic dans le fil : déplie une citation, ou montre les actions du message touché (sur un écran
-  // tactile ; à la souris elles apparaissent au survol).
+  // Clic dans le fil : déplie une citation, ou montre les actions du message touché (écran
+  // tactile ; à la souris elles apparaissent au survol, un clic ne change rien).
   pick(e) {
     const t = e.target;
     const quoted = t.closest?.(".quoted");
-    if (quoted) { quoted.classList.toggle("open"); return; }
+    if (quoted) { if (!t.closest?.("a")) quoted.classList.toggle("open"); return; }   // un lien s'ouvre, sans déplier
+    if (!matchMedia("(hover: none)").matches) return;
     if (t.closest?.("a, button, summary, input, select, textarea, label, .msg-actions")) return;
     const msg = t.closest?.(".msg");
     if (msg && selectionIn(msg)) return;             // une sélection de texte en cours n'est pas un choix
-    for (const m of this.thread.querySelectorAll(".msg.picked")) if (m !== msg) m.classList.remove("picked");
-    msg?.classList.toggle("picked");
+    this.showActions(msg, !msg?.classList.contains("picked"));
+  }
+
+  // Ouvre la rangée d'actions de `msg` (et ferme celle des autres) ; `on` faux : la referme.
+  showActions(msg, on = true) {
+    for (const m of this.thread.querySelectorAll(".msg.picked")) if (m !== msg || !on) m.classList.remove("picked");
+    if (!msg || !on || msg.classList.contains("picked")) return;
+    msg.classList.add("picked");
+    // la rangée s'ouvre sous le message : sous le dernier, elle serait hors de l'écran
+    msg.querySelector(".msg-actions")?.scrollIntoView({ block: "nearest" });
+  }
+
+  // Écran tactile : du texte sélectionné dans un message ouvre sa rangée d'actions, pour pouvoir
+  // répondre en ne citant que ce passage (toucher le message déferait la sélection).
+  selectionChanged() {
+    if (!matchMedia("(hover: none)").matches) return;
+    const sel = window.getSelection?.();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    const where = sel.getRangeAt(0).commonAncestorContainer;
+    const msg = (where?.nodeType === 1 ? where : where?.parentElement)?.closest?.(".msg");
+    if (msg && this.thread.contains(msg)) this.showActions(msg);
   }
 
   replyTo(msg) {
@@ -624,7 +648,7 @@ export class ChatView {
 
   userBubble(text, nImages = 0) {
     this.follow = true;                              // nouveau message : on revient en bas
-    return this.append(userNode(text, nImages, this.msgActions));
+    return this.append(userNode(text, nImages, this.msgActions, this.renderQuote));
   }
 
   // `action` : { label, run } ajoute un bouton à la note (« Compacter »…).
@@ -642,6 +666,18 @@ export class ChatView {
       linkify(node, this.cwd, (await this.fileIndex()).set, (p, o) => this.openFile(p, o));
       if (follow) this.toBottom();
     } catch { if (!node.firstChild) node.textContent = markdown; }
+  }
+
+  // Passage cité dans une bulle : rendu comme une réponse (Markdown), sans boutons ni liens de
+  // fichiers ; si le pont ne répond pas, le texte tel quel reste affiché.
+  async quoteHtml(node, markdown) {
+    try {
+      const r = await this.api.call("chat.render", { markdown });
+      const follow = this.follow;
+      setHtml(node, r.html);
+      node.classList.add("rendered");
+      if (follow) this.toBottom();
+    } catch { /* texte brut gardé */ }
   }
 
   assistant(msgId, text, final) {
@@ -814,7 +850,7 @@ export class ChatView {
   // ---- historique d'une conversation reprise ----------------------------------------------
 
   historyNode(m) {
-    if (m.role === "utilisateur") return userNode(m.text, 0, this.msgActions);
+    if (m.role === "utilisateur") return userNode(m.text, 0, this.msgActions, this.renderQuote);
     if (m.role === "assistant") { const n = claudeNode(this.msgActions); n.raw = m.text; this.render(n.content, m.text); return n; }
     if (m.role === "outil" && m.tool) {
       return el("details", { class: `tool done${m.tool.is_error ? " error" : ""}` },

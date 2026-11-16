@@ -415,11 +415,11 @@ Quand le contexte d'un chat dépasse le seuil du contexte lourd, CCS envoie `/co
 
 Comme sur WhatsApp : on choisit un message du chat (le sien ou celui de Claude), il s'affiche en citation au-dessus de la saisie, et Claude le reçoit avec la réponse. Si du texte est sélectionné dans le message, seule la sélection est citée.
 
-- [ ] 1. Format commun de la citation (`quote.py`, `web/chat-quote.js`) : composer le message envoyé (citation en bloc Markdown, puis la réponse), la reconnaître à la relecture, raccourcir un long message cité
-- [ ] 2. Web : action « Répondre » sur chaque message, bandeau de citation au-dessus de la saisie (avec « Annuler »), bulle qui montre la citation
-- [ ] 3. Bureau : bouton « Répondre » au survol d'une réponse, entrée « Répondre » dans le menu d'une bulle, bandeau au-dessus de la saisie, bulle qui montre la citation
-- [ ] 4. Conversations rouvertes : la citation est reconnue dans l'historique (web, bureau) et dans l'aperçu d'une conversation
-- [ ] 5. Tests des modules touchés
+- [x] 1. Format commun de la citation (`chat_quote.py`, `web/chat-quote.js`) : composer le message envoyé (citation en bloc Markdown, puis la réponse), la reconnaître à la relecture, raccourcir un long message cité
+- [x] 2. Web : action « Répondre » sur chaque message, bandeau de citation au-dessus de la saisie (avec « Annuler »), bulle qui montre la citation
+- [x] 3. Bureau : bouton « Répondre » au survol d'une réponse, entrée « Répondre » dans le menu d'une bulle, bandeau au-dessus de la saisie, bulle qui montre la citation
+- [x] 4. Conversations rouvertes : la citation est reconnue dans l'historique (web, bureau) et dans l'aperçu d'une conversation
+- [x] 5. Tests des modules touchés
 - [ ] 6. Documentation (README, docs, CHANGELOG) et release mineure 0.16.0, dépôt APT compris
 
 ## Phase 18 — Étiquettes sur les messages (0.17.0)

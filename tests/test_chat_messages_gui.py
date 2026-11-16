@@ -673,12 +673,19 @@ class ReplyTest(unittest.TestCase):
         row = self.ml.add_user(quote.compose("moi", "\n".join(f"ligne {i}" for i in range(12)), "suite"), ())
         box = next(w for w in descendants(row) if getattr(w, "quote_label", None) is not None)
         self.assertEqual(labels(row)[0], "Toi")
-        self.assertEqual(box.quote_label.get_lines(), 4)
+        folded = "ligne 0\nligne 1\nligne 2\nligne 3 …"
+        self.assertEqual(box.quote_label.get_label(), folded)            # replié à la main (vraies lignes)
         gesture = next(c for c in box.observe_controllers() if isinstance(c, Gtk.GestureClick))
         gesture.emit("released", 1, 0, 0)
-        self.assertEqual(box.quote_label.get_lines(), -1)
+        self.assertEqual(box.quote_label.get_label().count("\n"), 11)
         gesture.emit("released", 1, 0, 0)
-        self.assertEqual(box.quote_label.get_lines(), 4)
+        self.assertEqual(box.quote_label.get_label(), folded)
+
+    def test_short_quote_has_nothing_to_unfold(self):
+        row = self.ml.add_user(quote.compose("claude", "A ou B ?", "La B"), ())
+        box = next(w for w in descendants(row) if getattr(w, "quote_label", None) is not None)
+        self.assertEqual(box.quote_label.get_label(), "A ou B ?")
+        self.assertFalse([c for c in box.observe_controllers() if isinstance(c, Gtk.GestureClick)])
 
     def test_history_shows_the_quote_and_can_be_replied_to(self):
         self.ml.load_history([preview.Message(preview.ASSISTANT, "A ou B ?", msg_id="m0"),

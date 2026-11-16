@@ -192,6 +192,17 @@ class TitleTest(HomeTestCase):
         write(base / "s.jsonl", "\n".join(json.dumps(l) for l in lines) + "\n")
         self.assertEqual(sessions.recent_conversations("/w/A")[0].title, "vraie demande")
 
+    def test_title_of_a_reply_is_the_reply_not_its_quote(self):
+        """Premier message qui en cite un autre (chat_quote.py) : le titre est la réponse."""
+        base = self.home / ".claude" / "projects" / sessions.project_slug("/w/B")
+        lines = [{"type": "user", "message": {"content": "> **Claude :**\n> A ou B ?\n\nPrends la B\net teste"}}]
+        write(base / "s.jsonl", "\n".join(json.dumps(l) for l in lines) + "\n")
+        self.assertEqual(sessions.recent_conversations("/w/B")[0].title, "Prends la B")
+        lines = [{"type": "user", "message": {"content": "> **Claude :**\n> A ou B ?"}}]      # citation seule
+        write(base / "t.jsonl", "\n".join(json.dumps(l) for l in lines) + "\n")
+        titles = {c.session_id: c.title for c in sessions.recent_conversations("/w/B")}
+        self.assertEqual(titles["t"], "> **Claude :**")
+
 
 class ReviewSessionsTest(HomeTestCase):
     def test_recycled_pid_detected_by_proc_start(self):

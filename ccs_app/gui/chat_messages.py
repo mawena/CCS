@@ -31,6 +31,7 @@ FOLD_LINES = 14             # un message de l'utilisateur plus long est replié 
 FOLD_CHARS = 1500
 STICK_PX = 48               # à moins de 48 px du bas, la liste suit le texte qui arrive
 QUOTE_LINES = 4             # lignes montrées d'un message cité dans une bulle (un clic déplie)
+QUOTE_CHARS = 320
 MAX_WIDTH = 920
 
 TOOL_LABELS = {"Read": "Lecture", "Edit": "Modification", "MultiEdit": "Modifications",
@@ -130,13 +131,13 @@ def _duration(seconds):
     return f"{s // 3600} h {(s % 3600) // 60:02d} min"
 
 
-def _fold(text):
-    """Les FOLD_LINES premières lignes (et au plus FOLD_CHARS caractères) suivies de « … »,
+def _fold(text, max_lines=FOLD_LINES, max_chars=FOLD_CHARS):
+    """Les `max_lines` premières lignes (et au plus `max_chars` caractères) suivies de « … »,
     ou le texte tel quel s'il est court."""
     lines = text.split("\n")
-    short = "\n".join(lines[:FOLD_LINES])
-    if len(short) > FOLD_CHARS:
-        short = short[:FOLD_CHARS].rstrip()
+    short = "\n".join(lines[:max_lines])
+    if len(short) > max_chars:
+        short = short[:max_chars].rstrip()
     return text if short == text else short.rstrip() + " …"
 
 
@@ -803,9 +804,10 @@ def selected_text(widget):
 
 def _toggle_quote(gesture, *_args):
     """Clic sur la citation d'une bulle : la déplie en entier, ou la replie."""
-    label = getattr(gesture.get_widget(), "quote_label", None)
+    box = gesture.get_widget()
+    label = getattr(box, "quote_label", None)
     if label is not None:
-        label.set_lines(-1 if label.get_lines() > 0 else QUOTE_LINES)
+        label.set_label(box.quote_full if label.get_label() == box.quote_short else box.quote_short)
 
 
 class _Segment:
@@ -1052,24 +1054,28 @@ class MessageList(Gtk.ScrolledWindow):
         return outer
 
     def _quote_widget(self, quoted):
-        """Citation en tête d'une bulle : l'auteur, puis le passage sur quelques lignes (un clic
-        le déplie)."""
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=["ccs-quoted"],
-                      tooltip_text="Message cité (clic : tout afficher)")
+        """Citation en tête d'une bulle : l'auteur, puis le début du passage (un clic le déplie).
+        Replié à la main, comme un long message : la limite de lignes de GTK ignore les vrais
+        retours à la ligne."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=["ccs-quoted"])
         box.append(Gtk.Label(label=chat_quote.SHOWN[quoted.author], xalign=0, css_classes=["ccs-quote-author"]))
-        label = Gtk.Label(label=quoted.text, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
-                          lines=QUOTE_LINES, ellipsize=Pango.EllipsizeMode.END, max_width_chars=80,
-                          css_classes=["ccs-quote-text"])
+        box.quote_full, box.quote_short = quoted.text, _fold(quoted.text, QUOTE_LINES, QUOTE_CHARS)
+        label = Gtk.Label(label=box.quote_short, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+                          max_width_chars=80, css_classes=["ccs-quote-text"])
         box.append(label)
         box.quote_label = label
-        click = Gtk.GestureClick(button=1)
-        click.connect("released", _toggle_quote)
-        box.add_controller(click)
+        if box.quote_short != box.quote_full:
+            box.set_tooltip_text("Message cité (clic : tout afficher)")
+            click = Gtk.GestureClick(button=1)
+            click.connect("released", _toggle_quote)
+            box.add_controller(click)
         return box
 
     def _reply_button(self):
+        # focus_on_click=False : le clic ne déplace pas le focus, le texte sélectionné dans le
+        # message reste sélectionné (c'est lui qu'on cite)
         button = Gtk.Button(icon_name="mail-reply-sender-symbolic", tooltip_text="Répondre en citant ce message",
-                            css_classes=["flat", "circular", "ccs-copy"])
+                            css_classes=["flat", "circular", "ccs-copy"], focus_on_click=False)
         button.connect("clicked", lambda btn: self._reply_from(_owner(btn)))
         return button
 

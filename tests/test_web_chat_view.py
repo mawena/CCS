@@ -28,7 +28,7 @@ const api = {
     calls.push([method, params]);
     switch (method) {
       case "chat.attach": return { seq: 0, events: [], state: "idle", session_id: "s1", options: { model: "", effort: "", rights: "manual" } };
-      case "chat.render": return { html: params.markdown };
+      case "chat.render": if (api.failRender) throw new Error("coupure"); return { html: params.markdown };
       case "chat.send": if (api.failSend) throw new Error("coupure"); return { ok: true };
       case "work.commands": return { commands: [], context: { enabled: true, threshold_tokens: 150000 } };
       case "work.files": return { files: [] };
@@ -257,8 +257,12 @@ out = { reply: [reply.querySelector(".quoted").dataset.author, reply.querySelect
 
     def test_touch_shows_the_actions_and_a_click_unfolds_the_quote(self):
         out = run(self.START + """
+mine.content.click();                              // à la souris : un clic ne change rien (survol)
+const mouse = mine.classList.contains("picked");
+win.media.add("(hover: none)");                    // écran tactile
 mine.content.click();
 const first = [mine.classList.contains("picked"), claude.classList.contains("picked")];
+const shown = mine.querySelector(".msg-actions").scrolledIntoView;   // amenée à l'écran (dernier message)
 claude.content.click();
 const second = [mine.classList.contains("picked"), claude.classList.contains("picked")];
 act(claude).click();                               // « Répondre » : la rangée se referme
@@ -267,9 +271,69 @@ type(view, "ok");
 await submit(view);
 const quoted = msgs(view)[2].querySelector(".quoted");
 quoted.querySelector(".quoted-text").click();
-out = { first, second, third, open: quoted.classList.contains("open"), picked: msgs(view)[2].classList.contains("picked") };
+claude.content.click();
+claude.content.click();                            // toucher de nouveau referme la rangée
+out = { mouse, first, shown, second, third, open: quoted.classList.contains("open"), picked: msgs(view)[2].classList.contains("picked"),
+        closed: claude.classList.contains("picked") };
 """)
-        self.assertEqual(out, {"first": [True, False], "second": [False, True], "third": False, "open": True, "picked": False})
+        self.assertEqual(out, {"mouse": False, "first": [True, False], "shown": 1, "second": [False, True], "third": False,
+                               "open": True, "picked": False, "closed": False})
+
+    def test_touch_selection_opens_the_actions_of_its_message(self):
+        out = run(self.START + """
+const fire = () => document.dispatchEvent(new win.Event("selectionchange"));
+win.setSelection("- B", claude.content.firstChild);
+fire();
+const mouse = claude.classList.contains("picked");  // à la souris : rien, le survol suffit
+win.media.add("(hover: none)");
+fire();
+const touch = [mine.classList.contains("picked"), claude.classList.contains("picked")];
+act(claude).dispatchEvent(new win.Event("pointerdown"));
+win.setSelection("", null);
+fire();                                             // sélection défaite : la rangée reste ouverte
+act(claude).click();
+view.destroy();
+fire();                                             // plus d'écoute après la fermeture du chat
+out = { mouse, touch, quote: view.quote };
+""")
+        self.assertEqual(out, {"mouse": False, "touch": [False, True], "quote": {"author": "claude", "text": "- B"}})
+
+    def test_quoted_answer_of_claude_is_rendered_and_mine_stays_as_typed(self):
+        """Une réponse de Claude citée est du Markdown (rendu par le pont) ; un message de
+        l'utilisateur cité reste tel quel, comme dans sa bulle."""
+        out = run("""
+const view = open();
+await settle();
+await live(view, { type: "UserSent", text: "> **Claude :**\\n> **A** ou B ?\\n\\nLa B", images: 0, nonce: "x" },
+                 { type: "UserSent", text: "> **Moi :**\\n> ligne 1\\n> ligne 2\\n\\nsuite", images: 0, nonce: "y" });
+const [toClaude, toMe] = msgs(view).map((m) => m.querySelector(".quoted-text"));
+const asked = calls.filter((c) => c[0] === "chat.render").map((c) => c[1].markdown);
+api.failRender = true;                              // pont coupé : le texte tel quel reste affiché
+await live(view, { type: "UserSent", text: "> **Claude :**\\n> *C* ?\\n\\nOui", images: 0, nonce: "z" });
+const plain = msgs(view)[2].querySelector(".quoted-text");
+out = { claude: [toClaude.classList.contains("rendered"), toClaude.children.map((n) => n.tagName), toClaude.textContent],
+        mine: [toMe.classList.contains("rendered"), toMe.children.length, toMe.textContent], asked,
+        plain: [plain.classList.contains("rendered"), plain.children.length, plain.textContent] };
+""")
+        self.assertEqual(out["claude"], [True, ["P"], "**A** ou B ?"])
+        self.assertEqual(out["mine"], [False, 0, "ligne 1\nligne 2"])
+        self.assertEqual(out["asked"], ["**A** ou B ?"])
+        self.assertEqual(out["plain"], [False, 0, "*C* ?"])
+
+    def test_link_in_a_quote_opens_without_unfolding_it(self):
+        out = run("""
+const view = open();
+await settle();
+await live(view, { type: "UserSent", text: "> **Claude :**\\n> Voir [la doc](https://exemple.fr)\\n\\nMerci", images: 0, nonce: "x" });
+const quoted = msgs(view)[0].querySelector(".quoted");
+const link = document.createElement("a");          // le faux DOM n'analyse pas le HTML rendu
+quoted.querySelector(".quoted-text").append(link);
+link.click();
+const afterLink = quoted.classList.contains("open");
+quoted.querySelector(".quoted-text").click();
+out = { afterLink, afterText: quoted.classList.contains("open") };
+""")
+        self.assertEqual(out, {"afterLink": False, "afterText": True})
 
 
 @unittest.skipUnless(NODE, "node absent")
