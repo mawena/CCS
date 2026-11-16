@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import tempfile
 import time
@@ -105,6 +106,31 @@ class ServiceTest(unittest.TestCase):
         c = doctor.check_service(p)
         self.assertEqual(c.statut, AVERTISSEMENT)
         self.assertIn("99", c.detail)
+
+    def test_systemd_unreachable_but_daemon_in_its_unit(self):
+        """Bilan lancé depuis le pont du serveur : systemd de l'utilisateur injoignable (sortie
+        vide), mais le processus est dans l'unité du service : pas d'avertissement."""
+        p = healthy(systemctl=lambda *a: (1, ""), daemon_pid=lambda: 99, in_service=lambda pid: pid == 99)
+        c = doctor.check_service(p)
+        self.assertEqual((c.statut, c.detail, c.commande), (OK, "actif (pid 99)", None))
+        p = healthy(systemctl=lambda *a: (1, ""), daemon_pid=lambda: 99, in_service=lambda pid: False)
+        self.assertEqual(doctor.check_service(p).statut, AVERTISSEMENT)
+
+    def test_user_bus_env_restores_the_runtime_dir(self):
+        with tempfile.TemporaryDirectory() as root:
+            runtime = Path(root, str(os.getuid()))
+            self.assertNotIn("XDG_RUNTIME_DIR", doctor.user_bus_env({}, root))      # dossier absent
+            runtime.mkdir()
+            self.assertEqual(doctor.user_bus_env({}, root)["XDG_RUNTIME_DIR"], str(runtime))
+            self.assertEqual(doctor.user_bus_env({"XDG_RUNTIME_DIR": "/x"}, root)["XDG_RUNTIME_DIR"], "/x")
+
+    def test_in_service_reads_the_cgroup(self):
+        with tempfile.TemporaryDirectory() as proc:
+            Path(proc, "7").mkdir()
+            Path(proc, "7", "cgroup").write_text("0::/user.slice/user-1000.slice/user@1000.service/app.slice/ccs-daemon.service\n")
+            Path(proc, "8").mkdir()
+            Path(proc, "8", "cgroup").write_text("0::/user.slice/user-1000.slice/session-3.scope\n")
+            self.assertEqual([doctor.in_service(n, proc) for n in (7, 8, 9)], [True, False, False])
 
     def test_no_systemctl(self):
         p = healthy(systemctl=lambda *a: (None, ""), daemon_pid=lambda: None)

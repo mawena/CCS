@@ -3,6 +3,15 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.16.1] — 2026-11-16
+
+### Corrigé
+
+- **Bilan de santé lancé depuis la version web** : il annonçait à tort « le service tourne
+  hors de systemd » alors que `ccs-daemon` était bien actif, et la commande proposée n'y
+  changeait rien. Le pont du serveur n'avait pas accès au systemd de l'utilisateur ; le bilan
+  le retrouve maintenant et, à défaut, vérifie que le processus est bien dans son unité.
+
 ## [0.16.0] — 2026-11-16
 
 ### Ajouté

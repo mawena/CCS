@@ -422,6 +422,11 @@ Comme sur WhatsApp : on choisit un message du chat (le sien ou celui de Claude),
 - [x] 5. Tests des modules touchés
 - [x] 6. Documentation (README, docs, CHANGELOG) et release mineure 0.16.0, dépôt APT compris
 
+## Correctif 0.16.1 — bilan de santé depuis le web
+
+- [x] Le bilan lancé depuis le web disait le service « hors de systemd » : le pont (service système) n'avait pas `XDG_RUNTIME_DIR` ; `doctor.user_bus_env` le remet, `doctor.in_service` vérifie l'unité du processus en secours
+- [x] Release corrective 0.16.1, dépôt APT compris
+
 ## Phase 18 — Étiquettes sur les messages (0.17.0)
 
 Poser un ou plusieurs mots-clés sur un message (« important », « à revoir »…) et retrouver ensuite les messages par étiquette.
