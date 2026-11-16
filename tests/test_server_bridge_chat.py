@@ -300,7 +300,7 @@ class AutoCompactBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.bridge = bridge.Bridge("alice", None, local=True, start_daemon=False, install_claude=False)
 
     def configure(self, **context_alert):
-        settings.save_settings({"context_alert": {"auto_compact": True, **context_alert}})
+        settings.save_settings({"context_alert": {"auto_compact": True, "threshold_tokens": 150000, **context_alert}})
 
     async def hub(self, **env):
         environ = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), **self.CONTEXT, **env}

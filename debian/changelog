@@ -1,3 +1,9 @@
+ccs (0.19.2) unstable; urgency=medium
+
+  * Contexte lourd : seuil par défaut doublé (300 000 tokens).
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 16 Nov 2026 23:47:45 +0100
+
 ccs (0.19.1) unstable; urgency=medium
 
   * Web : bouton de téléchargement direct sur chaque fichier de l'onglet

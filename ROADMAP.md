@@ -455,6 +455,7 @@ Poser un ou plusieurs mots-clés sur un message (« important », « à revoir �
 - [x] 2. Web : `files-manage.js` (transferts, feuilles de saisie et d'actions), barre « + Fichier / + Dossier / Envoyer », bouton « ⋯ » par entrée, bouton « ⤓ » du fichier ouvert
 - [x] 3. Tests (pont et web), documentation, release mineure 0.19.0, dépôt APT compris
 - [x] 3 bis. 0.19.1 : bouton « ⤓ » direct sur chaque fichier de l'arbre (le téléchargement n'était visible que dans le menu « ⋯ ») ; affichage vérifié dans Chromium sans tête
+- [x] 3 ter. 0.19.2 : seuil par défaut du contexte lourd et du compactage automatique doublé (300 000 tokens)
 - [ ] 4. Essai réel par Charles : envoyer, télécharger, renommer, supprimer depuis le téléphone
 - [ ] 5. Plus tard, si utile : télécharger un dossier entier (archive), déplacer une entrée, même gestion sur le bureau
 

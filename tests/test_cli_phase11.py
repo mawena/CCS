@@ -126,7 +126,7 @@ class SessionsMemoryCliTest(HomeTestCase):
         from ccs_app import sessions
         usage = sessions.ConversationUsage(1_000_000, "opus", 10)
         snap = {42: session_memory.SessionMemory(42, int(1.5 * 1024 ** 3), 7500, True)}
-        ctx = context_alert.Context(200_000, "claude-opus-4-5")
+        ctx = context_alert.Context(350_000, "claude-opus-4-5")
         with mock.patch.object(sessions, "list_sessions", return_value=[self.session()]), \
                 mock.patch.object(sessions, "conversation_usage", return_value=usage), \
                 mock.patch.object(session_memory, "snapshot", return_value=snap), \
