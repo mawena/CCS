@@ -395,7 +395,7 @@ Web :
 Fin de phase :
 - [x] 8a. Documentation de la partie web (README, CHANGELOG) et release 0.13.0
 - [x] 8. Documentation de la partie bureau (README, guide, CHANGELOG)
-- [ ] 9. Essai réel par Charles depuis son PC
+- [x] 9. Essai réel par Charles depuis son PC
 - [x] 10. Release mineure 0.14.0 (bureau)
 
 ## Phase 16 — Compactage automatique (0.15.0)
