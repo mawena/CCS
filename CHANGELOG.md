@@ -3,6 +3,13 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.19.3] — 2026-11-17
+
+### Corrigé
+
+- **Tests d'interface** adaptés au seuil de 300 000 tokens (la 0.19.2 ne passait pas la
+  construction des paquets). Aucun changement pour l'utilisateur ; publiée à la place de la 0.19.2.
+
 ## [0.19.2] — 2026-11-16
 
 ### Modifié

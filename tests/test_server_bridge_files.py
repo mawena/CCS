@@ -132,5 +132,47 @@ class FileOpsTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((self.project / "a.txt").exists())
 
 
+
+    async def test_roots(self):
+        r = await self.c.call("files.roots")
+        self.assertEqual(r["home"], os.path.realpath(self.home))
+        self.assertEqual(r["roots"][0], r["home"])
+
+    async def test_paste_copies_and_moves(self):
+        src, a = self.project / "src", self.project / "a.txt"
+        (src / "b.txt").write_text("deux\n")
+        r = await self.c.call("files.paste", path=str(a), dir=str(src), mode="copy")
+        self.assertEqual((Path(r["path"]).read_text(), a.read_text()), ("un\n", "un\n"))
+        self.assertEqual(await self.code("files.paste", path=str(a), dir=str(src), mode="copy"), "existe")
+        r = await self.c.call("files.paste", path=str(a), dir=str(self.project), mode="copy")   # même dossier
+        self.assertEqual(Path(r["path"]).name, "a (copie).txt")
+        r = await self.c.call("files.paste", path=str(a), dir=str(self.project), mode="copy")
+        self.assertEqual(Path(r["path"]).name, "a (copie 2).txt")
+        r = await self.c.call("files.paste", path=str(src), dir=str(self.project), mode="copy")  # dossier entier
+        self.assertEqual(sorted(p.name for p in Path(r["path"]).iterdir()), ["a.txt", "b.txt"])
+        (self.project / "docs").mkdir()
+        r = await self.c.call("files.paste", path=str(src / "b.txt"), dir=str(self.project / "docs"), mode="move")
+        self.assertTrue(Path(r["path"]).is_file())
+        self.assertFalse((src / "b.txt").exists())
+
+    async def test_paste_refusals(self):
+        src, a = self.project / "src", self.project / "a.txt"
+        (src / "a.txt").write_text("autre\n")
+        self.assertEqual(await self.code("files.paste", path=str(src), dir=str(src), mode="copy"), "refuse")
+        self.assertEqual(await self.code("files.paste", path=str(self.project), dir=str(src), mode="move"), "refuse")
+        self.assertEqual(await self.code("files.paste", path=str(a), dir=str(self.project), mode="move"), "invalide")
+        self.assertEqual(await self.code("files.paste", path=str(a), dir=str(src), mode="move"), "existe")
+        self.assertEqual(await self.code("files.paste", path=str(a), dir=str(src), mode="lien"), "invalide")
+        self.assertEqual(await self.code("files.paste", path="/etc/passwd", dir=str(src), mode="copy"), "refuse")
+        self.assertEqual(await self.code("files.paste", path=str(a), dir="/etc", mode="copy"), "refuse")
+        self.assertEqual(await self.code("files.paste", path=str(self.home), dir=str(src), mode="move"), "refuse")
+        self.assertEqual(await self.code("files.paste", path=str(self.project / "rien"), dir=str(src), mode="copy"),
+                         "introuvable")
+        with mock.patch.object(bridge_files, "MAX_COPY", 2):
+            self.assertEqual(await self.code("files.paste", path=str(a), dir=str(self.project / "src"), mode="copy"),
+                             "trop_gros")
+        self.assertEqual((src / "a.txt").read_text(), "autre\n")
+
+
 if __name__ == "__main__":
     unittest.main()

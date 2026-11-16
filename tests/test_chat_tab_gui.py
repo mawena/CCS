@@ -98,6 +98,10 @@ class FakeOwner:
 class ChatTabTest(HomeTestCase):
     def setUp(self):
         super().setUp()
+        from ccs_app import settings   # seuil des tests : 150 000 (le défaut est 300 000)
+        s = settings.load_settings()
+        s["context_alert"]["threshold_tokens"] = 150_000
+        settings.save_settings(s)
         self.cwd = Path(self.tmp) / "projet"
         self.cwd.mkdir()
         self.tabs = []

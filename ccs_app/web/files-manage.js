@@ -1,4 +1,5 @@
-// Gestion des fichiers d'un projet : télécharger, envoyer, créer, renommer, supprimer.
+// Gestion des fichiers d'un projet : télécharger, envoyer, créer, renommer, supprimer, copier,
+// couper et coller.
 // Les transferts passent par le pont, morceau par morceau (une ligne RPC est bornée).
 import { confirmSheet, el, toast } from "./dom.js";
 
@@ -122,10 +123,16 @@ export function pickFiles() {
   });
 }
 
+// Ce qui attend d'être collé : { path, name, mode: "copy" | "move" }. Commun à tous les volets : on
+// copie dans un dossier, on colle dans un autre.
+let clip = null;
+export const clipboard = () => clip;
+
 // Actions de gestion, pour le volet Fichiers. `root` : dossier du projet ; chaque méthode renvoie
-// true si quelque chose a changé (le volet recharge alors le dossier touché).
+// true si quelque chose a changé (le volet recharge alors le dossier touché). `extra` : actions en
+// plus sur un dossier, { actions(entry) → [[clé, libellé]], run(clé, entry) → { changed, … } }.
 export class FileManager {
-  constructor(api, root) { this.api = api; this.root = root; }
+  constructor(api, root, extra = null) { this.api = api; this.root = root; this.extra = extra; }
 
   abs(rel) { return rel ? `${this.root}/${rel}` : this.root; }
 
@@ -188,14 +195,36 @@ export class FileManager {
     });
   }
 
+  hold(entry, mode) {
+    clip = { path: this.abs(entry.path), name: entry.name, mode };
+    toast(`« ${entry.name} » ${mode === "move" ? "coupé" : "copié"} : ouvre le menu « ⋯ » d'un dossier, puis « Coller ici ».`);
+  }
+
+  // Colle dans le dossier `rel` ce qui a été copié ou coupé.
+  async paste(rel) {
+    const held = clip;
+    if (!held) return false;
+    return this.guard(async () => {
+      await this.api.call("files.paste", { path: held.path, dir: this.abs(rel), mode: held.mode, root: this.root });
+      if (held.mode === "move") clip = null;
+      toast(`« ${held.name} » ${held.mode === "move" ? "déplacé" : "copié"}.`);
+      return true;
+    });
+  }
+
   // Menu d'une entrée de l'arbre. Renvoie { changed, inside } : `inside` dit que c'est le contenu
   // du dossier (et non son parent) qui a changé.
   async menu(entry) {
+    const own = [["copy", "Copier"], ["move", "Couper"], ["rename", "Renommer"], ["delete", "Supprimer", true]];
+    const extra = entry.dir && this.extra ? this.extra.actions(entry) : [];
     const actions = entry.dir
       ? [["file", "Nouveau fichier ici"], ["dir", "Nouveau dossier ici"], ["upload", "Envoyer un fichier ici"],
-        ["rename", "Renommer"], ["delete", "Supprimer", true]]
-      : [["download", "Télécharger"], ["rename", "Renommer"], ["delete", "Supprimer", true]];
+        ...(clip ? [["paste", `Coller « ${clip.name} » ici`]] : []), ...extra, ...own]
+      : [["download", "Télécharger"], ...own];
     const pick = await actionSheet(entry.name, actions);
+    if (extra.some(([key]) => key === pick)) return this.extra.run(pick, entry);
+    if (pick === "copy" || pick === "move") { this.hold(entry, pick); return { changed: false, clip: true }; }
+    if (pick === "paste") { const moved = clip?.mode === "move"; const changed = await this.paste(entry.path); return { changed, inside: true, all: changed && moved }; }
     if (pick === "download") { await download(this.api, this.abs(entry.path)); return { changed: false }; }
     if (pick === "file" || pick === "dir") return { changed: await this.create(entry.path, pick), inside: true };
     if (pick === "upload") return { changed: await this.upload(entry.path), inside: true };
