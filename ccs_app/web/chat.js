@@ -9,7 +9,8 @@ import { contextAlert } from "./chat-context.js";
 import { diffCard, editDiffs } from "./chat-diff.js";
 import { linkify } from "./chat-links.js";
 import { claudeNode, icon, quoteOf, REPLY_ICON, selectionIn, userNode } from "./chat-message.js";
-import { CLAUDE, ME, compose, oneLine } from "./chat-quote.js";
+import { CLAUDE, ME, compose, oneLine, sourceText } from "./chat-quote.js";
+import { openTagSheet, TAG_ICON, TagsPanel, tagChips } from "./chat-tags.js";
 import { openSavedSheet } from "./chat-saved.js";
 import { FindBar } from "./chat-search.js";
 import { FilesPanel } from "./files.js";
@@ -22,7 +23,7 @@ const RIGHTS = [["manual", "Demander"], ["acceptEdits", "Modifications acceptée
 const CYCLE_RIGHTS = ["manual", "acceptEdits", "plan"];
 const EFFORTS = [["", "Effort par défaut"], ["low", "Faible"], ["medium", "Moyen"], ["high", "Élevé"],
   ["xhigh", "Très élevé"], ["max", "Max"]];
-const DRAWER_TITLES = { files: "Fichiers", roadmap: "Feuille de route", git: "Git", changes: "Changements de la session" };
+const DRAWER_TITLES = { files: "Fichiers", roadmap: "Feuille de route", git: "Git", changes: "Changements de la session", tags: "Étiquettes" };
 const HISTORY_LIMIT = 200;
 const fr = (n) => Number(n).toLocaleString("fr-FR");
 const TOOL_LABELS = { Read: "Lecture", Edit: "Modification", MultiEdit: "Modification", Write: "Écriture",
@@ -81,7 +82,11 @@ export class ChatView {
     this.draftKey = `ccs-draft:${cwd}|${chatId}`;      // identifiant du chat : unique d'un démarrage du pont à l'autre
     this.quote = null;           // message cité par la prochaine réponse : { author, text }
     this.quoteKey = `ccs-quote:${cwd}|${chatId}`;
-    this.msgActions = [{ key: "reply", label: "Répondre", icon: REPLY_ICON, run: (msg) => this.replyTo(msg) }];
+    this.msgActions = [{ key: "reply", label: "Répondre", icon: REPLY_ICON, run: (msg) => this.replyTo(msg) },
+      { key: "tag", label: "Étiqueter", icon: TAG_ICON, run: (msg) => this.tagMessage(msg) }];
+    this.tagMap = {};            // identifiant d'un message → { tags, role, excerpt, ts } (conversation en cours)
+    this.knownTags = [];         // étiquettes déjà utilisées (suggestions)
+    this.tagsSession = null;     // conversation dont les étiquettes sont chargées
     this.renderQuote = (node, markdown) => this.quoteHtml(node, markdown);
 
     this.state = el("span", { class: "chat-state", hidden: true }, "");
@@ -143,6 +148,7 @@ export class ChatView {
       { label: "Feuille de route", run: () => this.openDrawer("roadmap") },
       { label: "Git", run: () => this.openDrawer("git") },
       { label: "Changements", run: () => this.openDrawer("changes") },
+      { label: "Étiquettes", run: () => this.openDrawer("tags") },
       { label: "Chercher", run: () => this.findbar.show() },
     ];
     const actions = el("div", { class: "chat-actions" });
@@ -178,6 +184,8 @@ export class ChatView {
     this.updateSummary();
     if (options) this.applyOptions(options);
     this.offs.push(api.on("chat.event", (d) => { if (d.chat_id === this.chatId) this.receive(d); }));
+    this.offs.push(api.on("chat.tags", (d) => { if (d.session_id && d.session_id === this.sessionId) this.applyTag(d.msg_id, d.entry); }));
+    this.loadTags();
     this.offs.push(api.on("work.shell", (d) => { if (d.chat_id === this.chatId) this.shellDone(d); }));
     this.offs.push(api.on("reconnected", () => { this.attach(); this.pollShells(); }));
     this.attach();                                   // l'historique suit le premier rattachement
@@ -368,18 +376,19 @@ export class ChatView {
   async deliver(text, images = [], retry = null, quote = null) {
     let r = null;
     const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const uuid = newUuid();                          // identifiant du message dans le journal (étiquettes)
     (this.ownSent ||= new Set()).add(nonce);        // l'écho du pont n'est pas affiché deux fois
     const notes = this.shellNotes.join("");
     const shown = quote ? compose(quote.author, quote.text, text) : text;
     const sent = quote ? compose(quote.author, quote.text, notes + text) : notes + text;
-    try { r = await this.api.call("chat.send", { chat_id: this.chatId, text: sent, images, shown, nonce }); } catch (e) {
+    try { r = await this.api.call("chat.send", { chat_id: this.chatId, text: sent, images, shown, nonce, uuid }); } catch (e) {
       this.ownSent.delete(nonce);
       this.sendFailed(e.message, retry);
       return false;
     }
     if (!r || !r.ok) { this.sendFailed("Claude n'a pas pu démarrer.", retry); return false; }
     this.shellNotes = [];
-    this.userBubble(shown, images.length);
+    this.userBubble(shown, images.length, r.uuid || "");      // ancien pont : pas d'identifiant
     return true;
   }
 
@@ -498,6 +507,84 @@ export class ChatView {
     }, 400);
   }
 
+  // ---- étiquettes ---------------------------------------------------------------------------
+
+  // Conversation connue (ouverture, Init, rattachement) : une reprise peut en changer, ses
+  // étiquettes sont alors relues.
+  setSession(id) {
+    this.sessionId = this.seenSession = id;
+    if (id && id !== this.tagsSession) this.loadTags();
+  }
+
+  async loadTags() {
+    const sid = this.sessionId;
+    if (!sid || this.dead) return;
+    this.tagsSession = sid;
+    let r;
+    try { r = await this.api.call("chat.tags", { session_id: sid }); } catch { return; }    // ancien pont : pas d'étiquettes
+    if (this.sessionId !== sid || this.dead) return;
+    this.tagMap = r.messages || {};
+    this.knownTags = r.known || [];
+    for (const n of this.thread.querySelectorAll(".msg")) this.paintTags(n);
+    this.panels.get("tags")?.panel.refresh();
+  }
+
+  // Pastilles des étiquettes du message, entre son contenu et ses actions ; rend le nœud.
+  paintTags(node) {
+    node.tagsNode?.remove();
+    node.tagsNode = tagChips(this.tagMap[node.msgId]?.tags, (tag) => this.showTag(tag));
+    if (node.tagsNode) node.insertBefore(node.tagsNode, [...node.children].find((c) => c.classList.contains("msg-actions")) || null);
+    return node;
+  }
+
+  applyTag(msgId, entry) {
+    if (entry) {
+      this.tagMap[msgId] = entry;
+      const have = new Set(this.knownTags.map((t) => t.toLocaleLowerCase("fr")));
+      this.knownTags.push(...entry.tags.filter((t) => !have.has(t.toLocaleLowerCase("fr"))));
+    } else delete this.tagMap[msgId];
+    for (const n of this.thread.querySelectorAll(".msg")) if (n.msgId === msgId) this.paintTags(n);
+    this.panels.get("tags")?.panel.refresh();
+  }
+
+  async tagMessage(msg) {
+    msg.classList.remove("picked");
+    if (!this.sessionId || !msg.msgId) {
+      toast("Ce message ne peut pas encore être étiqueté : attends que Claude ait commencé la conversation.", { kind: "error" });
+      return;
+    }
+    const text = msg.author === ME ? sourceText(msg.raw) : msg.raw;
+    const tags = await openTagSheet({ current: this.tagMap[msg.msgId]?.tags || [], known: this.knownTags, excerpt: oneLine(text, 160) });
+    if (tags === null || this.dead) return;
+    const sid = this.sessionId;
+    try {
+      const r = await this.api.call("chat.tag", { session_id: sid, msg_id: msg.msgId, tags, text,
+        role: msg.author === ME ? "utilisateur" : "assistant" });
+      if (this.sessionId === sid) this.applyTag(msg.msgId, r.entry);
+    } catch (e) { toast(`Étiquettes non enregistrées : ${e.message}`, { kind: "error" }); }
+  }
+
+  showTag(tag) {
+    if (this.drawer.hidden || this.drawer.dataset.kind !== "tags") { this.drawer.hidden = true; this.openDrawer("tags"); }
+    this.panels.get("tags")?.panel.show(tag);
+  }
+
+  // Ramène au message étiqueté ; s'il n'est pas dans le fil (seuls les derniers messages y sont),
+  // charge d'abord tout le journal.
+  async jumpTo(msgId) {
+    const find = () => [...this.thread.querySelectorAll(".msg")].find((n) => n.msgId === msgId);
+    let node = find();
+    if (!node) { await this.loadFullHistory(); node = find(); }
+    if (!node) { toast("Ce message n'est plus dans le fil (conversation compactée ou reprise ailleurs).", { kind: "error" }); return; }
+    if (window.matchMedia?.("(max-width: 719px)").matches) this.drawer.hidden = true;   // téléphone : le volet couvre le fil
+    this.follow = false;
+    node.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    node.classList.remove("flash");
+    void node.offsetWidth;
+    node.classList.add("flash");
+    setTimeout(() => node.classList.remove("flash"), 1600);
+  }
+
   // ---- volets ------------------------------------------------------------------------------
 
   // Un panneau par type, gardé d'une ouverture à l'autre : un fichier en cours d'édition ou un message de
@@ -527,6 +614,7 @@ export class ChatView {
     if (kind === "files") panel = new FilesPanel(holder, this.api, this.cwd);
     else if (kind === "git") panel = new GitPanel(holder, this.api, this.cwd);
     else if (kind === "changes") panel = new ChangesPanel(holder, this.api, this.chatId, this.cwd, { openFile: (p) => this.openFile(p), changed: () => { this.filesP = null; } });
+    else if (kind === "tags") panel = new TagsPanel(holder, { messages: () => this.tagMap, jump: (id) => this.jumpTo(id) });
     else panel = new RoadmapPanel(holder, this.api, this.cwd, { send: (text) => this.sendText(text) });
     this.panels.set(kind, { holder, panel });
     return panel;
@@ -572,7 +660,7 @@ export class ChatView {
       r = await this.fetchAttach(0);
       if (!r) return;
     }
-    if (r.session_id) this.sessionId = this.seenSession = r.session_id;
+    if (r.session_id) this.setSession(r.session_id);
     if (r.options) this.applyOptions(r.options); else if (!this.optionsReady) this.markReady();   // ancien pont : comme avant
     this.stoppedCard?.remove();
     this.stoppedCard = null;
@@ -646,9 +734,9 @@ export class ChatView {
     flush();
   }
 
-  userBubble(text, nImages = 0) {
+  userBubble(text, nImages = 0, msgId = "") {
     this.follow = true;                              // nouveau message : on revient en bas
-    return this.append(userNode(text, nImages, this.msgActions, this.renderQuote));
+    return this.append(this.paintTags(userNode(text, nImages, this.msgActions, this.renderQuote, msgId)));
   }
 
   // `action` : { label, run } ajoute un bouton à la note (« Compacter »…).
@@ -683,7 +771,7 @@ export class ChatView {
   assistant(msgId, text, final) {
     let entry = this.texts.get(msgId);
     if (!entry) {
-      entry = { node: this.append(claudeNode(this.msgActions)), text: "", timer: null };
+      entry = { node: this.append(this.paintTags(claudeNode(this.msgActions, msgId))), text: "", timer: null };
       this.texts.set(msgId, entry);
     }
     entry.text = entry.node.raw = text;
@@ -783,7 +871,7 @@ export class ChatView {
     }
     const ev = item.event;
     switch (ev.type) {
-      case "Init": this.sessionId = this.seenSession = ev.session_id; break;
+      case "Init": this.setSession(ev.session_id); break;
       case "Hello": {
         const keep = this.model.value;
         clear(this.model).append(el("option", { value: "" }, "Modèle par défaut"),
@@ -822,7 +910,8 @@ export class ChatView {
       }
       case "Todos": this.setTodos(ev.items || []); break;
       case "PermissionRequest": this.permissionCard(ev); break;
-      case "UserSent": if (!this.ownSent?.delete(ev.nonce)) this.userBubble(ev.text, ev.images || 0); break;
+      case "UserSent": if (!this.ownSent?.delete(ev.nonce)) this.userBubble(ev.text, ev.images || 0, ev.uuid || ""); break;
+      case "TagsChanged": if (ev.session_id === this.sessionId) this.applyTag(ev.msg_id, ev.entry); break;
       case "PermissionSettled": { const c = this.perms.get(ev.request_id); if (c) { c.remove(); this.perms.delete(ev.request_id); } break; }
       case "ControlReply": break;
       case "TurnResult":
@@ -850,8 +939,8 @@ export class ChatView {
   // ---- historique d'une conversation reprise ----------------------------------------------
 
   historyNode(m) {
-    if (m.role === "utilisateur") return userNode(m.text, 0, this.msgActions, this.renderQuote);
-    if (m.role === "assistant") { const n = claudeNode(this.msgActions); n.raw = m.text; this.render(n.content, m.text); return n; }
+    if (m.role === "utilisateur") return this.paintTags(userNode(m.text, 0, this.msgActions, this.renderQuote, m.uuid || ""));
+    if (m.role === "assistant") { const n = this.paintTags(claudeNode(this.msgActions, m.msg_id || "")); n.raw = m.text; this.render(n.content, m.text); return n; }
     if (m.role === "outil" && m.tool) {
       return el("details", { class: `tool done${m.tool.is_error ? " error" : ""}` },
         el("summary", {}, el("strong", {}, TOOL_LABELS[m.tool.name] || m.tool.name), " ", el("span", { class: "subtle" }, m.tool.target)),
@@ -891,6 +980,17 @@ export class ChatView {
     for (const m of older) { const n = this.historyNode(m); if (n) this.thread.insertBefore(n, first); }
     this.regroup();
   }
+}
+
+// uuid v4 du message envoyé ; crypto.randomUUID n'existe qu'en contexte sûr (https, localhost).
+function newUuid() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  const b = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) crypto.getRandomValues(b); else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
 function isToolNode(n) {

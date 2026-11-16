@@ -193,6 +193,41 @@ class RemoteEngineTest(unittest.TestCase):
         self.assertIsNone(eng.pid)
 
 
+    def test_tags_through_the_bridge(self):
+        col = Collector()
+        eng = engine.RemoteChatEngine(self.conn, str(self.project), "sess-tags", ChatOptions(), on_event=col)
+        got = threading.Event()
+        loaded, set_result = [], []
+        eng.load_tags(lambda msgs, known: (loaded.append((msgs, known)), got.set()))
+        self.assertTrue(got.wait(20))
+        self.assertEqual(loaded, [({}, [])])
+        got.clear()
+        eng.set_tags("m-1", ["important"], "Deux options", "assistant",
+                     callback=lambda entry, err: (set_result.append((entry, err)), got.set()))
+        self.assertTrue(got.wait(20))
+        entry, err = set_result[0]
+        self.assertIsNone(err)
+        self.assertEqual((entry["tags"], entry["excerpt"]), (["important"], "Deux options"))
+        # le pont diffuse le changement : le moteur de cette conversation le reçoit
+        self.assertTrue(col.wait(chat_engine.TagsChanged))
+        ev = next(e for e in col.events if isinstance(e, chat_engine.TagsChanged))
+        self.assertEqual((ev.session_id, ev.msg_id, ev.entry["tags"]), ("sess-tags", "m-1", ["important"]))
+        got.clear()
+        loaded.clear()
+        eng.load_tags(lambda msgs, known: (loaded.append((msgs, known)), got.set()))
+        self.assertTrue(got.wait(20))
+        self.assertEqual(list(loaded[0][0]), ["m-1"])
+        self.assertEqual(loaded[0][1], ["important"])
+        eng.stop()
+        self.assertNotIn(eng, self.conn.tag_listeners)
+
+    def test_tags_need_a_known_conversation(self):
+        eng = engine.RemoteChatEngine(self.conn, str(self.project), None, ChatOptions())
+        out = []
+        eng.load_tags(lambda *a: out.append(a))
+        eng.set_tags("m-1", ["x"], callback=lambda *a: out.append(a))
+        self.assertEqual(out, [({}, []), (None, "Conversation pas encore enregistrée.")])
+
 class ShellRelayTest(unittest.IsolatedAsyncioTestCase):
     async def test_shell_distant_relays(self):
         tmp = tempfile.mkdtemp(prefix="ccs-relay-")

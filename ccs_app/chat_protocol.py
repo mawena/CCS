@@ -452,14 +452,18 @@ def _line(obj):
     return json.dumps(obj, separators=(",", ":")) + "\n"
 
 
-def user_message(text, images=()):
-    """Message utilisateur ; `images` : suite de (media_type, octets)."""
+def user_message(text, images=(), uuid=None):
+    """Message utilisateur ; `images` : suite de (media_type, octets). `uuid` : identifiant de la
+    ligne du journal ; Claude Code le reprend tel quel, le message garde donc le même identifiant
+    en direct et à la relecture du journal (étiquettes)."""
     content = [{"type": "text", "text": text}]
     for media_type, data in images or ():
         content.append({"type": "image", "source": {
             "type": "base64", "media_type": media_type, "data": base64.b64encode(data).decode("ascii")}})
-    return _line({"type": "user", "message": {"role": "user", "content": content},
-                  "parent_tool_use_id": None})
+    msg = {"type": "user", "message": {"role": "user", "content": content}, "parent_tool_use_id": None}
+    if uuid:
+        msg["uuid"] = uuid
+    return _line(msg)
 
 
 def control(subtype, request_id, **fields):

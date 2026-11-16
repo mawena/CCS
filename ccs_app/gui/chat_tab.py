@@ -15,6 +15,7 @@ import os
 import re
 import threading
 import time
+import uuid
 
 import gi
 
@@ -23,7 +24,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, file_history, preview  # noqa: E402
-from .. import chat_quote, roadmap, saved_messages, sessions, settings, shell_command  # noqa: E402
+from .. import chat_quote, message_tags, roadmap, saved_messages, sessions, settings, shell_command  # noqa: E402
 from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from ..server import events as bridge_events  # noqa: E402
@@ -118,7 +119,7 @@ class ChatTab(Gtk.Box):
                                     on_open=lambda p, line: self.emit("open-file", p, line),
                                     on_link=self.open_link, base_dir=launch.cwd,
                                     on_older=self._show_older, on_rewind=self.rewind_from_bubble,
-                                    on_reply=self._on_reply)
+                                    on_reply=self._on_reply, on_tag=self._on_tag)
         self.composer = Composer(base_dir=launch.cwd)
         self.bar = ChatBar()
         self.bar.set_options(self.options)
@@ -156,8 +157,9 @@ class ChatTab(Gtk.Box):
         self.task_check.connect("clicked", lambda _b: self._check_task_box())
         self.task_later.connect("clicked", lambda _b: self.task_banner.set_visible(False))
         self._build_search()
-        for w in (self.offline_banner, self.search_bar, self.agent_bar, self.view_stack, self.todos_bar,
-                  self.task_banner, self.composer, self.bar):
+        self._build_tags_panel()
+        for w in (self.offline_banner, self.search_bar, self.tags_panel, self.agent_bar, self.view_stack,
+                  self.todos_bar, self.task_banner, self.composer, self.bar):
             self.panel.append(w)
         self.append(self.panel)
 
@@ -181,6 +183,8 @@ class ChatTab(Gtk.Box):
                                                   on_event=on_event, claude=claude, environ=environ)
         self._history_path = history_path
         self._load_history(history_path)
+        self._tags_sid = None                 # conversation dont les étiquettes sont chargées
+        self.reload_tags()
         GLib.timeout_add_seconds(SUSPEND_CHECK_S, self._tick)
 
     # ---- historique ----------------------------------------------------------------------
@@ -381,11 +385,13 @@ class ChatTab(Gtk.Box):
         sent, shown = prefix + text, text
         if quoted:
             sent, shown = chat_quote.compose(*quoted, sent), chat_quote.compose(*quoted, shown)
-        if not self.engine.send(sent, images):
+        # identifiant du message, repris par Claude Code pour sa ligne du journal (étiquettes)
+        uid = str(uuid.uuid4())
+        if not self.engine.send(sent, images, uuid=uid):
             if not self._engine_busy():
                 self._start_failed("Claude Code n'a pas pu démarrer.")
             return False
-        self.messages.add_user(shown, images, during=during)
+        self.messages.add_user(shown, images, during=during, msg_id=uid)
         if during:
             return True
         self._turn_started = time.time()
@@ -501,6 +507,149 @@ class ChatTab(Gtk.Box):
         n = self.messages.find_count()
         if n:
             self.find_label.set_label(f"{self.messages.find_position()} / {n}")
+
+    # ---- étiquettes sur les messages -----------------------------------------------------
+
+    def _build_tags_panel(self):
+        """Volet « Étiquettes » (Ctrl+Maj+E) : les messages étiquetés, groupés par étiquette ; un
+        clic défile jusqu'au message."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, margin_start=12, margin_end=12,
+                      margin_top=6, margin_bottom=6)
+        head = Gtk.Box(spacing=6)
+        head.append(Gtk.Label(label="Étiquettes", xalign=0, hexpand=True, css_classes=["heading"]))
+        close = Gtk.Button(icon_name="window-close-symbolic", tooltip_text="Fermer (Ctrl+Maj+E)",
+                           css_classes=["flat", "circular"])
+        close.connect("clicked", lambda _b: self.toggle_tags(False))
+        head.append(close)
+        box.append(head)
+        self.tags_note = Gtk.Label(xalign=0, wrap=True, css_classes=["dim-label"], visible=False)
+        box.append(self.tags_note)
+        self.tags_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.append(Gtk.ScrolledWindow(child=self.tags_list, hscrollbar_policy=Gtk.PolicyType.NEVER,
+                                      propagate_natural_height=True, max_content_height=260))
+        box.append(Gtk.Separator())
+        self.tags_panel = Gtk.Revealer(child=box, reveal_child=False,
+                                       transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN)
+        shortcuts = Gtk.ShortcutController()
+        shortcuts.add_shortcut(Gtk.Shortcut(trigger=Gtk.ShortcutTrigger.parse_string("<Control><Shift>e"),
+                                            action=Gtk.CallbackAction.new(
+                                                lambda *_a: (self.toggle_tags(), True)[1])))
+        self.add_controller(shortcuts)
+
+    def toggle_tags(self, show=None):
+        show = not self.tags_panel.get_reveal_child() if show is None else show
+        self.tags_panel.set_reveal_child(show)
+        if show:
+            self._set_tags_note("")
+            self._fill_tags_panel()
+            self.reload_tags()            # à jour (étiquettes posées ailleurs, suggestions)
+
+    def _set_tags_note(self, text):
+        self.tags_note.set_label(text)
+        self.tags_note.set_visible(bool(text))
+
+    def _fill_tags_panel(self):
+        child = self.tags_list.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            self.tags_list.remove(child)
+            child = nxt
+        groups = message_tags.by_tag(self.messages.tagged())
+        if not groups:
+            self.tags_list.append(Gtk.Label(
+                label="Aucun message étiqueté. Survolez un message et cliquez sur l'étiquette pour en poser une.",
+                xalign=0, wrap=True, css_classes=["dim-label"]))
+            return
+        for tag, items in groups:
+            self.tags_list.append(Gtk.Label(label=f"{tag} ({len(items)})", xalign=0, margin_top=4,
+                                            css_classes=["heading"]))
+            for msg_id, entry in items:
+                who = "Vous" if entry.get("role") == "utilisateur" else "Claude"
+                line = Gtk.Label(label=f"{who} : {entry.get('excerpt') or '…'}", xalign=0,
+                                 ellipsize=Pango.EllipsizeMode.END)
+                button = Gtk.Button(child=line, css_classes=["flat"], tooltip_text="Aller au message")
+                button.msg_id = msg_id
+                button.connect("clicked", lambda b: self.go_to_message(b.msg_id))
+                self.tags_list.append(button)
+
+    def go_to_message(self, msg_id, again=True):
+        """Défile jusqu'au message étiqueté ; fil élagué : relu d'abord depuis le journal."""
+        if self.messages.show_message(msg_id):
+            self._set_tags_note("")
+            return True
+        if again and self.messages.trimmed():
+            if self._engine_busy():
+                self._set_tags_note("Ce message n'est plus affiché : disponible quand Claude aura fini de répondre.")
+            else:
+                self.messages.reset()
+                self._load_history(self._history_path, then=lambda: self.go_to_message(msg_id, again=False))
+            return False
+        self._set_tags_note("Ce message n'est pas dans le fil (conversation compactée, ou journal pas encore lu).")
+        return False
+
+    def _tags_session(self):
+        sid = getattr(self.engine, "session_id", None) or self.state.session_id
+        return sid if message_tags.valid_session(sid) else None
+
+    def reload_tags(self):
+        """Étiquettes de la conversation : fichier local (dans un fil) ou serveur du chat."""
+        sid = self._tags_session()
+        self._tags_sid = sid
+        if sid is None:
+            return
+
+        def apply(messages, known):
+            if self._closed or sid != self._tags_session():
+                return
+            self.messages.set_tags(messages)
+            self.messages.known_tags = list(known)
+            if self.tags_panel.get_reveal_child():
+                self._fill_tags_panel()
+        if self.remote:
+            load = getattr(self.engine, "load_tags", None)
+            if load is not None:
+                load(lambda messages, known: apply(messages, known))
+            return
+        in_thread(lambda: (message_tags.load(sid), message_tags.known_tags()), lambda r: apply(*r))
+
+    def _on_tag(self, msg_id, tags, text, role):
+        """« Étiqueter » validé sur un message du fil."""
+        sid = self._tags_session()
+        if sid is None or not message_tags.valid_message(msg_id):
+            self.messages.add_notice("Étiquettes possibles une fois la conversation enregistrée "
+                                     "(après la première réponse de Claude).", "warning")
+            return
+
+        def done(entry, error=None):
+            if error is not None:
+                self.messages.add_notice(f"Étiquettes non enregistrées : {error}", "error")
+                return
+            self._apply_tags(sid, msg_id, entry)
+        if self.remote:
+            setter = getattr(self.engine, "set_tags", None)
+            if setter is not None:
+                setter(msg_id, tags, text, role, callback=done)
+            return
+
+        def work():
+            try:
+                return message_tags.set_tags(sid, msg_id, tags, text, role), None
+            except (OSError, ValueError) as e:
+                return None, str(e)
+        in_thread(work, lambda r: done(*r))
+
+    def _apply_tags(self, sid, msg_id, entry):
+        if self._closed or sid != self._tags_session():
+            return
+        self.messages.update_tags(msg_id, entry)
+        known = {t.casefold() for t in self.messages.known_tags}
+        self.messages.known_tags += [t for t in (entry or {}).get("tags") or () if t.casefold() not in known]
+        if self.tags_panel.get_reveal_child():
+            self._fill_tags_panel()
+
+    def _on_tags_changed(self, ev):
+        """Étiquettes changées sur le serveur du chat (ici ou sur un autre appareil)."""
+        self._apply_tags(ev.session_id, ev.msg_id, ev.entry)
 
     # ---- revenir en arrière --------------------------------------------------------------
 
@@ -714,7 +863,8 @@ class ChatTab(Gtk.Box):
         handler = {
             chat_engine.StateChanged: self._on_state,
             chat_engine.UserSent: lambda e: self.messages.add_user(   # envoyé d'un autre appareil
-                e.text, (), during=self._engine_busy()),
+                e.text, (), during=self._engine_busy(), msg_id=getattr(e, "uuid", "") or ""),
+            chat_engine.TagsChanged: self._on_tags_changed,
             chat_engine.ProcessExited: self._on_exited,
             chat_engine.ContextUsage: self._on_context,
             chat_engine.OptionRefused: self._on_option_refused,
@@ -779,6 +929,8 @@ class ChatTab(Gtk.Box):
         if ev.session_id and ev.session_id != self.state.session_id:
             self.state.session_id = ev.session_id
             self.owner.changed(self)
+        if self._tags_session() != self._tags_sid:
+            self.reload_tags()
 
     def _on_status(self, ev):
         """Mode de droits réellement en vigueur, confirmé par la CLI : la barre le reflète."""

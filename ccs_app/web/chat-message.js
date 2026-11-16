@@ -53,29 +53,37 @@ function actionsRow(msg, actions) {
   return row;
 }
 
-function messageNode(kind, author, content, actions) {
+// `msgId` : identifiant stable du message (étiquettes), le même en direct et à la relecture.
+export function setMsgId(node, msgId) {
+  node.msgId = msgId || "";
+  if (msgId) node.dataset.msg = msgId; else delete node.dataset.msg;
+}
+
+function messageNode(kind, author, content, actions, msgId = "") {
   const node = el("div", { class: `msg ${kind}` }, content);
   node.author = author;          // CLAUDE | ME
   node.content = content;        // ce que le message montre (bulle, Markdown rendu)
   node.raw = "";                 // son texte d'origine
   node.selected = null;
+  node.tagsNode = null;          // pastilles des étiquettes, entre le message et ses actions
+  setMsgId(node, msgId);
   if (actions?.length) node.append(actionsRow(node, actions));
   return node;
 }
 
 // Bulle d'un message de l'utilisateur ; `text` peut commencer par une citation (chat-quote.js).
-export function userNode(text, nImages = 0, actions = [], renderQuote = null) {
+export function userNode(text, nImages = 0, actions = [], renderQuote = null, msgId = "") {
   const q = split(text);
   const bubble = el("div", { class: "bubble" }, q ? quoteBlock(q, renderQuote) : null, q ? q.body : text,
     nImages ? el("div", { class: "subtle" }, `${nImages} image(s) jointe(s)`) : null);
-  const node = messageNode("user", ME, bubble, actions);
+  const node = messageNode("user", ME, bubble, actions, msgId);
   node.raw = text;
   return node;
 }
 
 // Réponse de Claude : le Markdown rendu va dans `node.content`, son texte d'origine dans `node.raw`.
-export function claudeNode(actions = []) {
-  return messageNode("claude", CLAUDE, el("div", { class: "md" }), actions);
+export function claudeNode(actions = [], msgId = "") {
+  return messageNode("claude", CLAUDE, el("div", { class: "md" }), actions, msgId);
 }
 
 // Ce qu'on cite d'un message : le passage sélectionné dedans, sinon son texte (début d'un long

@@ -17,7 +17,7 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, GLib, Graphene, Gtk, Pango  # noqa: E402
 
-from .. import chat_protocol as proto, chat_quote, preview  # noqa: E402
+from .. import chat_protocol as proto, chat_quote, message_tags, preview  # noqa: E402
 from ..conversations import fold  # noqa: E402
 from .markdown_view import MarkdownView  # noqa: E402
 
@@ -30,6 +30,8 @@ RESULT_CHARS = 20_000       # résultat d'outil montré (le reste est coupé à 
 FOLD_LINES = 14             # un message de l'utilisateur plus long est replié (« Afficher tout »)
 FOLD_CHARS = 1500
 STICK_PX = 48               # à moins de 48 px du bas, la liste suit le texte qui arrive
+TAG_FLASH_MS = 1600         # message retrouvé depuis le volet Étiquettes : mis en évidence
+TAG_SUGGESTIONS = 12        # étiquettes proposées dans la fenêtre « Étiqueter »
 QUOTE_LINES = 4             # lignes montrées d'un message cité dans une bulle (un clic déplie)
 QUOTE_CHARS = 320
 MAX_WIDTH = 920
@@ -86,6 +88,9 @@ CSS = """
 .ccs-composer textview, .ccs-composer textview text { background: transparent; }
 .ccs-copy { min-width: 28px; min-height: 28px; margin: 2px; transition: opacity 120ms; }
 .ccs-hover-actions { transition: opacity 120ms; }
+.ccs-tag { font-size: 0.82em; padding: 1px 9px; border-radius: 99px;
+  background-color: alpha(@accent_bg_color, 0.18); }
+.ccs-tag-flash { background-color: alpha(@warning_bg_color, 0.55); transition: background-color 300ms; }
 .ccs-quoted { border-left: 3px solid @accent_color; border-radius: 6px; padding: 4px 10px;
   background-color: alpha(@window_fg_color, 0.07); }
 .ccs-quote-author { font-weight: 700; font-size: 0.88em; color: @accent_color; }
@@ -829,13 +834,15 @@ def _descendants(widget):
         child = child.get_next_sibling()
 
 
-def open_bubble_menu(row, rewind=None, reply=None):
-    """Menu de la bulle d'un message de l'utilisateur (clic droit) : « Répondre » et « Revenir à
-    avant ce message ». `reply(ligne)` et `rewind(ligne)` reçoivent la bulle."""
+def open_bubble_menu(row, rewind=None, reply=None, tag=None):
+    """Menu de la bulle d'un message de l'utilisateur (clic droit) : « Répondre », « Étiqueter… »
+    et « Revenir à avant ce message ». `reply(ligne)`, `tag(ligne)` et `rewind(ligne)` reçoivent
+    la bulle."""
     pop = Gtk.Popover()
     pop.set_parent(row)
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
     for attr, label, callback in (("reply_button", "Répondre", reply),
+                                  ("tag_button", "Étiqueter…", tag),
                                   ("rewind_button", "Revenir à avant ce message", rewind)):
         if callback is None:
             continue
@@ -855,17 +862,88 @@ def open_rewind_menu(row, callback):
     return row.rewind_button
 
 
+def fill_tags(box, tags):
+    """Pastilles des étiquettes d'un message (sous sa bulle) ; cachées s'il n'en a pas."""
+    child = box.get_first_child()
+    while child is not None:
+        nxt = child.get_next_sibling()
+        box.remove(child)
+        child = nxt
+    for tag in tags or ():
+        box.append(Gtk.Label(label=tag, css_classes=["ccs-tag"], tooltip_text="Étiquette (clic : modifier)"))
+    box.set_visible(bool(tags))
+
+
+def open_tag_editor(row, current, known, on_done):
+    """Petite fenêtre « Étiqueter » sur un message : champ prérempli (étiquettes séparées par des
+    virgules), étiquettes déjà utilisées en suggestion (un clic l'ajoute), Valider / Annuler.
+    on_done(étiquettes) à la validation ; une liste vide les retire."""
+    pop = Gtk.Popover()
+    pop.set_parent(row)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=6, margin_bottom=6,
+                  margin_start=6, margin_end=6, width_request=300)
+    box.append(Gtk.Label(label="Étiquettes, séparées par des virgules", xalign=0, css_classes=["caption"]))
+    entry = Gtk.Entry(text=", ".join(current), placeholder_text="important, à revoir", hexpand=True)
+    box.append(entry)
+    have = {t.casefold() for t in current}
+    offered = [t for t in known if t.casefold() not in have][:TAG_SUGGESTIONS]
+    pop.tag_suggestions = []
+    if offered:
+        flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=6, row_spacing=2,
+                           column_spacing=2)
+
+        def add(btn):
+            tags = message_tags.parse(entry.get_text())
+            if btn.tag.casefold() not in {t.casefold() for t in tags}:
+                tags.append(btn.tag)
+            entry.set_text(", ".join(tags))
+            entry.set_position(-1)
+            btn.set_sensitive(False)
+        for tag in offered:
+            btn = Gtk.Button(label=tag, css_classes=["flat", "small"], tooltip_text="Ajouter cette étiquette")
+            btn.tag = tag
+            btn.connect("clicked", add)
+            flow.append(btn)
+            pop.tag_suggestions.append(btn)
+        box.append(flow)
+    buttons = Gtk.Box(spacing=6, halign=Gtk.Align.END)
+    cancel = Gtk.Button(label="Annuler")
+    ok = Gtk.Button(label="Valider", css_classes=["suggested-action"])
+    buttons.append(cancel)
+    buttons.append(ok)
+    box.append(buttons)
+    pop.set_child(box)
+
+    def validate(*_a):
+        tags = message_tags.parse(entry.get_text())
+        pop.popdown()
+        on_done(tags)
+    ok.connect("clicked", validate)
+    entry.connect("activate", validate)
+    cancel.connect("clicked", lambda *_a: pop.popdown())
+    # refermée : détachée de la bulle (pas de fenêtre orpheline gardée en mémoire)
+    pop.connect("closed", lambda p: GLib.idle_add(lambda: (p.get_parent() is not None and p.unparent(), False)[1]))
+    pop.tag_entry, pop.tag_ok, pop.tag_cancel = entry, ok, cancel
+    pop.popup()
+    entry.grab_focus()
+    return pop
+
+
 class MessageList(Gtk.ScrolledWindow):
     """Fil de la conversation. Les widgets sont ajoutés en bas ; l'historique d'un chat rouvert
     se construit par paquets de 50 en remontant."""
 
     def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None, on_older=None,
-                 on_rewind=None, on_reply=None):
+                 on_rewind=None, on_reply=None, on_tag=None):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True, hexpand=True)
         install_css()
         self.on_diff, self.on_open, self.on_link = on_diff, on_open, on_link
         self.on_rewind = on_rewind    # on_rewind(ligne) : « Revenir à avant ce message »
         self.on_reply = on_reply      # on_reply(auteur, texte) : « Répondre » en citant un message
+        # on_tag(identifiant, étiquettes, texte, rôle) : « Étiqueter » un message
+        self.on_tag = on_tag
+        self._tags = {}           # identifiant de message -> entrée de message_tags
+        self.known_tags = []      # étiquettes déjà utilisées (suggestions)
         self.on_older = on_older
         self._dropped = 0         # lignes retirées du haut du fil par trim()
         self.base_dir = base_dir
@@ -985,7 +1063,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._views.append(view)
         return view
 
-    def _user_widget(self, text, images=(), during=False, on_rewind=None):
+    def _user_widget(self, text, images=(), during=False, on_rewind=None, msg_id=""):
         col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         for media_type, data in images or ():
             try:
@@ -1023,16 +1101,21 @@ class MessageList(Gtk.ScrolledWindow):
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.END, margin_start=60, spacing=2)
         bubble = self._bubble_widget("ccs-bubble-user", col, Gtk.Align.END)
         reply = self._reply_from if self.on_reply is not None and raw.strip() else None
-        if reply is not None:
-            # « Répondre » à gauche de la bulle, visible au survol
+        tag = self.edit_tags if self.on_tag is not None and msg_id else None
+        if reply is not None or tag is not None:
+            # « Répondre » et « Étiqueter » à gauche de la bulle, visibles au survol
             line = Gtk.Box(spacing=4, halign=Gtk.Align.END)
-            button = self._reply_button()
-            button.set_valign(Gtk.Align.CENTER)
-            button.set_opacity(0)
-            line.append(button)
+            actions = Gtk.Box(valign=Gtk.Align.CENTER, opacity=0, css_classes=["ccs-hover-actions"])
+            if reply is not None:
+                outer.reply_hover = self._reply_button()
+                actions.append(outer.reply_hover)
+            if tag is not None:
+                outer.tag_hover = self._tag_button()
+                actions.append(outer.tag_hover)
+            line.append(actions)
             line.append(bubble)
             outer.append(line)
-            outer.hover_actions = outer.reply_hover = button
+            outer.hover_actions = actions
             hover = Gtk.EventControllerMotion()
             hover.connect("enter", _show_actions, 1)
             hover.connect("leave", _show_actions, 0)
@@ -1044,12 +1127,16 @@ class MessageList(Gtk.ScrolledWindow):
                                    css_classes=["ccs-subtle", "caption"]))
         outer.is_user = True
         outer.copy_text, outer.quote_author = raw, chat_quote.ME
+        outer.tag_id, outer.tag_role = msg_id or "", "utilisateur"
+        if msg_id:
+            outer.tags_box = self._tags_widget(msg_id, Gtk.Align.END)
+            outer.append(outer.tags_box)
         callback = on_rewind or self.on_rewind
-        if callback is not None or reply is not None:
+        if callback is not None or reply is not None or tag is not None:
             # clic droit : menu de la bulle (sans référence à la ligne : pas de cycle)
             click = Gtk.GestureClick(button=3)
-            click.connect("pressed", lambda g, _n, _x, _y, cb=callback, rp=reply: open_bubble_menu(
-                g.get_widget(), rewind=cb, reply=rp))
+            click.connect("pressed", lambda g, _n, _x, _y, cb=callback, rp=reply, tg=tag: open_bubble_menu(
+                g.get_widget(), rewind=cb, reply=rp, tag=tg))
             outer.add_controller(click)
         return outer
 
@@ -1094,9 +1181,10 @@ class MessageList(Gtk.ScrolledWindow):
         if text:
             self.on_reply(author, text)
 
-    def _assistant_widget(self, text=""):
+    def _assistant_widget(self, text="", msg_id=""):
         view = self._markdown(text)
-        bubble = Gtk.Box(css_classes=["ccs-bubble-claude"], hexpand=True, margin_end=24, visible=bool(text))
+        bubble = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=["ccs-bubble-claude"], hexpand=True,
+                         margin_end=24, visible=bool(text))
         overlay = Gtk.Overlay(child=view, hexpand=True)
         # « Répondre » et « Copier » (texte Markdown brut) : visibles au survol de la réponse
         actions = Gtk.Box(halign=Gtk.Align.END, valign=Gtk.Align.START, opacity=0,
@@ -1110,6 +1198,9 @@ class MessageList(Gtk.ScrolledWindow):
         if self.on_reply is not None:
             bubble.reply_button = self._reply_button()
             actions.append(bubble.reply_button)
+        if self.on_tag is not None and msg_id:
+            bubble.tag_hover = self._tag_button()
+            actions.append(bubble.tag_hover)
         actions.append(copy)
         overlay.add_overlay(actions)
         hover = Gtk.EventControllerMotion()
@@ -1118,7 +1209,95 @@ class MessageList(Gtk.ScrolledWindow):
         bubble.add_controller(hover)
         bubble.copy_button, bubble.hover_actions = copy, actions
         bubble.append(overlay)
+        bubble.tag_id, bubble.tag_role = msg_id or "", "assistant"
+        if msg_id:
+            bubble.tags_box = self._tags_widget(msg_id, Gtk.Align.START)
+            bubble.append(bubble.tags_box)
         return bubble, view
+
+    # -- étiquettes --
+
+    def _tag_button(self):
+        button = Gtk.Button(icon_name="bookmark-new-symbolic", tooltip_text="Étiqueter ce message",
+                            css_classes=["flat", "circular", "ccs-copy"], focus_on_click=False)
+        button.connect("clicked", lambda btn: self.edit_tags(_owner(btn, "tag_id")))
+        return button
+
+    def _tags_widget(self, msg_id, halign):
+        box = Gtk.Box(spacing=4, halign=halign, margin_top=2)
+        fill_tags(box, (self._tags.get(msg_id) or {}).get("tags"))
+        click = Gtk.GestureClick(button=1)
+        click.connect("released", lambda g, *_a: self.edit_tags(_owner(g.get_widget(), "tag_id")))
+        box.add_controller(click)
+        return box
+
+    def edit_tags(self, row):
+        """« Étiqueter » un message : fenêtre préremplie ; la validation passe par on_tag (le fil
+        se met à jour quand l'enregistrement est confirmé, `update_tags`)."""
+        msg_id = getattr(row, "tag_id", "")
+        if row is None or not msg_id or self.on_tag is None:
+            return None
+        raw = getattr(row, "copy_text", "") or ""
+        role = getattr(row, "tag_role", "")
+        text = chat_quote.source_text(raw) if role == "utilisateur" else raw
+        current = (self._tags.get(msg_id) or {}).get("tags") or []
+        row.tag_popover = open_tag_editor(row, current, self.known_tags,
+                                          lambda tags: self.on_tag(msg_id, tags, text, role))
+        return row.tag_popover
+
+    def _tagged_rows(self, msg_id=None):
+        """Lignes du fil qui portent un identifiant de message (`msg_id` : celles-là seulement)."""
+        return [w for w in self._content_rows()
+                if getattr(w, "tag_id", "") and (msg_id is None or w.tag_id == msg_id)]
+
+    def set_tags(self, messages):
+        """Toutes les étiquettes de la conversation ({identifiant: entrée}) : pastilles à jour."""
+        self._tags = dict(messages or {})
+        for row in self._tagged_rows():
+            fill_tags(row.tags_box, (self._tags.get(row.tag_id) or {}).get("tags"))
+
+    def update_tags(self, msg_id, entry):
+        """Étiquettes d'un message changées (entrée None : retirées) ; sans recharger le fil."""
+        if entry and entry.get("tags"):
+            self._tags[msg_id] = entry
+        else:
+            self._tags.pop(msg_id, None)
+        for row in self._tagged_rows(msg_id):
+            fill_tags(row.tags_box, (entry or {}).get("tags"))
+
+    def tagged(self):
+        """{identifiant: entrée} des messages étiquetés de la conversation."""
+        return dict(self._tags)
+
+    def tags_of(self, msg_id):
+        return list((self._tags.get(msg_id) or {}).get("tags") or [])
+
+    def show_message(self, msg_id):
+        """Défile jusqu'au message `msg_id` et le met brièvement en évidence ; l'historique pas
+        encore construit est construit au besoin. Faux s'il n'est pas dans le fil."""
+        rows = self._tagged_rows(msg_id)
+        while not rows and self._hist_pos > 0:
+            self._load_more()
+            rows = self._tagged_rows(msg_id)
+        if not rows:
+            return False
+        target = rows[0]
+        target.add_css_class("ccs-tag-flash")
+        GLib.timeout_add(TAG_FLASH_MS, lambda w=target: (w.remove_css_class("ccs-tag-flash"), False)[1])
+        self._stick = False
+        self.new_button.set_visible(False)
+
+        def scroll():
+            ok, point = target.compute_point(self.box, Graphene.Point().init(0, 0))
+            if ok:
+                adj = self.get_vadjustment()
+                self._moving = True
+                adj.set_value(max(0.0, point.y - adj.get_page_size() / 3))
+                self._moving = False
+            return False
+        scroll()
+        GLib.idle_add(scroll)        # après la mise en page de l'historique tout juste construit
+        return True
 
     def _to_clipboard(self, text):
         display = Gdk.Display.get_default()
@@ -1198,8 +1377,8 @@ class MessageList(Gtk.ScrolledWindow):
         self.scroll_end_if_stuck()
         return card
 
-    def add_user(self, text, images=(), during=False, on_rewind=None):
-        row = self._append(self._user_widget(text, images, during, on_rewind))
+    def add_user(self, text, images=(), during=False, on_rewind=None, msg_id=""):
+        row = self._append(self._user_widget(text, images, during, on_rewind, msg_id))
         self.scroll_end_if_stuck()
         return row
 
@@ -1299,7 +1478,7 @@ class MessageList(Gtk.ScrolledWindow):
             return seg
         if not create:
             return None
-        bubble, view = self._assistant_widget()
+        bubble, view = self._assistant_widget(msg_id=msg_id or "")
         seg = _Segment(bubble, view)
         self._append(bubble)
         self._segs[msg_id] = seg
@@ -1525,11 +1704,11 @@ class MessageList(Gtk.ScrolledWindow):
 
     def _history_widget(self, m):
         if m.role == preview.USER:
-            return self._user_widget(m.text)
+            return self._user_widget(m.text, msg_id=getattr(m, "uuid", "") or "")
         if m.role == preview.ASSISTANT:
             if not (m.text or "").strip():
                 return None
-            bubble, _view = self._assistant_widget(m.text)
+            bubble, _view = self._assistant_widget(m.text, getattr(m, "msg_id", "") or "")
             return bubble
         if m.role == preview.TOOL and m.tool is not None:
             card = self._tool_widget(m.tool.name, m.tool.target or "")

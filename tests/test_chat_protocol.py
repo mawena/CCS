@@ -217,6 +217,11 @@ class WriteTest(unittest.TestCase):
         self.assertEqual(msg, {"type": "user", "message": {"role": "user", "content": [
             {"type": "text", "text": "Bonjour"}]}, "parent_tool_use_id": None})
 
+    def test_user_message_carries_the_journal_uuid(self):
+        msg = json.loads(cp.user_message("Bonjour", uuid="u-1"))
+        self.assertEqual(msg["uuid"], "u-1")
+        self.assertNotIn("uuid", json.loads(cp.user_message("Bonjour")))
+
     def test_user_message_with_image_is_base64(self):
         data = bytes(range(256))
         msg = json.loads(cp.user_message("Regarde", [("image/png", data)]))
