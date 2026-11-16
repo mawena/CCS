@@ -99,6 +99,36 @@ out = { shape: shape(view), sent: sent(), input: view.input.value, raw: msgs(vie
                          {"chat_id": "c1", "text": "Ma réponse", "shown": "Ma réponse", "images": []})
         self.assertEqual(out["input"], "")
 
+    def test_thread_follows_the_bottom_until_the_user_goes_up(self):
+        out = run("""
+const view = open();
+await settle();
+const t = view.thread;
+const at = (top, height = 1000) => { t.scrollHeight = height; t.clientHeight = 400; t.scrollTop = top; t.dispatchEvent(new win.Event("scroll")); return view.follow; };
+out = {};
+out.bottom = at(600);
+out.grew = at(600, 1500);                 // le fil a grandi sans geste : on suit toujours
+view.restick();
+out.back = t.scrollTop;
+out.up = at(300, 1500);                   // l'utilisateur remonte : on lâche
+view.restick();
+out.left = t.scrollTop;
+out.down = at(500, 1500);                 // il redescend sans atteindre le bas : toujours lâché
+out.end = at(1090, 1500);                 // revenu en bas : on suit de nouveau
+t.dispatchEvent(Object.assign(new win.Event("wheel"), { deltaY: -3 }));
+out.wheel = view.follow;
+view.toBottom();
+t.dispatchEvent(new win.Event("touchstart"));
+t.scrollTop = 1000; view.restick();
+out.touching = t.scrollTop;               // doigt posé : on ne tire pas le fil
+t.dispatchEvent(new win.Event("touchend"));
+view.restick();
+out.released = t.scrollTop;
+""")
+        self.assertEqual(out, {"bottom": True, "grew": True, "back": 1500, "up": False, "left": 300,
+                               "down": False, "end": True, "wheel": False, "touching": 1000,
+                               "released": 1500})
+
     def test_search_does_not_see_the_action_buttons(self):
         """Les boutons d'un message n'ont pas de texte : « répondre » ne trouve que les vrais messages."""
         out = run("""

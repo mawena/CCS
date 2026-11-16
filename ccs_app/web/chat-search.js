@@ -21,7 +21,8 @@ export function step(at, count, dir) {
 // Barre de recherche posée au-dessus du fil. `blocks()` renvoie les éléments du fil (messages,
 // cartes) ; `ensureAll()` charge, si besoin, tout l'historique avant de chercher.
 export class FindBar {
-  constructor({ blocks, ensureAll, onClose }) {
+  constructor({ blocks, ensureAll, onClose, onJump = null }) {
+    this.onJump = onJump;
     this.blocks = blocks;
     this.ensureAll = ensureAll;
     this.onClose = onClose;
@@ -61,7 +62,7 @@ export class FindBar {
   mark(current) {
     for (const b of this.blocks()) b.classList.remove("hit", "hit-current");
     for (const b of this.hits) b.classList.add("hit");
-    if (current) { const g = current.closest("details.tool-group"); if (g) g.open = true; current.classList.add("hit-current"); current.scrollIntoView({ block: "center" }); }
+    if (current) { this.onJump?.(); const g = current.closest("details.tool-group"); if (g) g.open = true; current.classList.add("hit-current"); current.scrollIntoView({ block: "center" }); }
   }
 
   async run() {

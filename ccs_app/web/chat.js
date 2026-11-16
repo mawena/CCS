@@ -95,7 +95,9 @@ export class ChatView {
     // Suivre le bas du fil tant que l'utilisateur n'est pas remonté lire plus haut : le texte
     // rendu après coup (Markdown) agrandit le fil sans passer par append().
     this.follow = true;
-    this.thread.addEventListener("scroll", () => { this.follow = this.stuck(); }, { passive: true });
+    this.lastTop = 0;
+    this.touching = false;
+    this.watchThread();
     this.thread.addEventListener("click", (e) => this.pick(e));
     this.working = el("div", { class: "working", hidden: true, role: "status" }, el("span", { class: "spinner" }), el("span", {}, "Claude travaille…"));
     this.todos = el("div", { class: "todos", hidden: true });
@@ -139,7 +141,8 @@ export class ChatView {
     for (const s of [this.rights, this.effort, this.model]) s.addEventListener("change", () => this.pushOptions());
 
     this.findbar = new FindBar({ blocks: () => [...this.thread.querySelectorAll(".msg, .tool")],
-      ensureAll: () => this.loadFullHistory(), onClose: () => this.input.focus() });
+      ensureAll: () => this.loadFullHistory(), onClose: () => this.input.focus(),
+      onJump: () => { this.follow = false; } });   // on lit un résultat : ne pas repartir en bas
     this.drawer = el("aside", { class: "drawer", hidden: true });
     resizable(this.drawer, "drawer", { min: 240, max: 1000 });
     this.menu = el("div", { class: "chat-menu", hidden: true });
@@ -709,7 +712,41 @@ export class ChatView {
 
   // ---- fil ----------------------------------------------------------------------------
 
-  toBottom() { this.follow = true; this.thread.scrollTop = this.thread.scrollHeight; }
+  toBottom() { this.follow = true; this.thread.scrollTop = this.thread.scrollHeight; this.lastTop = this.thread.scrollTop; }
+
+  // Seul un geste vers le haut détache du bas. « scroll » arrive aussi quand le fil grandit ou
+  // que sa zone rétrécit (clavier du téléphone, liste des tâches) sans que personne ait bougé :
+  // s'y fier décrochait le suivi en pleine réponse.
+  scrolled() {
+    const top = this.thread.scrollTop;
+    if (this.stuck()) this.follow = true;
+    else if (top < this.lastTop) this.follow = false;
+    this.lastTop = top;
+  }
+
+  // Tout ce qui change la hauteur sans passer par append() (texte rendu après coup, résultat
+  // d'un outil, image chargée, zone de saisie qui grandit) ramène en bas tant qu'on suit.
+  restick() { if (this.follow && !this.touching) this.toBottom(); }
+
+  watchThread() {
+    const t = this.thread;
+    const again = () => this.restick();
+    t.addEventListener("scroll", () => this.scrolled(), { passive: true });
+    t.addEventListener("wheel", (e) => { if (e.deltaY < 0) this.follow = false; }, { passive: true });
+    t.addEventListener("touchstart", () => { this.touching = true; }, { passive: true });
+    for (const end of ["touchend", "touchcancel"]) t.addEventListener(end, () => { this.touching = false; }, { passive: true });
+    t.addEventListener("load", again, true);
+    if (typeof MutationObserver === "function") {
+      const mo = new MutationObserver(again);
+      mo.observe(t, { childList: true, subtree: true, characterData: true });
+      this.offs.push(() => mo.disconnect());
+    }
+    if (typeof ResizeObserver === "function") {
+      const ro = new ResizeObserver(again);
+      ro.observe(t);
+      this.offs.push(() => ro.disconnect());
+    }
+  }
 
   stuck() { return this.thread.scrollHeight - this.thread.scrollTop - this.thread.clientHeight < 80; }
 
