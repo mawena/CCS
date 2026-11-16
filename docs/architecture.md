@@ -82,6 +82,7 @@ raccourcis clavier.
 | `git_graph` | Disposition du graphe façon ungit, portée de GiGit : ligne principale (premiers parents depuis HEAD) en colonne 0, les autres commits dans la colonne de la référence qui les possède |
 | `avatars` | Avatars des auteurs : GitHub pour les adresses `noreply`, Gravatar sinon, cache disque (un avatar absent est redemandé après 7 jours), réseau seulement si `git.avatars` est vrai |
 | `file_history` | Copies de Claude Code (`file-history-snapshot` du journal de la conversation) : `read`, changements d'une session, points de reprise (`user_messages`), `rewind_plan` / `apply` ; renvoie `None` si le format change (`check` alimente `ccs doctor`) |
+| `chat_quote` | Répondre en citant un message : `compose` (citation en bloc Markdown `> **Claude :**` ou `> **Moi :**`, puis la réponse), `split` (la retrouver à la relecture), `excerpt` (début d'un long message), `reply_text` (la réponse sans sa citation) ; sans entrée-sortie, même code que `web/chat-quote.js` |
 | `saved_messages` | Messages enregistrés du chat : `messages.json` commun, `.ccs/messages.json` par projet (le nom du projet l'emporte) ; fichier illisible = liste vide |
 | `shell_command` | Commande `!` du chat : `bash -lc` dans son propre groupe de processus, sortie bornée (`MAX_OUTPUT` = 20 000 caractères), arrêt de la commande et de ses enfants |
 | `phone_reply` | Autoriser ou Refuser depuis le téléphone : `Replies` (jetons à usage unique, `TOKEN_TTL` = 600 s), `Listener` (écoute du canal `phone.reply_topic`), en-tête d'actions ntfy, message de la demande |
@@ -974,10 +975,11 @@ JavaScript sans bundler, modules chargés par `index.html`. `app.js` gère la na
 adresse (`#/<page>/<sous-adresse>` : un chat ouvert a la sienne, d'où le bouton Retour du
 téléphone) ; `dom.js` donne les toasts, les cartes de confirmation, les états vides et les
 chargements. Un module par zone : `sessions*.js`, `project.js`, `chat*.js` (diff, liens,
-complétion, messages enregistrés, recherche, changements), `terminal.js`, `files.js`,
+complétion, messages enregistrés, recherche, changements, `chat-message.js` : bulles et rangée
+d'actions d'un message, `chat-quote.js` : format de la citation), `terminal.js`, `files.js`,
 `roadmap.js`, `git.js`, `home.js` et `pages-*.js` (bilan de santé, tâches de nuit, téléphone),
 `analysis.js`, `settings.js` ; une feuille de style par zone. Le service worker (`sw.js`,
-cache `ccs-v5`) met l'interface en cache.
+cache `ccs-v9`) met l'interface en cache.
 
 ### Protocole
 
@@ -1035,6 +1037,28 @@ le bandeau « Tâche finie ? » apparaît. L'autre choix met la tâche dans la f
 « Mes messages » de la complétion `/`), bouton « Compacter » de l'alerte de contexte lourd
 (envoie `/compact`) ou compactage automatique (`context_alert.AutoCompact`), commande `!` par `shell_command` (la sortie est ajoutée en tête du
 prochain message à Claude).
+
+**Répondre en citant.** Aucun changement du protocole ni du pont : la citation fait partie du
+texte du message (`chat_quote.compose`), donc du journal de Claude Code. « Répondre » sur un
+message (`MessageList.on_reply` au bureau, `chat-message.js` dans le web) pose la citation
+au-dessus de la saisie (`Composer.set_quote`, `ChatView.setQuote`) : le passage sélectionné
+dans le message, sinon son texte raccourci (`excerpt`). À l'envoi, la citation vient en
+tête, avant la sortie des commandes `!`, pour que la relecture la retrouve au début du texte.
+Toute bulle de l'utilisateur passe par `split` (en direct, écho d'un autre appareil,
+historique, aperçu) et montre la citation à part ; `conversations` (première et dernière
+demande), `sessions` (titre par défaut d'une conversation), `fiche` et les points de reprise de
+`bridge_work` gardent la réponse seule (`reply_text`). Dans le web, le passage cité d'une réponse de
+Claude est rendu en Markdown par le pont (`ChatView.quoteHtml`, appel `chat.render`) ; celui
+d'un message de l'utilisateur reste tel quel, comme dans sa bulle. Sur un écran tactile
+(`hover: none`), toucher un message ou y sélectionner du texte ouvre sa rangée d'actions ; à
+la souris, elle apparaît au survol. Les boutons d'un message du web n'ont pas de texte dans la
+page (icône, libellé posé par la feuille de style) : la recherche dans le fil lit le texte des
+messages.
+
+**Tests du web.** `tests/web_dom.mjs` est un faux DOM minimal (arbre, classes, événements
+qui remontent, sélecteurs simples, formulaires) : `tests/test_web_chat_view.py` y exécute la
+vraie vue du chat (`ChatView`) dans node, avec un faux pont, faute de navigateur sur la
+machine qui construit les paquets.
 
 **Le téléphone.** `phone_reply` : une demande d'autorisation part en notification ntfy avec
 deux boutons ; chacun publie `"<allow|deny> <id de la demande> <jeton>"` sur `phone.reply_topic`.

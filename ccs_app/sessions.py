@@ -15,7 +15,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import core, transcripts
+from . import chat_quote, core, transcripts
 
 REPORT_MIN_BUSY_S = 60
 TITLE_TAIL = 256 * 1024  # Claude Code réécrit régulièrement les titres en fin de journal
@@ -183,7 +183,8 @@ def _first_prompt(path):
                                     if isinstance(c, dict) and c.get("type") == "text"), None)
                 if (isinstance(content, str) and content.strip() and not content.startswith("<")
                         and not content.startswith(INJECTED_PREFIXES)):
-                    return _short(content.strip().splitlines()[0])
+                    # réponse à un message cité (chat_quote.py) : la réponse, pas la citation
+                    return _short(chat_quote.reply_text(content.strip()).strip().splitlines()[0])
     except OSError:
         pass
     return "(sans titre)"

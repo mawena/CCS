@@ -275,6 +275,9 @@ dans l'extension VS Code.
   s'ajoute au message, un fichier glissé depuis l'arbre insère `@chemin`.
   **Arrêter** (ou Échap) interrompt Claude ; un message écrit pendant qu'il
   travaille rejoint la **file de messages** et part quand il a fini.
+- **Répondre en citant** : comme dans une messagerie, « Répondre » sur un message (le tien
+  ou celui de Claude) le cite au-dessus de la saisie ; Claude le reçoit avec ta réponse. Si
+  du texte est sélectionné dans le message, seul ce passage est cité.
 - **Chercher dans le fil** : Ctrl+F ouvre une barre de recherche dans la conversation.
 - **Messages enregistrés** : des textes que tu envoies souvent, communs à tous les projets
   ou propres au projet ; le menu ☆ de la saisie les insère, et `/` les propose aussi.
@@ -574,7 +577,8 @@ mêmes fonctions que le bureau :
 - **Chat** : options (modèle, effort, droits) repliées, brouillon gardé par chat, diff
   lisible des modifications de Claude, chemins cités ouverts dans le volet Fichiers, complétion
   `@` et `/`, messages enregistrés, Compacter, commande `!`, recherche dans le fil, volet
-  « Changements de la session ».
+  « Changements de la session », **répondre en citant un message** (touche le message, puis
+  « Répondre »).
 - **Terminal** : barre de touches (Échap, Tab, Ctrl, flèches, symboles), Coller et Copier.
 - **Fichiers** : images, recherche par nom, ouverture à une ligne, édition simple ; **feuille
   de route** avec « Faire une tâche » (dans ce chat, un nouveau chat ou la file de nuit).

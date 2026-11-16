@@ -49,6 +49,24 @@ class FicheViewTest(HomeTestCase):
         self.assertNotIn("Fichiers modifiés", text)
         self.assertNotIn("Liste de tâches", text)
 
+    def test_preview_dialog_shows_a_quoted_message_apart(self):
+        from ccs_app import chat_quote as quote, preview
+        from ccs_app.conversations import Conversation
+        from ccs_app.gui import preview_dialog
+        conv = Conversation("s1", "/x/p/s1.jsonl", "/x/App", "Titre", "a", "b", 1, None, 0.0, "cli", "", 1)
+        with mock.patch.object(preview_dialog.PreviewDialog, "load"):
+            dlg = preview_dialog.PreviewDialog(conv)
+        reply = preview.Message(preview.USER, quote.compose("claude", "A ou B ?\nChoisis.", "La B"))
+        self.assertEqual(labels(dlg.bubble("Toi", reply, "ccs-bubble-user", Gtk.Align.END)),
+                         ["Toi", "En réponse à Claude : « A ou B ? Choisis. »", "La B"])
+        mine = preview.Message(preview.USER, quote.compose("moi", "Ajoute un bouton", "Finalement non"))
+        self.assertEqual(labels(dlg.bubble("Toi", mine, "ccs-bubble-user", Gtk.Align.END))[1],
+                         "En réponse à ton message : « Ajoute un bouton »")
+        # une réponse de Claude qui commence par une citation reste telle quelle
+        answer = preview.Message(preview.ASSISTANT, "> **Claude :**\n> x\n\ny")
+        self.assertEqual(labels(dlg.bubble("Claude", answer, "ccs-bubble-assistant", Gtk.Align.FILL)),
+                         ["Claude", "> **Claude :**\n> x\n\ny"])
+
     def test_preview_dialog_shows_card_and_archived_mention(self):
         from ccs_app import fiche as fiche_mod
         from ccs_app.conversations import Conversation

@@ -23,7 +23,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, file_history, preview  # noqa: E402
-from .. import roadmap, saved_messages, sessions, settings, shell_command  # noqa: E402
+from .. import chat_quote, roadmap, saved_messages, sessions, settings, shell_command  # noqa: E402
 from .. import terminal  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from ..server import events as bridge_events  # noqa: E402
@@ -107,7 +107,7 @@ class ChatTab(Gtk.Box):
         self.queue_reason = None
         self.term = _NoTerm()
         self._turn_done = False
-        self._pending = None        # (texte, images) envoyé, sans tour terminé : rendu si le démarrage échoue
+        self._pending = None        # (texte, images, citation) envoyé, sans tour terminé : rendu si le démarrage échoue
         self._error_notice = None
         self._closed = False
         self._files = None
@@ -117,7 +117,8 @@ class ChatTab(Gtk.Box):
         self.messages = MessageList(on_diff=lambda p, o, n: self.emit("show-diff", p, o, n),
                                     on_open=lambda p, line: self.emit("open-file", p, line),
                                     on_link=self.open_link, base_dir=launch.cwd,
-                                    on_older=self._show_older, on_rewind=self.rewind_from_bubble)
+                                    on_older=self._show_older, on_rewind=self.rewind_from_bubble,
+                                    on_reply=self._on_reply)
         self.composer = Composer(base_dir=launch.cwd)
         self.bar = ChatBar()
         self.bar.set_options(self.options)
@@ -333,15 +334,23 @@ class ChatTab(Gtk.Box):
         """Entrée dans la zone de saisie : envoi tout de suite, même pendant que Claude travaille
         (la CLI le lit en cours de route ou juste après ; la page n'a rien à mettre en file)."""
         self.state.typed_at = time.time()
+        quoted = self.composer.sent_quote   # message cité par « Répondre » : (auteur, texte)
         command = text.strip()[1:].strip() if text.lstrip().startswith("!") and not images else ""
         if command:
             self._run_shell(command)        # une commande `!` ne part pas chez Claude
+            if quoted:
+                self.composer.set_quote(*quoted)    # la citation attend le prochain message
             return
         prefix = "".join(self._shell_notes)
-        if not self._send(text, images, prefix=prefix):
-            self.composer.restore(text, images)
+        if not self._send(text, images, prefix=prefix, quoted=quoted):
+            self.composer.restore(text, images, quoted)
         else:
             self._shell_notes = []
+
+    def _on_reply(self, author, text):
+        """« Répondre » sur un message du fil : il est cité au-dessus de la saisie."""
+        self.composer.set_quote(author, text)
+        self.composer.focus()
 
     def _run_shell(self, command):
         """Commande `!` : lancée dans le dossier du projet, montrée dans une carte ; sa sortie
@@ -361,22 +370,26 @@ class ChatTab(Gtk.Box):
         card.stop_button.connect("clicked", lambda _b: run.stop())
         run.start(done)
 
-    def _send(self, text, images=(), prefix=""):
+    def _send(self, text, images=(), prefix="", quoted=None):
         """Envoie au moteur et montre la bulle ; faux si Claude ne démarre pas. Pendant un tour,
-        le message part aussi tout de suite (bulle marquée « envoyé pendant que Claude travaille »)."""
+        le message part aussi tout de suite (bulle marquée « envoyé pendant que Claude travaille »).
+        `quoted` (auteur, texte) : message cité, placé en tête du texte envoyé (`chat_quote.compose`)."""
         during = self._engine_busy()
         self.todos_bar.new_turn()
         if not during and not self.state.running:
             self.spawn()
-        if not self.engine.send(prefix + text, images):
+        sent, shown = prefix + text, text
+        if quoted:
+            sent, shown = chat_quote.compose(*quoted, sent), chat_quote.compose(*quoted, shown)
+        if not self.engine.send(sent, images):
             if not self._engine_busy():
                 self._start_failed("Claude Code n'a pas pu démarrer.")
             return False
-        self.messages.add_user(text, images, during=during)
+        self.messages.add_user(shown, images, during=during)
         if during:
             return True
         self._turn_started = time.time()
-        self._pending = (text, list(images))
+        self._pending = (text, list(images), quoted)
         self._turn_done = False
         self._on_state(chat_engine.StateChanged("busy"))   # tout de suite : la page lit cet état
         return True

@@ -107,3 +107,49 @@ dialog.saved { width: min(520px, calc(100vw - 24px)); }
   background: transparent; color: var(--subtle); font-size: 1em; font-weight: 500; cursor: pointer; }
 .copy-code:hover { background: color-mix(in srgb, var(--fg, currentColor) 8%, transparent); color: inherit; }
 .copy-code.done { color: var(--success); }
+
+/* Actions d'un message (« Répondre ») : au survol sur un écran à souris ; sur un écran tactile, on
+   touche le message et la rangée s'ouvre dessous, avec le libellé à côté de l'icône. */
+.msg { position: relative; }
+.msg-actions { display: none; gap: 2px; margin-top: 2px; user-select: none; -webkit-user-select: none; }
+.msg.user .msg-actions { justify-content: flex-end; }
+.msg.picked .msg-actions { display: flex; }
+.msg-act { min-height: 36px; min-width: 40px; padding: 0 10px; border-radius: 8px; background: transparent; color: var(--subtle);
+  font-size: 0.85em; font-weight: 500; }
+.msg-act::after { content: attr(data-label); }
+.msg-act:hover, .msg-act:focus-visible { background: var(--soft); color: inherit; filter: none; }
+@media (hover: hover) {
+  /* Flottante sous le message : elle ne décale rien. Le bas du fil lui garde sa place, pour
+     qu'elle ne soit pas coupée sous le dernier message. */
+  .thread { padding-bottom: 30px; }
+  .msg-actions { display: flex; position: absolute; top: 100%; left: 0; z-index: 2; margin-top: -6px; padding: 2px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--bg); box-shadow: var(--shadow);
+    opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+  .msg.user .msg-actions { left: auto; right: 0; }
+  .msg:hover .msg-actions, .msg:focus-within .msg-actions { opacity: 1; pointer-events: auto; }
+  .msg-act { min-height: 26px; min-width: 32px; padding: 0 8px; }
+  .msg-act::after { content: none; }
+}
+
+/* Citation : dans la bulle d'un message qui répond à un autre, et au-dessus de la saisie. */
+.quoted { margin: 0 0 6px; padding: 4px 10px; border-left: 3px solid var(--accent); border-radius: 6px;
+  background: color-mix(in srgb, var(--fg, currentColor) 7%, transparent); font-size: 0.9em; cursor: pointer; }
+.quoted::before { content: attr(data-author); display: block; font-size: 0.9em; font-weight: 700; color: var(--accent); }
+.quoted-text { white-space: pre-wrap; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+.quoted.open .quoted-text { display: block; }
+/* Passage rendu (Markdown) : replié par la hauteur, les blocs serrés. */
+.quoted-text.rendered { white-space: normal; display: block; max-height: 6em; overflow: hidden; }
+.quoted.open .quoted-text.rendered { max-height: none; }
+.quoted-text.rendered > * { margin: 0 0 4px; }
+.quoted-text.rendered > :last-child { margin-bottom: 0; }
+.quoted-text.rendered ul, .quoted-text.rendered ol { padding-left: 20px; }
+.quoted-text.rendered pre { padding: 4px 8px; white-space: pre-wrap; }
+.quoted-text.rendered table { border-collapse: collapse; display: block; overflow-x: auto; }
+.quoted-text.rendered th, .quoted-text.rendered td { border: 1px solid var(--line); padding: 2px 6px; }
+.quoted-text.rendered blockquote { padding-left: 8px; border-left: 2px solid var(--line); }
+.quoted-text.rendered h1, .quoted-text.rendered h2, .quoted-text.rendered h3, .quoted-text.rendered h4 { font-size: 1em; }
+.quote-bar { display: flex; align-items: center; gap: 6px; padding: 2px 2px 2px 10px; border-left: 3px solid var(--accent);
+  border-radius: 8px; background: var(--soft); font-size: 0.9em; }
+.quote-bar-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quote-bar-text::before { content: attr(data-author); display: block; font-size: 0.9em; font-weight: 700; color: var(--accent); }
+.quote-bar button { min-height: 36px; min-width: 36px; padding: 0 8px; }

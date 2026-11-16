@@ -17,7 +17,7 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, GLib, Graphene, Gtk, Pango  # noqa: E402
 
-from .. import chat_protocol as proto, preview  # noqa: E402
+from .. import chat_protocol as proto, chat_quote, preview  # noqa: E402
 from ..conversations import fold  # noqa: E402
 from .markdown_view import MarkdownView  # noqa: E402
 
@@ -30,6 +30,8 @@ RESULT_CHARS = 20_000       # résultat d'outil montré (le reste est coupé à 
 FOLD_LINES = 14             # un message de l'utilisateur plus long est replié (« Afficher tout »)
 FOLD_CHARS = 1500
 STICK_PX = 48               # à moins de 48 px du bas, la liste suit le texte qui arrive
+QUOTE_LINES = 4             # lignes montrées d'un message cité dans une bulle (un clic déplie)
+QUOTE_CHARS = 320
 MAX_WIDTH = 920
 
 TOOL_LABELS = {"Read": "Lecture", "Edit": "Modification", "MultiEdit": "Modifications",
@@ -83,6 +85,13 @@ CSS = """
 .ccs-composer.drop { box-shadow: 0 0 0 2px @accent_bg_color; }
 .ccs-composer textview, .ccs-composer textview text { background: transparent; }
 .ccs-copy { min-width: 28px; min-height: 28px; margin: 2px; transition: opacity 120ms; }
+.ccs-hover-actions { transition: opacity 120ms; }
+.ccs-quoted { border-left: 3px solid @accent_color; border-radius: 6px; padding: 4px 10px;
+  background-color: alpha(@window_fg_color, 0.07); }
+.ccs-quote-author { font-weight: 700; font-size: 0.88em; color: @accent_color; }
+.ccs-quoted .ccs-quote-text { font-size: 0.92em; }
+.ccs-quote-bar { border-left: 3px solid @accent_color; border-radius: 8px; padding: 2px 2px 2px 10px;
+  background-color: alpha(@window_fg_color, 0.05); }
 .ccs-thumb { border-radius: 8px; }
 .ccs-chat-bar button.ccs-barbtn { padding: 2px 10px; min-height: 0; border-radius: 99px; font-size: 0.92em; }
 .ccs-chat-bar button.ccs-barbtn:checked { background-color: alpha(@warning_bg_color, 0.30);
@@ -122,13 +131,13 @@ def _duration(seconds):
     return f"{s // 3600} h {(s % 3600) // 60:02d} min"
 
 
-def _fold(text):
-    """Les FOLD_LINES premières lignes (et au plus FOLD_CHARS caractères) suivies de « … »,
+def _fold(text, max_lines=FOLD_LINES, max_chars=FOLD_CHARS):
+    """Les `max_lines` premières lignes (et au plus `max_chars` caractères) suivies de « … »,
     ou le texte tel quel s'il est court."""
     lines = text.split("\n")
-    short = "\n".join(lines[:FOLD_LINES])
-    if len(short) > FOLD_CHARS:
-        short = short[:FOLD_CHARS].rstrip()
+    short = "\n".join(lines[:max_lines])
+    if len(short) > max_chars:
+        short = short[:max_chars].rstrip()
     return text if short == text else short.rstrip() + " …"
 
 
@@ -762,12 +771,43 @@ def release(widget):
         w.run_dispose()
 
 
-def _show_copy(controller, *args):
-    """Survol d'une réponse : montre ou cache son bouton « Copier » (dernier argument)."""
-    bubble = controller.get_widget()
-    button = getattr(bubble, "copy_button", None)
-    if button is not None:
-        button.set_opacity(args[-1])
+def _show_actions(controller, *args):
+    """Survol d'un message : montre ou cache ses boutons (« Répondre », « Copier ») ; l'opacité
+    est le dernier argument."""
+    actions = getattr(controller.get_widget(), "hover_actions", None)
+    if actions is not None:
+        actions.set_opacity(args[-1])
+
+
+def _owner(widget, attr="copy_text"):
+    """Le message (bulle, réponse) qui contient `widget` : son premier ancêtre qui porte `attr`.
+    Les gestionnaires passent par là au lieu de garder une référence à la bulle (cycle)."""
+    while widget is not None and not hasattr(widget, attr):
+        widget = widget.get_parent()
+    return widget
+
+
+def selected_text(widget):
+    """Texte sélectionné à la souris dans un message (texte ou bloc de code), ou ""."""
+    for w in (widget, *_descendants(widget)):
+        if isinstance(w, Gtk.Label):
+            bounds = w.get_selection_bounds()
+            if bounds and bounds[0]:
+                return w.get_text()[bounds[1]:bounds[2]].strip()
+        elif isinstance(w, Gtk.TextView):
+            buf = w.get_buffer()
+            bounds = buf.get_selection_bounds()
+            if bounds:
+                return buf.get_text(bounds[0], bounds[1], False).strip()
+    return ""
+
+
+def _toggle_quote(gesture, *_args):
+    """Clic sur la citation d'une bulle : la déplie en entier, ou la replie."""
+    box = gesture.get_widget()
+    label = getattr(box, "quote_label", None)
+    if label is not None:
+        label.set_label(box.quote_full if label.get_label() == box.quote_short else box.quote_short)
 
 
 class _Segment:
@@ -789,17 +829,30 @@ def _descendants(widget):
         child = child.get_next_sibling()
 
 
-def open_rewind_menu(row, callback):
-    """Menu de la bulle d'un message de l'utilisateur : « Revenir à avant ce message »."""
+def open_bubble_menu(row, rewind=None, reply=None):
+    """Menu de la bulle d'un message de l'utilisateur (clic droit) : « Répondre » et « Revenir à
+    avant ce message ». `reply(ligne)` et `rewind(ligne)` reçoivent la bulle."""
     pop = Gtk.Popover()
     pop.set_parent(row)
-    button = Gtk.Button(label="Revenir à avant ce message", css_classes=["flat"])
-    button.connect("clicked", lambda btn, cb=callback: (btn.get_ancestor(Gtk.Popover).popdown(),
-                                                        cb(btn.get_ancestor(Gtk.Popover).get_parent())))
-    pop.set_child(button)
-    row.rewind_button = button
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    for attr, label, callback in (("reply_button", "Répondre", reply),
+                                  ("rewind_button", "Revenir à avant ce message", rewind)):
+        if callback is None:
+            continue
+        button = Gtk.Button(css_classes=["flat"], child=Gtk.Label(label=label, xalign=0))
+        button.connect("clicked", lambda btn, cb=callback: (btn.get_ancestor(Gtk.Popover).popdown(),
+                                                            cb(btn.get_ancestor(Gtk.Popover).get_parent())))
+        box.append(button)
+        setattr(row, attr, button)
+    pop.set_child(box)
     pop.popup()
-    return button
+    return pop
+
+
+def open_rewind_menu(row, callback):
+    """Menu réduit à « Revenir à avant ce message » ; renvoie son bouton."""
+    open_bubble_menu(row, rewind=callback)
+    return row.rewind_button
 
 
 class MessageList(Gtk.ScrolledWindow):
@@ -807,11 +860,12 @@ class MessageList(Gtk.ScrolledWindow):
     se construit par paquets de 50 en remontant."""
 
     def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None, on_older=None,
-                 on_rewind=None):
+                 on_rewind=None, on_reply=None):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True, hexpand=True)
         install_css()
         self.on_diff, self.on_open, self.on_link = on_diff, on_open, on_link
         self.on_rewind = on_rewind    # on_rewind(ligne) : « Revenir à avant ce message »
+        self.on_reply = on_reply      # on_reply(auteur, texte) : « Répondre » en citant un message
         self.on_older = on_older
         self._dropped = 0         # lignes retirées du haut du fil par trim()
         self.base_dir = base_dir
@@ -942,6 +996,12 @@ class MessageList(Gtk.ScrolledWindow):
                               css_classes=["ccs-thumb"], height_request=min(180, texture.get_height()),
                               width_request=min(320, texture.get_width()))
             col.append(pic)
+        raw = text or ""
+        quoted = chat_quote.split(raw)
+        if quoted is not None:
+            # réponse à un message : ce qu'elle cite d'abord, à part, puis la réponse
+            col.append(self._quote_widget(quoted))
+            text = quoted.body
         if text:
             label = Gtk.Label(label=text, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
                               selectable=True, max_width_chars=80)
@@ -961,38 +1021,102 @@ class MessageList(Gtk.ScrolledWindow):
                 more.connect("clicked", toggle)
                 col.append(more)
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.END, margin_start=60, spacing=2)
-        outer.append(self._bubble_widget("ccs-bubble-user", col, Gtk.Align.END))
+        bubble = self._bubble_widget("ccs-bubble-user", col, Gtk.Align.END)
+        reply = self._reply_from if self.on_reply is not None and raw.strip() else None
+        if reply is not None:
+            # « Répondre » à gauche de la bulle, visible au survol
+            line = Gtk.Box(spacing=4, halign=Gtk.Align.END)
+            button = self._reply_button()
+            button.set_valign(Gtk.Align.CENTER)
+            button.set_opacity(0)
+            line.append(button)
+            line.append(bubble)
+            outer.append(line)
+            outer.hover_actions = outer.reply_hover = button
+            hover = Gtk.EventControllerMotion()
+            hover.connect("enter", _show_actions, 1)
+            hover.connect("leave", _show_actions, 0)
+            outer.add_controller(hover)
+        else:
+            outer.append(bubble)
         if during:
             outer.append(Gtk.Label(label="envoyé pendant que Claude travaille", xalign=1,
                                    css_classes=["ccs-subtle", "caption"]))
         outer.is_user = True
+        outer.copy_text, outer.quote_author = raw, chat_quote.ME
         callback = on_rewind or self.on_rewind
-        if callback is not None:
+        if callback is not None or reply is not None:
             # clic droit : menu de la bulle (sans référence à la ligne : pas de cycle)
             click = Gtk.GestureClick(button=3)
-            click.connect("pressed", lambda g, _n, _x, _y, cb=callback: open_rewind_menu(g.get_widget(), cb))
+            click.connect("pressed", lambda g, _n, _x, _y, cb=callback, rp=reply: open_bubble_menu(
+                g.get_widget(), rewind=cb, reply=rp))
             outer.add_controller(click)
         return outer
+
+    def _quote_widget(self, quoted):
+        """Citation en tête d'une bulle : l'auteur, puis le début du passage (un clic le déplie).
+        Replié à la main, comme un long message : la limite de lignes de GTK ignore les vrais
+        retours à la ligne."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=["ccs-quoted"])
+        box.append(Gtk.Label(label=chat_quote.SHOWN[quoted.author], xalign=0, css_classes=["ccs-quote-author"]))
+        box.quote_full, box.quote_short = quoted.text, _fold(quoted.text, QUOTE_LINES, QUOTE_CHARS)
+        label = Gtk.Label(label=box.quote_short, xalign=0, wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR,
+                          max_width_chars=80, css_classes=["ccs-quote-text"])
+        box.append(label)
+        box.quote_label = label
+        if box.quote_short != box.quote_full:
+            box.set_tooltip_text("Message cité (clic : tout afficher)")
+            click = Gtk.GestureClick(button=1)
+            click.connect("released", _toggle_quote)
+            box.add_controller(click)
+        return box
+
+    def _reply_button(self):
+        # focus_on_click=False : le clic ne déplace pas le focus, le texte sélectionné dans le
+        # message reste sélectionné (c'est lui qu'on cite)
+        button = Gtk.Button(icon_name="mail-reply-sender-symbolic", tooltip_text="Répondre en citant ce message",
+                            css_classes=["flat", "circular", "ccs-copy"], focus_on_click=False)
+        button.connect("clicked", lambda btn: self._reply_from(_owner(btn)))
+        return button
+
+    def _reply_from(self, row):
+        """« Répondre » sur un message : cite le passage sélectionné dedans, sinon son texte (le
+        début d'un long message ; pour une bulle qui citait déjà quelque chose, sa réponse)."""
+        if row is None or self.on_reply is None:
+            return
+        author = getattr(row, "quote_author", chat_quote.CLAUDE)
+        raw = getattr(row, "copy_text", "") or ""
+        picked = selected_text(row)
+        if picked:
+            text = chat_quote.excerpt(picked, chat_quote.SELECTION_MAX)
+        else:
+            text = chat_quote.excerpt(chat_quote.source_text(raw) if author == chat_quote.ME else raw)
+        if text:
+            self.on_reply(author, text)
 
     def _assistant_widget(self, text=""):
         view = self._markdown(text)
         bubble = Gtk.Box(css_classes=["ccs-bubble-claude"], hexpand=True, margin_end=24, visible=bool(text))
         overlay = Gtk.Overlay(child=view, hexpand=True)
-        # « Copier » (texte Markdown brut) : visible au survol de la réponse
+        # « Répondre » et « Copier » (texte Markdown brut) : visibles au survol de la réponse
+        actions = Gtk.Box(halign=Gtk.Align.END, valign=Gtk.Align.START, opacity=0,
+                          css_classes=["ccs-hover-actions"])
         copy = Gtk.Button(icon_name="edit-copy-symbolic", tooltip_text="Copier la réponse",
-                          halign=Gtk.Align.END, valign=Gtk.Align.START, opacity=0,
                           css_classes=["flat", "circular", "ccs-copy"])
-        bubble.copy_text = text
+        bubble.copy_text, bubble.quote_author = text, chat_quote.CLAUDE
         # Gestionnaires sans référence à la bulle ni au bouton qu'elle contient : un cycle
         # Python ↔ GTK la garderait en mémoire après son retrait du fil.
-        copy.connect("clicked", lambda btn: self._to_clipboard(
-            getattr(btn.get_parent().get_parent(), "copy_text", "") or ""))
-        overlay.add_overlay(copy)
+        copy.connect("clicked", lambda btn: self._to_clipboard(getattr(_owner(btn), "copy_text", "") or ""))
+        if self.on_reply is not None:
+            bubble.reply_button = self._reply_button()
+            actions.append(bubble.reply_button)
+        actions.append(copy)
+        overlay.add_overlay(actions)
         hover = Gtk.EventControllerMotion()
-        hover.connect("enter", _show_copy, 1)
-        hover.connect("leave", _show_copy, 0)
+        hover.connect("enter", _show_actions, 1)
+        hover.connect("leave", _show_actions, 0)
         bubble.add_controller(hover)
-        bubble.copy_button = copy
+        bubble.copy_button, bubble.hover_actions = copy, actions
         bubble.append(overlay)
         return bubble, view
 

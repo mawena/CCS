@@ -991,6 +991,62 @@ class ChatTabTest(HomeTestCase):
         self.assertFalse(hub.replies.pending())
         self.assertIsNone(hub.listener)
 
+    # ---- répondre en citant un message ---------------------------------------------------
+
+    def test_reply_quotes_the_message_in_what_is_sent(self):
+        from unittest import mock
+        from ccs_app import chat_quote as quote
+        tab, _owner = self.make()
+        tab.messages.finish_assistant("m1", "Deux options :\n\n- A\n- B")
+        tab.messages._segs["m1"].bubble.reply_button.emit("clicked")       # « Répondre »
+        self.assertEqual(tab.composer.quote, ("claude", "Deux options :\n\n- A\n- B"))
+        self.assertTrue(tab.composer.quote_bar.get_visible())
+        with mock.patch.object(tab.engine, "send", return_value=True) as send:
+            self.say(tab, "Prends la B")
+        self.assertEqual(send.call_args.args[0], quote.compose("claude", "Deux options :\n\n- A\n- B", "Prends la B"))
+        self.assertIsNone(tab.composer.quote)
+        shown = texts(tab)
+        self.assertIn("Prends la B", shown)                                # la bulle : citation à part
+        self.assertIn("Claude", shown)
+        self.assertFalse(any(t.startswith("> **Claude :**") for t in shown))
+
+    def test_reply_keeps_the_quote_first_then_the_shell_output(self):
+        from unittest import mock
+        from ccs_app import chat_quote as quote
+        tab, _owner = self.make()
+        row = tab.messages.add_user("Ajoute un bouton")
+        self.say(tab, "!echo résultat-42")
+        self.assertTrue(pump_until(lambda: tab._shell_notes))
+        row.reply_hover.emit("clicked")
+        with mock.patch.object(tab.engine, "send", return_value=True) as send:
+            self.say(tab, "!echo autre")                                    # une commande `!` garde la citation
+            send.assert_not_called()
+            self.assertEqual(tab.composer.quote, ("moi", "Ajoute un bouton"))
+            self.assertTrue(pump_until(lambda: len(tab._shell_notes) == 2))
+            self.say(tab, "Finalement non")
+        sent = send.call_args.args[0]
+        got = quote.split(sent)
+        self.assertEqual((got.author, got.text), ("moi", "Ajoute un bouton"))
+        self.assertTrue(got.body.startswith("J'ai lancé `echo résultat-42`"))
+        self.assertTrue(got.body.endswith("```\n\nFinalement non"))
+        self.assertIsNone(tab.composer.quote)
+
+    def test_reply_is_given_back_when_claude_does_not_start(self):
+        tab, _owner = self.make(env={"FAKE_CLAUDE_EXIT": "1"})
+        tab.messages.finish_assistant("m1", "A ou B ?")
+        tab.messages._segs["m1"].bubble.reply_button.emit("clicked")
+        self.say(tab, "La B")
+        self.assertTrue(pump_until(lambda: tab._error_notice is not None))
+        self.assertEqual(tab.composer.text, "La B")                        # ni le message ni sa citation ne sont perdus
+        self.assertEqual(tab.composer.quote, ("claude", "A ou B ?"))
+
+    def test_reply_sent_from_another_device_shows_its_quote(self):
+        from ccs_app import chat_quote as quote
+        tab, _owner = self.make(spawn=False)
+        tab._dispatch(chat_engine.UserSent(quote.compose("claude", "A ou B ?", "La B"), 0, "autre"))
+        shown = texts(tab)
+        self.assertEqual([t for t in shown if t in ("Claude", "A ou B ?", "La B")], ["Claude", "A ou B ?", "La B"])
+
 
 if __name__ == "__main__":
     unittest.main()
