@@ -3,6 +3,26 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.20.0] — 2026-11-17
+
+### Ajouté
+
+- **Version web : onglet « Fichiers », un gestionnaire de fichiers**, à côté d'Accueil, Sessions,
+  Analyse et Réglages. Il parcourt le dossier personnel et les dossiers web du serveur
+  (`/var/www`, `/srv`) avec un fil d'Ariane, et permet d'y ouvrir, modifier, créer, envoyer,
+  télécharger, renommer et supprimer, comme dans le volet Fichiers d'un projet.
+- **Ajouter un dossier aux projets de CCS** depuis ce gestionnaire : bouton « Ajouter aux
+  projets » pour le dossier ouvert, ou « Ajouter aux projets de CCS » dans le menu « ⋯ » d'un
+  dossier ; le message de confirmation propose d'ouvrir le projet.
+- **Copier, couper et coller** un fichier ou un dossier (menu « ⋯ », puis « Coller ici » sur le
+  dossier de destination ou bouton « Coller » en haut), dans le gestionnaire comme dans le volet
+  Fichiers d'un projet. Une copie dans le même dossier s'appelle « nom (copie) » ; une copie est
+  limitée à 2 Go.
+
+Le code de ces trois nouveautés était parti par erreur dans les paquets de la 0.19.3 (deux
+sessions de travail dans le même dossier), sans réglage d'affichage, sans test web ni
+documentation : la 0.20.0 les termine et les annonce.
+
 ## [0.19.3] — 2026-11-17
 
 ### Corrigé

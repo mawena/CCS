@@ -457,7 +457,18 @@ Poser un ou plusieurs mots-clés sur un message (« important », « à revoir �
 - [x] 3 bis. 0.19.1 : bouton « ⤓ » direct sur chaque fichier de l'arbre (le téléchargement n'était visible que dans le menu « ⋯ ») ; affichage vérifié dans Chromium sans tête
 - [x] 3 ter. 0.19.2 : seuil par défaut du contexte lourd et du compactage automatique doublé (300 000 tokens)
 - [ ] 4. Essai réel par Charles : envoyer, télécharger, renommer, supprimer depuis le téléphone
-- [ ] 5. Plus tard, si utile : télécharger un dossier entier (archive), déplacer une entrée, même gestion sur le bureau
+- [ ] 5. Plus tard, si utile : télécharger un dossier entier (archive), même gestion sur le bureau
+
+## Phase 20 — Gestionnaire de fichiers du web (0.20.0)
+
+Un cinquième onglet « Fichiers » dans la navigation du web : parcourir les dossiers permis du serveur, tout y faire, et ajouter un dossier aux projets de CCS.
+
+- [x] 1. Pont : `files.roots` (dossiers de départ) et `files.paste` (copier ou déplacer, copie bornée à 2 Go, jamais un dossier dans lui-même)
+- [x] 2. Web : écran `files-browser.js` (fil d'Ariane, choix de la racine, adresse `#/fichiers/<dossier>`), actions « Ouvrir ce dossier » et « Ajouter aux projets de CCS »
+- [x] 3. Web : Copier, Couper, Coller dans le menu « ⋯ » et la barre d'outils (aussi dans le volet Fichiers d'un projet)
+- [x] 4. Tests (pont et web), affichage vérifié dans Chromium sans tête en largeur téléphone
+- [x] 5. Documentation et release mineure 0.20.0, dépôt APT compris
+- [ ] 6. Essai réel par Charles depuis le téléphone
 
 ## À venir — Séparateur après `/clear`
 

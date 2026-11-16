@@ -123,7 +123,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
     background: var(--card); border-top: 1px solid var(--line);
     padding: 4px 4px max(4px, env(safe-area-inset-bottom));
   }
-  .nav a { flex-direction: column; gap: 0; padding: 4px 6px; font-size: 0.75em; min-width: 64px; }
+  .nav a { flex-direction: column; gap: 0; padding: 4px 6px; font-size: 0.75em; min-width: 56px; }
   .nav-icon { font-size: 1.3em; line-height: 1.2; }
   .view { padding: 10px; padding-bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom)); }
   .view[data-view="sessions"] { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
@@ -290,8 +290,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .tree-more, .tree-save { flex: none; width: 36px; min-height: 36px; padding: 0; color: var(--muted, inherit); }
 .file-tools { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
 .file-tools[hidden] { display: none; }
-.browser-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
-.crumbs { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
+.browser-head { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 8px; }
+.crumbs { width: 100%; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
 .crumbs select { max-width: 100%; }
 .crumb { overflow-wrap: anywhere; }
 .crumb.here { padding: 0 6px; }

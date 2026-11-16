@@ -962,7 +962,7 @@ navigateur / téléphone / bureau GTK / ccs tui distant
 | `bridge_term` | `term.open`, `term.input`, `term.resize`, `term.list`… (pseudo-terminaux) ; la liste donne aussi le dossier et le nom de chaque terminal |
 | `bridge_work` | Travail dans le chat : `work.commands` (commandes `/`), `work.files` (fichiers après `@`), `work.saved.list` / `save` / `delete`, `work.shell.run` / `stop` / `poll` (commande `!`), `work.changes`, `work.undo_file`, `work.rewind_plan` / `rewind_apply` |
 | `bridge_admin` | Accueil et réglages : `accounts.cards` (rythme, prévision, statut), `doctor.run`, `tasks.log`, `tasks.remove`, `phone.test`, `phone.new_topic`, `phone.qr` |
-| `bridge_files` | Gestion des fichiers depuis le web : `files.download` et `files.upload` (par morceaux de 1 Mo, 200 Mo au plus ; un envoi s'écrit dans « .nom.ccs-envoi » puis prend son nom à la fin), `files.mkdir`, `files.create`, `files.rename`, `files.delete`, `files.info`. Le dossier personnel, les racines permises et le projet ouvert ne se renomment ni ne se suppriment ; un lien symbolique est traité lui-même, jamais sa cible |
+| `bridge_files` | Gestion des fichiers depuis le web : `files.download` et `files.upload` (par morceaux de 1 Mo, 200 Mo au plus ; un envoi s'écrit dans « .nom.ccs-envoi » puis prend son nom à la fin), `files.mkdir`, `files.create`, `files.rename`, `files.delete`, `files.info`, `files.paste` (copier ou déplacer, copie de 2 Go au plus), `files.roots` (dossiers de départ du gestionnaire de fichiers du web, `files-browser.js`). Le dossier personnel, les racines permises et le projet ouvert ne se renomment ni ne se suppriment ; un lien symbolique est traité lui-même, jamais sa cible |
 | `bridge_git` | `git.status`, `git.log`, `git.diff`, `git.stage`, `git.unstage`, `git.hunk`, `git.commit`, `git.fetch`, `git.pull`, `git.push` |
 
 Chaque chemin venu du client passe par `bridge_data.safe_path`. `bridge_work` n'écrit rien
@@ -982,7 +982,7 @@ d'actions d'un message, `chat-quote.js` : format de la citation, `chat-tags.js` 
 `terminal.js`, `files.js`,
 `roadmap.js`, `git.js`, `home.js` et `pages-*.js` (bilan de santé, tâches de nuit, téléphone),
 `analysis.js`, `settings.js` ; une feuille de style par zone. Le service worker (`sw.js`,
-cache `ccs-v14`) met l'interface en cache.
+cache `ccs-v15`) met l'interface en cache.
 
 ### Protocole
 

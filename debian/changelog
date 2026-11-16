@@ -1,3 +1,10 @@
+ccs (0.20.0) unstable; urgency=medium
+
+  * Version web : onglet « Fichiers » (gestionnaire de fichiers), ajout d'un dossier aux
+    projets, copier, couper et coller.
+
+ -- mawena <gamligocharles@gmail.com>  Tue, 17 Nov 2026 09:00:00 +0100
+
 ccs (0.19.3) unstable; urgency=medium
 
   * Contexte lourd : seuil par défaut doublé (300 000 tokens) ; tests d'interface adaptés.

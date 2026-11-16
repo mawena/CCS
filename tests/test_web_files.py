@@ -35,6 +35,8 @@ const api = {
         const all = new Uint8Array(old.length + d.length); all.set(old); all.set(d, old.length); parts.set(key, all);
         if (p.last) { store.set(key, all); parts.delete(key); } return { received: all.length, done: p.last }; }
       case "files.info": return { dir: false, count: 0, size: 3 };
+      case "files.roots": return { home: "/home/u", roots: ["/home/u", "/srv"] };
+      case "projects.add": return { cwd: p.cwd };
       default: return {};
     }
   },
@@ -129,11 +131,11 @@ out.mkdir = named("files.mkdir");
 out.inside = named("files.list").at(-1);
 out.left = document.querySelectorAll("dialog").length;
 """)
-        self.assertEqual(out["tools"], ["+ Fichier", "+ Dossier", "Envoyer"])
+        self.assertEqual(out["tools"], ["+ Fichier", "+ Dossier", "Envoyer", "Coller"])
         self.assertEqual(out["more"], ["Actions sur src", "Actions sur a.txt"])
         self.assertEqual(out["save"], ["Télécharger a.txt"])            # les fichiers seulement, pas les dossiers
         self.assertEqual(out["direct"], ["/p/a.txt"])
-        self.assertEqual(out["file"], ["Télécharger", "Renommer", "Supprimer"])
+        self.assertEqual(out["file"], ["Télécharger", "Copier", "Couper", "Renommer", "Supprimer"])
         self.assertEqual(out["ask"], "Supprimer « a.txt » ?")
         self.assertEqual(out["deleted"], [{"path": "/p/a.txt", "root": "/p"}])
         self.assertEqual(out["lists"], 2)                              # le dossier touché est rechargé
@@ -161,6 +163,68 @@ out.deleted = named("files.delete").length;
         self.assertEqual(out["value"], "a.txt")
         self.assertEqual(out["renamed"], [{"path": "/p/a.txt", "name": "b.txt", "root": "/p"}])
         self.assertEqual(out["deleted"], 0)
+
+    def test_copy_cut_and_paste(self):
+        out = run("""
+const panel = new FilesPanel(root, api, "/p");
+await settle();
+const more = () => panel.tree.querySelectorAll(".tree-more");
+out = { hidden: panel.pasteBtn.hidden };
+more()[1].click(); await settle();
+await press("Copier");
+out.shown = [panel.pasteBtn.hidden, panel.pasteBtn.textContent];
+more()[0].click(); await settle();
+out.dir = sheet().querySelectorAll(".menu-item").map((b) => b.textContent);
+await press("Coller « a.txt » ici");
+panel.pasteBtn.click(); await settle();          // une copie se colle autant de fois qu'on veut
+more()[1].click(); await settle();
+await press("Couper");
+more()[0].click(); await settle();
+await press("Coller « a.txt » ici");
+out.pasted = named("files.paste");
+out.after = panel.pasteBtn.hidden;               // un déplacement vide le presse-papiers
+""")
+        self.assertTrue(out["hidden"])
+        self.assertEqual(out["shown"], [False, "Coller « a.txt »"])
+        self.assertIn("Coller « a.txt » ici", out["dir"])
+        self.assertEqual(out["pasted"], [
+            {"path": "/p/a.txt", "dir": "/p/src", "mode": "copy", "root": "/p"},
+            {"path": "/p/a.txt", "dir": "/p", "mode": "copy", "root": "/p"},
+            {"path": "/p/a.txt", "dir": "/p/src", "mode": "move", "root": "/p"}])
+        self.assertTrue(out["after"])
+
+    def test_browser_navigates_and_adds_projects(self):
+        out = run("""
+const { mountFiles } = await import("./files-browser.js");
+globalThis.location = { hash: "" };
+const view = mountFiles(root, api, { sub: "" });
+await settle();
+const crumbs = () => root.querySelector(".crumbs");
+out = { first: named("files.list").at(-1), roots: crumbs().querySelectorAll("option").map((o) => o.textContent) };
+root.querySelectorAll(".tree-more")[0].click(); await settle();
+out.menu = sheet().querySelectorAll(".menu-item").map((b) => b.textContent);
+await press("Ajouter aux projets de CCS");
+out.added = named("projects.add");
+root.querySelectorAll(".tree-more")[0].click(); await settle();
+await press("Ouvrir ce dossier");
+out.hash = location.hash;
+view.route(encodeURIComponent("/home/u/src")); await settle();
+out.inside = named("files.list").at(-1);
+out.here = crumbs().querySelector(".here").textContent;
+root.querySelector(".browser-head > button").click(); await settle();
+out.current = named("projects.add").at(-1);
+view.route(encodeURIComponent("/etc")); await settle();       // hors des dossiers permis : retour au départ
+out.refused = named("files.list").at(-1);
+""")
+        self.assertEqual(out["first"], {"root": "/home/u", "rel": ""})
+        self.assertEqual(out["roots"], ["Personnel", "/srv"])
+        self.assertEqual(out["menu"][3:5], ["Ouvrir ce dossier", "Ajouter aux projets de CCS"])
+        self.assertEqual(out["added"], [{"cwd": "/home/u/src"}])
+        self.assertEqual(out["hash"], "#/fichiers/%2Fhome%2Fu%2Fsrc")
+        self.assertEqual(out["inside"], {"root": "/home/u/src", "rel": ""})
+        self.assertEqual(out["here"], "src")
+        self.assertEqual(out["current"], {"cwd": "/home/u/src"})
+        self.assertEqual(out["refused"], {"root": "/home/u", "rel": ""})
 
 
 if __name__ == "__main__":
