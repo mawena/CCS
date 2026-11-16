@@ -2,7 +2,7 @@
 
 Taille du contexte = dernier usage de réponse du journal : `input_tokens` +
 `cache_read_input_tokens` + `cache_creation_input_tokens` (ce que le modèle relit à chaque
-message). Seule la fin du journal est lue. Au-delà du seuil (150 000 tokens par défaut),
+message). Seule la fin du journal est lue. Au-delà du seuil (300 000 tokens par défaut),
 une seule notification par session, avec le coût d'un message en équivalent dollars (prix de
 lecture du cache du modèle, `costs`) et le conseil `/compact` ou nouvelle session.
 
@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from . import core, costs, sessions
 from .alerts import Alert
 
-DEFAULTS = {"enabled": True, "threshold_tokens": 150_000, "auto_compact": False}
+DEFAULTS = {"enabled": True, "threshold_tokens": 300_000, "auto_compact": False}
 COMPACT_KEEP = 0.2            # part du contexte gardée après `/compact` (moyenne estimée)
 TAIL_BYTES = 256 * 1024
 TAIL_MAX = 4 * 1024 * 1024    # une réponse d'outil énorme peut éloigner le dernier usage

@@ -78,7 +78,7 @@ class CostTest(unittest.TestCase):
         self.assertNotIn("coûte", ca.advice_text(ca.Context(182_400, "?")))
 
     def test_config_with_fallbacks(self):
-        default = {"enabled": True, "threshold_tokens": 150_000, "auto_compact": False}
+        default = {"enabled": True, "threshold_tokens": 300_000, "auto_compact": False}
         self.assertEqual(ca.config(None), default)
         self.assertEqual(ca.config({"context_alert": {"enabled": False, "threshold_tokens": 90000}}),
                          {"enabled": False, "threshold_tokens": 90000, "auto_compact": False})
@@ -95,7 +95,7 @@ class CostTest(unittest.TestCase):
 
 
 class DecideTest(HomeTestCase):
-    def heavy(self, tokens=200_000):
+    def heavy(self, tokens=350_000):
         return ca.Context(tokens, "claude-opus-5-5")
 
     def test_one_alert_per_session(self):
@@ -138,7 +138,7 @@ class TickTest(HomeTestCase):
         (d / f"{sid}.jsonl").write_text(line(tokens, 0, 0))
 
     def test_tick_alerts_once_and_remembers_in_the_store(self):
-        self.write_journal("s1", 200_000)
+        self.write_journal("s1", 350_000)
         self.write_journal("s2", 10)
         found = [session(10, "s1"), session(11, "s2")]
         first = ca.tick(found, None, NOW)
@@ -151,7 +151,7 @@ class TickTest(HomeTestCase):
         self.assertEqual(ca.load_state(), {})
 
     def test_disabled_touches_nothing(self):
-        self.write_journal("s1", 200_000)
+        self.write_journal("s1", 350_000)
         self.assertEqual(ca.tick([session()], {"context_alert": {"enabled": False}}, NOW), [])
         self.assertFalse((self.store / "context-alerts.json").exists())
 
@@ -160,7 +160,7 @@ class TickTest(HomeTestCase):
         self.assertEqual(ca.load_state(), {})
         (self.store / "context-alerts.json").write_text('{"notified": [1]}')
         self.assertEqual(ca.load_state(), {})
-        self.write_journal("s1", 200_000)
+        self.write_journal("s1", 350_000)
         self.assertEqual(len(ca.tick([session()], None, NOW)), 1)
 
 
@@ -174,8 +174,8 @@ class StatuslineTest(HomeTestCase):
         return {"transcript_path": str(p)}
 
     def test_warning_when_heavy(self):
-        text = integration.statusline_text(self.STATE, NOW, self.payload(180_000))
-        self.assertTrue(text.endswith("⚠ contexte 180 k"), text)
+        text = integration.statusline_text(self.STATE, NOW, self.payload(330_000))
+        self.assertTrue(text.endswith("⚠ contexte 330 k"), text)
 
     def test_nothing_when_light_or_without_path_or_unreadable(self):
         for payload in (self.payload(1000), {}, None, {"transcript_path": str(self.home / "absent")},
@@ -184,12 +184,12 @@ class StatuslineTest(HomeTestCase):
 
     def test_disabled_by_settings(self):
         off = {"context_alert": {"enabled": False}}
-        text = integration.statusline_text(self.STATE, NOW, self.payload(180_000), settings=off)
+        text = integration.statusline_text(self.STATE, NOW, self.payload(330_000), settings=off)
         self.assertNotIn("contexte", text)
 
     def test_warning_also_without_data_and_with_pause(self):
-        text = integration.statusline_text({"pause": {"until": None}}, NOW, self.payload(180_000))
-        self.assertTrue(text.startswith("⏸ ") and text.endswith("⚠ contexte 180 k"), text)
+        text = integration.statusline_text({"pause": {"until": None}}, NOW, self.payload(330_000))
+        self.assertTrue(text.startswith("⏸ ") and text.endswith("⚠ contexte 330 k"), text)
 
 
 class CompactTest(unittest.TestCase):

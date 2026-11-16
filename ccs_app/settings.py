@@ -92,7 +92,7 @@ DEFAULTS = {
     "archive": {"enabled": True, "idle_days": 1, "max_age_days": 0},
     "sessions": {"idle_hours": 2},
     # auto_compact : dans les chats, CCS envoie `/compact` tout seul au-delà du seuil (phase 16).
-    "context_alert": {"enabled": True, "threshold_tokens": 150000, "auto_compact": False},
+    "context_alert": {"enabled": True, "threshold_tokens": 300000, "auto_compact": False},
     "budget": {"enabled": True, "alert_pcts": [80, 100]},
     # Phase 12 : chat graphique, panneau Fichiers, page Projets, apparence.
     # idle_suspend_min : minutes d'inactivité avant de suspendre le processus claude d'un
