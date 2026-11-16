@@ -84,8 +84,8 @@ class SessionCardsTest(unittest.TestCase):
         self.assertNotIn("Fermer", self.buttons())
 
     def test_heavy_context_badge(self):
-        self.render(contexts={10: self.ca.Context(182_000, "claude-opus-5-5")})
-        self.assertIn("contexte lourd · 182 k", self.labels())
+        self.render(contexts={10: self.ca.Context(332_000, "claude-opus-5-5")})
+        self.assertIn("contexte lourd · 332 k", self.labels())
         self.render(contexts={10: self.ca.Context(20_000, "claude-opus-5-5")})
         self.assertFalse(any("contexte lourd" in t for t in self.labels()))
         self.render(contexts={10: self.ca.Context(60_000, "claude-opus-5-5")}, heavy_tokens=50_000)
