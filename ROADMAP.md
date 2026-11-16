@@ -420,7 +420,7 @@ Comme sur WhatsApp : on choisit un message du chat (le sien ou celui de Claude),
 - [x] 3. Bureau : bouton « Répondre » au survol d'une réponse, entrée « Répondre » dans le menu d'une bulle, bandeau au-dessus de la saisie, bulle qui montre la citation
 - [x] 4. Conversations rouvertes : la citation est reconnue dans l'historique (web, bureau) et dans l'aperçu d'une conversation
 - [x] 5. Tests des modules touchés
-- [ ] 6. Documentation (README, docs, CHANGELOG) et release mineure 0.16.0, dépôt APT compris
+- [x] 6. Documentation (README, docs, CHANGELOG) et release mineure 0.16.0, dépôt APT compris
 
 ## Phase 18 — Étiquettes sur les messages (0.17.0)
 
