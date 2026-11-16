@@ -275,6 +275,12 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 /* ---- tiroir Fichiers / Feuille de route, terminal ---- */
 .chat-body { flex: 1; display: flex; min-height: 0; }
 .chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.thread-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
+.to-bottom { position: absolute; right: 16px; bottom: 12px; z-index: 5; width: 40px; height: 40px; min-height: 0; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--card); color: var(--fg); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+.to-bottom[hidden] { display: none; }
+.to-bottom svg { width: 18px; height: 18px; }
 .drawer { width: min(380px, 42%); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
 .drawer-head { display: flex; align-items: center; padding: 4px 4px 4px 12px; border-bottom: 1px solid var(--line); }
 .drawer-body { flex: 1; overflow: auto; padding: 8px; }
