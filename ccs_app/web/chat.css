@@ -153,3 +153,23 @@ dialog.saved { width: min(520px, calc(100vw - 24px)); }
 .quote-bar-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .quote-bar-text::before { content: attr(data-author); display: block; font-size: 0.9em; font-weight: 700; color: var(--accent); }
 .quote-bar button { min-height: 36px; min-width: 36px; padding: 0 8px; }
+
+/* Étiquettes : pastilles sous un message, feuille « Étiqueter », volet « Étiquettes ». */
+.msg-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.msg.user .msg-tags { justify-content: flex-end; }
+.tag-chip { min-height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--soft);
+  color: var(--accent); font-size: 0.85em; font-weight: 600; filter: none; }
+.tag-chip:hover, .tag-chip:focus-visible { border-color: var(--accent); }
+.tag-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.tag-excerpt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag-sheet .field { display: grid; gap: 4px; }
+.tags-panel { display: grid; gap: 8px; padding: 8px; }
+.tag-group > summary { cursor: pointer; padding: 6px 2px; }
+.tag-items { display: grid; gap: 4px; }
+.tag-item { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border-radius: 8px; background: var(--soft);
+  color: inherit; min-height: 44px; filter: none; }
+.tag-item:hover, .tag-item:focus-visible { background: var(--line); }
+.tag-who { font-size: 0.8em; }
+.tag-text { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.msg.flash { animation: msg-flash 1.6s ease-out; }
+@keyframes msg-flash { 0%, 40% { background: color-mix(in srgb, var(--accent) 18%, transparent); } 100% { background: transparent; } }
