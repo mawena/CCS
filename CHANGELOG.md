@@ -3,6 +3,14 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.19.2] — 2026-11-16
+
+### Modifié
+
+- **Contexte lourd : seuil par défaut doublé, de 150 000 à 300 000 tokens.** L'alerte et le
+  compactage automatique des chats se déclenchent deux fois moins souvent. Un seuil déjà réglé
+  dans `settings.json` reste celui choisi.
+
 ## [0.19.1] — 2026-11-16
 
 ### Modifié
