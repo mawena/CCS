@@ -5,7 +5,7 @@ from pathlib import Path
 
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
-from .. import conversations, core, costs, fiche, preview
+from .. import chat_quote, conversations, core, costs, fiche, preview
 from .common import in_thread
 from .fiche_view import FicheView
 
@@ -222,7 +222,16 @@ class PreviewDialog(Adw.Dialog):
             box.set_margin_start(80)
         head = f"{who} · {_when(m.ts)}" if m.ts else who
         box.append(Gtk.Label(label=head, xalign=0, css_classes=["caption-heading", "dim-label"]))
-        box.append(_label(m.text))
+        text = m.text
+        quoted = chat_quote.split(text) if m.role == preview.USER else None
+        if quoted is not None:
+            # réponse à un message : ce qu'elle cite sur une ligne, puis la réponse
+            where = "à Claude" if quoted.author == chat_quote.CLAUDE else "à ton message"
+            box.append(Gtk.Label(label=f"En réponse {where} : « {chat_quote.one_line(quoted.text, 160)} »", xalign=0,
+                                 wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR, css_classes=["caption", "dim-label"]))
+            text = quoted.body
+        if text:
+            box.append(_label(text))
         return box
 
     def tool_row(self, m):

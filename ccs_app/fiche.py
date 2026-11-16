@@ -11,7 +11,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from . import archive, conversations, core, preview, sessions
+from . import archive, chat_quote, conversations, core, preview, sessions
 
 REPLY_MAX = 400
 REQUEST_MAX = 600
@@ -133,7 +133,8 @@ def _user(d, msg, fiche):
         if text:
             parts.append(text)
     if parts:
-        fiche.last_request = _short("\n\n".join(parts), REQUEST_MAX)
+        # réponse à un message cité (chat_quote.py) : la réponse, pas la citation qui la précède
+        fiche.last_request = _short(chat_quote.reply_text("\n\n".join(parts)), REQUEST_MAX)
 
 
 def account_at(when, store=None):

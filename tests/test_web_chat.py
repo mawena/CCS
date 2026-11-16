@@ -434,3 +434,38 @@ class PhoneErgonomicsTest(unittest.TestCase):
         phone = "".join(re.findall(r"@media \(max-width: 719px\) \{(.*?)\n\}", css, re.S))
         self.assertIn(".sessions.chat-tab .tabs-row { display: none; }", phone)
         self.assertIn(".send-label { display: none; }", phone)
+
+
+@unittest.skipUnless(NODE, "node absent")
+class QuoteTest(unittest.TestCase):
+    """Répondre en citant : même format que le bureau (ccs_app/chat_quote.py)."""
+
+    def test_same_result_as_python(self):
+        from ccs_app import chat_quote as quote
+        from tests.test_chat_quote import SAMPLES
+        extra = [("claude", "mot " * 400, "x"), ("moi", "y" * 5000, ""), ("claude", "é😀 " * 600, "z")]
+        for author, quoted, body in SAMPLES + extra:
+            with self.subTest(quoted=quoted[:30]):
+                args = ", ".join(json.dumps(v) for v in (author, quoted, body))
+                r = node("chat-quote.js", f"(() => {{ const c = m.compose({args}); const s = m.split(c);"
+                                          f" return [c, s, m.excerpt({json.dumps(quoted)}), m.sourceText(c)]; }})()")
+                composed = quote.compose(author, quoted, body)
+                s = quote.split(composed)
+                self.assertEqual(r[0], composed)
+                self.assertEqual(r[1], {"author": s.author, "text": s.text, "body": s.body})
+                self.assertEqual(r[2], quote.excerpt(quoted))
+                self.assertEqual(r[3], quote.source_text(composed))
+
+    def test_plain_messages_have_no_quote(self):
+        for text in ("Bonjour", "> une citation tapée\n\nsuite", "> **Claude :**", "> **Quelqu'un :**\n> x\n\ny", ""):
+            with self.subTest(text=text):
+                self.assertIsNone(node("chat-quote.js", f"m.split({json.dumps(text)})"))
+        self.assertIsNone(node("chat-quote.js", "m.split(null)"))
+        self.assertEqual(node("chat-quote.js", 'm.compose("claude", "  ", "réponse")'), "réponse")
+
+    def test_constants_and_one_line(self):
+        from ccs_app import chat_quote as quote
+        self.assertEqual(node("chat-quote.js", "[m.QUOTE_MAX, m.SELECTION_MAX, m.CUT_MARK, m.LABELS, m.SHOWN]"),
+                         [quote.QUOTE_MAX, quote.SELECTION_MAX, quote.CUT_MARK, quote.LABELS, quote.SHOWN])
+        self.assertEqual(node("chat-quote.js", 'm.oneLine("a\\n\\n  b\\tc")'), quote.one_line("a\n\n  b\tc"))
+        self.assertEqual(node("chat-quote.js", 'm.oneLine("x".repeat(200), 10)'), quote.one_line("x" * 200, 10))

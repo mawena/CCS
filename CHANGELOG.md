@@ -3,6 +3,30 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.16.0] — 2026-11-16
+
+### Ajouté
+
+- **Répondre en citant un message** : comme dans une messagerie, « Répondre » sur un message
+  du chat (le tien ou celui de Claude) le cite au-dessus de la saisie ; Claude reçoit la
+  citation avec ta réponse. Échap ou la croix annule.
+  - **Bureau** : bouton « Répondre » au survol d'une réponse de Claude ou d'une de tes bulles,
+    et entrée « Répondre » dans le menu du clic droit.
+  - **Version web** : « Répondre » au survol à la souris ; au téléphone, toucher le message
+    (ou y sélectionner du texte) ouvre la rangée « Répondre ».
+  - **Citer un passage** : le texte sélectionné dans le message est seul cité (4 000
+    caractères au plus) ; sans sélection, tout le message, raccourci au-delà de 1 200
+    caractères.
+  - **Dans le fil** : la bulle montre la citation à part, repliée (un clic la déplie), puis
+    la réponse ; pareil sur les autres appareils et à la réouverture de la conversation.
+  - Claude reçoit du Markdown ordinaire (citation en bloc, puis la réponse), lisible aussi
+    dans le terminal de Claude Code.
+
+### Modifié
+
+- **Historique** : titre par défaut d'une conversation, « Dernière demande », fiche « où
+  j'en étais » et « Revenir avant un message » montrent la réponse, sans la citation.
+
 ## [0.15.0] — 2026-11-16
 
 ### Ajouté

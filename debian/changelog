@@ -1,3 +1,10 @@
+ccs (0.16.0) unstable; urgency=medium
+
+  * Répondre en citant un message du chat (bureau et version web) : le
+    message, ou le passage sélectionné, est cité avec la réponse.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 16 Nov 2026 06:00:00 +0000
+
 ccs (0.15.0) unstable; urgency=medium
 
   * Compactage automatique des chats (réglage désactivé par défaut) : au-delà

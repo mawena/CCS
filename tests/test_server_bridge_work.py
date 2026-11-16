@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ccs_app import chat_protocol as proto, file_history, saved_messages, sessions
+from ccs_app import chat_protocol as proto, chat_quote, file_history, saved_messages, sessions
 from ccs_app.server import bridge, bridge_chat, bridge_work, events, rpc
 from tests.helpers import HomeTestCase
 from tests.test_file_history import snap_line
@@ -220,6 +220,14 @@ class ChangesTest(WorkTest):
         self.assertEqual(ch["sha256"], self.sha(self.f))                  # C4 : contenu actuel
         self.assertFalse(ch["too_big"])
         self.assertEqual(r["points"][0]["message_id"], "m1")
+
+    def test_point_of_a_reply_shows_the_reply_not_its_quote(self):
+        (self.copies / "h1@v1").write_text("avant\n")
+        Path(self.f).write_text("après\n")
+        self.journal_with(self.user("m1", chat_quote.compose("claude", "A ou B ?\n" + "x" * 400, "Prends la B")),
+                          snap_line("m1", {self.f: ("h1@v1", 1)}))
+        r = self.call("work.changes", chat_id="c1")
+        self.assertEqual([p["text"] for p in r["points"]], ["Prends la B"])
 
     def test_points_are_only_messages_with_a_snapshot(self):
         (self.copies / "h1@v1").write_text("avant\n")

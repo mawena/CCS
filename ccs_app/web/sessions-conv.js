@@ -1,6 +1,8 @@
 // Conversations de l'historique : ligne (reprise d'un tap, marque « ouverte », coût), menu « ⋯ »
 // avec aperçu sans ouvrir et renommage. Utilisé par la liste de Sessions et par l'écran Projet.
 import { ago, clear, el, errorState, loading, toast } from "./dom.js";
+import { quoteBlock } from "./chat-message.js";
+import { split } from "./chat-quote.js";
 
 const base = (p) => (p || "").split("/").filter(Boolean).pop() || p;
 export const titleOf = (c) => c.title || c.first_prompt || "(sans titre)";
@@ -87,9 +89,13 @@ function preview(c, ctx) {
     clear(body);
     if (!shown.length) { body.append(el("p", { class: "subtle" }, "Rien à afficher dans cette conversation.")); return; }
     for (const m of shown) {
-      const text = m.text.length > 700 ? `${m.text.slice(0, 700)}…` : m.text;
+      // réponse à un message cité : la citation à part (repliée), puis la réponse
+      const q = kind(m) === "user" ? split(m.text) : null;
+      const full = q ? q.body : m.text;
+      const text = full.length > 700 ? `${full.slice(0, 700)}…` : full;
       body.append(el("div", { class: `pv ${kind(m)}` },
-        el("span", { class: "subtle" }, kind(m) === "user" ? "Toi" : "Claude"), el("div", { class: "pv-text" }, text)));
+        el("span", { class: "subtle" }, kind(m) === "user" ? "Toi" : "Claude"),
+        el("div", { class: "pv-text" }, q ? quoteBlock(q) : null, text)));
     }
   };
   load();

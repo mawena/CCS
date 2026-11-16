@@ -83,6 +83,8 @@ continuent sur le serveur si on ferme la page.
   menu des messages enregistrés (communs ou par projet), le bouton « Compacter » de l'alerte
   de contexte lourd, la commande `!` et la recherche dans le fil marchent comme au bureau.
   Le [compactage automatique](#compactage-automatique) se règle dans Réglages → Alertes.
+  Pour [répondre en citant un message](#répondre-en-citant-un-message), touche-le (ou
+  survole-le à la souris) : le bouton « Répondre » apparaît dessous.
   Le volet **Changements de la session** montre les fichiers changés par Claude avec leur
   diff ; annuler un fichier ou revenir à avant un message demande une confirmation.
 - **Terminal.** Sur écran tactile ou étroit, une barre de touches complète le clavier : Échap,
@@ -1091,6 +1093,36 @@ téléphone). Sur le téléphone, la notification porte les boutons **Autoriser*
   après sa réponse. La file de messages (voir [Messages en attente](#messages-en-attente))
   ne sert plus qu'à ce que CCS y met lui-même (reprise après une limite, onglets
   rouverts) ; « envoyer maintenant » y marche même pendant un tour.
+
+### Répondre en citant un message
+
+Comme dans une messagerie, tu peux répondre à un message précis du fil, le tien ou celui de
+Claude : il est cité avec ta réponse, et Claude sait de quoi tu parles.
+
+- **Au bureau** : survole une réponse de Claude, le bouton « Répondre » apparaît en haut à
+  droite, à côté de « Copier ». Pour un de tes messages, le bouton apparaît à gauche de la
+  bulle au survol ; le clic droit sur la bulle propose aussi « Répondre ».
+- **Dans la version web** : à la souris, survole le message, « Répondre » apparaît dessous.
+  Au téléphone, touche le message : la rangée « Répondre » s'ouvre sous lui.
+- Le message cité s'affiche **au-dessus de la zone de saisie** (« Réponse à Claude » ou
+  « Réponse à ton message »). La croix, ou Échap, annule la citation. Tape ta réponse et
+  envoie comme d'habitude.
+- **Citer un passage** : sélectionne du texte dans le message avant de cliquer sur
+  « Répondre » ; seul ce passage est cité (4 000 caractères au plus). Au téléphone, la
+  rangée « Répondre » s'ouvre dès que tu sélectionnes du texte dans un message. Sans
+  sélection, tout le message est cité ; au-delà de 1 200 caractères, seulement son début,
+  suivi de « […] ».
+- Dans le fil, ta bulle montre la citation à part, repliée sur quelques lignes (un clic la
+  déplie), puis ta réponse. C'est pareil sur les autres appareils et quand tu rouvres la
+  conversation. Dans la version web, une réponse de Claude citée garde sa mise en forme
+  (gras, listes, code) ; au bureau, elle est montrée en texte simple.
+
+Ce que Claude reçoit est du Markdown ordinaire, lisible aussi dans le terminal de Claude
+Code : la citation en bloc (`> **Claude :**` ou `> **Moi :**`, puis le passage), une ligne
+vide, puis ta réponse. Répondre à un message qui citait déjà quelque chose cite sa réponse,
+pas ce qu'il citait. Dans l'historique, le titre par défaut d'une conversation, « Dernière
+demande », la fiche « où j'en étais » et la liste « Revenir avant un message » montrent ta
+réponse, sans la citation.
 
 ### Chercher, enregistrer, compacter, lancer une commande
 
