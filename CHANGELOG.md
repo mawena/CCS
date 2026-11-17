@@ -3,6 +3,20 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.23.2] — 2026-11-17
+
+### Corrigé
+
+- **Sessions affichées « Claude travaille » alors que Claude était au repos** (liste « En
+  cours » du web, et le bureau). Les versions récentes de Claude Code envoient un signal
+  `command_lifecycle` juste après la fin du tour ; CCS le prenait pour un retour au travail
+  et ne repassait jamais au repos quand des messages envoyés pendant le tour y avaient été
+  lus. Seuls les vrais signes de travail comptent désormais.
+- **Sous-agents en arrière-plan restés « en cours » dans le chat web.** Claude Code annonce
+  leur fin dans son flux (`system/task_notification`) ; CCS ne lisait que le message
+  « <task-notification> », que la CLI ne renvoie pas toujours (pendant un tour, après un
+  compactage). Les deux sont lus, sans doublon.
+
 ## [0.23.1] — 2026-11-17
 
 ### Corrigé

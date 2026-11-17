@@ -541,3 +541,46 @@ class QueuedCompactTest(unittest.TestCase):
         self.feed(tour1 + debut + fin)
         self.assertEqual(self.col.of(proto.Compacting), [])
         self.assertEqual(len(self.col.of(proto.Compacted)), 1)
+
+
+class AfterResultTest(unittest.TestCase):
+    """Deux bugs du 17/11/2026 (chat web) : « Claude travaille » pour toujours, et sous-agents de
+    fond qui restaient « en cours »."""
+
+    def setUp(self):
+        self.col = Collector()
+        self.s = eng.ChatSession("/tmp", on_event=self.col)
+        self.proc = _Proc()
+        self.s._proc = self.proc
+        self.s._expected = 1
+        self.s._set_state("busy")
+
+    def line(self, **d):
+        self.s._handle_line(self.proc, json.dumps({"session_id": "s1", **d}) + "\n")
+
+    def test_command_lifecycle_after_the_result_does_not_keep_busy(self):
+        # deux messages envoyés pendant le tour, absorbés par lui : un seul `result`, puis la
+        # CLI annonce la fin d'une commande (`command_lifecycle`) juste après
+        self.assertTrue(self.s.send("et ça ?"))
+        self.assertTrue(self.s.send("et aussi ça ?"))
+        with mock.patch.object(eng, "SETTLE_S", 0.1):
+            self.line(type="command_lifecycle", command_uuid="c1", state="completed")
+            self.line(type="result", subtype="success", is_error=False, result="fait", num_turns=3)
+            self.line(type="command_lifecycle", command_uuid="c2", state="completed")
+            time.sleep(0.4)
+        self.assertEqual(self.s.state, "idle")
+        self.assertEqual(self.col.states()[-1], "idle")
+
+    def test_background_agent_notice_from_the_stream_once(self):
+        self.line(type="assistant", message={"id": "m1", "role": "assistant", "content": [
+            {"type": "tool_use", "id": "toolu_a", "name": "Agent",
+             "input": {"description": "Recherche", "prompt": "…", "run_in_background": True}}]},
+            parent_tool_use_id=None)
+        self.line(type="system", subtype="task_notification", task_id="t1", tool_use_id="toolu_a",
+                  status="completed", summary="Recherche finie")
+        self.line(type="user", message={"role": "user", "content":
+            "<task-notification><task-id>t1</task-id><tool-use-id>toolu_a</tool-use-id>"
+            "<status>completed</status><summary>Recherche finie</summary></task-notification>"},
+            parent_tool_use_id=None)
+        self.assertEqual(self.col.of(proto.TaskNotice), [proto.TaskNotice("toolu_a", "completed", "Recherche finie")])
+        self.assertFalse(self.s._background_ids)

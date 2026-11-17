@@ -155,6 +155,12 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(st(status=None), [cp.Compacting(False)])          # fin du compactage
         self.assertEqual(st(status=None, permissionMode="plan"), [cp.Compacting(False), cp.Status("plan")])
 
+    def test_task_notification_in_the_stream(self):
+        tn = lambda **d: cp.parse_line(j({"type": "system", "subtype": "task_notification", **d}))
+        self.assertEqual(tn(task_id="b1", tool_use_id="toolu_1", status="completed", summary="Fini"),
+                         [cp.TaskNotice("toolu_1", "completed", "Fini")])
+        self.assertEqual(tn(task_id="b1", status="completed"), [])        # sans outil : ignoré
+
     def test_control_reply_ok_and_error(self):
         evs = events("init-effort-controles")
         replies = of_type(evs, cp.ControlReply)

@@ -261,6 +261,11 @@ def _system(ev):
         pre = meta.get("pre_tokens", ev.get("pre_tokens"))
         return [Compacted(pre if isinstance(pre, int) else None,
                           _str(meta.get("trigger") or ev.get("trigger")))]
+    if sub == "task_notification":
+        # fin d'une tâche de fond (sous-agent, commande) : donnée dans le flux par les CLI
+        # récentes, en plus du message « <task-notification> » (le moteur ignore le doublon)
+        tool_id = _str(ev.get("tool_use_id"))
+        return [TaskNotice(tool_id, _str(ev.get("status")), _str(ev.get("summary")))] if tool_id else []
     if sub == "api_retry":
         delay = ev.get("retry_delay_ms")
         delay_s = _number(delay) / 1000 if delay is not None else _number(ev.get("delay_s"))
