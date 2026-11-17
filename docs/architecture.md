@@ -946,6 +946,12 @@ navigateur / téléphone / bureau GTK / ccs tui distant
 - **ccs-web** (`web.py`) : écoute `127.0.0.1:8420` (réglable dans `/etc/ccs/web.json`, clés
   `listen` et `origin`), sert l'interface (`/usr/share/ccs/web/`), `/api/login`,
   `/api/logout`, `/api/totp`, `/api/health` et un WebSocket par client (`/api/ws`).
+  **Mode Portier** (`portier.py`, clé `portier` de `web.json`, désactivé par défaut) : depuis
+  `127.0.0.1`/`::1`, l'en-tête `X-Portier-Utilisateur` d'un nom de la liste remplace la
+  session ; `ccs-web` demande alors à `ccs-auth` (méthode `portier`, qui relit `web.json` et
+  revérifie option, liste et groupe `ccs`) un ticket lié à un jeton éphémère, jamais
+  enregistré. `/api/portier` dit à la page de connexion s'il faut proposer Portier ;
+  `/api/logout` renvoie alors `redirect` vers l'adresse de déconnexion de Portier.
 - **ccs-bridge** (`bridge*.py`) : réutilise les modules sans GTK (`ChatEngine`, comptes,
   sessions, fichiers, feuille de route…). Le chat vit dans le pont et survit aux
   déconnexions. Si le service `ccs-daemon` de l'utilisateur n'est pas actif, le pont fait
