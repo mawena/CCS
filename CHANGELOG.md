@@ -3,6 +3,20 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.24.0] — 2026-11-17
+
+### Modifié
+
+- **Nouvelle présentation du gestionnaire de fichiers.**
+  - **Web** : icône colorée par type de fichier (clair et sombre), arbre aéré avec lignes de
+    rattachement et marques git en pastilles, fil d'Ariane défilant, barre d'outils à icônes
+    (en tuiles au téléphone), en-tête du fichier ouvert avec actions à icônes, images sur
+    damier, états vides soignés et « Télécharger » pour un fichier binaire ou trop gros.
+  - **Bureau** : icônes symboliques par type, noms tronqués au milieu (l'extension reste
+    visible), en-tête du dossier avec Tout replier, Actualiser, Copier le chemin et Ouvrir
+    dans Fichiers, dossier vide en page d'état, en-tête du fichier avec Chercher et
+    Enregistrer (actif seulement si le fichier est modifié).
+
 ## [0.23.2] — 2026-11-17
 
 ### Corrigé

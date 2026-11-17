@@ -529,6 +529,12 @@ Connexion unique par Portier (https://portier.mawena.cloud) pour la version web,
 - [x] 2. Moteur : `status: compacting` suivi (pas de filet pendant le compactage), retour à « occupé » quand la CLI se remet au travail, repos au dernier `result`
 - [x] 3. Tests (moteur, décodage, onglet de bureau : indicateur et bouton ■ éteints), release 0.23.1
 
+## 0.24.0 — Nouvelle présentation du gestionnaire de fichiers
+
+- [x] 1. Web : icônes par type, arbre, fil d'Ariane, barre d'outils, fichier ouvert, états vides (téléphone et bureau, clair et sombre)
+- [x] 2. Bureau : icônes symboliques, en-têtes du dossier et du fichier, page d'état du dossier vide
+- [x] 3. Release 0.24.0
+
 ## Correctif 0.23.2 — « Claude travaille » et sous-agents bloqués
 
 - [x] 1. Cause relevée sur le pont en production : `command_lifecycle` après le `result` relançait le compteur d'activité, le filet ne remettait jamais au repos ; la fin des sous-agents de fond arrive en `system/task_notification`, non lu
