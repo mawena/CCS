@@ -266,6 +266,9 @@ out="$("$CCS" help)"
 for w in "ccs tache" "ccs budget" "ccs fiche" "ccs sauvegarde" "ccs restaurer" "ccs telephone"; do
   expect "$out" "$w"
 done
+# Calcul réparti : la commande passe par le lanceur (oubliée dans la 0.21.0).
+expect "$out" "ccs distant lancer"
+out="$("$CCS" distant machines 2>&1 || true)"; expect "$out" "Ricochet n'est pas réglé"
 for alias in tache taches tasks; do
   out="$("$CCS" "$alias")"; expect "$out" "Aucune tâche"
 done
