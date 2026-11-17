@@ -19,7 +19,7 @@ SAMPLES = [
                             "desc", "/tmp", "agent"),
     proto.ControlReply("r2", False, {"a": 1}, "erreur"),
     proto.TurnResult(True, "success", 0.5, {"in": 1}, 200000, "fin", False, True),
-    proto.Compacted(1000, "auto"), proto.Retrying(2, 1.5), proto.Unknown({"type": "zzz"}),
+    proto.Compacted(1000, "auto"), proto.Compacting(True), proto.Retrying(2, 1.5), proto.Unknown({"type": "zzz"}),
     chat_engine.StateChanged("busy"), chat_engine.UserSent("bonjour", 1, "n1", "u-1"),
     chat_engine.TagsChanged("s1", "msg_1", {"tags": ["important"], "role": "assistant", "excerpt": "x", "ts": 1.0}),
     chat_engine.ContextUsage(12, 24000, 200000, True),

@@ -57,6 +57,13 @@ class Status:
 
 
 @dataclass(frozen=True)
+class Compacting:
+    """`system/status` du compactage : `active` vrai pendant « compacting », faux à la fin. Lu par
+    le moteur (la CLI travaille encore, sans autre signe de vie), jamais montré."""
+    active: bool
+
+
+@dataclass(frozen=True)
 class LocalCommand:
     """Résultat d'une commande locale (`/effort`…) : aucun appel au modèle."""
     text: str
@@ -246,7 +253,9 @@ def _system(ev):
                      tuple(s for s in ev.get("slash_commands") or () if isinstance(s, str)))]
     if sub == "status":
         mode = ev.get("permissionMode")
-        return [Status(mode)] if isinstance(mode, str) and mode else []
+        status = ev.get("status", "absent")
+        out = [Compacting(status == "compacting")] if status in ("compacting", None) else []
+        return out + ([Status(mode)] if isinstance(mode, str) and mode else [])
     if sub == "compact_boundary":
         meta = _dict(ev.get("compact_metadata"))
         pre = meta.get("pre_tokens", ev.get("pre_tokens"))

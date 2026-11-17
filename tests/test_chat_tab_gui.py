@@ -195,6 +195,31 @@ class ChatTabTest(HomeTestCase):
         self.assertTrue(any("pendant que Claude travaille" in t for t in texts(tab)))
         self.assertEqual(tab.composer.text, "")
 
+    def test_queued_compact_and_question_leave_no_busy_indicator(self):
+        """17/11/2026 : `/compact` puis une question envoyés pendant un long tour ; après la
+        réponse, « Claude réfléchit… » et le bouton ■ restaient affichés."""
+        from tests.test_chat_engine import _Proc, queued_compact_lines
+        tab, _owner = self.make(spawn=False)
+        proc = tab.engine._proc = _Proc()
+        tab.engine._expected = 1
+        tab.engine._set_state("busy")
+        self.assertTrue(pump_until(lambda: tab.composer.stop_button.get_visible()))
+        self.say(tab, "/compact")
+        self.say(tab, "tu fais quoi actuellement ?")
+        feed = lambda lines: [tab.engine._handle_line(proc, line + "\n") for line in lines]
+        tour1, debut, fin, question = queued_compact_lines()
+        with unittest.mock.patch.object(chat_engine, "SETTLE_S", 0.1):
+            feed(tour1 + debut)
+            pump_until(lambda: False, timeout=0.4)
+            feed(fin)
+            pump_until(lambda: False, timeout=0.4)
+            feed(question[:2])
+            self.assertTrue(pump_until(lambda: tab.messages.busy_row.get_visible()))
+            feed(question[2:])
+            self.assertTrue(pump_until(lambda: not tab.messages.busy_row.get_visible()))
+        self.assertFalse(tab.composer.stop_button.get_visible())
+        self.assertEqual(tab.engine.state, "idle")
+
     def test_image_while_busy_is_sent_now(self):
         tab, _owner = self.make("permissions-allow-toujours.jsonl")
         self.say(tab, "Lance la commande `touch essai1.txt` puis dis juste OK.")

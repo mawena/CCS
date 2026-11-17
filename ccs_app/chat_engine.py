@@ -30,6 +30,9 @@ STDERR_LINES = 20
 # CLI ne montre plus aucune activité pendant ce délai, on les tient pour absorbés par le tour
 # (la CLI peut lire un message reçu en plein tour sans lui donner de `result` à part).
 SETTLE_S = 3.0
+# Événements d'un tour en cours : reçus alors que le moteur est au repos, ils disent que la CLI
+# s'est remise au travail (message envoyé pendant le tour précédent, `/compact` en file).
+WORK_EVENTS = (proto.Thinking, proto.TextDelta, proto.AssistantText, proto.ToolUse, proto.Compacting)
 
 
 @dataclass(frozen=True)
@@ -119,6 +122,7 @@ class ChatSession:
         self._activity_at = 0.0             # dernier signe de vie de la CLI (hors result)
         self._background = False            # un sous-agent ou une tâche tourne en arrière-plan
         self._background_ids = set()        # appels d'outil des sous-agents de fond pas encore finis
+        self._compacting = False            # la CLI compacte (`/compact` lu, même envoyé pendant un tour)
         self._requested_stop = False
 
     # ------------------------------------------------------------------ état
@@ -191,6 +195,7 @@ class ChatSession:
         self._perms.clear()
         self._open_tools.clear()
         self._expected = 0
+        self._compacting = False
         self._silent = 0
         self._pending_cmds.clear()  # l'effort part avec les options de lancement
         self._background = False
@@ -277,6 +282,12 @@ class ChatSession:
             self._background_ids.add(ev.tool_id)
         if isinstance(ev, proto.TaskNotice):
             self.background_finished(ev.tool_id)
+        if isinstance(ev, proto.Compacting):
+            self._compacting = ev.active
+            forward = False
+        if isinstance(ev, WORK_EVENTS) and not getattr(ev, "parent_id", None) \
+                and (not isinstance(ev, proto.Compacting) or ev.active):
+            self._working_again(proc)
         if isinstance(ev, proto.Init):
             if ev.session_id:
                 self.session_id = ev.session_id
@@ -309,6 +320,17 @@ class ChatSession:
         if isinstance(ev, (proto.TurnResult, proto.LocalCommand)):
             self._finish_one(proc, ev)
 
+    def _working_again(self, proc):
+        """La CLI travaille alors qu'on la croyait au repos : un message envoyé pendant un tour a
+        été soldé par le filet (le compactage, par exemple, ne donne aucun signe de vie pendant
+        plusieurs secondes), et son tour arrive maintenant. On repasse « occupé » et on attend son
+        `result` : c'est lui qui remettra l'état au repos (et éteindra l'indicateur)."""
+        with self._lock:
+            if proc is not self._proc or self.state != "idle":
+                return
+            self._expected = max(self._expected, 1)
+        self._set_state("busy", proc)
+
     def _finish_one(self, proc, ev):
         """Un `result` (tour ou commande locale) est arrivé : idle quand tous le sont. S'il reste
         des messages envoyés pendant le tour, un filet les solde si la CLI ne fait plus rien."""
@@ -329,7 +351,7 @@ class ChatSession:
     def _settle(self, proc, result_at):
         """Filet : aucun signe de vie depuis le `result` → les messages restants ont été absorbés."""
         with self._lock:
-            if (proc is not self._proc or self._expected == 0 or self._perms
+            if (proc is not self._proc or self._expected == 0 or self._perms or self._compacting
                     or self._activity_at > result_at):
                 return
             self._expected = 0
