@@ -433,3 +433,111 @@ class ChatEngineTest(EngineCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _Pipe:
+    def __init__(self):
+        self.lines = []
+
+    def write(self, data):
+        self.lines.append(data)
+
+    def flush(self):
+        pass
+
+    def close(self):
+        pass
+
+
+class _Proc:
+    """Processus factice : on écrit sur son stdin, on lui fait « lire » des lignes à la main."""
+
+    def __init__(self):
+        self.stdin, self.pid = _Pipe(), 4242
+
+    def wait(self, timeout=None):
+        return 0
+
+    def poll(self):
+        return 0
+
+    def terminate(self):
+        pass
+
+    def kill(self):
+        pass
+
+
+def queued_compact_lines(sid="s1"):
+    """Flux relevé le 17/11/2026 (Claude Code 2.1.325) : un tour en cours, `/compact` puis une
+    question envoyés pendant ce tour. Le tour finit, la CLI compacte (plusieurs secondes sans
+    autre signe que `status: compacting`), puis la question a son propre tour."""
+    def j(**d):
+        return json.dumps({"session_id": sid, **d})
+    tour1 = [j(type="result", subtype="success", is_error=False, result="fait", num_turns=2)]
+    compact_debut = [j(type="system", subtype="status", status="compacting")]
+    compact_fin = [
+        j(type="system", subtype="status", status=None),
+        j(type="system", subtype="init", model="haiku", permissionMode="default", slash_commands=[]),
+        j(type="system", subtype="compact_boundary", compact_metadata={"trigger": "manual", "pre_tokens": 25287}),
+        j(type="user", isReplay=True, parent_tool_use_id=None,
+          message={"role": "user", "content": "<local-command-stdout>Compacted </local-command-stdout>"}),
+        j(type="result", subtype="success", is_error=False, result="", local_command="compact", num_turns=0)]
+    question = [
+        j(type="system", subtype="init", model="haiku", permissionMode="default", slash_commands=[]),
+        j(type="assistant", parent_tool_use_id=None,
+          message={"id": "m2", "role": "assistant", "content": [{"type": "thinking", "thinking": "…"}]}),
+        j(type="assistant", parent_tool_use_id=None,
+          message={"id": "m2", "role": "assistant", "content": [{"type": "text", "text": "Je relis le code."}]}),
+        j(type="result", subtype="success", is_error=False, result="Je relis le code.", num_turns=1)]
+    return tour1, compact_debut, compact_fin, question
+
+
+class QueuedCompactTest(unittest.TestCase):
+    """« Claude réfléchit… » restait affiché : `/compact` et une question envoyés pendant un tour
+    (17/11/2026). Le filet soldait la question pendant le compactage ; son tour arrivait moteur
+    « au repos », et son `result` ne changeait plus l'état : rien n'éteignait l'indicateur."""
+
+    def setUp(self):
+        self.col = Collector()
+        self.s = eng.ChatSession("/tmp", on_event=self.col)
+        self.proc = _Proc()
+        self.s._proc = self.proc
+        self.s._expected = 1
+        self.s._set_state("busy")                  # le long tour est en cours
+        self.assertTrue(self.s.send("/compact"))
+        self.assertTrue(self.s.send("tu fais quoi actuellement ?"))
+
+    def feed(self, lines):
+        for line in lines:
+            self.s._handle_line(self.proc, line + "\n")
+
+    def test_compact_then_question_sent_during_a_turn_end_idle(self):
+        tour1, debut, fin, question = queued_compact_lines()
+        with mock.patch.object(eng, "SETTLE_S", 0.1):
+            self.feed(tour1 + debut)
+            time.sleep(0.4)                        # le compactage dure plus que le filet
+            self.assertEqual(self.s.state, "busy")
+            self.feed(fin)
+            time.sleep(0.4)                        # la question tarde : le filet solde tout
+            self.feed(question[:2])                # … puis son tour arrive quand même
+            self.assertEqual(self.s.state, "busy")
+            self.feed(question[2:])
+        self.assertEqual(self.s.state, "idle")
+        self.assertEqual(self.col.states()[-1], "idle")      # annoncé : l'indicateur s'éteint
+        self.assertEqual(self.s._expected, 0)
+
+    def test_question_right_after_the_compaction(self):
+        tour1, debut, fin, question = queued_compact_lines()
+        with mock.patch.object(eng, "SETTLE_S", 0.1):
+            self.feed(tour1 + debut + fin + question)
+            time.sleep(0.4)
+        self.assertEqual(self.s.state, "idle")
+        self.assertEqual(self.col.states().count("idle"), 1)  # pas de repos au milieu
+        self.assertEqual(self.s._expected, 0)
+
+    def test_compacting_status_is_not_shown(self):
+        tour1, debut, fin, _question = queued_compact_lines()
+        self.feed(tour1 + debut + fin)
+        self.assertEqual(self.col.of(proto.Compacting), [])
+        self.assertEqual(len(self.col.of(proto.Compacted)), 1)

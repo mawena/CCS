@@ -3,6 +3,21 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.23.1] — 2026-11-17
+
+### Corrigé
+
+- **« Claude réfléchit… » restait affiché alors que plus rien ne tournait** (bureau, et
+  même cause pour le web). Si l'on envoyait `/compact` puis un message pendant un tour,
+  CCS croyait Claude au repos pendant le compactage : celui-ci dure plusieurs secondes sans
+  autre signe que `status: compacting`, et le filet qui solde les messages lus en cours de
+  tour le prenait pour la fin. Le tour de la question arrivait alors moteur « au repos »,
+  et son `result` ne changeait plus l'état, si bien que rien n'éteignait l'indicateur ni le
+  bouton ■. Le moteur suit maintenant le compactage, et repasse « occupé » dès que la CLI
+  se remet au travail : l'indicateur s'éteint au dernier `result`. Pas de minuterie
+  d'affichage. Tests : la séquence relevée sur la vraie CLI, rejouée dans le moteur et dans
+  l'onglet de bureau.
+
 ## [0.23.0] — 2026-11-17
 
 ### Ajouté
