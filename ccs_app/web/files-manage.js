@@ -25,6 +25,82 @@ export function size(n) {
   return `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`;
 }
 
+// Icônes SVG au trait (24 × 24, couleur du texte), dessinées ici : aucune dépendance. Partagées
+// par le volet Fichiers, le gestionnaire de fichiers et leurs feuilles d'actions.
+const DOC = "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5";
+const FOLDER = "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z";
+const TRAY = " M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3";
+const ICONS = {
+  dir: FOLDER,
+  file: DOC,
+  text: `${DOC} M9 13h6 M9 17h6`,
+  doc: `${DOC} M9 13h6 M9 17h3`,
+  code: `${DOC} M10 12.5l-2 2 2 2 M14 12.5l2 2-2 2`,
+  config: `${DOC} M8.5 13h2 M13.5 13h2 M8.5 17h5`,
+  image: "M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z M20 15l-5-5L5 20 M9 7.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3z",
+  archive: "M4 4h16v4H4z M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8 M10 12h4",
+  media: "M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z M10 9v6l5-3z",
+  "new-file": `${DOC} M12 11v6 M9 14h6`,
+  "new-dir": `${FOLDER} M12 10v6 M9 13h6`,
+  upload: `M12 15V4 M7.5 8.5L12 4l4.5 4.5${TRAY}`,
+  download: `M12 4v11 M7.5 10.5L12 15l4.5-4.5${TRAY}`,
+  paste: "M9 3h6v4H9z M9 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3",
+  more: "M5 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2z M12 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2z M19 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2z",
+  chevron: "M9 6l6 6-6 6",
+  back: "M15 5l-7 7 7 7",
+  search: "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z M20 20l-4-4",
+  home: "M4 11l8-7 8 7 M6 9.5V20h12V9.5",
+  wrap: "M4 6h16 M4 12h13a3 3 0 0 1 0 6h-4 M15 16l-2 2 2 2 M4 18h5",
+  edit: "M4 20h4L19 9l-4-4L4 16z M13 7l4 4",
+  save: "M5 12.5l4.5 4.5L19 7.5",
+  eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z",
+  copy: "M9 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1",
+  cut: "M6 4a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M6 14a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M8.5 8.5L20 19 M8.5 15.5L20 5",
+  trash: "M4 7h16 M10 11v6 M14 11v6 M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12 M9 7V4h6v3",
+  open: "M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1 M3 7v10a2 2 0 0 0 2 2h12l3.5-8H7.5L4 19",
+};
+
+// Icône de chaque action des feuilles d'actions (clés de FileManager.menu et du gestionnaire).
+const ACTION_ICONS = { file: "new-file", dir: "new-dir", upload: "upload", paste: "paste", open: "open",
+  project: "new-dir", download: "download", copy: "copy", move: "cut", rename: "edit", delete: "trash" };
+
+export function icon(name, cls = "") {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  const attrs = { class: `ico${cls ? ` ${cls}` : ""}`, viewBox: "0 0 24 24", width: "20", height: "20", fill: "none",
+    stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round",
+    "aria-hidden": "true", focusable: "false" };
+  for (const [k, v] of Object.entries(attrs)) svg.setAttribute(k, v);
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", ICONS[name] || ICONS.file);
+  svg.append(path);
+  return svg;
+}
+
+// Libellé d'un bouton à icône : le texte reste dans le bouton (lecteurs d'écran, tests) ; au
+// téléphone, la feuille de style peut le replier.
+export const label = (text) => el("span", { class: "btn-label" }, text);
+
+const KINDS = {
+  image: "png jpg jpeg gif webp svg bmp ico avif heic tif tiff",
+  code: "js mjs cjs ts tsx jsx py rb go rs c h cc cpp hpp java kt swift php sh bash zsh fish lua pl r sql css scss less html htm vue svelte dart cs",
+  config: "json yaml yml toml ini cfg conf env xml lock service desktop gitignore editorconfig",
+  text: "txt md markdown rst log csv tsv tex org adoc",
+  archive: "zip tar gz tgz bz2 xz zst 7z rar deb rpm jar war iso",
+  media: "mp3 wav ogg flac m4a opus mp4 mkv webm avi mov",
+  doc: "pdf odt ods odp doc docx xls xlsx ppt pptx epub",
+};
+const BY_EXT = new Map(Object.entries(KINDS).flatMap(([kind, exts]) => exts.split(" ").map((e) => [e, kind])));
+const BY_NAME = { makefile: "code", dockerfile: "code", license: "text", readme: "text", changelog: "text" };
+
+// Famille d'un fichier d'après son nom : son icône et sa couleur.
+export function kindOf(name, dir = false) {
+  if (dir) return "dir";
+  const low = name.toLowerCase();
+  const dot = low.lastIndexOf(".");
+  return BY_EXT.get(dot >= 0 ? low.slice(dot + 1) : "") || BY_NAME[low] || (dot === 0 ? "config" : "file");
+}
+
 // Tout le fichier, morceau par morceau ; `progress(reçu, total)` après chaque morceau.
 export async function fetchFile(api, path, progress = null) {
   const parts = [];
@@ -104,7 +180,8 @@ export function actionSheet(title, actions) {
     const done = (v) => { if (dlg.open) dlg.close(); dlg.remove(); resolve(v); };
     dlg.append(el("h2", { class: "sheet-name" }, title),
       el("div", { class: "sheet-list" }, ...actions.map(([key, label, danger]) =>
-        el("button", { type: "button", class: `menu-item${danger ? " danger-text" : ""}`, onclick: () => done(key) }, label))),
+        el("button", { type: "button", class: `menu-item${danger ? " danger-text" : ""}`, onclick: () => done(key) },
+          ACTION_ICONS[key] ? icon(ACTION_ICONS[key]) : null, label))),
       el("div", { class: "sheet-actions" }, el("button", { type: "button", onclick: () => done(null) }, "Fermer")));
     dlg.addEventListener("cancel", (e) => { e.preventDefault(); done(null); });
     document.body.append(dlg);

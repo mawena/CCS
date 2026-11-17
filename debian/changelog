@@ -1,3 +1,10 @@
+ccs (0.24.0) unstable; urgency=medium
+
+  * Fichiers : nouvelle présentation (web et bureau) — icônes par type, arbre
+    aéré, barre d'outils à icônes, en-têtes et états vides soignés.
+
+ -- mawena <gamligocharles@gmail.com>  Wed, 18 Nov 2026 00:00:00 +0100
+
 ccs (0.23.2) unstable; urgency=medium
 
   * Chat : « Claude travaille » restait affiché après un tour (signal

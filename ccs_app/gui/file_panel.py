@@ -6,12 +6,16 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gdk, Gio, GLib, GObject, Graphene, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Graphene, Gtk
 
 from .. import file_tree
 from .common import in_thread
 
 CSS = b"""
+.ccs-files-head { padding: 6px 6px 6px 12px; }
+.ccs-files-row { padding: 3px 0; }
+.ccs-files-row image.ccs-kind { opacity: 0.75; }
+.ccs-files-row image.ccs-kind-dir { color: @accent_color; opacity: 1; }
 .ccs-mark { font-weight: bold; font-size: 0.85em; min-width: 14px; }
 .ccs-mark-M { color: @warning_color; }
 .ccs-mark-A { color: @success_color; }
@@ -25,7 +29,55 @@ _css_done = False
 MARK_TEXT = {"M": "M", "A": "A", "D": "D", "?": "?", "•": "•"}
 MARK_CLASS = {"M": "ccs-mark-M", "A": "ccs-mark-A", "D": "ccs-mark-D",
               "?": "ccs-mark-Q", "•": "ccs-mark-dir"}
+MARK_TIP = {"M": "Modifié", "A": "Ajouté", "D": "Supprimé", "?": "Non suivi par git",
+            "•": "Contient des changements"}
 REFRESH_MS = 500
+
+# Icônes symboliques par type : chaque entrée est une liste de noms, du plus précis au
+# plus sûr (le dernier existe dans Adwaita), pour rester juste avec les autres thèmes.
+_TEXT = ("text-x-generic-symbolic",)
+_KIND_ICONS = {
+    "image": ("image-x-generic-symbolic",),
+    "audio": ("audio-x-generic-symbolic",),
+    "video": ("video-x-generic-symbolic",),
+    "archive": ("package-x-generic-symbolic",),
+    "code": ("text-x-script-symbolic",) + _TEXT,
+    "doc": ("x-office-document-symbolic",),
+    "sheet": ("x-office-spreadsheet-symbolic",),
+    "slides": ("x-office-presentation-symbolic",),
+    "font": ("font-x-generic-symbolic",),
+    "cert": ("application-certificate-symbolic",),
+    "binary": ("application-x-executable-symbolic",),
+}
+_EXT_KIND = {}
+for _kind, _exts in (
+        ("image", ".png .jpg .jpeg .gif .webp .bmp .svg .ico .tif .tiff .avif .heic .xcf"),
+        ("audio", ".mp3 .ogg .oga .opus .flac .wav .m4a .aac"),
+        ("video", ".mp4 .mkv .webm .avi .mov .ogv"),
+        ("archive", ".zip .tar .gz .tgz .bz2 .xz .zst .7z .rar .deb .rpm .jar .whl"),
+        ("code", ".py .pyi .js .mjs .cjs .ts .tsx .jsx .c .h .cc .cpp .hpp .rs .go .java "
+                 ".kt .rb .php .sh .bash .zsh .fish .lua .pl .swift .cs .sql .html .htm "
+                 ".css .scss .vue .svelte .json .yaml .yml .toml .ini .cfg .conf .xml "
+                 ".mk .cmake .ui .blp"),
+        ("doc", ".md .markdown .rst .odt .doc .docx .pdf .tex .org"),
+        ("sheet", ".csv .tsv .ods .xls .xlsx"),
+        ("slides", ".odp .ppt .pptx"),
+        ("font", ".ttf .otf .woff .woff2"),
+        ("cert", ".pem .crt .cer .key .gpg .asc .pub"),
+        ("binary", ".so .o .a .bin .exe .dll .pyc")):
+    for _e in _exts.split():
+        _EXT_KIND[_e] = _kind
+_NAME_KIND = {"makefile": "code", "dockerfile": "code", "containerfile": "code",
+              "meson.build": "code", "license": "doc", "copying": "doc"}
+
+
+def icon_names(name, is_dir=False):
+    """Noms d'icônes symboliques (du plus précis au plus sûr) pour une entrée."""
+    if is_dir:
+        return ("folder-symbolic",)
+    low = name.lower()
+    kind = _NAME_KIND.get(low) or _EXT_KIND.get(os.path.splitext(low)[1])
+    return _KIND_ICONS.get(kind, _TEXT)
 
 
 def _install_css():
@@ -127,15 +179,87 @@ class FileTree(Gtk.Box):
         self.list_view.add_css_class("navigation-sidebar")
         self.list_view.connect("activate", self._on_activate)
         scroller = Gtk.ScrolledWindow(vexpand=True, hexpand=True,
-                                      hscrollbar_policy=Gtk.PolicyType.AUTOMATIC)
+                                      hscrollbar_policy=Gtk.PolicyType.NEVER)
         scroller.set_child(self.list_view)
-        self.append(scroller)
+
+        self.append(self._build_header())
+        self.append(Gtk.Separator())
+        self.empty_page = Adw.StatusPage(
+            icon_name="folder-symbolic", title="Dossier vide",
+            description="Aucun fichier à afficher ici.")
+        self.empty_page.add_css_class("compact")
+        self.body = Gtk.Stack(vexpand=True, hexpand=True,
+                              transition_type=Gtk.StackTransitionType.CROSSFADE)
+        self.body.add_named(scroller, "liste")
+        self.body.add_named(self.empty_page, "vide")
+        self.append(self.body)
 
         self._build_menu()
         self.connect("destroy", self._on_destroy)
         git_dir = os.path.join(self.root, ".git")
         if not self.remote and os.path.isdir(git_dir):
             self._watch(git_dir)
+
+    # ---- en-tête ----------------------------------------------------------------
+
+    def _build_header(self):
+        """Nom du dossier, chemin en légende, actions groupées (boutons plats)."""
+        head = Gtk.Box(spacing=6)
+        head.add_css_class("ccs-files-head")
+        icon = Gtk.Image(icon_name="folder-remote-symbolic" if self.remote
+                         else "folder-symbolic", valign=Gtk.Align.CENTER)
+        icon.add_css_class("dim-label")
+        head.append(icon)
+        titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True,
+                         valign=Gtk.Align.CENTER)
+        name = os.path.basename(self.root.rstrip("/")) or self.root
+        self.title_label = Gtk.Label(label=name, xalign=0, ellipsize=3,
+                                     tooltip_text=self.root)
+        self.title_label.add_css_class("heading")
+        home = os.path.expanduser("~")
+        shown = ("~" + self.root[len(home):]
+                 if not self.remote and (self.root + "/").startswith(home + "/")
+                 else self.root)
+        self.path_label = Gtk.Label(label=shown, xalign=0, ellipsize=1,
+                                    tooltip_text=self.root)
+        self.path_label.add_css_class("caption")
+        self.path_label.add_css_class("dim-label")
+        titles.append(self.title_label)
+        titles.append(self.path_label)
+        head.append(titles)
+
+        tools = Gtk.Box(spacing=2, valign=Gtk.Align.CENTER)
+        actions = [("go-top-symbolic", "Tout replier", self.collapse_all),
+                   ("view-refresh-symbolic", "Actualiser", self.refresh),
+                   ("edit-copy-symbolic", "Copier le chemin du dossier",
+                    lambda: self.get_clipboard().set(self.root))]
+        if not self.remote:
+            actions.append(("folder-open-symbolic", "Ouvrir dans Fichiers",
+                            self._open_root))
+        for icon_name, tip, handler in actions:
+            btn = Gtk.Button(icon_name=icon_name, tooltip_text=tip)
+            btn.add_css_class("flat")
+            btn.update_property([Gtk.AccessibleProperty.LABEL], [tip])
+            btn.connect("clicked", lambda _b, h=handler: h())
+            tools.append(btn)
+        head.append(tools)
+        return head
+
+    def collapse_all(self):
+        """Replie tous les dossiers ouverts."""
+        for i in range(self.model.get_n_items() - 1, -1, -1):
+            row = self.model.get_item(i)
+            if row is not None and row.get_expanded():
+                row.set_expanded(False)
+
+    def _open_root(self):
+        if not self.remote:
+            Gtk.FileLauncher.new(Gio.File.new_for_path(self.root)).launch(
+                self._window(), None, lambda *_a: None)
+
+    def _update_empty(self):
+        empty = self._root_store.get_n_items() == 0
+        self.body.set_visible_child_name("vide" if empty else "liste")
 
     # ---- modèle -------------------------------------------------------------
 
@@ -203,6 +327,7 @@ class FileTree(Gtk.Box):
             if store is not None:
                 self._sync(store, dirpath, entries)
         self._apply_marks()
+        self._update_empty()
         if self._again:
             self._again = False
             self._request_refresh()
@@ -271,11 +396,13 @@ class FileTree(Gtk.Box):
     # ---- lignes ----------------------------------------------------------------
 
     def _setup_row(self, _factory, item):
-        box = Gtk.Box(spacing=6)
+        box = Gtk.Box(spacing=8)
+        box.add_css_class("ccs-files-row")
         icon = Gtk.Image()
-        label = Gtk.Label(xalign=0, hexpand=True, ellipsize=3)
+        icon.add_css_class("ccs-kind")
+        label = Gtk.Label(xalign=0, hexpand=True, ellipsize=2)   # milieu : garde l'extension
         label.add_css_class("ccs-name")
-        mark = Gtk.Label()
+        mark = Gtk.Label(width_chars=2)
         mark.add_css_class("ccs-mark")
         box.append(icon)
         box.append(label)
@@ -294,17 +421,25 @@ class FileTree(Gtk.Box):
         expander.set_list_row(row)
         box = expander.get_child()
         icon, label, mark = box.get_first_child(), box.get_first_child().get_next_sibling(), box.get_last_child()
-        icon.set_from_icon_name("folder-symbolic" if node.is_dir else "text-x-generic-symbolic")
+        icon.set_from_gicon(Gio.ThemedIcon.new_from_names(icon_names(node.name, node.is_dir)))
+        if node.is_dir:
+            icon.add_css_class("ccs-kind-dir")
+        else:
+            icon.remove_css_class("ccs-kind-dir")
         label.set_label(node.name)
+        label.set_tooltip_text(node.relpath)
         box.remove_css_class("ccs-deleted")
+        box.remove_css_class("dim-label")
         if node.deleted:
             box.add_css_class("ccs-deleted")
+            box.add_css_class("dim-label")
 
         def show_mark(*_a):
             for c in list(mark.get_css_classes()):
                 if c.startswith("ccs-mark-"):
                     mark.remove_css_class(c)
             mark.set_label(MARK_TEXT.get(node.mark, ""))
+            mark.set_tooltip_text(MARK_TIP.get(node.mark))
             if node.mark in MARK_CLASS:
                 mark.add_css_class(MARK_CLASS[node.mark])
 
