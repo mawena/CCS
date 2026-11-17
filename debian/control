@@ -25,7 +25,7 @@ Recommends: ccs-bureau,
             gpg-agent,
             pinentry-gnome3,
             curl
-Suggests: ccs-serveur, gnome-shell-extension-appindicator
+Suggests: ccs-serveur, gnome-shell-extension-appindicator, ricochet-agent, rsync
 Description: multi-account switcher and usage assistant for Claude Code
  CCS keeps several Claude Code accounts on one machine and switches between
  them with a single command, without logging out and in again.
