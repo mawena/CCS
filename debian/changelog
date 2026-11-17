@@ -1,3 +1,12 @@
+ccs (0.21.0) unstable; urgency=medium
+
+  * Calcul réparti : « ccs distant machines » et « ccs distant lancer » lancent
+    une commande sur une autre machine du réseau Ricochet (tunnel SSH, rsync),
+    en choisissant celle qui a l'outil et la moins chargée.
+  * Les chats reçoivent la consigne de s'en servir quand un outil manque.
+
+ -- mawena <gamligocharles@gmail.com>  Tue, 17 Nov 2026 19:00:00 +0100
+
 ccs (0.20.1) unstable; urgency=medium
 
   * Passage au dépôt APT unique https://apt.mawena.cloud : le paquet ne
