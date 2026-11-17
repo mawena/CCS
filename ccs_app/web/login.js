@@ -14,6 +14,7 @@ export function showLogin(onDone) {
   document.getElementById("shell").hidden = true;
   root.hidden = false;
   form.elements.user.focus();
+  offerPortier();
 
   const say = (text) => { message.textContent = text || ""; };
   const askCode = () => {
@@ -62,4 +63,17 @@ export function showLogin(onDone) {
       if (pending) f.code.select();
     }
   };
+}
+
+// Mode Portier : bouton vers la page de connexion de Portier, qui ramène ici une fois connecté.
+async function offerPortier() {
+  const link = document.getElementById("login-portier");
+  try {
+    const r = await fetch("/api/portier", { credentials: "same-origin" });
+    const p = r.ok ? await r.json() : null;
+    if (p?.actif && p.connexion) {
+      link.href = p.connexion;
+      link.hidden = false;
+    }
+  } catch { /* sans réponse : connexion habituelle seulement */ }
 }

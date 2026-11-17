@@ -18,7 +18,7 @@ import stat
 import subprocess
 import time
 
-from . import pam_auth, paths, rpc, totp
+from . import pam_auth, paths, portier, rpc, totp
 from .ratelimit import Limiter
 from .tokens import TokenStore, session_hash
 
@@ -60,7 +60,7 @@ def start_bridge(user, timeout=20):
 class AuthService:
     def __init__(self, tokens, pam_check=pam_auth.authenticate, allowed=pam_auth.allowed,
                  spawn_bridge=start_bridge, clock=time.time, host="ccs.mawena.cloud",
-                 refuse_delay=1.0, chown=_chown, limiter=None):
+                 refuse_delay=1.0, chown=_chown, limiter=None, portier_config=portier.load):
         self.tokens = tokens
         self.pam_check = pam_check
         self.allowed = allowed
@@ -70,6 +70,7 @@ class AuthService:
         self.refuse_delay = refuse_delay
         self.chown = chown
         self.limiter = limiter or Limiter()
+        self.portier_config = portier_config
         self.sleep = asyncio.sleep
         self._pending = {}          # jeton d'inscription → {user, secret, expires, pair}
 
@@ -81,7 +82,7 @@ class AuthService:
         return {name: wrap(getattr(self, attr)) for name, attr in (
             ("login", "login"), ("enroll", "enroll"), ("pair", "pair"), ("check", "check"),
             ("check_app", "check_app"), ("logout", "logout"), ("app_token", "app_token"),
-            ("tokens", "tokens_list"), ("revoke", "revoke"))}
+            ("tokens", "tokens_list"), ("revoke", "revoke"), ("portier", "portier"))}
 
     # ---- outils ----------------------------------------------------------------------
 
@@ -244,7 +245,18 @@ class AuthService:
 
     # ---- sessions et jetons ----------------------------------------------------------
 
+    def _portier_user(self, params):
+        """Utilisateur annoncé par Portier (via `ccs-web`) : revérifié ici, d'après la
+        configuration lue à chaque appel, pour que `ccs-web` ne puisse pas s'en passer."""
+        user = self._str(params, "portier")
+        if not (portier.allows(self.portier_config(), user) and self.allowed(user)):
+            log.warning("mode Portier refusé : %r", user[:40])
+            raise rpc.RpcError("refuse", "Mode Portier refusé.")
+        return user
+
     def _session_user(self, params):
+        if self._str(params, "portier"):
+            return self._portier_user(params)
         user = self.tokens.check_session(self._str(params, "session"))
         if user is None:
             raise rpc.RpcError("refuse", "Session expirée.")
@@ -260,6 +272,13 @@ class AuthService:
         if user is None:
             raise rpc.RpcError("refuse", "Jeton inconnu ou révoqué.")
         return {"user": user, "ticket": await self._ticket(user, token)}
+
+    async def portier(self, params):
+        """Ticket du pont pour un utilisateur vérifié par Portier : jeton éphémère, propre à une
+        connexion, jamais enregistré (rien à révoquer : Portier tient la session)."""
+        user = self._portier_user(params)
+        token = "portier:" + secrets.token_urlsafe(24)
+        return {"user": user, "token": token, "ticket": await self._ticket(user, token)}
 
     async def logout(self, params):
         self.tokens.end_session(self._str(params, "session"))

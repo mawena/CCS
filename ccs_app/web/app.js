@@ -101,9 +101,13 @@ window.addEventListener("hashchange", () => { if (state.api) render(); });
 document.getElementById("logout").addEventListener("click", async () => {
   if (!await confirmSheet({ title: "Se déconnecter ?", body: "Les chats continuent sur le serveur.",
     confirm: "Se déconnecter" })) return;
-  await post("/api/logout");
+  const r = await post("/api/logout");
   state.api?.close();
   state.api = null;
+  if (r?.redirect) {                     // mode Portier : la déconnexion se fait sur Portier
+    location.href = r.redirect;
+    return;
+  }
   location.hash = "";
   showLogin(start);
 });

@@ -658,6 +658,45 @@ mot de passe.
 Code perdu ou téléphone changé : `sudo ccs totp reinitialiser <utilisateur>` efface le code,
 le prochain accès affiche un nouveau QR code.
 
+### Mode Portier (connexion unique)
+
+Derrière [Portier](https://portier.mawena.cloud) (connexion unique et double facteur pour les
+services de mawena.cloud), la version web peut se passer de sa propre page de connexion :
+nginx vérifie l'identité auprès de Portier et transmet le nom dans l'en-tête
+`X-Portier-Utilisateur`. **Désactivé par défaut.** Dans `/etc/ccs/web.json`, ajoute la clé
+`portier` :
+
+```json
+{
+  "listen": "127.0.0.1:8420",
+  "origin": "https://ccs.mawena.cloud",
+  "portier": {
+    "actif": true,
+    "utilisateurs": ["charles-gamligo"],
+    "url": "https://portier.mawena.cloud",
+    "deconnexion": "https://portier.mawena.cloud/"
+  }
+}
+```
+
+| Clé | Rôle |
+|---|---|
+| `actif` | `true` pour activer (tout autre valeur : désactivé) |
+| `utilisateurs` | comptes Ubuntu acceptés par l'en-tête (ils doivent aussi être dans le groupe `ccs`, jamais `root`) |
+| `url` | adresse de Portier : bouton « Se connecter via Portier » sur la page de connexion, vers `<url>/connexion?retour=<adresse de CCS>` |
+| `deconnexion` | facultatif : où renvoie « Déconnexion » (par défaut `<url>/`) |
+
+Puis `sudo systemctl restart ccs-auth ccs-web`. Une requête (HTTP ou WebSocket) est alors
+authentifiée sans la page de CCS **seulement si** elle arrive de nginx (`127.0.0.1` / `::1`) et
+que l'en-tête porte un nom de la liste ; `ccs-auth` revérifie l'option et la liste avant
+d'ouvrir le pont. Sinon, la connexion habituelle (mot de passe et code) reste là : rien ne
+casse si Portier est retiré. Les jetons d'appareil (`Authorization: Bearer`, appairage du
+bureau et du terminal) passent toujours avant l'en-tête.
+
+Côté nginx, chaque `location` de la version web inclut `snippets/portier-proteger.conf`, qui
+écrase l'en-tête : un client ne peut pas le forger. Contrat complet :
+`docs/integration.md` du projet Portier.
+
 ### Depuis un terminal
 
 ```sh
