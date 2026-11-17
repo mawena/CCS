@@ -3,6 +3,14 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.22.1] — 2026-11-17
+
+### Corrigé
+
+- `ccs distant machines` et `ccs distant lancer` répondaient « commande ou profil inconnu » :
+  le lanceur `ccs` ne connaissait pas la commande (seule `claude-accounts distant` marchait).
+  Elle figure maintenant dans l'aide et la page de manuel, et un test de bout en bout la couvre.
+
 ## [0.22.0] — 2026-11-17
 
 ### Ajouté

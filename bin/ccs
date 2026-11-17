@@ -419,6 +419,10 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
   ccs raccourcis [status|on|off [action…]|set <action> <raccourci>]
                            raccourcis clavier globaux du bureau GNOME (alias : shortcuts)
   ccs tui [--serveur NOM]  CCS en plein écran dans le terminal (ici, ou sur un serveur appairé)
+  ccs distant machines [--vite]
+                           machines du réseau Ricochet : en ligne ou non, charge, outils
+  ccs distant lancer [--machine M] [--outil O] [--rapatrier chemin] -- <commande>
+                           lance une commande du projet sur une autre machine (tunnel SSH, rsync)
   ccs serveur ajouter|liste|retirer
                            serveurs CCS distants : appairage (mot de passe Ubuntu + code), liste
   ccs doctor               bilan de santé : service, version, bureau, comptes, Claude Code
@@ -471,6 +475,7 @@ main() {
     plan|planning) exec "$CA" plan ;;
     sessions|ps) exec "$CA" sessions ;;
     tache|taches|tasks) exec "$CA" tache "$@" ;;
+    distant) exec "$CA" distant "$@" ;;
     budget) exec "$CA" budget "$@" ;;
     fiche) exec "$CA" fiche "$@" ;;
     sauvegarde|backup) exec "$CA" sauvegarde "$@" ;;
