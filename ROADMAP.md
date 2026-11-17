@@ -470,6 +470,30 @@ Un cinquième onglet « Fichiers » dans la navigation du web : parcourir les do
 - [x] 5. Documentation et release mineure 0.20.0, dépôt APT compris
 - [ ] 6. Essai réel par Charles depuis le téléphone
 
+## Phase 21 — Calcul réparti par Ricochet (0.21.0 et suivantes)
+
+Demande de Charles du 17/11/2026 : se servir de la puissance de toutes ses machines pour les travaux lancés depuis CCS. Exemple : un projet Flutter ouvert sur le VPS, où Flutter n'est pas installé, se construit sur `pc-bureau`, et le travail continue. Ensuite : répartir les tâches entre les machines pour gagner du temps et alléger le VPS.
+
+Choix validés : droit donné machine par machine dans Ricochet (case « calcul »), commandes sous l'utilisateur de la machine, tout dans l'audit de Ricochet ; le code part par les fichiers de Ricochet (marche avec du travail non commité, rien par GitHub). Dépend de la phase 4 bis de Ricochet (exécution à distance, release 0.3.0), à faire d'abord.
+
+Étape A — construire ailleurs (0.21.0)
+- [ ] 1. `ricochet.py` : client de l'API du relais (adresse et jeton de calcul dans les réglages, jeton en fichier `600`), liste des machines avec leurs outils et leur charge
+- [ ] 2. `ccs distant` : `ccs distant machines`, `ccs distant lancer [--machine M] -- <commande>` ; envoie le dossier du projet (sans ce que git ignore), lance la commande, affiche la sortie au fil de l'eau, rapatrie les fichiers produits, renvoie le code de retour
+- [ ] 3. Choix de la machine : celle qui a l'outil demandé, puis la moins chargée ; refus clair si aucune ne convient ou si la machine est éteinte
+- [ ] 4. Envois suivants rapides : seuls les fichiers changés repartent (empreintes gardées par machine et par projet)
+- [ ] 5. Claude prévenu dans les chats de CCS : consigne ajoutée à la session (« tel outil manque ici : `ccs distant lancer …` ») avec la liste des machines et de leurs outils
+- [ ] 6. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton)
+- [ ] 7. Tests, documentation, release mineure 0.21.0, dépôt APT compris
+- [ ] 8. Essai réel par Charles : build Flutter d'un projet du VPS sur `pc-bureau`
+
+Étape B — répartir (0.22.0)
+- [ ] 9. Plusieurs commandes à la fois sur plusieurs machines (tests d'un côté, build de l'autre), limite par machine, file d'attente
+- [ ] 10. Tâches de nuit et suites de tests longues envoyées à la machine la moins chargée ; le VPS garde ses services de production tranquilles
+- [ ] 11. Tests, documentation, release mineure 0.22.0
+
+Étape C — à décider après essai
+- [ ] 12. Sessions Claude entières sur une autre machine (le pont de CCS lancé là-bas par Ricochet) : à étudier, demande Claude Code et un compte sur chaque machine
+
 ## À venir — Séparateur après `/clear`
 
 Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde les anciens messages sans aucun signe : on croit que rien ne s'est passé.
