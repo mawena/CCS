@@ -3,6 +3,20 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.20.1] — 2026-11-17
+
+### Modifié
+
+- **Passage au dépôt APT unique de mawena, <https://apt.mawena.cloud/>.** Le paquet `ccs` ne
+  fournit plus sa source `/etc/apt/sources.list.d/ccs.sources` ni sa clé
+  `/usr/share/keyrings/ccs.gpg` : il dépend de `mawena-depot`, qui installe la source et la clé
+  du dépôt unique. Un simple `sudo apt update && sudo apt upgrade` fait passer une machine
+  existante au nouveau dépôt ; l'ancienne source est retirée proprement (`rm_conffile`).
+- Installation : `curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ccs`
+  (README, site, `installer.sh` du site qui lance désormais cet installateur). L'ancien dépôt
+  `https://mawena.github.io/CCS/apt` reste en ligne jusqu'à mai 2027 et reçoit aussi
+  `mawena-depot`.
+
 ## [0.20.0] — 2026-11-17
 
 ### Ajouté

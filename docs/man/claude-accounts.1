@@ -266,8 +266,9 @@ Sur le serveur, en root : efface le code de double authentification de l'utilisa
 prochain accès affiche un nouveau QR code. Voir le paquet \fBccs\-serveur\fR.
 .SH FICHIERS
 .TP
-.I /etc/apt/sources.list.d/ccs.sources\fR, \fI/usr/share/keyrings/ccs.gpg
-Source du dépôt APT signé de CCS et sa clé, installées par le paquet.
+.I /etc/apt/sources.list.d/mawena-depot.sources\fR, \fI/usr/share/keyrings/mawena-depot.gpg
+Source du dépôt APT unique de mawena (https://apt.mawena.cloud) et sa clé, installées par
+le paquet \fBmawena\-depot\fR dont dépend ccs : \fBapt upgrade\fR installe les nouvelles versions.
 .SH ENVIRONNEMENT
 .TP
 .B CCS_APP_ID

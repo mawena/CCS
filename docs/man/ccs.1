@@ -312,9 +312,9 @@ Copies compressées des conversations (dossier 700) et leur index
 .I ~/.claude/.credentials.json\fR, \fI~/.claude.json
 Fichiers de Claude Code réécrits lors d'une bascule.
 .TP
-.I /etc/apt/sources.list.d/ccs.sources\fR, \fI/usr/share/keyrings/ccs.gpg
-Source du dépôt APT signé de CCS et sa clé, installées par le paquet : \fBapt
-upgrade\fR installe les nouvelles versions.
+.I /etc/apt/sources.list.d/mawena-depot.sources\fR, \fI/usr/share/keyrings/mawena-depot.gpg
+Source du dépôt APT unique de mawena (https://apt.mawena.cloud) et sa clé, installées par
+le paquet \fBmawena\-depot\fR dont dépend ccs : \fBapt upgrade\fR installe les nouvelles versions.
 .TP
 .I ~/.claude/projects/*/*.jsonl
 Journaux des conversations : lus, et complétés d'une ligne de titre lors d'un

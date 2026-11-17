@@ -1139,9 +1139,13 @@ GitHub Pages (`https://mawena.github.io/CCS/apt`) :
   (vide : le paquet est `all`) sont régénérés, puis `Release`, `InRelease` et
   `Release.gpg` signés en ed25519 avec la clé « CCS APT (mawena) » : la publique
   est dans `data/apt/ccs.gpg`, la privée dans le trousseau GnuPG du poste ;
-- le paquet installe lui-même `/etc/apt/sources.list.d/ccs.sources` et
-  `/usr/share/keyrings/ccs.gpg` (`debian/install`) ; la page d'accueil et
-  `installer.sh` (`site/`) sont publiés avec le dépôt ;
+- depuis la 0.20.1, le paquet n'installe plus sa source ni sa clé : il dépend de
+  `mawena-depot` (source et clé du dépôt unique https://apt.mawena.cloud, où les
+  `.deb` des releases GitHub sont publiés chaque heure) et retire l'ancienne source
+  `/etc/apt/sources.list.d/ccs.sources` (`rm_conffile`, `debian/ccs.maintscript`).
+  L'ancien dépôt reste en ligne jusqu'à mai 2027 et reçoit aussi `mawena-depot`,
+  pour les machines qui ne connaissent que lui ; la page d'accueil et
+  `installer.sh` (`site/`, qui lance l'installateur du dépôt unique) sont publiés avec lui ;
 - variables : `CCS_APT_CLE` (empreinte de la clé), `CCS_APT_PUSH` (0 : commit
   local sans push), `CCS_APT_SORTIE` (essai à blanc dans un dossier, sans toucher
   à `gh-pages`) ;
