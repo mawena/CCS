@@ -274,6 +274,13 @@ Renomme un profil.
 .BI "ccs rm " nom
 Supprime un profil (le compte n'est pas déconnecté chez Anthropic).
 .TP
+.B ccs distant machines \fR[\fB\-\-vite\fR]
+Machines du réseau Ricochet : en ligne ou non, charge, outils installés.
+.TP
+.B ccs distant lancer \fR[\fB\-\-machine \fInom\fR] [\fB\-\-outil \fIoutil\fR] [\fB\-\-rapatrier \fIchemin\fR] \fB\-\-\fR \fIcommande\fR
+Envoie le projet sur une autre machine (tunnel SSH de Ricochet, rsync), y lance la commande
+et rapporte les fichiers demandés.
+.TP
 .B ccs tui \fR[\fB\-\-serveur \fInom\fR]
 CCS en plein écran dans le terminal (projets et sessions, chat, feuille de route, comptes
 et usage). Sans option, sur cette machine ; avec \fB\-\-serveur\fR, sur un serveur CCS
