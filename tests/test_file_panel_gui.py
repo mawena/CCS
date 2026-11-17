@@ -12,7 +12,7 @@ GTK = gui_ready()
 if GTK:
     from gi.repository import GLib
 
-    from ccs_app.gui.file_panel import FileTree
+    from ccs_app.gui.file_panel import FileTree, icon_names
 
 
 def spin(until, timeout=8.0):
@@ -57,6 +57,27 @@ class FileTreeGuiTest(unittest.TestCase):
         tree.expand("src")
         self.assertTrue(spin(lambda: "m.py" in self.names(tree)))
         self.assertEqual(tree.rows()[1], ("m.py", 1, "?"))
+
+    def test_icon_by_kind(self):
+        self.assertEqual(icon_names("src", is_dir=True), ("folder-symbolic",))
+        self.assertEqual(icon_names("photo.PNG")[0], "image-x-generic-symbolic")
+        self.assertEqual(icon_names("a.tar.gz")[0], "package-x-generic-symbolic")
+        self.assertEqual(icon_names("main.py")[-1], "text-x-generic-symbolic")
+        self.assertEqual(icon_names("Makefile"), icon_names("x.py"))
+        self.assertEqual(icon_names("notes"), ("text-x-generic-symbolic",))
+
+    def test_empty_state_and_collapse_all(self):
+        tree = FileTree(self.root, lambda p: None)
+        tree.refresh()
+        self.assertTrue(spin(lambda: tree.body.get_visible_child_name() == "vide"))
+        (self.root / "d").mkdir()
+        (self.root / "d" / "f.txt").write_text("f")
+        tree.refresh()
+        self.assertTrue(spin(lambda: tree.body.get_visible_child_name() == "liste"))
+        tree.expand("d")
+        self.assertTrue(spin(lambda: "f.txt" in self.names(tree)))
+        tree.collapse_all()
+        self.assertEqual(self.names(tree), ["d"])
 
     def test_show_ignored(self):
         git(self.root, "init", "-q")
