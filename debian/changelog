@@ -1,3 +1,11 @@
+ccs (0.23.1) unstable; urgency=medium
+
+  * Chat : « Claude réfléchit… » et le bouton Arrêter restaient affichés après
+    un /compact et un message envoyés pendant un tour. Le moteur suit le
+    compactage et repasse « occupé » quand la CLI se remet au travail.
+
+ -- mawena <gamligocharles@gmail.com>  Tue, 17 Nov 2026 23:00:00 +0100
+
 ccs (0.23.0) unstable; urgency=medium
 
   * Version web : mode Portier (connexion unique), clé « portier » de

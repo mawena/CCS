@@ -523,6 +523,12 @@ Connexion unique par Portier (https://portier.mawena.cloud) pour la version web,
 - [x] 5. Tests (en-tête accepté, nom absent, IP non locale, option désactivée), README, release mineure 0.23.0
 - [ ] 6. Par Charles : installer la 0.23.0, activer la clé `portier`, protéger le site par Portier dans nginx, ajouter CCS à `portier.toml`
 
+## Correctif 0.23.1 — Indicateur « Claude réfléchit… » bloqué
+
+- [x] 1. Cause relevée sur la vraie CLI : un message envoyé pendant un tour peut y être lu sans `result` à part ; le filet de 3 s le soldait aussi pendant un `/compact` en file (aucun signe de vie pendant le compactage), et le tour suivant arrivait moteur « au repos »
+- [x] 2. Moteur : `status: compacting` suivi (pas de filet pendant le compactage), retour à « occupé » quand la CLI se remet au travail, repos au dernier `result`
+- [x] 3. Tests (moteur, décodage, onglet de bureau : indicateur et bouton ■ éteints), release 0.23.1
+
 ## À venir — Séparateur après `/clear`
 
 Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde les anciens messages sans aucun signe : on croit que rien ne s'est passé.

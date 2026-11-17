@@ -149,6 +149,12 @@ class ParseTest(unittest.TestCase):
         # `status: requesting` sans changement de mode : rien.
         self.assertEqual(cp.parse_line(j({"type": "system", "subtype": "status", "status": "requesting"})), [])
 
+    def test_compacting_status(self):
+        st = lambda **d: cp.parse_line(j({"type": "system", "subtype": "status", **d}))
+        self.assertEqual(st(status="compacting"), [cp.Compacting(True)])
+        self.assertEqual(st(status=None), [cp.Compacting(False)])          # fin du compactage
+        self.assertEqual(st(status=None, permissionMode="plan"), [cp.Compacting(False), cp.Status("plan")])
+
     def test_control_reply_ok_and_error(self):
         evs = events("init-effort-controles")
         replies = of_type(evs, cp.ControlReply)

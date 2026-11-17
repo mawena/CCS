@@ -1087,6 +1087,7 @@ export class ChatView {
         this.requestContext();
         break;
       case "Compacted": this.notice("Conversation compactée."); break;
+      case "Compacting": break;      // lu par le moteur (état du compactage), jamais envoyé
       case "Notice": this.notice(ev.text, ["warning", "error"].includes(ev.kind) ? ev.kind : "info"); break;
       case "Retrying": this.notice(`Nouvel essai (${ev.attempt}) dans ${Math.round(ev.delay_s)} s…`, "warning"); break;
       case "Unknown": break;
