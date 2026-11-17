@@ -3,6 +3,28 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.21.0] — 2026-11-17
+
+### Ajouté
+
+- **Calcul réparti : `ccs distant`.** CCS se sert des autres machines du réseau
+  [Ricochet](https://github.com/mawena/Ricochet) (0.3.0 ou plus) pour les travaux lourds ou
+  quand un outil manque ici (un build Flutter sur le PC de bureau, par exemple).
+  - `ccs distant machines` : machines en ligne, charge, mémoire et outils trouvés (flutter,
+    cargo, node, docker…), gardés une heure.
+  - `ccs distant lancer [--machine m] -- <commande>` : choisit la machine qui a l'outil (la
+    moins chargée d'abord), y copie le projet par `rsync` (seuls les fichiers changés
+    repartent, sans ce que git ignore ni `.git`), lance la commande dans le même sous-dossier
+    avec le `PATH` d'un terminal de la machine, affiche la sortie au fil de l'eau, renvoie le
+    même code de retour. `--rapatrier <chemin>` rapporte les fichiers produits, `--inclure
+    <chemin>` envoie un chemin que git ignore, `--avec-git` envoie aussi `.git`, `--outil`
+    nomme l'outil nécessaire.
+  - Les chats le savent : quand le calcul réparti est réglé sur la machine, Claude reçoit la
+    consigne de passer par `ccs distant lancer` si un outil manque ou pour un travail lourd.
+  - Réglages : `~/.config/ricochet/client.toml` (relais et jeton des tunnels) et, au besoin,
+    `~/.config/ccs/distant.toml` (utilisateur et port SSH par machine). Le transport est un
+    tunnel Ricochet vers le serveur SSH de la machine : c'est SSH qui décide qui entre.
+
 ## [0.20.1] — 2026-11-17
 
 ### Modifié

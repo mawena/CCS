@@ -13,7 +13,7 @@ import threading
 import time
 from dataclasses import dataclass
 
-from . import chat_options, chat_protocol as proto, sessions, task_runner
+from . import chat_options, chat_protocol as proto, distant, sessions, task_runner
 from .chat_options import ChatOptions
 
 log = logging.getLogger(__name__)
@@ -156,6 +156,10 @@ class ChatSession:
                 *chat_options.launch_args(self.options)]
         if self.session_id:
             argv += ["--resume", self.session_id]
+        hint = distant.hint()
+        if hint:
+            # calcul réparti disponible : Claude sait qu'il peut lancer un travail ailleurs
+            argv += ["--append-system-prompt", hint]
         return argv
 
     def _env(self):

@@ -987,6 +987,27 @@ def cmd_mise_a_jour(args):
     return code
 
 
+def cmd_distant(args):
+    """Calcul réparti : machines du réseau Ricochet et commandes lancées dessus."""
+    from . import distant
+    try:
+        if args.action == "machines":
+            machines = distant.fetch_machines()
+            lines = distant.describe(machines, distant.load_overrides(), probe=not args.vite)
+            print("\n".join(lines) if lines else "Aucune machine dans Ricochet.")
+            return 0
+        command = list(args.commande)
+        if command[:1] == ["--"]:
+            command = command[1:]
+        return distant.launch(command, machine=args.machine, tool=args.outil,
+                              fetch=args.rapatrier, include=args.inclure, with_git=args.avec_git)
+    except distant.DistantError as e:
+        print(e, file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
+
+
 def cmd_journal(args):
     from . import switch_log
     try:
@@ -1152,6 +1173,21 @@ def build_parser():
                         help="installe la dernière version de CCS (paquet .deb de GitHub)")
     mj.add_argument("--verifier", action="store_true", help="indique seulement s'il y a une nouvelle version")
     mj.set_defaults(func=cmd_mise_a_jour)
+    di = sub.add_parser("distant", help="calcul réparti : lancer une commande sur une autre machine (Ricochet)")
+    di_sub = di.add_subparsers(dest="action", required=True)
+    dim = di_sub.add_parser("machines", help="machines du réseau, leur charge et leurs outils")
+    dim.add_argument("--vite", action="store_true", help="sans interroger les machines (outils déjà connus)")
+    dil = di_sub.add_parser("lancer", help="envoie le projet, lance la commande ailleurs, rapporte les fichiers",
+                            usage="ccs distant lancer [options] -- <commande>")
+    dil.add_argument("--machine", help="machine voulue (sinon : la moins chargée qui a l'outil)")
+    dil.add_argument("--outil", help="outil nécessaire (sinon : le premier mot de la commande)")
+    dil.add_argument("--rapatrier", action="append", default=[], metavar="CHEMIN",
+                     help="fichier ou dossier produit à rapporter ici (répétable)")
+    dil.add_argument("--inclure", action="append", default=[], metavar="CHEMIN",
+                     help="envoyer aussi ce chemin que git ignore (répétable)")
+    dil.add_argument("--avec-git", action="store_true", help="envoyer aussi le dossier .git")
+    dil.add_argument("commande", nargs=argparse.REMAINDER, help="la commande, après --")
+    di.set_defaults(func=cmd_distant)
     jo = sub.add_parser("journal", help="journal des bascules, avec leur raison")
     period = jo.add_mutually_exclusive_group()
     period.add_argument("--jours", type=int, default=7, metavar="N", help="N derniers jours (7 par défaut)")
