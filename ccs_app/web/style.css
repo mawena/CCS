@@ -312,9 +312,9 @@ a.button.portier[hidden] { display: none; }
 /* barre d'outils du dossier */
 .file-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .file-tools[hidden] { display: none; }
-.file-tools .tool { min-height: 40px; padding: 0 12px; gap: 6px; background: var(--soft); }
-.file-tools .tool:hover { filter: none; background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.file-tools .tool .ico { width: 18px; height: 18px; color: var(--accent); }
+.file-tools .file-tool { min-height: 40px; padding: 0 12px; gap: 6px; background: var(--soft); }
+.file-tools .file-tool:hover { filter: none; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.file-tools .file-tool .ico { width: 18px; height: 18px; color: var(--accent); }
 .file-tools .paste { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); max-width: 100%; min-width: 0; }
 .file-tools .paste .btn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -422,8 +422,8 @@ dialog.sheet input[type="text"] { width: 100%; }
 /* volet étroit (téléphone, tiroir du chat) : outils en tuiles, en-tête du fichier en icônes */
 @container (max-width: 520px) {
   .file-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .file-tools .tool { flex-direction: column; gap: 2px; min-height: 56px; padding: 4px; font-size: 0.8em; }
-  .file-tools .tool .ico { width: 20px; height: 20px; }
+  .file-tools .file-tool { flex-direction: column; gap: 2px; min-height: 56px; padding: 4px; font-size: 0.8em; }
+  .file-tools .file-tool .ico { width: 20px; height: 20px; }
   .file-tools .paste { grid-column: 1 / -1; flex-direction: row; gap: 8px; min-height: 44px; font-size: 0.9em; }
   .file-head { gap: 4px; }
   .file-actions { gap: 2px; }

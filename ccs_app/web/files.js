@@ -26,7 +26,7 @@ export class FilesPanel {
       "aria-label": "Chercher un fichier", autocapitalize: "off", autocomplete: "off", spellcheck: "false" });
     this.search.addEventListener("input", () => { clearTimeout(this.timer); this.timer = setTimeout(() => this.find(), 300); });
     this.manager = new FileManager(api, root, opts.extra || null);
-    const top = (name, text, run) => el("button", { type: "button", class: "small tool", title: text,
+    const top = (name, text, run) => el("button", { type: "button", class: "small file-tool", title: text,
       onclick: async () => { if (await run()) this.expand(this.tree, ""); } }, icon(name), label(text));
     this.tools = el("div", { class: "file-tools", role: "toolbar", "aria-label": "Actions sur ce dossier" },
       top("new-file", "+ Fichier", () => this.manager.create("", "file")),
