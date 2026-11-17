@@ -492,12 +492,12 @@ Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ou
 - [x] 6. Tests, essai réel (relais et agent locaux, vrai `ssh` et `rsync`), documentation, release mineure 0.21.0
 - [ ] 7. Par Charles : mise en place (jeton des tunnels, `client.toml`, `[tunnel]` et SSH sur `pc-bureau`), puis essai réel : build Flutter d'un projet du VPS sur `pc-bureau`
 
-Étape B — répartir et voir (0.23.0)
+Étape B — répartir et voir (prochaine version mineure)
 - [ ] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton)
 - [ ] 9. Plusieurs commandes à la fois sur plusieurs machines (tests d'un côté, build de l'autre), limite par machine, file d'attente
 - [ ] 10. Tâches de nuit et suites de tests longues envoyées à la machine la moins chargée ; le VPS garde ses services de production tranquilles
 - [ ] 11. Arrêt propre de la commande distante quand on interrompt `ccs distant lancer`
-- [ ] 12. Tests, documentation, release mineure 0.23.0
+- [ ] 12. Tests, documentation, release mineure
 
 Étape C — à décider après essai
 - [ ] 13. Sessions Claude entières sur une autre machine (le pont de CCS lancé là-bas par le tunnel) : à étudier, demande Claude Code et un compte sur chaque machine
@@ -511,6 +511,17 @@ Sur le web, le travail des sous-agents se mélangeait au fil (cartes décalées,
 - [x] 3. Carte « Sous-agent » dans le fil : état (au travail, en arrière-plan, terminé, arrêté), bouton « Voir », consigne et résultat repliés
 - [x] 4. Fin : résultat (premier plan) ou avis de fin (arrière-plan) ; un sous-agent fini quitte la barre ; retour au fil quand on envoie un message ou qu'une autorisation arrive
 - [x] 5. Tests (faux DOM), documentation, release mineure 0.22.0
+
+## Phase 23 — Mode Portier (0.23.0)
+
+Connexion unique par Portier (https://portier.mawena.cloud) pour la version web, selon le contrat `Portier/docs/integration.md`.
+
+- [x] 1. Clé `portier` de `/etc/ccs/web.json` (`actif`, `utilisateurs`, `url`, `deconnexion`), désactivée par défaut
+- [x] 2. En-tête `X-Portier-Utilisateur` cru seulement depuis 127.0.0.1/::1 et pour un nom de la liste, en HTTP et WebSocket ; jeton d'appareil toujours prioritaire
+- [x] 3. `ccs-auth` revérifie option, liste et groupe `ccs` avant de signer le ticket du pont
+- [x] 4. Déconnexion renvoyée vers Portier ; bouton « Se connecter via Portier » sur la page de connexion
+- [x] 5. Tests (en-tête accepté, nom absent, IP non locale, option désactivée), README, release mineure 0.23.0
+- [ ] 6. Par Charles : installer la 0.23.0, activer la clé `portier`, protéger le site par Portier dans nginx, ajouter CCS à `portier.toml`
 
 ## À venir — Séparateur après `/clear`
 

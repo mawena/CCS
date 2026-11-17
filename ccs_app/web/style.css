@@ -92,6 +92,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .login-head { display: flex; align-items: center; gap: 12px; }
 .login-logo { width: 44px; height: 44px; }
 #login-credentials { display: grid; gap: 14px; }
+a.button.portier { text-decoration: none; }
+a.button.portier[hidden] { display: none; }
 .enroll { display: grid; gap: 8px; }
 .qr { width: 220px; height: 220px; background: #fff; border-radius: 12px; padding: 8px; justify-self: center; }
 .message { color: var(--error); min-height: 1.2em; margin: 0; }
