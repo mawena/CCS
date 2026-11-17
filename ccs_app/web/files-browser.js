@@ -2,7 +2,7 @@
 // /srv), y faire tout ce que fait le volet Fichiers d'un projet (ouvrir, modifier, créer, envoyer,
 // télécharger, renommer, supprimer, copier, déplacer) et ajouter un dossier aux projets de CCS.
 import { clear, confirmSheet, el, errorState, loading, toast } from "./dom.js";
-import { FilesPanel } from "./files.js";
+import { FilesPanel, icon, label } from "./files.js";
 
 const under = (path, root) => path === root || path.startsWith(`${root.replace(/\/$/, "")}/`);
 const base = (p) => p.split("/").filter(Boolean).pop() || "/";
@@ -20,7 +20,8 @@ export function mountFiles(container, api, ctx) {
   const crumbs = el("nav", { class: "crumbs", "aria-label": "Dossier ouvert" });
   const holder = el("div", { class: "browser-body" });
   const node = el("section", { class: "card browser" }, el("div", { class: "browser-head" }, crumbs,
-    el("button", { type: "button", class: "small", onclick: () => state.path && addProject(api, state.path) }, "Ajouter aux projets")), holder);
+    el("button", { type: "button", class: "small add-project", title: "Ajouter ce dossier aux projets de CCS",
+      onclick: () => state.path && addProject(api, state.path) }, icon("new-dir"), label("Ajouter aux projets"))), holder);
   container.append(node);
   const state = { roots: null, home: null, path: null, panel: null };
 
@@ -47,16 +48,17 @@ export function mountFiles(container, api, ctx) {
     if (state.roots.length > 1) {
       const pick = el("select", { "aria-label": "Racine", onchange: () => go(pick.value) },
         ...state.roots.map((r) => el("option", { value: r, selected: r === root }, r === state.home ? "Personnel" : r)));
-      crumbs.append(pick);
-    } else crumbs.append(el("button", { type: "button", class: "small flat crumb", onclick: () => go(root) }, "Personnel"));
+      crumbs.append(el("span", { class: "crumb-root" }, icon(root === state.home ? "home" : "dir"), pick));
+    } else crumbs.append(el("button", { type: "button", class: "small flat crumb", onclick: () => go(root) }, icon("home"), "Personnel"));
     let at = root;
     parts.forEach((name, i) => {
       at = `${at.replace(/\/$/, "")}/${name}`;
       const here = at;
-      crumbs.append(el("span", { class: "subtle", "aria-hidden": "true" }, "›"),
+      crumbs.append(el("span", { class: "crumb-sep", "aria-hidden": "true" }, icon("chevron")),
         i === parts.length - 1 ? el("strong", { class: "crumb here", "aria-current": "page" }, name)
           : el("button", { type: "button", class: "small flat crumb", onclick: () => go(here) }, name));
     });
+    crumbs.scrollLeft = crumbs.scrollWidth;        // au téléphone, le dossier ouvert reste visible
   }
 
   function show(path) {

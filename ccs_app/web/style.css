@@ -286,35 +286,159 @@ a.button.portier[hidden] { display: none; }
 .drawer { width: min(380px, 42%); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
 .drawer-head { display: flex; align-items: center; padding: 4px 4px 4px 12px; border-bottom: 1px solid var(--line); }
 .drawer-body { flex: 1; overflow: auto; padding: 8px; }
-.tree { list-style: none; margin: 0; padding-left: 12px; }
-.drawer-body > .files > .tree { padding-left: 0; }
-.tree-line { display: flex; align-items: center; }
-.tree-more, .tree-save { flex: none; width: 36px; min-height: 36px; padding: 0; color: var(--muted, inherit); }
-.file-tools { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+
+/* ---- fichiers : arbre, barre d'outils, fil d'Ariane, fichier ouvert (files*.js) ----
+   Le volet se replie selon sa propre largeur (tiroir du chat, onglet d'un projet, page Fichiers),
+   pas celle de l'écran : d'où la requête de conteneur sur .files. */
+:root { --k-image: #1f9d5c; --k-code: #9141ac; --k-config: #c64600; --k-archive: #986a44; --k-media: #0f7f8a; --k-doc: #c01c28; }
+@media (prefers-color-scheme: dark) {
+  :root { --k-image: #57e389; --k-code: #dc8add; --k-config: #ffa348; --k-archive: #cdab8f; --k-media: #5fd3dc; --k-doc: #f66151; }
+}
+.files { container-type: inline-size; min-width: 0; }
+.ico { width: 20px; height: 20px; flex: none; }
+.ico.big { width: 40px; height: 40px; stroke-width: 1.4; color: var(--subtle); }
+.k-dir { color: var(--accent); }
+.k-dir path { fill: color-mix(in srgb, var(--accent) 16%, transparent); }
+.k-file, .k-text { color: var(--subtle); }
+.k-image { color: var(--k-image); } .k-code { color: var(--k-code); } .k-config { color: var(--k-config); }
+.k-archive { color: var(--k-archive); } .k-media { color: var(--k-media); } .k-doc { color: var(--k-doc); }
+
+/* recherche */
+.file-search-box { position: relative; margin-bottom: 8px; }
+.file-search-box > .ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--subtle); pointer-events: none; }
+.file-search-box .file-search { margin: 0; padding-left: 40px; border-radius: 12px; background: var(--soft); border-color: transparent; }
+.file-search-box .file-search:focus { background: var(--card); border-color: var(--line); }
+
+/* barre d'outils du dossier */
+.file-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .file-tools[hidden] { display: none; }
-.browser-head { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 8px; }
-.crumbs { width: 100%; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
-.crumbs select { max-width: 100%; }
-.crumb { overflow-wrap: anywhere; }
-.crumb.here { padding: 0 6px; }
+.file-tools .file-tool { min-height: 40px; padding: 0 12px; gap: 6px; background: var(--soft); }
+.file-tools .file-tool:hover { filter: none; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.file-tools .file-tool .ico { width: 18px; height: 18px; color: var(--accent); }
+.file-tools .paste { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); max-width: 100%; min-width: 0; }
+.file-tools .paste .btn-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* arbre */
+.tree { list-style: none; margin: 0; padding: 0; }
+.tree .tree { margin-left: 15px; padding-left: 4px; border-left: 1px solid var(--line); }
+.tree > li { min-width: 0; }
+.tree-line { display: flex; align-items: center; gap: 2px; min-height: 40px; border-radius: 10px; }
+.tree-line:hover { background: var(--soft); }
+.tree-line.current { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.tree-line.current .tree-name { color: var(--accent); font-weight: 600; }
+.tree-row { flex: 1; min-width: 0; min-height: 40px; justify-content: flex-start; background: transparent; font-weight: 400;
+  padding: 0 6px; gap: 8px; text-align: left; border-radius: 10px; }
+.tree-row:hover { filter: none; }
+.tree-row:focus-visible { outline-offset: -2px; }
+.tree-row.dir .tree-name { font-weight: 600; }
+.tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.twisty { width: 16px; flex: none; display: inline-flex; color: var(--subtle); transition: transform 0.12s; }
+.twisty .ico { width: 16px; height: 16px; }
+.tree-row.open .twisty { transform: rotate(90deg); }
+.tree-more, .tree-save { flex: none; width: 40px; min-width: 40px; min-height: 40px; padding: 0; border-radius: 10px;
+  background: transparent; color: var(--subtle); }
+.tree-more:hover, .tree-save:hover { filter: none; color: var(--fg); background: var(--soft); }
+.tree-more .ico, .tree-save .ico { width: 18px; height: 18px; }
+@media (hover: hover) {             /* souris : le téléchargement direct n'apparaît qu'au survol */
+  .tree-save { opacity: 0; }
+  .tree-line:hover .tree-save, .tree-save:focus-visible { opacity: 1; }
+}
+.mark { flex: none; min-width: 20px; padding: 1px 5px; border-radius: 6px; text-align: center; font-family: var(--mono);
+  font-size: 0.72em; font-weight: 700; background: color-mix(in srgb, currentColor 14%, transparent); }
+.m-M { color: var(--warning); } .m-A, .m-n { color: var(--success); } .m-D { color: var(--error); }
+.file-empty { list-style: none; padding: 8px 10px; font-size: 0.92em; }
+.file-empty.root { display: grid; justify-items: center; gap: 4px; padding: 32px 12px; text-align: center; color: var(--subtle); }
+.file-empty.root p { margin: 0; }
+
+/* résultats de recherche */
+.file-results { display: grid; gap: 2px; }
+.tree-row.found { width: 100%; min-height: 48px; }
+.tree-row.found:hover { background: var(--soft); }
+.found-text { display: grid; min-width: 0; line-height: 1.25; }
+.found-text strong, .found-text .subtle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.found-text .subtle { font-size: 0.82em; }
+
+/* fil d'Ariane (page Fichiers) */
+.browser-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .browser-head > button { flex: none; }
+.add-project .ico { color: var(--accent); }
+.crumbs { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; padding: 2px;
+  overflow-x: auto; scrollbar-width: none; background: var(--soft); border-radius: 12px; }
+.crumbs::-webkit-scrollbar { display: none; }
+.crumbs > * { flex: none; }
+.crumb { min-height: 40px; padding: 0 10px; white-space: nowrap; font-weight: 500; }
+.crumb .ico, .crumb-root .ico { width: 18px; height: 18px; color: var(--accent); }
+.crumb.here { display: inline-flex; align-items: center; padding: 0 10px; font-weight: 700; }
+.crumb-sep { display: inline-flex; color: var(--subtle); }
+.crumb-sep .ico { width: 14px; height: 14px; }
+.crumb-root { display: inline-flex; align-items: center; gap: 2px; padding-left: 10px; }
+.crumb-root select { width: auto; max-width: 14em; min-height: 40px; padding: 0 6px; border: 0; background: transparent; font-weight: 600; }
+
+/* feuilles d'actions */
 .sheet-list { display: flex; flex-direction: column; }
-.sheet-list .menu-item { background: transparent; justify-content: flex-start; text-align: left; min-height: 44px; }
-.sheet-list .danger-text { color: var(--error); }
+.sheet-list .menu-item { background: transparent; justify-content: flex-start; text-align: left; min-height: 44px; gap: 12px; font-weight: 500; }
+.sheet-list .menu-item:hover { filter: none; background: var(--soft); }
+.sheet-list .menu-item .ico { color: var(--subtle); }
+.sheet-list .danger-text, .sheet-list .danger-text .ico { color: var(--error); }
 .sheet-name { overflow-wrap: anywhere; }
 dialog.sheet input[type="text"] { width: 100%; }
-.tree-row { flex: 1; min-width: 0; min-height: 36px; justify-content: flex-start; background: transparent; font-weight: 400; padding: 0 6px; gap: 4px; text-align: left; }
-.tree-row:hover { background: var(--soft); }
-.tree-row .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.twisty { width: 14px; display: inline-block; transition: transform 0.1s; }
-.tree-row.open .twisty { transform: rotate(90deg); }
-.mark { font-family: var(--mono); font-size: 0.8em; font-weight: 700; }
-.m-M { color: var(--warning); } .m-A, .m-n { color: var(--success); } .m-D { color: var(--error); }
-.file-holder { display: flex; flex-direction: column; gap: 6px; height: 100%; }
-.file-head { display: flex; align-items: center; gap: 4px; }
-.file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file-text { flex: 1; min-height: 50vh; font-family: var(--mono); font-size: 0.85em; resize: vertical; white-space: pre; }
-.file-preview { overflow-wrap: anywhere; }
+
+/* fichier ouvert */
+.file-holder { display: flex; flex-direction: column; gap: 8px; height: 100%; min-width: 0; }
+.file-head { display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 1; padding: 4px 0 8px;
+  background: var(--bg); border-bottom: 1px solid var(--line); }
+.card .file-head { background: var(--card); }
+.file-head button { min-height: 40px; }
+.icon-only { min-width: 40px; padding: 0; }
+.file-title { display: grid; min-width: 0; line-height: 1.25; }
+.file-name, .file-dir { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-dir { font-size: 0.8em; }
+.file-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.file-actions button { padding: 0 12px; }
+.file-actions .icon-only { padding: 0; }
+.file-state:empty { display: none; }
+.file-state .state { background: var(--soft); border-radius: 12px; }
+.file-text { flex: 1; min-height: 50vh; padding: 12px 14px; font-family: var(--mono); font-size: 0.85em; line-height: 1.55; tab-size: 4;
+  resize: vertical; white-space: pre; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; }
+.file-text.wrap { white-space: pre-wrap; }
+.file-text.editing { background: var(--card); border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.file-code { flex: 1; min-height: 40vh; padding: 8px 0; overflow: auto; font-family: var(--mono); font-size: 0.85em; line-height: 1.55;
+  tab-size: 4; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; }
+.file-code[hidden], .file-image[hidden] { display: none; }
+.code-line { display: flex; }
+.code-no { flex: none; min-width: 4ch; margin-right: 10px; padding: 0 8px; text-align: right; color: var(--subtle); user-select: none;
+  border-right: 1px solid var(--line); }
+.code-text { white-space: pre; padding-right: 8px; }
+.file-code.wrap .code-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.code-line.hit { background: color-mix(in srgb, var(--warning) 28%, transparent); }
+.code-line.hit .code-no { color: var(--fg); font-weight: 700; }
+.file-image { display: grid; justify-items: center; align-content: start; padding: 12px; overflow: auto; border-radius: 12px;
+  border: 1px solid var(--line); background: repeating-conic-gradient(var(--soft) 0 25%, transparent 0 50%) 0 0 / 20px 20px; }
+.file-img { max-width: 100%; height: auto; border-radius: 6px; box-shadow: var(--shadow); }
+.file-preview { padding: 4px 2px; overflow-wrap: anywhere; }
+.file-preview pre { white-space: pre-wrap; }
+
+/* volet étroit (téléphone, tiroir du chat) : outils en tuiles, en-tête du fichier en icônes */
+@container (max-width: 520px) {
+  .file-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .file-tools .file-tool { flex-direction: column; gap: 2px; min-height: 56px; padding: 4px; font-size: 0.8em; }
+  .file-tools .file-tool .ico { width: 20px; height: 20px; }
+  .file-tools .paste { grid-column: 1 / -1; flex-direction: row; gap: 8px; min-height: 44px; font-size: 0.9em; }
+  .file-head { gap: 4px; }
+  .file-actions { gap: 2px; }
+  .file-actions button:not(.primary) { min-width: 40px; padding: 0; }
+  .file-actions button:not(.primary) .btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; }
+}
+@media (max-width: 719px) {
+  .tree-line, .tree-row, .tree-more, .tree-save { min-height: 44px; }
+  .tree-more, .tree-save { width: 44px; min-width: 44px; }
+  .browser-head .add-project { min-width: 44px; padding: 0; }
+  .browser-head .add-project .btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .file-text, .file-code { font-size: 0.8em; }
+}
+/* ---- feuille de route et terminal (tiroir) ---- */
 .roadmap .phase { border-bottom: 1px solid var(--line); padding: 6px 0; }
 .roadmap summary { display: flex; gap: 8px; cursor: pointer; font-weight: 700; min-height: 36px; align-items: center; }
 .roadmap .bar-track { margin: 4px 0 6px; }

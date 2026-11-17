@@ -63,24 +63,7 @@ dialog.sheet.wide { width: min(560px, calc(100vw - 16px)); max-height: calc(100d
 .project-panel[hidden] { display: none; }
 .back-project { flex: none; }
 
-/* ---- fichiers ---- */
-.file-search { margin-bottom: 6px; }
-.file-results { display: grid; gap: 2px; }
-.tree-row.found { min-height: 44px; width: 100%; }
-.file-empty { padding: 6px 8px; }
-.file-state:empty { display: none; }
-.file-head { position: sticky; top: 0; background: var(--bg); z-index: 1; padding: 4px 0; }
-.file-text.wrap { white-space: pre-wrap; }
-.file-code { font-family: var(--mono); font-size: 0.85em; overflow: auto; border: 1px solid var(--line); border-radius: 10px; flex: 1; min-height: 40vh; }
-.file-code[hidden], .file-image[hidden] { display: none; }
-.code-line { display: flex; }
-.code-no { flex: none; min-width: 4ch; text-align: right; padding: 0 8px; color: var(--subtle); user-select: none; }
-.code-text { white-space: pre; padding-right: 8px; }
-.file-code.wrap .code-text { white-space: pre-wrap; overflow-wrap: anywhere; }
-.code-line.hit { background: color-mix(in srgb, var(--warning) 28%, transparent); }
-.code-line.hit .code-no { color: var(--fg); font-weight: 700; }
-.file-image { display: grid; justify-items: center; padding: 8px; background: var(--soft); border-radius: 10px; overflow: auto; }
-.file-img { max-width: 100%; height: auto; }
+/* ---- fichiers : règles dans style.css (bloc « fichiers ») ; bouton à bascule enfoncé ---- */
 button.on, button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 
 /* ---- feuille de route ---- */

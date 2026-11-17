@@ -3,17 +3,22 @@
 // simple avec enregistrement et conflit signalé, aperçu Markdown rendu par le pont), gestion
 // (créer, envoyer, renommer, supprimer, télécharger : files-manage.js).
 import { clear, confirmSheet, el, errorState, loading, setHtml, toast } from "./dom.js";
-import { clipboard, download, FileManager } from "./files-manage.js";
+import { clipboard, download, FileManager, icon, kindOf, label } from "./files-manage.js";
+
+export { icon, kindOf, label };
 
 const MARKS = { M: "modifié", A: "ajouté", "?": "nouveau", D: "supprimé" };
 const WRAP_KEY = "ccs-file-wrap";
 const CODE_LINES = 5000;        // au-delà, la lecture reste dans la zone de texte (pas de numéros)
+
+const typeIcon = (name, dir = false) => { const k = kindOf(name, dir); return icon(k, `k-${k}`); };
 
 export class FilesPanel {
   // opts.extra : actions en plus sur les dossiers (gestionnaire de fichiers), voir FileManager.
   constructor(container, api, root, opts = {}) {
     this.api = api;
     this.root = root;
+    this.selected = null;
     this.node = el("div", { class: "files" });
     this.tree = el("ul", { class: "tree" });
     this.results = el("div", { class: "file-results", hidden: true });
@@ -21,13 +26,17 @@ export class FilesPanel {
       "aria-label": "Chercher un fichier", autocapitalize: "off", autocomplete: "off", spellcheck: "false" });
     this.search.addEventListener("input", () => { clearTimeout(this.timer); this.timer = setTimeout(() => this.find(), 300); });
     this.manager = new FileManager(api, root, opts.extra || null);
-    const top = (label, run) => el("button", { type: "button", class: "small flat", onclick: async () => { if (await run()) this.expand(this.tree, ""); } }, label);
-    this.tools = el("div", { class: "file-tools" },
-      top("+ Fichier", () => this.manager.create("", "file")), top("+ Dossier", () => this.manager.create("", "dir")),
-      top("Envoyer", () => this.manager.upload("")));
-    this.pasteBtn = top("Coller", () => this.manager.paste(""));
+    const top = (name, text, run) => el("button", { type: "button", class: "small file-tool", title: text,
+      onclick: async () => { if (await run()) this.expand(this.tree, ""); } }, icon(name), label(text));
+    this.tools = el("div", { class: "file-tools", role: "toolbar", "aria-label": "Actions sur ce dossier" },
+      top("new-file", "+ Fichier", () => this.manager.create("", "file")),
+      top("new-dir", "+ Dossier", () => this.manager.create("", "dir")),
+      top("upload", "Envoyer", () => this.manager.upload("")));
+    this.pasteBtn = top("paste", "Coller", () => this.manager.paste(""));
+    this.pasteBtn.classList.add("paste");
     this.tools.append(this.pasteBtn);
-    this.browser = el("div", { class: "file-browser" }, this.search, this.tools, this.results, this.tree);
+    this.browser = el("div", { class: "file-browser" },
+      el("div", { class: "file-search-box" }, icon("search"), this.search), this.tools, this.results, this.tree);
     this.node.append(this.browser);
     container.append(this.node);
     this.expand(this.tree, "");
@@ -36,8 +45,10 @@ export class FilesPanel {
   // « Coller » n'apparaît que s'il y a quelque chose de copié ou de coupé.
   syncPaste() {
     const held = clipboard();
+    const text = held ? `Coller « ${held.name} »` : "Coller";
     this.pasteBtn.hidden = !held;
-    this.pasteBtn.textContent = held ? `Coller « ${held.name} »` : "Coller";
+    this.pasteBtn.querySelector(".btn-label").textContent = text;
+    this.pasteBtn.title = text;
   }
 
   async expand(ul, rel) {
@@ -49,32 +60,42 @@ export class FilesPanel {
       return;
     }
     clear(ul);
-    if (!r.entries.length) ul.append(el("li", { class: "subtle file-empty" }, rel ? "Dossier vide." : "Ce dossier est vide."));
+    if (!r.entries.length) {
+      ul.append(rel ? el("li", { class: "subtle file-empty" }, "Dossier vide.")
+        : el("li", { class: "file-empty root" }, icon("dir", "big"), el("p", {}, "Ce dossier est vide."),
+          el("p", { class: "subtle" }, "Crée un fichier ou envoies-en un avec les boutons ci-dessus.")));
+    }
     for (const entry of r.entries) {
       const mark = entry.mark ? el("span", { class: `mark m-${entry.mark === "?" ? "n" : entry.mark}`, title: MARKS[entry.mark] || "" }, entry.mark) : null;
+      const name = el("span", { class: "grow tree-name", title: entry.name }, entry.name);
       if (entry.dir) {
         const sub = el("ul", { class: "tree", hidden: true });
-        const row = el("button", { class: "tree-row dir", onclick: () => {
+        const row = el("button", { class: "tree-row dir", "aria-expanded": "false", onclick: () => {
           sub.hidden = !sub.hidden;
           row.classList.toggle("open", !sub.hidden);
+          row.setAttribute("aria-expanded", String(!sub.hidden));
           if (!sub.hidden && !sub.dataset.loaded) { sub.dataset.loaded = "1"; this.expand(sub, entry.path); }
-        } }, el("span", { class: "twisty" }, "▸"), el("span", { class: "grow" }, entry.name), mark);
-        const inside = () => { sub.dataset.loaded = "1"; sub.hidden = false; row.classList.add("open"); this.expand(sub, entry.path); };
+        } }, el("span", { class: "twisty" }, icon("chevron")), typeIcon(entry.name, true), name, mark);
+        const inside = () => {
+          sub.dataset.loaded = "1"; sub.hidden = false;
+          row.classList.add("open"); row.setAttribute("aria-expanded", "true");
+          this.expand(sub, entry.path);
+        };
         ul.append(el("li", {}, el("div", { class: "tree-line" }, row, this.more(entry, () => this.expand(ul, rel), inside)), sub));
       } else {
-        ul.append(el("li", {}, el("div", { class: "tree-line" },
+        ul.append(el("li", {}, el("div", { class: `tree-line${entry.path === this.selected ? " current" : ""}`, dataset: { path: entry.path } },
           el("button", { class: "tree-row", onclick: () => this.open(entry.path) },
-            el("span", { class: "twisty" }, " "), el("span", { class: "grow" }, entry.name), mark),
+            el("span", { class: "twisty" }), typeIcon(entry.name), name, mark),
           this.save(entry), this.more(entry, () => this.expand(ul, rel)))));
       }
     }
-    if (r.truncated) ul.append(el("li", { class: "subtle" }, "(dossier trop long : liste coupée)"));
+    if (r.truncated) ul.append(el("li", { class: "subtle file-empty" }, "(dossier trop long : liste coupée)"));
   }
 
-  // Bouton « ⤓ » d'un fichier : le télécharge tout de suite, sans passer par le menu.
+  // Bouton « télécharger » d'un fichier : le télécharge tout de suite, sans passer par le menu.
   save(entry) {
     return el("button", { type: "button", class: "flat tree-save", "aria-label": `Télécharger ${entry.name}`, title: "Télécharger",
-      onclick: () => download(this.api, this.manager.abs(entry.path)) }, "⤓");
+      onclick: () => download(this.api, this.manager.abs(entry.path)) }, icon("download"));
   }
 
   // Bouton « ⋯ » d'une entrée : ses actions de gestion ; recharge ensuite le dossier touché.
@@ -85,7 +106,7 @@ export class FilesPanel {
         this.syncPaste();
         if (r.all) this.expand(this.tree, "");        // déplacement : l'ancien dossier a changé aussi
         else if (r.changed) (r.inside && inside ? inside : reload)();
-      } }, "⋯");
+      } }, icon("more"));
   }
 
   // Recherche par nom dans tout l'arbre (méthode bornée du pont) ; champ vide : retour à l'arbre.
@@ -103,13 +124,16 @@ export class FilesPanel {
     if (query !== this.search.value.trim()) return;           // une frappe plus récente a pris le relais
     const files = r.entries.filter((e) => !e.dir);
     clear(this.results);
-    if (!files.length) { this.results.append(el("p", { class: "subtle file-empty" }, `Aucun fichier nommé « ${query} ».`)); return; }
+    if (!files.length) {
+      this.results.append(el("div", { class: "file-empty root" }, icon("search", "big"), el("p", { class: "subtle" }, `Aucun fichier nommé « ${query} ».`)));
+      return;
+    }
     for (const f of files) {
       const dir = f.path.includes("/") ? f.path.slice(0, f.path.lastIndexOf("/")) : "";
-      this.results.append(el("button", { class: "tree-row found", onclick: () => this.open(f.path) },
-        el("span", { class: "grow" }, el("strong", {}, f.name), dir ? el("span", { class: "subtle" }, ` ${dir}`) : null)));
+      this.results.append(el("button", { class: "tree-row found", title: f.path, onclick: () => this.open(f.path) }, typeIcon(f.name),
+        el("span", { class: "grow found-text" }, el("strong", {}, f.name), dir ? el("span", { class: "subtle" }, dir) : null)));
     }
-    if (r.truncated) this.results.append(el("p", { class: "subtle" }, "Trop de résultats : précise ta recherche."));
+    if (r.truncated) this.results.append(el("p", { class: "subtle file-empty" }, "Trop de résultats : précise ta recherche."));
   }
 
   // Un seul fichier ouvert à la fois : en ouvrir un autre remplace le premier (avec confirmation s'il
@@ -118,6 +142,8 @@ export class FilesPanel {
     if (this.current && !await this.current.view.confirmLeave()) return false;
     this.current?.holder.remove();
     this.browser.hidden = true;
+    this.selected = relpath;                       // au retour, la ligne du fichier reste en évidence
+    for (const line of this.tree.querySelectorAll(".tree-line")) line.classList.toggle("current", line.dataset.path === relpath);
     const holder = el("div", { class: "file-holder" });
     this.node.append(holder);
     const view = new FileView(holder, this.api, `${this.root}/${relpath}`, () => {
@@ -153,18 +179,23 @@ export class FileView {
     this.image = el("div", { class: "file-image", hidden: true });
     this.preview = el("div", { class: "file-preview", hidden: true });
     this.state = el("div", { class: "file-state" });
-    this.editBtn = el("button", { class: "small", hidden: true, onclick: () => this.edit() }, "Modifier");
-    this.saveBtn = el("button", { class: "small primary", hidden: true, onclick: () => this.save() }, "Enregistrer");
-    this.wrapBtn = el("button", { class: "small flat", hidden: true, title: "Retour à la ligne", "aria-pressed": String(this.wrap),
-      onclick: () => this.toggleWrap() }, "↩");
+    this.editBtn = el("button", { class: "small", hidden: true, title: "Modifier", onclick: () => this.edit() }, icon("edit"), label("Modifier"));
+    this.saveBtn = el("button", { class: "small primary", hidden: true, title: "Enregistrer", onclick: () => this.save() }, icon("save"), label("Enregistrer"));
+    this.wrapBtn = el("button", { class: "small flat icon-only", hidden: true, title: "Retour à la ligne", "aria-label": "Retour à la ligne",
+      "aria-pressed": String(this.wrap), onclick: () => this.toggleWrap() }, icon("wrap"));
     const md = /\.(md|markdown)$/i.test(path);
-    this.mdBtn = md ? el("button", { class: "small", hidden: true, onclick: () => this.togglePreview() }, "Aperçu") : null;
+    this.mdBtn = md ? el("button", { class: "small", hidden: true, title: "Aperçu", onclick: () => this.togglePreview() }, icon("eye"), label("Aperçu")) : null;
     const back = async () => { if (await this.confirmLeave()) onBack(); };
+    const name = path.split("/").pop();
+    const dir = path.slice(0, Math.max(0, path.length - name.length - 1));
     container.append(el("div", { class: "file-head" },
-      el("button", { class: "small flat", "aria-label": "Retour", onclick: back }, "←"),
-      el("strong", { class: "grow file-name", title: path }, path.split("/").pop()),
-      el("button", { class: "small flat", "aria-label": "Télécharger", title: "Télécharger", onclick: () => download(this.api, this.path) }, "⤓"),
-      this.wrapBtn, this.mdBtn, this.editBtn, this.saveBtn),
+      el("button", { class: "small flat icon-only", "aria-label": "Retour", title: "Retour", onclick: back }, icon("back")),
+      typeIcon(name),
+      el("div", { class: "grow file-title" }, el("strong", { class: "file-name", title: path }, name),
+        dir ? el("span", { class: "subtle file-dir", title: dir }, dir) : null),
+      el("div", { class: "file-actions" },
+        el("button", { class: "small flat icon-only", "aria-label": "Télécharger", title: "Télécharger", onclick: () => download(this.api, this.path) }, icon("download")),
+        this.wrapBtn, this.mdBtn, this.editBtn, this.saveBtn)),
       this.state, this.text, this.code, this.image, this.preview);
     this.applyWrap();
     this.load();
@@ -189,7 +220,10 @@ export class FileView {
     this.stamp = r.stamp;
     if (r.kind === "image") { await this.loadImage(); return; }
     if (r.kind !== "text") {
-      clear(this.state).append(el("p", { class: "subtle" }, r.kind === "binary" ? "Fichier binaire : il n'est pas affiché." : "Fichier trop gros pour être affiché ici."));
+      clear(this.state).append(el("div", { class: "state empty file-unseen" }, icon(kindOf(this.path.split("/").pop()), "big"),
+        el("p", {}, r.kind === "binary" ? "Fichier binaire : il n'est pas affiché." : "Fichier trop gros pour être affiché ici."),
+        el("div", { class: "state-actions" },
+          el("button", { class: "small", onclick: () => download(this.api, this.path) }, icon("download"), label("Télécharger")))));
       return;
     }
     clear(this.state);
@@ -249,6 +283,7 @@ export class FileView {
       this.text.scrollTop = Math.max(0, ((this.line || 1) - 3) * lh);
     }
     this.text.readOnly = false;
+    this.text.classList.add("editing");
     this.text.focus();
     this.editBtn.hidden = true;
     this.saveBtn.hidden = false;
@@ -263,6 +298,7 @@ export class FileView {
       this.stamp = r.stamp;
       this.dirty = false;
       this.text.readOnly = true;
+      this.text.classList.remove("editing");
       this.saveBtn.hidden = true;
       this.editBtn.hidden = false;
       toast("Enregistré.", { kind: "success" });
@@ -281,7 +317,10 @@ export class FileView {
     this.preview.hidden = !show;
     this.code.hidden = show || !this.code.children.length;
     this.text.hidden = show || Boolean(this.code.children.length);
-    this.mdBtn.textContent = show ? "Source" : "Aperçu";
+    const text = show ? "Source" : "Aperçu";
+    this.mdBtn.querySelector(".btn-label").textContent = text;
+    this.mdBtn.title = text;
+    this.mdBtn.firstChild.replaceWith(icon(show ? "code" : "eye"));
     if (show) {
       clear(this.preview).append(loading());
       try { setHtml(this.preview, (await this.api.call("chat.render", { markdown: this.text.value })).html); } catch (e) {
