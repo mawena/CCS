@@ -1,3 +1,12 @@
+ccs (0.23.0) unstable; urgency=medium
+
+  * Version web : mode Portier (connexion unique), clé « portier » de
+    /etc/ccs/web.json, désactivé par défaut. En-tête X-Portier-Utilisateur cru
+    seulement depuis nginx (127.0.0.1/::1) et pour un nom de la liste, revérifié
+    par ccs-auth. Déconnexion et bouton de connexion vers Portier.
+
+ -- mawena <gamligocharles@gmail.com>  Tue, 17 Nov 2026 22:00:00 +0100
+
 ccs (0.22.1) unstable; urgency=medium
 
   * « ccs distant » était refusée par le lanceur (commande inconnue) : seule

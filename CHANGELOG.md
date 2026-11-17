@@ -3,6 +3,19 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.23.0] — 2026-11-17
+
+### Ajouté
+
+- **Mode Portier pour la version web.** Derrière Portier (connexion unique et double facteur),
+  la version web fait confiance à l'en-tête `X-Portier-Utilisateur` transmis par nginx : plus
+  de page de connexion de CCS. Réglage dans `/etc/ccs/web.json`, clé `portier` (`actif`,
+  `utilisateurs`, `url`, `deconnexion`), **désactivé par défaut**. L'en-tête n'est cru que
+  depuis `127.0.0.1`/`::1` et pour un nom de la liste ; `ccs-auth` revérifie l'option et la
+  liste avant d'ouvrir le pont. HTTP et WebSocket ; les jetons d'appareil restent prioritaires.
+- « Déconnexion » renvoie vers Portier en mode Portier ; la page de connexion propose
+  « Se connecter via Portier » (`<url>/connexion?retour=<adresse de CCS>`).
+
 ## [0.22.1] — 2026-11-17
 
 ### Corrigé
