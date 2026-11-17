@@ -1,3 +1,11 @@
+ccs (0.22.0) unstable; urgency=medium
+
+  * Chat web : une pastille et une vue par sous-agent, comme sur le bureau ;
+    le travail des sous-agents ne se mélange plus au fil de la conversation.
+  * Tests : deux tests sensibles à la charge de la machine rendus robustes.
+
+ -- mawena <gamligocharles@gmail.com>  Tue, 17 Nov 2026 20:00:00 +0100
+
 ccs (0.21.0) unstable; urgency=medium
 
   * Calcul réparti : « ccs distant machines » et « ccs distant lancer » lancent
