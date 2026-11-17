@@ -1,3 +1,11 @@
+ccs (0.20.1) unstable; urgency=medium
+
+  * Passage au dépôt APT unique https://apt.mawena.cloud : le paquet ne
+    fournit plus la source ccs.sources ni la clé ccs.gpg, dépend de
+    mawena-depot et retire l'ancienne source (rm_conffile).
+
+ -- mawena <gamligocharles@gmail.com>  Tue, 17 Nov 2026 18:00:00 +0100
+
 ccs (0.20.0) unstable; urgency=medium
 
   * Version web : onglet « Fichiers » (gestionnaire de fichiers), ajout d'un dossier aux

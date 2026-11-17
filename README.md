@@ -17,10 +17,10 @@ ccs formule           # la formule qu'il te faut, d'après ton usage réel
 ```
 
 **Site :** [mawena.github.io/CCS](https://mawena.github.io/CCS/) ·
-**Installation sur Ubuntu** (dépôt APT signé, mises à jour par `apt upgrade`) :
+**Installation sur Ubuntu** (dépôt APT signé [apt.mawena.cloud](https://apt.mawena.cloud/), mises à jour par `apt upgrade`) :
 
 ```sh
-curl -fsSL https://mawena.github.io/CCS/installer.sh | sudo sh
+curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ccs
 ```
 
 Les autres façons d'installer sont dans [Installation](#installation).
@@ -703,30 +703,36 @@ Claude Code doit être installé
 
 ### Par le dépôt APT (recommandé)
 
-CCS a son dépôt APT signé, sur GitHub Pages : <https://mawena.github.io/CCS/apt>.
-Une fois CCS installé, **les nouvelles versions arrivent avec les mises à jour
-du système** (`sudo apt update && sudo apt upgrade`, ou la Logithèque). Trois
-façons de faire la première installation :
+CCS est publié dans le dépôt APT signé unique de mawena, <https://apt.mawena.cloud/>
+(un seul dépôt pour tous ses paquets Ubuntu). Une fois CCS installé, **les nouvelles
+versions arrivent avec les mises à jour du système** (`sudo apt update && sudo apt upgrade`,
+ou la Logithèque). Trois façons de faire la première installation :
 
 ```sh
 # 1. l'installateur : ajoute la clé et le dépôt, puis installe CCS
-curl -fsSL https://mawena.github.io/CCS/installer.sh | sudo sh
+curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ccs
 
 # 2. à la main, les mêmes étapes
-sudo curl -fsSL https://mawena.github.io/CCS/apt/ccs.gpg -o /usr/share/keyrings/ccs.gpg
-sudo curl -fsSL https://mawena.github.io/CCS/apt/ccs.sources -o /etc/apt/sources.list.d/ccs.sources
-sudo apt update && sudo apt install ccs
+sudo curl -fsSL -o /usr/share/keyrings/mawena-depot.gpg https://apt.mawena.cloud/mawena-depot.gpg
+sudo curl -fsSL -o /etc/apt/sources.list.d/mawena-depot.sources https://apt.mawena.cloud/mawena-depot.sources
+sudo apt update && sudo apt install mawena-depot ccs
 
-# 3. le .deb d'une release GitHub : il ajoute lui-même le dépôt APT
+# 3. en dernier recours, le .deb d'une release GitHub (avec celui de mawena-depot)
 gh release download -R mawena/CCS -p '*.deb'      # ou depuis la page Releases
-sudo apt install ./ccs_*_all.deb
+curl -fsSLO https://apt.mawena.cloud/pool/main/depot/mawena-depot_0.2.1_all.deb
+sudo apt install ./mawena-depot_0.2.1_all.deb ./ccs_*_all.deb
 ```
 
-Le site <https://mawena.github.io/CCS/> donne les mêmes commandes, à copier.
-Clé de signature « CCS APT (mawena) » (ed25519), empreinte
-`D21A 5E7D B4D3 56E5 5961 F7C6 6568 A5B4 420A ACD2` ; le paquet installe
-lui-même sa source (`/etc/apt/sources.list.d/ccs.sources`) et sa clé
-(`/usr/share/keyrings/ccs.gpg`).
+Le site du projet <https://mawena.github.io/CCS/> et celui du dépôt
+<https://apt.mawena.cloud/> donnent les mêmes commandes, à copier. Clé de signature
+« mawena APT », empreinte `60A2 0BB2 21C9 1DAD F39D D55B 456B 0129 30FA 901D`.
+Le paquet `ccs` dépend de `mawena-depot`, qui installe la source
+(`/etc/apt/sources.list.d/mawena-depot.sources`) et la clé
+(`/usr/share/keyrings/mawena-depot.gpg`).
+
+**Machines installées avant la 0.20.1** (ancien dépôt `https://mawena.github.io/CCS/apt`) :
+rien à faire, `sudo apt update && sudo apt upgrade` installe `mawena-depot` et retire
+l'ancienne source `ccs.sources`. L'ancien dépôt reste en ligne jusqu'à mai 2027.
 
 ### Les paquets
 
@@ -755,7 +761,7 @@ Réglages).
 
 ### Mettre à jour
 
-- **Par apt** (dépôt ajouté par le paquet) : `sudo apt update && sudo apt upgrade`.
+- **Par apt** (dépôt ajouté par `mawena-depot`) : `sudo apt update && sudo apt upgrade`.
 - **En un clic** : CCS te prévient quand une nouvelle version est publiée
   (notification, icône, bandeau de la fenêtre, Réglages ; vérification sur
   GitHub au plus une fois par jour). Le bouton **Installer** du bandeau, ou
@@ -942,13 +948,13 @@ Journaux du service : `journalctl --user -u ccs-daemon -f`.
 
 ```sh
 systemctl --user disable --now ccs-daemon
-sudo apt purge ccs             # retire aussi la source APT de CCS
+sudo apt purge ccs             # le dépôt reste : sudo apt purge mawena-depot pour le retirer
 rm -rf ~/.claude-accounts      # optionnel : profils et historique
 ```
 
-Préfère `purge` à `remove` : la source APT (`/etc/apt/sources.list.d/ccs.sources`)
-est un fichier de configuration que `remove` laisse en place, alors que la clé
-est retirée ; `apt update` signalerait alors une source sans clé.
+Le dépôt APT (`/etc/apt/sources.list.d/mawena-depot.sources`) appartient au paquet
+`mawena-depot`, partagé par tous les paquets de mawena : le retirer seulement si plus
+aucun d'eux n'est installé (`purge`, pour retirer aussi la source).
 
 ## Développement
 

@@ -470,6 +470,13 @@ Un cinquième onglet « Fichiers » dans la navigation du web : parcourir les do
 - [x] 5. Documentation et release mineure 0.20.0, dépôt APT compris
 - [ ] 6. Essai réel par Charles depuis le téléphone
 
+## Phase 20 bis — Passage au dépôt APT unique (0.20.1)
+
+- [x] 1. Paquet `ccs` : plus de source `ccs.sources` ni de clé `ccs.gpg`, `Depends: mawena-depot`, retrait de l'ancienne source (`rm_conffile`, `debian/ccs.maintscript`)
+- [x] 2. README, site (`index.html`, `installer.sh` qui lance l'installateur de https://apt.mawena.cloud), pages de manuel, architecture
+- [x] 3. Release corrective 0.20.1, publiée aussi avec `mawena-depot` dans l'ancien dépôt (gardé jusqu'à mai 2027)
+- [ ] 4. Mai 2027 : archiver l'ancien dépôt (page d'accueil qui renvoie au dépôt unique)
+
 ## Phase 21 — Calcul réparti par Ricochet (0.21.0 et suivantes)
 
 Demande de Charles du 17/11/2026 : se servir de la puissance de toutes ses machines pour les travaux lancés depuis CCS. Exemple : un projet Flutter ouvert sur le VPS, où Flutter n'est pas installé, se construit sur `pc-bureau`, et le travail continue. Ensuite : répartir les tâches entre les machines pour gagner du temps et alléger le VPS.
