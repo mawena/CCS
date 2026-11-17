@@ -692,6 +692,51 @@ une autorisation donnée ailleurs (web, téléphone) se fige aussi au bureau.
 
 Fonctionnement et sécurité : [docs/architecture.md](docs/architecture.md) ; pas à pas : [docs/utilisation.md](docs/utilisation.md).
 
+## Calcul réparti : lancer un travail sur une autre machine
+
+Avec [Ricochet](https://github.com/mawena/Ricochet) (0.3.0 ou plus), CCS se sert des autres
+machines : un build Flutter part sur le PC de bureau quand Flutter n'est pas sur le VPS, une
+longue suite de tests tourne ailleurs pendant que le VPS reste tranquille.
+
+```sh
+ccs distant machines                       # machines en ligne, charge, outils trouvés
+ccs distant lancer -- flutter build apk    # la machine qui a flutter, la moins chargée
+ccs distant lancer --machine pc-bureau --rapatrier build/app/outputs -- flutter build apk
+```
+
+`ccs distant lancer`, depuis le dossier du projet :
+
+1. choisit la machine : `--machine`, sinon celle qui a l'outil (le premier mot de la commande,
+   ou `--outil`), la moins chargée d'abord ;
+2. y copie le projet avec `rsync` (seuls les fichiers changés repartent ; ce que git ignore et
+   `.git` restent ici, sauf `--inclure <chemin>` et `--avec-git`) dans
+   `~/.cache/ccs-distant/<projet>` ;
+3. lance la commande dans le même sous-dossier, avec le `PATH` d'un terminal de la machine ;
+   la sortie s'affiche au fil de l'eau et le code de retour est celui de la commande ;
+4. rapporte ici chaque `--rapatrier <chemin>` si la commande a réussi.
+
+Les chats de CCS le savent : quand le calcul réparti est réglé, Claude reçoit la consigne de
+passer par `ccs distant lancer` si un outil manque ou pour un travail lourd.
+
+**Mise en place** (une fois) :
+
+- relais Ricochet : un jeton des tunnels (`ricochet-serveur jeton`, empreinte dans
+  `jeton_tunnel_sha256`) ;
+- cette machine : `ricochet-agent` 0.3.0 ou plus, et `~/.config/ricochet/client.toml`
+  (droits 600) avec `relais = "https://…"` et `jeton = "…"` ;
+- chaque machine de calcul : `[tunnel]` avec `ports = [22]` dans `/etc/ricochet/agent.toml`, un
+  serveur SSH, et la clé publique de cette machine dans son `~/.ssh/authorized_keys` ;
+- si l'utilisateur ou le port SSH diffèrent : `~/.config/ccs/distant.toml`
+
+```toml
+[machines.pc-bureau]
+utilisateur = "charles"
+port = 22
+```
+
+Ricochet ne fait que le tunnel : c'est le serveur SSH de la machine qui décide qui entre, et
+chaque tunnel est dans le journal d'audit de Ricochet.
+
 ## Installation
 
 Ubuntu 24.04 (ou Debian/Ubuntu récent avec GTK 4, libadwaita ≥ 1.5 et, pour le
@@ -835,6 +880,8 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs tui [--serveur <nom>]` | CCS en plein écran dans le terminal (ce poste, ou un serveur appairé) |
 | `ccs serveur ajouter <adresse> [--nom n]` / `liste` / `retirer <nom>` | Serveurs CCS distants : appairage (mot de passe et code), liste, retrait |
 | `sudo ccs totp reinitialiser <utilisateur>` | Sur le serveur : efface le code de double authentification d'un utilisateur |
+| `ccs distant machines [--vite]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--vite` : sans les interroger) |
+| `ccs distant lancer [--machine m] [--outil o] [--rapatrier chemin] [--inclure chemin] [--avec-git] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
 | `ccs gui` | Application graphique |
 
 Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisation.md).

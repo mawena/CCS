@@ -477,6 +477,31 @@ Un cinquième onglet « Fichiers » dans la navigation du web : parcourir les do
 - [x] 3. Release corrective 0.20.1, publiée aussi avec `mawena-depot` dans l'ancien dépôt (gardé jusqu'à mai 2027)
 - [ ] 4. Mai 2027 : archiver l'ancien dépôt (page d'accueil qui renvoie au dépôt unique)
 
+## Phase 21 — Calcul réparti par Ricochet (0.21.0 et suivantes)
+
+Demande de Charles du 17/11/2026 : se servir de la puissance de toutes ses machines pour les travaux lancés depuis CCS. Exemple : un projet Flutter ouvert sur le VPS, où Flutter n'est pas installé, se construit sur `pc-bureau`, et le travail continue. Ensuite : répartir les tâches entre les machines pour gagner du temps et alléger le VPS.
+
+Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ouvre un **tunnel** vers le serveur SSH de la machine, et CCS fait le reste avec `ssh` et `rsync` (envois différentiels, sortie en direct, codes de retour : déjà éprouvés). Le premier plan (Ricochet lance lui-même les commandes et transporte les dossiers) est abandonné : plus de code à écrire et à sécuriser pour moins bien. Le droit reste donné machine par machine (`[tunnel]` dans l'agent, clé SSH autorisée), et chaque tunnel est dans l'audit de Ricochet.
+
+Étape A — construire ailleurs (0.21.0)
+- [x] 1. `distant.py` : liste des machines par l'API du relais (`~/.config/ricochet/client.toml`, jeton limité aux tunnels), charge, options SSH par le tunnel, réglages par machine (`~/.config/ccs/distant.toml`)
+- [x] 2. `ccs distant machines` et `ccs distant lancer [--machine M] -- <commande>` : envoi du projet (sans ce que git ignore), commande dans le même sous-dossier, sortie au fil de l'eau, `--rapatrier`, code de retour
+- [x] 3. Choix de la machine : celle qui a l'outil demandé, puis la moins chargée ; refus qui dit pourquoi (hors ligne, tunnel non activé, SSH refusé, outil absent)
+- [x] 4. Envois suivants rapides : `rsync` ne renvoie que les fichiers changés ; les dossiers de build restent sur la machine (builds incrémentaux)
+- [x] 5. Claude prévenu dans les chats de CCS (`--append-system-prompt` quand le calcul réparti est réglé)
+- [x] 6. Tests, essai réel (relais et agent locaux, vrai `ssh` et `rsync`), documentation, release mineure 0.21.0
+- [ ] 7. Par Charles : mise en place (jeton des tunnels, `client.toml`, `[tunnel]` et SSH sur `pc-bureau`), puis essai réel : build Flutter d'un projet du VPS sur `pc-bureau`
+
+Étape B — répartir et voir (0.22.0)
+- [ ] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton)
+- [ ] 9. Plusieurs commandes à la fois sur plusieurs machines (tests d'un côté, build de l'autre), limite par machine, file d'attente
+- [ ] 10. Tâches de nuit et suites de tests longues envoyées à la machine la moins chargée ; le VPS garde ses services de production tranquilles
+- [ ] 11. Arrêt propre de la commande distante quand on interrompt `ccs distant lancer`
+- [ ] 12. Tests, documentation, release mineure 0.22.0
+
+Étape C — à décider après essai
+- [ ] 13. Sessions Claude entières sur une autre machine (le pont de CCS lancé là-bas par le tunnel) : à étudier, demande Claude Code et un compte sur chaque machine
+
 ## À venir — Séparateur après `/clear`
 
 Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde les anciens messages sans aucun signe : on croit que rien ne s'est passé.

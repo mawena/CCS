@@ -336,7 +336,9 @@ class AutoCompactBridgeTest(unittest.IsolatedAsyncioTestCase):
     async def settled(self, hub, chat_id, idles):
         """Attend le `idles`-ième retour au repos, puis la mesure du contexte qui le suit."""
         def done():
-            kinds = self.kinds(hub, chat_id)
+            # « UserSent » est noté après l'envoi au moteur : sur une machine chargée, il peut
+            # arriver après la réponse ; il ne compte pas pour savoir si le chat est au repos.
+            kinds = [k for k in self.kinds(hub, chat_id) if k != "UserSent"]
             states = [e["state"] for e in self.events(hub, chat_id, "StateChanged")]
             return states.count("idle") >= idles and kinds[-1] in ("ContextUsage", "Notice")
         self.assertTrue(await self.wait(done), self.kinds(hub, chat_id))
