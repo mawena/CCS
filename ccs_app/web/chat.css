@@ -173,3 +173,19 @@ dialog.saved { width: min(520px, calc(100vw - 24px)); }
 .tag-text { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .msg.flash { animation: msg-flash 1.6s ease-out; }
 @keyframes msg-flash { 0%, 40% { background: color-mix(in srgb, var(--accent) 18%, transparent); } 100% { background: transparent; } }
+
+/* Sous-agents : pastilles au-dessus du fil, une vue par sous-agent, carte dans le fil. */
+.agent-bar { display: flex; gap: 6px; padding: 6px 10px; overflow-x: auto; border-bottom: 1px solid var(--line); flex: none; scrollbar-width: none; }
+.agent-pill { display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 240px; min-height: 0; padding: 4px 12px;
+  border-radius: 99px; border: 1px solid var(--line); background: var(--soft); font-size: 0.85em; }
+.agent-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.agent-pill .agent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-pill .spinner { width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; flex: none; }
+.agent-card { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.agent-card.done { border-left-color: var(--success); }
+.agent-card.error { border-left-color: var(--error); }
+.agent-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agent-card-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.agent-status { font-size: 0.85em; }
+.agent-detail summary { cursor: pointer; font-size: 0.85em; }
+.agent-detail pre { max-height: 40vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }

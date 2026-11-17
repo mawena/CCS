@@ -71,6 +71,8 @@ export class ChatView {
     this.texts = new Map();      // msg_id → { node, text, timer }
     this.tools = new Map();      // tool_id → carte
     this.perms = new Map();      // request_id → carte
+    this.agents = new Map();     // tool_id → sous-agent : { name, view, pill, mark, card, done, background }
+    this.shownAgent = null;      // sous-agent dont on regarde la vue (null : la conversation)
     this.shells = new Map();     // run_id → { card, command } (commandes `!` en cours)
     this.shellEarly = new Map(); // fins de commande arrivées avant la réponse du pont
     this.shellNotes = [];        // sorties des commandes `!`, ajoutées en tête du prochain message
@@ -103,6 +105,9 @@ export class ChatView {
     this.downBtn = el("button", { type: "button", class: "to-bottom", hidden: true, "aria-label": "Aller en bas",
       title: "Aller en bas", onclick: () => this.toBottom() }, icon(DOWN_ICON));
     this.watchThread();
+    // Sous-agents : une pastille par sous-agent au-dessus du fil, chacun sa vue (comme sur le bureau).
+    this.mainPill = el("button", { type: "button", class: "agent-pill active", onclick: () => this.showAgent(null) }, "Conversation");
+    this.agentBar = el("div", { class: "agent-bar", hidden: true, role: "tablist", "aria-label": "Sous-agents" }, this.mainPill);
     this.thread.addEventListener("click", (e) => this.pick(e));
     this.working = el("div", { class: "working", hidden: true, role: "status" }, el("span", { class: "spinner" }), el("span", {}, "Claude travaille…"));
     this.todos = el("div", { class: "todos", hidden: true });
@@ -174,7 +179,7 @@ export class ChatView {
           el("div", { class: "chat-sub" }, this.state, el("span", { class: "subtle cwd" }, cwd))),
         actions, this.menu),
       this.findbar.node,
-      el("div", { class: "chat-body" }, this.drawer, el("div", { class: "chat-main" }, el("div", { class: "thread-wrap" }, this.thread, this.downBtn), this.form)));
+      el("div", { class: "chat-body" }, this.drawer, el("div", { class: "chat-main" }, this.agentBar, el("div", { class: "thread-wrap" }, this.thread, this.downBtn), this.form)));
     this.node.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") { e.preventDefault(); this.findbar.show(); }
     });
@@ -692,6 +697,10 @@ export class ChatView {
     this.seenSession = null;
     for (const e of this.texts.values()) clearTimeout(e.timer);
     for (const m of [this.texts, this.tools, this.perms, this.shells, this.shellEarly]) m.clear();
+    this.showAgent(null);
+    for (const a of this.agents.values()) { a.view.remove(); a.pill.remove(); }
+    this.agents.clear();
+    this.agentBar.hidden = true;
     clear(this.thread);
     this.setTodos([]);
     this.heavy = false;
@@ -763,13 +772,16 @@ export class ChatView {
 
   stuck() { return this.thread.scrollHeight - this.thread.scrollTop - this.thread.clientHeight < 80; }
 
-  append(node) {
-    const stick = this.follow || this.stuck();
-    const last = this.thread.lastElementChild;
+  // `into` : la vue d'un sous-agent ; sans lui, le fil de la conversation.
+  append(node, into = null) {
+    const box = into || this.thread;
+    const stick = into ? box.scrollHeight - box.scrollTop - box.clientHeight < 80 : this.follow || this.stuck();
+    const last = box.lastElementChild;
     if (isToolNode(node) && last?.classList.contains("tool-group")) { last.body.append(node); refreshGroup(last); }
     else if (isToolNode(node) && isToolNode(last)) { const g = toolGroup(); last.replaceWith(g); g.body.append(last, node); refreshGroup(g); }
-    else this.thread.append(node);
-    if (stick) this.toBottom();
+    else box.append(node);
+    if (!stick) return node;
+    if (into) box.scrollTop = box.scrollHeight; else this.toBottom();
     return node;
   }
 
@@ -785,6 +797,7 @@ export class ChatView {
   }
 
   userBubble(text, nImages = 0, msgId = "") {
+    this.showAgent(null);                            // on écrit à Claude, pas au sous-agent
     this.follow = true;                              // nouveau message : on revient en bas
     return this.append(this.paintTags(userNode(text, nImages, this.msgActions, this.renderQuote, msgId)));
   }
@@ -830,22 +843,122 @@ export class ChatView {
     else entry.timer = setTimeout(() => this.render(entry.node.content, entry.text), 250);
   }
 
-  toolCard(ev) {
+  // `into` : la vue du sous-agent qui a lancé l'outil (ses cartes ne sont pas décalées).
+  toolCard(ev, into = null) {
+    if (!into && AGENT_TOOLS.includes(ev.name)) return this.agentCard(ev);
     const name = TOOL_LABELS[ev.name] || ev.name;
+    const nested = Boolean(ev.parent_id) && !into;
     const diffs = editDiffs(ev.name, ev.input);
     let card;
-    if (diffs) card = diffCard({ label: name, diffs, nested: Boolean(ev.parent_id), onOpen: (p) => this.openFile(p) });
+    if (diffs) card = diffCard({ label: name, diffs, nested, onOpen: (p) => this.openFile(p) });
     else {
       const body = el("pre", { class: "tool-body" }, JSON.stringify(ev.input || {}, null, 2));
       const result = el("pre", { class: "tool-result", hidden: true });
-      card = el("details", { class: `tool${ev.parent_id ? " nested" : ""}` },
+      card = el("details", { class: `tool${nested ? " nested" : ""}` },
         el("summary", {}, el("strong", {}, name), " ", el("span", { class: "subtle" }, target(ev.name, ev.input))),
         body, result);
       card.result = result;
     }
     this.tools.set(ev.tool_id, card);
+    return this.append(card, into);
+  }
+
+  toolResult(ev) {
+    const card = this.tools.get(ev.tool_id);
+    if (!card) return;
+    if (card.result) { card.result.hidden = false; card.result.textContent = ev.text; }
+    card.classList.toggle("error", ev.is_error);
+    card.classList.add("done");
+  }
+
+  // ---- sous-agents ------------------------------------------------------------------------
+  // Comme sur le bureau : la carte du sous-agent reste dans le fil avec « Voir », son travail
+  // (textes, outils) va dans sa vue en lecture seule, et sa pastille reste au-dessus du fil
+  // tant qu'il travaille ou qu'on le regarde.
+
+  agentCard(ev) {
+    const id = ev.tool_id;
+    const name = String(ev.input?.description || ev.input?.subagent_type || "Sous-agent").slice(0, 60);
+    const background = Boolean(ev.input?.run_in_background);
+    const status = el("span", { class: "subtle agent-status" }, background ? "en arrière-plan…" : "au travail…");
+    const result = el("pre", { class: "tool-result", hidden: true });
+    const card = el("div", { class: "agent-card" },
+      el("div", { class: "agent-card-head" },
+        el("span", { class: "agent-card-title" }, el("strong", {}, "Sous-agent"), " ", name), status,
+        el("button", { type: "button", class: "small see-agent", onclick: () => this.showAgent(id) }, "Voir")),
+      el("details", { class: "agent-detail" }, el("summary", { class: "subtle" }, "Consigne et résultat"),
+        el("pre", { class: "tool-body" }, String(ev.input?.prompt || JSON.stringify(ev.input || {}, null, 2))), result));
+    Object.assign(card, { result, status });
+    const view = el("div", { class: "thread agent-view", role: "log", hidden: true });
+    const mark = el("span", { class: "spinner" });
+    const pill = el("button", { type: "button", class: "agent-pill", title: `Sous-agent : ${name}`,
+      onclick: () => this.showAgent(id) }, mark, el("span", { class: "agent-name" }, name));
+    this.agents.set(id, { name, view, pill, mark, card, done: false, background });
+    this.thread.after(view);
+    this.agentBar.append(pill);
+    this.tools.set(id, card);
+    this.tidyPills();
     return this.append(card);
   }
+
+  // Affiche la vue d'un sous-agent, ou la conversation (`null`).
+  showAgent(id) {
+    const next = id && this.agents.has(id) ? id : null;
+    if (next === this.shownAgent) return;
+    if (!this.shownAgent) this.mainTop = this.thread.scrollTop;     // un fil caché perd sa position
+    this.shownAgent = next;
+    this.thread.hidden = Boolean(next);
+    if (next) this.downBtn.hidden = true;
+    this.mainPill.classList.toggle("active", !next);
+    for (const [tid, a] of this.agents) {
+      a.view.hidden = tid !== next;
+      a.pill.classList.toggle("active", tid === next);
+    }
+    if (next) { const v = this.agents.get(next).view; v.scrollTop = v.scrollHeight; }
+    else if (this.follow) this.toBottom();
+    else this.thread.scrollTop = this.mainTop || 0;
+    this.tidyPills();
+  }
+
+  // Un sous-agent fini quitte la barre (sa carte garde « Voir ») ; la barre disparaît quand il
+  // ne reste que la conversation.
+  tidyPills() {
+    let left = false;
+    for (const [tid, a] of this.agents) {
+      const keep = !a.done || tid === this.shownAgent;
+      a.pill.hidden = !keep;
+      left = left || keep;
+    }
+    this.agentBar.hidden = !left;
+  }
+
+  // Événement émis par un sous-agent : dans sa vue, pas dans le fil.
+  agentEvent(agent, ev) {
+    if (ev.type === "ToolUse") { if (ev.name !== "TodoWrite") this.toolCard(ev, agent.view); }
+    else if (ev.type === "ToolResult") this.toolResult(ev);
+    else if (ev.type === "AssistantText" && ev.text) {
+      const node = claudeNode([], ev.msg_id);
+      node.raw = ev.text;
+      node.content.textContent = ev.text;
+      this.append(node, agent.view);
+      this.render(node.content, ev.text);
+    }
+  }
+
+  // Fin d'un sous-agent : son résultat (premier plan) ou son avis de fin (arrière-plan : il rend
+  // la main tout de suite, son résultat immédiat ne compte pas).
+  agentDone(id, { notice = false, stopped = false } = {}) {
+    const a = this.agents.get(id);
+    if (!a || a.done || (a.background && !notice && !stopped)) return;
+    a.done = true;
+    a.mark.className = "agent-mark";
+    a.mark.textContent = stopped ? "■" : "✓";
+    a.card.status.textContent = stopped ? "arrêté" : "✓ terminé";
+    a.card.classList.add("done");
+    this.tidyPills();
+  }
+
+  stopAgents() { for (const id of this.agents.keys()) this.agentDone(id, { stopped: true }); }
 
   setTodos(items) {
     clear(this.todos);
@@ -869,6 +982,7 @@ export class ChatView {
   }
 
   permissionCard(ev) {
+    this.showAgent(null);        // la demande est dans le fil : on y revient pour la voir
     if (ev.tool_name === "AskUserQuestion") return this.questionCard(ev);
     const reason = el("input", { placeholder: "Motif du refus (facultatif)", "aria-label": "Motif du refus", enterkeyhint: "done", autocapitalize: "sentences" });
     const answer = (decision) => this.call("chat.answer", { request_id: ev.request_id, decision, message: reason.value });
@@ -920,6 +1034,8 @@ export class ChatView {
       this.seq = item.seq;
     }
     const ev = item.event;
+    const agent = ev.parent_id ? this.agents.get(ev.parent_id) : null;
+    if (agent) { this.agentEvent(agent, ev); return; }
     switch (ev.type) {
       case "Init": this.setSession(ev.session_id); break;
       case "Hello": {
@@ -947,14 +1063,11 @@ export class ChatView {
       case "AssistantText": this.assistant(ev.msg_id, ev.text, true); break;
       case "Thinking": this.state.textContent = "Claude réfléchit…"; break;
       case "ToolUse": this.toolCard(ev); break;
-      case "ToolResult": {
-        const card = this.tools.get(ev.tool_id);
-        if (card) { card.result.hidden = false; card.result.textContent = ev.text; card.classList.toggle("error", ev.is_error); card.classList.add("done"); }
-        break;
-      }
+      case "ToolResult": this.toolResult(ev); this.agentDone(ev.tool_id); break;
       case "TaskNotice": {
         const card = this.tools.get(ev.tool_id);
         if (card) card.classList.add("done");
+        this.agentDone(ev.tool_id, { notice: true });
         if (ev.summary) this.notice(ev.summary);
         break;
       }
@@ -965,7 +1078,7 @@ export class ChatView {
       case "PermissionSettled": { const c = this.perms.get(ev.request_id); if (c) { c.remove(); this.perms.delete(ev.request_id); } break; }
       case "ControlReply": break;
       case "TurnResult":
-        if (ev.interrupted) this.notice("Arrêté.");
+        if (ev.interrupted) { this.notice("Arrêté."); this.stopAgents(); }
         else if (ev.is_limit) this.notice(`Limite d'usage atteinte : ${ev.text || "attends la fin de la période ou change de compte."}`, "warning");
         else if (!ev.ok) this.notice(ev.text || "Claude n'a pas pu finir sa réponse.", "error");
         for (const c of this.perms.values()) c.remove();
@@ -981,7 +1094,7 @@ export class ChatView {
       case "ContextUsage": this.context.textContent = `Contexte ${ev.percentage} %`; this.checkContext(ev); break;
       case "OptionRefused": this.notice(`Réglage refusé (${ev.what}) : ${ev.error}`, "warning"); break;
       case "UnhandledRequest": this.notice(`Demande non prise en charge : ${ev.subtype}`, "warning"); break;
-      case "ProcessExited": if (!ev.requested && ev.code) this.notice(`Claude s'est arrêté (code ${ev.code}).`, "error"); break;
+      case "ProcessExited": this.stopAgents(); if (!ev.requested && ev.code) this.notice(`Claude s'est arrêté (code ${ev.code}).`, "error"); break;
       default: break;
     }
   }
@@ -1042,6 +1155,8 @@ function newUuid() {
   const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
+
+const AGENT_TOOLS = ["Task", "Agent"];   // outils qui lancent un sous-agent
 
 function isToolNode(n) {
   return Boolean(n) && n.matches?.("details.tool") && !n.classList.contains("shell");

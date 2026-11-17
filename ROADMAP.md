@@ -492,15 +492,25 @@ Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ou
 - [x] 6. Tests, essai réel (relais et agent locaux, vrai `ssh` et `rsync`), documentation, release mineure 0.21.0
 - [ ] 7. Par Charles : mise en place (jeton des tunnels, `client.toml`, `[tunnel]` et SSH sur `pc-bureau`), puis essai réel : build Flutter d'un projet du VPS sur `pc-bureau`
 
-Étape B — répartir et voir (0.22.0)
+Étape B — répartir et voir (0.23.0)
 - [ ] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton)
 - [ ] 9. Plusieurs commandes à la fois sur plusieurs machines (tests d'un côté, build de l'autre), limite par machine, file d'attente
 - [ ] 10. Tâches de nuit et suites de tests longues envoyées à la machine la moins chargée ; le VPS garde ses services de production tranquilles
 - [ ] 11. Arrêt propre de la commande distante quand on interrompt `ccs distant lancer`
-- [ ] 12. Tests, documentation, release mineure 0.22.0
+- [ ] 12. Tests, documentation, release mineure 0.23.0
 
 Étape C — à décider après essai
 - [ ] 13. Sessions Claude entières sur une autre machine (le pont de CCS lancé là-bas par le tunnel) : à étudier, demande Claude Code et un compte sur chaque machine
+
+## Phase 22 — Sous-agents dans le chat web (0.22.0)
+
+Sur le web, le travail des sous-agents se mélangeait au fil (cartes décalées, réponses du sous-agent affichées comme celles de Claude). Comme sur le bureau maintenant :
+
+- [x] 1. Une pastille par sous-agent au-dessus du fil (« Conversation » + un par sous-agent au travail), barre cachée quand il n'y en a pas
+- [x] 2. Une vue en lecture seule par sous-agent : ses outils et ses réponses n'apparaissent plus dans le fil
+- [x] 3. Carte « Sous-agent » dans le fil : état (au travail, en arrière-plan, terminé, arrêté), bouton « Voir », consigne et résultat repliés
+- [x] 4. Fin : résultat (premier plan) ou avis de fin (arrière-plan) ; un sous-agent fini quitte la barre ; retour au fil quand on envoie un message ou qu'une autorisation arrive
+- [x] 5. Tests (faux DOM), documentation, release mineure 0.22.0
 
 ## À venir — Séparateur après `/clear`
 

@@ -496,5 +496,104 @@ class StaticTest(unittest.TestCase):
         self.assertIn(".quoted::before { content: attr(data-author);", css)
 
 
+AGENT = """
+const view = open();
+await settle();
+const pills = () => view.agentBar.children.filter((p) => !p.hidden).map((p) => `${p.textContent}${p.classList.contains("active") ? "*" : ""}`);
+const start = (id, extra = {}) => ({ type: "ToolUse", tool_id: id, name: "Agent", input: { description: "Chercher les tests", prompt: "Cherche.", ...extra } });
+"""
+
+
+@unittest.skipUnless(NODE, "node absent")
+class AgentTest(unittest.TestCase):
+    """Sous-agents : une pastille et une vue par sous-agent, comme sur le bureau."""
+
+    def test_agent_work_goes_to_its_own_view(self):
+        out = run(AGENT + """
+await live(view, { type: "UserSent", text: "Vas-y", images: 0, nonce: "x" }, start("a1"),
+  { type: "ToolUse", tool_id: "t1", name: "Read", input: { file_path: "/p/a.py" }, parent_id: "a1" },
+  { type: "ToolResult", tool_id: "t1", text: "contenu", is_error: false, parent_id: "a1" },
+  { type: "ToolUse", tool_id: "t2", name: "TodoWrite", input: { todos: [] }, parent_id: "a1" },
+  { type: "AssistantText", msg_id: "m9", text: "Trouvé **3** tests", parent_id: "a1" });
+const agent = view.agents.get("a1");
+out = { main: shape(view).map((l) => l.split(" | ")[0]), bar: view.agentBar.hidden, pills: pills(),
+  card: view.thread.querySelector(".agent-card-title").textContent, status: view.thread.querySelector(".agent-status").textContent,
+  inside: agent.view.children.map((n) => n.className), hidden: [view.thread.hidden, agent.view.hidden],
+  nested: agent.view.querySelectorAll(".nested").length, read: agent.view.querySelector(".tool-result").textContent };
+""")
+        self.assertEqual(out["main"], ["msg user", "agent-card"])
+        self.assertEqual(out["card"], "Sous-agent Chercher les tests")
+        self.assertEqual(out["status"], "au travail…")
+        self.assertFalse(out["bar"])
+        self.assertEqual(out["pills"], ["Conversation*", "Chercher les tests"])
+        self.assertEqual(out["inside"], ["tool done", "msg claude"])
+        self.assertEqual(out["hidden"], [False, True])
+        self.assertEqual(out["nested"], 0)
+        self.assertEqual(out["read"], "contenu")
+
+    def test_see_button_and_pills_switch_views(self):
+        out = run(AGENT + """
+await live(view, start("a1"), { type: "AssistantText", msg_id: "m9", text: "Je cherche", parent_id: "a1" });
+const agent = view.agents.get("a1");
+out = {};
+view.thread.querySelector(".see-agent").click();
+out.seen = [view.thread.hidden, agent.view.hidden, pills()];
+view.mainPill.click();
+out.back = [view.thread.hidden, agent.view.hidden, pills()];
+agent.pill.click();
+await live(view, { type: "UserSent", text: "Autre chose", images: 0, nonce: "y" });
+out.sent = [view.thread.hidden, agent.view.hidden];
+agent.pill.click();
+await live(view, { type: "PermissionRequest", request_id: "r1", tool_name: "Bash", input: { command: "ls" } });
+out.asked = [view.thread.hidden, view.thread.querySelectorAll(".permission").length];
+""")
+        self.assertEqual(out["seen"], [True, False, ["Conversation", "Chercher les tests*"]])
+        self.assertEqual(out["back"], [False, True, ["Conversation*", "Chercher les tests"]])
+        self.assertEqual(out["sent"], [False, True])
+        self.assertEqual(out["asked"], [False, 1])
+
+    def test_finished_agent_leaves_the_bar_but_can_be_reopened(self):
+        out = run(AGENT + """
+await live(view, start("a1"), { type: "ToolResult", tool_id: "a1", text: "3 tests trouvés", is_error: false });
+const agent = view.agents.get("a1");
+const card = view.thread.querySelector(".agent-card");
+out = { bar: view.agentBar.hidden, status: card.querySelector(".agent-status").textContent,
+  result: card.querySelector(".tool-result").textContent, done: card.classList.contains("done") };
+card.querySelector(".see-agent").click();
+out.reopened = [view.agentBar.hidden, pills(), agent.view.hidden];
+view.mainPill.click();
+out.closed = view.agentBar.hidden;
+""")
+        self.assertTrue(out["bar"])
+        self.assertEqual(out["status"], "✓ terminé")
+        self.assertEqual(out["result"], "3 tests trouvés")
+        self.assertTrue(out["done"])
+        self.assertEqual(out["reopened"], [False, ["Conversation", "✓Chercher les tests*"], False])
+        self.assertTrue(out["closed"])
+
+    def test_background_agent_ends_with_its_notice(self):
+        out = run(AGENT + """
+await live(view, start("a1", { run_in_background: true }), { type: "ToolResult", tool_id: "a1", text: "lancé", is_error: false });
+out = { early: [view.agents.get("a1").done, pills(), view.thread.querySelector(".agent-status").textContent] };
+await live(view, { type: "TaskNotice", tool_id: "a1", summary: "Sous-agent fini" });
+out.late = [view.agents.get("a1").done, view.agentBar.hidden, view.thread.querySelector(".agent-status").textContent];
+""")
+        self.assertEqual(out["early"], [False, ["Conversation*", "Chercher les tests"], "en arrière-plan…"])
+        self.assertEqual(out["late"], [True, True, "✓ terminé"])
+
+    def test_interrupt_stops_agents_and_new_thread_forgets_them(self):
+        out = run(AGENT + """
+await live(view, start("a1"), start("a2", { run_in_background: true }));
+view.agents.get("a1").pill.click();
+await live(view, { type: "TurnResult", ok: true, interrupted: true });
+out = { done: [...view.agents.values()].map((a) => a.done), status: view.thread.querySelectorAll(".agent-status").map((n) => n.textContent) };
+view.resetThread(true);
+out.reset = [view.agents.size, view.agentBar.hidden, view.thread.hidden, view.agentBar.children.length, view.node.querySelectorAll(".agent-view").length];
+""")
+        self.assertEqual(out["done"], [True, True])
+        self.assertEqual(out["status"], ["arrêté", "arrêté"])
+        self.assertEqual(out["reset"], [0, True, False, 1, 0])
+
+
 if __name__ == "__main__":
     unittest.main()
