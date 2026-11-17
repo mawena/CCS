@@ -32,6 +32,8 @@ STDERR_LINES = 20
 SETTLE_S = 3.0
 # Événements d'un tour en cours : reçus alors que le moteur est au repos, ils disent que la CLI
 # s'est remise au travail (message envoyé pendant le tour précédent, `/compact` en file).
+QUIET_EVENTS = (proto.TurnResult, proto.LocalCommand, proto.ControlReply, proto.Status, proto.Unknown,
+                proto.TaskNotice)
 WORK_EVENTS = (proto.Thinking, proto.TextDelta, proto.AssistantText, proto.ToolUse, proto.Compacting)
 
 
@@ -122,6 +124,7 @@ class ChatSession:
         self._activity_at = 0.0             # dernier signe de vie de la CLI (hors result)
         self._background = False            # un sous-agent ou une tâche tourne en arrière-plan
         self._background_ids = set()        # appels d'outil des sous-agents de fond pas encore finis
+        self._noticed = set()               # avis de fin déjà transmis (tool_id)
         self._compacting = False            # la CLI compacte (`/compact` lu, même envoyé pendant un tour)
         self._requested_stop = False
 
@@ -265,8 +268,15 @@ class ChatSession:
 
     def _handle_event(self, proc, ev):
         forward = True
-        if not isinstance(ev, (proto.TurnResult, proto.LocalCommand, proto.ControlReply, proto.Status)):
-            self._activity_at = self._clock()   # la CLI travaille (nouveau tour, texte, outil…)
+        # la CLI travaille (nouveau tour, texte, outil…). Pas les événements inconnus : les CLI
+        # récentes envoient `command_lifecycle` juste APRÈS le `result`, ce qui empêchait le
+        # filet de remettre au repos (« Claude travaille » pour toujours).
+        if not isinstance(ev, QUIET_EVENTS):
+            self._activity_at = self._clock()
+        if isinstance(ev, proto.TaskNotice):
+            if ev.tool_id in self._noticed:
+                return                          # même avis par le flux et par le message
+            self._noticed.add(ev.tool_id)
         if isinstance(ev, proto.Unknown) and isinstance(ev.raw, dict) and ev.raw.get("type") == "control_request":
             request = ev.raw.get("request") if isinstance(ev.raw.get("request"), dict) else {}
             sub = str(request.get("subtype") or "?")

@@ -529,6 +529,12 @@ Connexion unique par Portier (https://portier.mawena.cloud) pour la version web,
 - [x] 2. Moteur : `status: compacting` suivi (pas de filet pendant le compactage), retour à « occupé » quand la CLI se remet au travail, repos au dernier `result`
 - [x] 3. Tests (moteur, décodage, onglet de bureau : indicateur et bouton ■ éteints), release 0.23.1
 
+## Correctif 0.23.2 — « Claude travaille » et sous-agents bloqués
+
+- [x] 1. Cause relevée sur le pont en production : `command_lifecycle` après le `result` relançait le compteur d'activité, le filet ne remettait jamais au repos ; la fin des sous-agents de fond arrive en `system/task_notification`, non lu
+- [x] 2. Moteur : les événements inconnus ne comptent plus comme activité ; avis de fin lu dans le flux, transmis une seule fois
+- [x] 3. Tests (moteur, décodage), release 0.23.2
+
 ## À venir — Séparateur après `/clear`
 
 Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde les anciens messages sans aucun signe : on croit que rien ne s'est passé.
