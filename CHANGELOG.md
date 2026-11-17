@@ -3,6 +3,21 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.22.0] — 2026-11-17
+
+### Ajouté
+
+- **Sous-agents dans le chat web.** Comme sur le bureau, chaque sous-agent lancé par Claude a
+  sa pastille au-dessus du fil et sa propre vue en lecture seule (ce qu'il lit, lance et
+  répond). Sa carte dans le fil montre son état (au travail, en arrière-plan, terminé, arrêté),
+  sa consigne et son résultat, avec un bouton « Voir » qui reste après la fin.
+
+### Modifié
+
+- Chat web : le travail d'un sous-agent n'apparaît plus dans le fil de la conversation (ses
+  réponses s'y affichaient comme celles de Claude). On revient au fil quand on envoie un
+  message ou qu'une autorisation arrive.
+
 ## [0.21.0] — 2026-11-17
 
 ### Ajouté
