@@ -13,7 +13,7 @@ from pathlib import Path
 from aiohttp import WSMsgType, web
 
 from .. import __version__
-from . import paths, rpc
+from . import paths, portier, rpc
 from .tokens import DEVICE_AGE, MAX_AGE, session_hash
 
 log = logging.getLogger("ccs.web")
@@ -79,6 +79,7 @@ def make_app(auth, bridges, config):
     allowed = {config["origin"], f"http://{config['listen']}"}
     app = web.Application(client_max_size=rpc.MAX_LINE)
     open_ws = {}             # jeton (session ou application) → {WebSocket: signal d'arrêt}
+    portier_cfg = config.get("portier") or portier.DISABLED
 
     async def close_all(token):
         for stop in list(open_ws.pop(token, {}).values()):
@@ -93,6 +94,10 @@ def make_app(auth, bridges, config):
 
     def ip(request):
         return client_ip(request.remote, request.headers)
+
+    def portier_user(request):
+        """Nom vérifié par Portier (en-tête de nginx), seulement en mode Portier et depuis nginx."""
+        return portier.trusted_user(portier_cfg, request.remote, request.headers)
 
     def origin_ok(request):
         origin = request.headers.get("Origin")
@@ -167,7 +172,9 @@ def make_app(auth, bridges, config):
         if session:
             await safe_call("logout", session=session)
             await close_all(session)
-        resp = web.json_response({})
+        # en mode Portier, la vraie déconnexion se fait sur Portier
+        redirect = portier_cfg["deconnexion"] if portier_user(request) else ""
+        resp = web.json_response({"redirect": redirect} if redirect else {})
         resp.del_cookie(SESSION, path="/")
         return resp
 
@@ -175,33 +182,55 @@ def make_app(auth, bridges, config):
         who = await identify(request)
         if who is None:
             raise web.HTTPUnauthorized()
-        return web.json_response({"user": who[0]})
+        out = {"user": who[0]}
+        if who[3] == "portier":
+            out["portier"] = True
+        return web.json_response(out)
+
+    async def portier_info(_request):
+        """Pour la page de connexion : bouton « Se connecter via Portier » si le mode est actif."""
+        return web.json_response({"actif": bool(portier_cfg["actif"]),
+                                  "connexion": portier.login_url(portier_cfg, config["origin"])})
+
+    def who_params(request):
+        p_user = portier_user(request)
+        return {"portier": p_user} if p_user else {"session": request.cookies.get(SESSION, "")}
 
     async def tokens(request):
-        return web.json_response(await safe_call("tokens", session=request.cookies.get(SESSION, "")))
+        return web.json_response(await safe_call("tokens", **who_params(request)))
 
     async def revoke(request):
         if not origin_ok(request):
             raise web.HTTPForbidden()
         d = await body(request)
-        return web.json_response(await safe_call("revoke", session=request.cookies.get(SESSION, ""),
-                                                 token_id=str(d.get("token_id") or "")))
+        return web.json_response(await safe_call("revoke", token_id=str(d.get("token_id") or ""),
+                                                 **who_params(request)))
 
     async def identify(request):
-        """(utilisateur, ticket, jeton) d'après le jeton d'application ou le cookie de session."""
+        """(utilisateur, ticket, jeton, sorte) d'après le jeton d'application, l'en-tête de Portier
+        ou le cookie de session. Le jeton d'application (API à clé) passe toujours avant Portier."""
         header = request.headers.get("Authorization", "")
+        kind = "session"
         try:
             if header.startswith("Bearer "):
+                kind = "app"
                 token = header[7:].strip()
                 r = await auth.call("check_app", token=token)
             else:
+                p_user = portier_user(request)
+                if p_user:
+                    try:
+                        r = await auth.call("portier", portier=p_user)
+                        return r["user"], r["ticket"], r["token"], "portier"
+                    except rpc.RpcError:
+                        pass                 # ccs-auth refuse : connexion habituelle de CCS
                 token = request.cookies.get(SESSION, "")
                 if not token:
                     return None
                 r = await auth.call("check", session=token)
         except rpc.RpcError:
             return None
-        return r["user"], r["ticket"], token
+        return r["user"], r["ticket"], token, kind
 
     async def ws_handler(request):
         if not origin_ok(request):
@@ -209,7 +238,7 @@ def make_app(auth, bridges, config):
         who = await identify(request)
         if who is None:
             raise web.HTTPUnauthorized()
-        user, ticket, token = who
+        user, ticket, token, kind = who
         ws = web.WebSocketResponse(max_msg_size=rpc.MAX_LINE, heartbeat=30)
         await ws.prepare(request)
         try:
@@ -241,11 +270,12 @@ def make_app(auth, bridges, config):
         open_ws.setdefault(token, {})[ws] = stop
 
         async def recheck():
-            bearer = request.headers.get("Authorization", "").startswith("Bearer ")
             while not ws.closed:
                 await asyncio.sleep(RECHECK_S)
                 try:
-                    if bearer:
+                    if kind == "portier":
+                        await auth.call("portier", portier=user)
+                    elif kind == "app":
                         await auth.call("check_app", token=token)
                     else:
                         await auth.call("check", session=token)
@@ -305,6 +335,7 @@ def make_app(auth, bridges, config):
     app.router.add_post("/api/pair", pair)
     app.router.add_post("/api/logout", logout)
     app.router.add_get("/api/session", session_info)
+    app.router.add_get("/api/portier", portier_info)
     app.router.add_get("/api/tokens", tokens)
     app.router.add_post("/api/revoke", revoke)
     app.router.add_get("/api/ws", ws_handler)
@@ -316,10 +347,12 @@ def make_app(auth, bridges, config):
 async def serve():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     config = load_config()
+    config["portier"] = portier.load()
     host, _, port = config["listen"].rpartition(":")
     app = make_app(AuthClient(), BridgeConnector(), config)
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     await web.TCPSite(runner, host or "127.0.0.1", int(port)).start()
-    log.info("ccs-web prêt sur %s (site %s)", config["listen"], config["origin"])
+    log.info("ccs-web prêt sur %s (site %s%s)", config["listen"], config["origin"],
+             ", mode Portier" if config["portier"]["actif"] else "")
     await asyncio.Event().wait()
