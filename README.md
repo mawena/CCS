@@ -258,7 +258,9 @@ de Claude à gauche en Markdown mis en forme (titres, listes, tableaux, code
 coloré, liens), qui arrivent au fil de l'eau. Chaque action de Claude (fichier
 lu ou modifié avec son `+12 −3`, commande lancée, recherche, sous-agent) est une
 **carte repliable** ; sa liste de tâches reste épinglée au-dessus de la saisie, comme
-dans l'extension VS Code.
+dans l'extension VS Code. Quand Claude lance des **sous-agents**, chacun a sa pastille
+au-dessus du fil et sa propre vue (ce qu'il lit, lance et répond), sur le bureau comme
+sur le web ; sa carte dans le fil garde un bouton « Voir » une fois qu'il a fini.
 
 - **Barre cliquable** sous la zone de saisie : **modèle**, **effort** (faible à
   max ; les niveaux que le modèle n'accepte pas sont grisés), **ultracode**
