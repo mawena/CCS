@@ -14,12 +14,14 @@ from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, GtkSource
 
 from .. import file_tree
 from .common import in_thread
+from .file_panel import icon_names
 
 MAX_VIEW_BYTES = 8 * 1024 * 1024   # au-delà, un fichier trop gros est coupé à l'affichage
 CHECK_MS = 300
 CSS = b"""
 .ccs-file-notice { background: alpha(@warning_color, 0.18); padding: 6px 12px; }
-.ccs-file-head { padding: 4px 8px; }
+.ccs-file-head { padding: 6px 8px 6px 12px; }
+.ccs-file-head image.ccs-file-icon { opacity: 0.75; }
 """
 _css_done = False
 
@@ -91,6 +93,7 @@ class _Doc:
         self.monitor = None
         self.pending_line = None
         self.reading = False
+        self.save_btn = None        # bouton « Enregistrer » de l'en-tête (texte modifiable)
 
 
 class FileEditor(Gtk.Box):
@@ -248,7 +251,7 @@ class FileEditor(Gtk.Box):
             nxt = child.get_next_sibling()
             d.holder.remove(child)
             child = nxt
-        d.body = d.notice = d.stack = d.preview = d.view = d.search = None
+        d.body = d.notice = d.stack = d.preview = d.view = d.search = d.save_btn = None
         if d.preview_timer:
             GLib.source_remove(d.preview_timer)
             d.preview_timer = 0
@@ -295,6 +298,11 @@ class FileEditor(Gtk.Box):
                 pic = Gtk.Picture.new_for_filename(d.path)
             pic.set_can_shrink(True)
             pic.set_vexpand(True)
+            pic.set_margin_top(12)
+            pic.set_margin_bottom(12)
+            pic.set_margin_start(12)
+            pic.set_margin_end(12)
+            self._with_separator(d, self._file_header(d))
             d.holder.append(pic)
         else:
             title, desc, icon = {
@@ -310,6 +318,37 @@ class FileEditor(Gtk.Box):
             page = Adw.StatusPage(title=title, description=desc, icon_name=icon)
             page.set_vexpand(True)
             d.holder.append(page)
+
+    def _file_header(self, d, title=None):
+        """En-tête net d'un fichier : icône du type, nom en titre, chemin en légende.
+        Les boutons propres à la vue (Source/Aperçu, Fichier entier…) s'ajoutent à droite."""
+        head = Gtk.Box(spacing=8)
+        head.add_css_class("ccs-file-head")
+        name = os.path.basename(d.path) or d.path
+        icon = Gtk.Image(gicon=Gio.ThemedIcon.new_from_names(icon_names(name)),
+                         valign=Gtk.Align.CENTER)
+        icon.add_css_class("ccs-file-icon")
+        head.append(icon)
+        titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True,
+                         valign=Gtk.Align.CENTER)
+        name_label = Gtk.Label(label=title or name, xalign=0, ellipsize=2,
+                               tooltip_text=d.path)
+        name_label.add_css_class("heading")
+        folder = os.path.dirname(d.path)
+        home = os.path.expanduser("~")
+        if not self.remote and (folder + "/").startswith(home + "/"):
+            folder = "~" + folder[len(home):]
+        path_label = Gtk.Label(label=folder, xalign=0, ellipsize=1, tooltip_text=d.path)
+        path_label.add_css_class("caption")
+        path_label.add_css_class("dim-label")
+        titles.append(name_label)
+        titles.append(path_label)
+        head.append(titles)
+        return head
+
+    def _with_separator(self, d, head):
+        d.holder.append(head)
+        d.holder.append(Gtk.Separator())
 
     def _language_for(self, path):
         lm = GtkSource.LanguageManager.get_default()
@@ -345,30 +384,53 @@ class FileEditor(Gtk.Box):
 
         view = GtkSource.View(buffer=buf, monospace=True, show_line_numbers=True,
                               highlight_current_line=True, auto_indent=True,
-                              editable=not d.readonly, top_margin=4, bottom_margin=4,
-                              left_margin=6)
+                              editable=not d.readonly, top_margin=8, bottom_margin=8,
+                              left_margin=8, right_margin=8, pixels_below_lines=2,
+                              tab_width=4)
+        view.add_css_class("ccs-code")
         d.view = view
         scroller = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
         scroller.set_child(view)
 
         search_bar = self._build_search(d)
+        head = self._file_header(d)
+        tools = Gtk.Box(spacing=2, valign=Gtk.Align.CENTER)
+        find_btn = Gtk.Button(icon_name="edit-find-symbolic",
+                              tooltip_text="Chercher dans le fichier (Ctrl+F)")
+        find_btn.add_css_class("flat")
+        find_btn.connect("clicked", lambda _b: self._open_search(d))
+        tools.append(find_btn)
+        if not d.readonly:
+            save_btn = Gtk.Button(icon_name="document-save-symbolic",
+                                  tooltip_text="Enregistrer (Ctrl+S)")
+            save_btn.add_css_class("flat")
+            save_btn.connect("clicked", lambda _b: self.save(d.path))
+            save_btn.set_sensitive(d.dirty)
+            d.save_btn = save_btn
+            tools.append(save_btn)
+        head.append(tools)
         is_md = d.path.lower().endswith((".md", ".markdown"))
         if is_md:
-            d.stack = Gtk.Stack(vexpand=True, hexpand=True)
+            d.stack = Gtk.Stack(vexpand=True, hexpand=True,
+                                transition_type=Gtk.StackTransitionType.CROSSFADE)
             d.stack.add_named(scroller, "source")
-            head = Gtk.Box(spacing=6)
-            head.add_css_class("ccs-file-head")
-            src_btn = Gtk.ToggleButton(label="Source", active=True)
-            prev_btn = Gtk.ToggleButton(label="Aperçu", group=src_btn)
-            head.append(src_btn)
-            head.append(prev_btn)
+            switch = Gtk.Box(valign=Gtk.Align.CENTER)
+            switch.add_css_class("linked")
+            src_btn = Gtk.ToggleButton(label="Source", active=True,
+                                       tooltip_text="Texte Markdown")
+            prev_btn = Gtk.ToggleButton(label="Aperçu", group=src_btn,
+                                        tooltip_text="Rendu du Markdown")
+            switch.append(src_btn)
+            switch.append(prev_btn)
+            head.insert_child_after(switch, head.get_first_child().get_next_sibling())
             d.toggle = (src_btn, prev_btn)
             prev_btn.connect("toggled", lambda b: self._on_preview_toggled(d, b.get_active()))
-            d.holder.append(head)
+            self._with_separator(d, head)
             d.holder.append(search_bar)
             d.holder.append(d.stack)
             d.body = d.stack
         else:
+            self._with_separator(d, head)
             d.holder.append(search_bar)
             d.holder.append(scroller)
             d.body = scroller
@@ -403,7 +465,11 @@ class FileEditor(Gtk.Box):
 
     def find(self):
         d = self._current_doc()
-        if d is not None and d.search is not None:
+        if d is not None:
+            self._open_search(d)
+
+    def _open_search(self, d):
+        if d.search is not None:
             d.search[0].set_search_mode(True)
             d.search[1].grab_focus()
 
@@ -495,6 +561,8 @@ class FileEditor(Gtk.Box):
         d.page.set_indicator_icon(
             Gio.ThemedIcon.new("media-record-symbolic") if d.dirty else None)
         d.page.set_title(("• " if d.dirty else "") + d.title)
+        if d.save_btn is not None:
+            d.save_btn.set_sensitive(d.dirty)
 
     def save_current(self):
         d = self._current_doc()
@@ -691,19 +759,20 @@ class FileEditor(Gtk.Box):
             scheme = self._scheme()
             if scheme is not None:
                 buf.set_style_scheme(scheme)
-            head = Gtk.Box(spacing=6)
-            head.add_css_class("ccs-file-head")
-            head.append(Gtk.Label(label=f"Modification de {name}", xalign=0, hexpand=True))
-            full = Gtk.Button(label="Fichier entier")
+            head = self._file_header(d, title=f"Modification de {name}")
+            full = Gtk.Button(icon_name="document-open-symbolic",
+                              tooltip_text="Fichier entier", valign=Gtk.Align.CENTER)
+            full.add_css_class("flat")
             full.connect("clicked", lambda _b: self.open(path))
             head.append(full)
             view = GtkSource.View(buffer=buf, monospace=True, editable=False,
-                                  show_line_numbers=False, top_margin=4, bottom_margin=4,
-                                  left_margin=6)
+                                  show_line_numbers=False, top_margin=8, bottom_margin=8,
+                                  left_margin=8, right_margin=8, pixels_below_lines=2)
+            view.add_css_class("ccs-code")
             d.view = view
             scroller = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
             scroller.set_child(view)
-            d.holder.append(head)
+            self._with_separator(d, head)
             d.holder.append(scroller)
         d.buffer.set_text(text)
         self.tab_view.set_selected_page(d.page)
