@@ -70,6 +70,16 @@ class FileEditorGuiTest(unittest.TestCase):
         self.assertTrue(spin(lambda: not self.ed.is_dirty(p)))
         self.assertEqual(p.read_text(), "print(2)\n")
 
+    def test_header_save_button_follows_dirty(self):
+        p = self.open_text("c.py", "x = 1\n")
+        d = self.ed.doc(p)
+        self.assertFalse(d.save_btn.get_sensitive())
+        self.ed.set_text(p, "x = 2\n")
+        self.assertTrue(d.save_btn.get_sensitive())
+        d.save_btn.emit("clicked")
+        self.assertTrue(spin(lambda: not self.ed.is_dirty(p)))
+        self.assertFalse(d.save_btn.get_sensitive())
+
     def test_external_change_reloads_clean_file(self):
         p = self.open_text("b.txt", "avant\n")
         p.write_text("après, plus long\n")
