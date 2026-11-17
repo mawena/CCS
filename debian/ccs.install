@@ -4,5 +4,3 @@ ccs_app/*.py usr/lib/ccs/ccs_app
 ccs_app/server usr/lib/ccs/ccs_app
 ccs_app/remote usr/lib/ccs/ccs_app
 ccs_app/tui usr/lib/ccs/ccs_app
-data/apt/ccs.sources etc/apt/sources.list.d
-data/apt/ccs.gpg usr/share/keyrings

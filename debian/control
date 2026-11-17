@@ -9,6 +9,7 @@ Rules-Requires-Root: no
 Package: ccs
 Architecture: all
 Depends: ${misc:Depends},
+         mawena-depot,
          jq,
          gnupg,
          procps,
