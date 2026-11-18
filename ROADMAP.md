@@ -490,7 +490,7 @@ Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ou
 - [x] 4. Envois suivants rapides : `rsync` ne renvoie que les fichiers changés ; les dossiers de build restent sur la machine (builds incrémentaux)
 - [x] 5. Claude prévenu dans les chats de CCS (`--append-system-prompt` quand le calcul réparti est réglé)
 - [x] 6. Tests, essai réel (relais et agent locaux, vrai `ssh` et `rsync`), documentation, release mineure 0.21.0
-- [ ] 7. Par Charles : mise en place (jeton des tunnels, `client.toml`, `[tunnel]` et SSH sur `pc-bureau`), puis essai réel : build Flutter d'un projet du VPS sur `pc-bureau`
+- [x] 7. Mise en place faite (jeton des tunnels, `client.toml`, `[tunnel]` et SSH sur `pc-bureau`) ; essai réel réussi le 18/11 : APK de Portail construit sur `pc-bureau` (Gradle 3 min 35) et rapatrié sur le VPS
 
 Étape B — répartir et voir (prochaine version mineure)
 - [ ] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton)
