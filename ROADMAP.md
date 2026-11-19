@@ -573,8 +573,8 @@ Charles (19/11/2026) : « je veux une application complète construite de bout e
 - [x] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
 - [x] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique des conversations, comptes par projet
 - [x] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options (modèle, effort), `/clear` et séparateurs, étiquettes, recherche, coût
-- [ ] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
-- [ ] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
+- [x] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
+- [x] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
 - [ ] 7. Feuille de route, tâches de fond, travail (changements, retour arrière), réglages, page téléphone
 - [ ] 8. Terminal (term.*) avec clavier adapté
 - [ ] 9. Notifications de fin de tour et de questions (service de fond), partage Android vers un chat

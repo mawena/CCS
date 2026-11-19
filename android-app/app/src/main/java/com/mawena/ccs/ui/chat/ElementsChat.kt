@@ -266,12 +266,33 @@ fun TexteMono(t: String, lignes: Int, erreur: Boolean = false) {
 
 @Composable
 fun VueDiff(d: Diff.Fichier) {
+    val ouvre = LocalOuvreFichier.current
+    Column {
+        Text(
+            d.chemin,
+            if (ouvre != null) Modifier.clickable { ouvre.ouvrir(d.chemin, null) } else Modifier,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (ouvre != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            textDecoration = if (ouvre != null) androidx.compose.ui.text.style.TextDecoration.Underline else null,
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
+        CorpsDiff(d.lignes, Modifier.padding(top = 4.dp))
+    }
+}
+
+/**
+ * Lignes d'un diff (chat, Git) : ajouts en vert, retraits en rouge, séparateurs de morceaux ;
+ * numéros de ligne quand ils sont connus (git). Au-delà de `max` lignes : « Tout afficher ».
+ */
+@Composable
+fun CorpsDiff(lignesDiff: List<Diff.Ligne>, modifier: Modifier = Modifier, max: Int = 80) {
     val cc = couleursCode()
     var tout by remember { mutableStateOf(false) }
-    val lignes = if (tout || d.lignes.size <= 80) d.lignes else d.lignes.take(80)
-    Column {
-        Text(d.chemin, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Surface(color = cc.fond, shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+    val lignes = if (tout || lignesDiff.size <= max) lignesDiff else lignesDiff.take(max)
+    val numeros = remember(lignesDiff) { lignesDiff.any { it.ancien != null || it.nouveau != null } }
+    val chiffres = remember(lignesDiff) { (lignesDiff.maxOfOrNull { maxOf(it.ancien ?: 0, it.nouveau ?: 0) } ?: 0).toString().length }
+    Column(modifier) {
+        Surface(color = cc.fond, shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 6.dp)) {
                 lignes.forEach { l ->
                     val (signe, fond, encre) = when (l.genre) {
@@ -280,15 +301,18 @@ fun VueDiff(d: Diff.Fichier) {
                         Diff.Genre.Morceau -> Triple("", Color.Transparent, cc.titre)
                         Diff.Genre.Contexte -> Triple(" ", Color.Transparent, cc.texte)
                     }
+                    val no = if (numeros && l.genre != Diff.Genre.Morceau) {
+                        (l.ancien?.toString() ?: "").padStart(chiffres) + " " + (l.nouveau?.toString() ?: "").padStart(chiffres) + " "
+                    } else ""
                     Text(
-                        "$signe ${l.texte}",
+                        "$no$signe ${l.texte}",
                         Modifier.background(fond).padding(horizontal = 8.dp),
                         fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 16.sp, softWrap = false, color = encre,
                     )
                 }
             }
         }
-        if (d.lignes.size > 80) TextButton(onClick = { tout = !tout }) { Text(if (tout) "Réduire" else "Tout afficher (${d.lignes.size} lignes)") }
+        if (lignesDiff.size > max) TextButton(onClick = { tout = !tout }) { Text(if (tout) "Réduire" else "Tout afficher (${lignesDiff.size} lignes)") }
     }
 }
 

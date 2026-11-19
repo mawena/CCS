@@ -5,7 +5,7 @@ Application Android native (Kotlin + Jetpack Compose, Material 3) de CCS. Elle p
 événements, routes HTTP pour la connexion. Elle remplace l'ancienne coquille Flutter (vue web),
 avec le même identifiant `com.mawena.ccs` : elle s'installe par-dessus.
 
-État : phase 25, tâches 1 à 4 de `ROADMAP.md`. Connexion, client WebSocket, navigation (Accueil,
+État : phase 25, tâches 1 à 6 de `ROADMAP.md`. Connexion, client WebSocket, navigation (Accueil,
 Sessions, Fichiers, Git, Plus).
 
 - **Accueil** : compte actif, meilleur compte et décision de la bascule automatique, cartes des
@@ -34,7 +34,23 @@ Sessions, Fichiers, Git, Plus).
   coût de la conversation. Liste inversée : seul l'élément qui change se redessine, la vue est
   publiée au plus toutes les 40 ms pendant une réponse.
 
-Fichiers et Git arrivent avec les tâches suivantes.
+- **Fichiers** (comme `web/files*.js`) : onglet Fichiers sur les dossiers permis du serveur
+  (Personnel, /var/www, /srv), onglet Fichiers de l'écran Projet et bouton Fichiers du chat. Un
+  dossier à la fois (fil d'Ariane, retour : dossier parent), marques git, recherche par nom ;
+  nouveau fichier ou dossier, envoi depuis le sélecteur d'Android (par morceaux de 1 Mo, 200 Mo au
+  plus, « Remplacer ? » si le nom existe), télécharger vers Téléchargements, partager (feuille de
+  partage d'Android), renommer, supprimer (confirmé, avec le nombre d'éléments), copier / couper /
+  coller, ajouter aux projets. Fichier ouvert : code coloré numéroté (coloration du chat),
+  Markdown rendu (« Aperçu »), images (zoom à deux doigts), retour à la ligne au choix, modifier et
+  enregistrer (conflit signalé si le fichier a changé), départ confirmé s'il reste des
+  modifications. Dans le chat, les chemins du projet cités par Claude (`chemin` ou `chemin:ligne`)
+  et les chemins des diffs ouvrent le fichier (à la ligne).
+- **Git** (comme `web/git.js`) : onglet Git (choix d'un projet), onglet Git de l'écran Projet et
+  bouton Git du chat. Branche et suivi (↑ ↓), Fetch / Pull / Push confirmés (Push forcé à part),
+  fichiers indexés, modifiés, non suivis, diff dépliable avec numéros (affichage du chat),
+  indexer / désindexer par fichier, tout, ou par morceau ; commit (message proposé, amend
+  confirmé) ; historique par pages de 50 et détail d'un commit (message, diff de chaque fichier) ;
+  branches locales, distantes et tags.
 
 ## Connexion
 
@@ -69,7 +85,7 @@ L'APK arrive dans `app/build/outputs/apk/release/app-release.apk`. Gradle est br
 Gagarine sur pc-bureau.
 
 **Version** : `versionName` et `versionCode` dans `app/build.gradle.kts` ; le `versionCode` doit
-toujours augmenter (29 pour 0.27.0 ; l'appli Flutter 0.26.1 avait 27).
+toujours augmenter (30 aujourd'hui pour 0.27.0 ; l'appli Flutter 0.26.1 avait 27).
 
 ## Signature
 
@@ -101,6 +117,14 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
   - `logique/Format.kt` : textes et calculs sans Android (« il y a… », nombres courts, chemins,
     états des chats, dossiers proposés par « Nouvelle session »).
   - `donnees/Recents.kt` : derniers dossiers ouverts.
+  - `reseau/ModelesFichiers.kt` : réponses de `files.*`, `work.files` et `git.*`.
+  - `logique/Fichiers.kt` (chemins, fil d'Ariane, familles, tailles, morceaux), `LiensFichiers.kt`
+    (chemins cités dans le chat), `Git.kt` (groupes de fichiers, suivi, diffs en lignes, refs).
+  - `ui/Demandes.kt` : confirmations et saisies de nom attendues par une coroutine.
+  - `ui/fichiers/` : `PanneauFichiers.kt`, `EcranFichier.kt` (lecture, édition, image),
+    `EcransFichiers.kt` (onglet, projet), `Transferts.kt` (téléchargement, envoi, partage par
+    FileProvider), `Commun.kt` (icônes, presse-papier des fichiers).
+  - `ui/git/` : `PanneauGit.kt`, `EcransGit.kt` (onglet, projet, détail d'un commit).
   - `logique/` (chat) : `EvenementChat.kt` (événements du pont), `FilChat.kt` (fil : réception,
     sous-agents, regroupement), `Markdown.kt`, `Coloration.kt`, `Diff.kt`, `Citation.kt`,
     `Outils.kt`, `Envoi.kt` (commandes `/` et `!`, recherche, étiquettes, alerte de contexte).
@@ -111,7 +135,7 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
 - `app/src/main/res/` : icône adaptative (motif dans la zone sûre, fond uni, version monochrome).
 - `app/src/test/` : tests JVM (codec RPC, client contre un faux serveur, adresse, coffre, récents,
   lecture des réponses du pont, textes et filtres, événements et fil du chat, Markdown,
-  coloration, diff, citation, envoi).
+  coloration, diff, citation, envoi, chemins et liens de fichiers, réponses de `files.*` et `git.*`).
 
 ## Licence
 

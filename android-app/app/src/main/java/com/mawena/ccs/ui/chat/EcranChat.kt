@@ -18,7 +18,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
@@ -35,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -54,6 +57,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mawena.ccs.logique.Citation
 import com.mawena.ccs.logique.ElementFil
 import com.mawena.ccs.logique.LigneFil
+import com.mawena.ccs.logique.LiensFichiers
 import com.mawena.ccs.logique.Recherche
 import com.mawena.ccs.logique.StatutAgent
 import com.mawena.ccs.logique.Format
@@ -77,7 +81,14 @@ private val ETATS = mapOf(
  * citation, options, saisie avec images et commandes `/` et `!`.
  */
 @Composable
-fun EcranChat(modele: ModeleAppli, dest: DestChat, retour: () -> Unit) {
+fun EcranChat(
+    modele: ModeleAppli,
+    dest: DestChat,
+    retour: () -> Unit,
+    ouvrirFichier: (String, Int?) -> Unit = { _, _ -> },
+    ouvrirFichiers: (String) -> Unit = {},
+    ouvrirGit: (String) -> Unit = {},
+) {
     val mc: ModeleChat = viewModel(key = dest.route()) { ModeleChat(modele.depot, dest) }
     val vue by mc.vue.collectAsStateWithLifecycle()
     val etiquettes by mc.etiquettes.collectAsStateWithLifecycle()
@@ -121,7 +132,12 @@ fun EcranChat(modele: ModeleAppli, dest: DestChat, retour: () -> Unit) {
         (e is ElementFil.MsgToi && e.msgId == msgId) || (e is ElementFil.MsgClaude && e.msgId == msgId)
     }?.cle
 
+    val fichiers by mc.fichiers.collectAsStateWithLifecycle()
+    LaunchedEffect(vue.pret, vue.etat) { if (vue.pret && vue.etat != "busy") mc.chargerFichiers() }
+    val ouvre = remember(fichiers, mc.cwd) { OuvreFichier(LiensFichiers(mc.cwd, fichiers), ouvrirFichier) }
+
     val titre = dest.titre ?: Format.base(mc.cwd)
+    CompositionLocalProvider(LocalOuvreFichier provides ouvre) {
     Column(Modifier.fillMaxSize().imePadding()) {
         BarreHaut(
             titre, ETATS[vue.etat]?.takeIf { vue.pret } ?: Format.base(mc.cwd), retour = retour,
@@ -132,6 +148,8 @@ fun EcranChat(modele: ModeleAppli, dest: DestChat, retour: () -> Unit) {
                 IconButton(onClick = { filtreEtiquette = null; voletEtiquettes = true }) {
                     Icon(Icons.AutoMirrored.Filled.Label, "Étiquettes")
                 }
+                IconButton(onClick = { ouvrirFichiers(mc.cwd) }) { Icon(Icons.Filled.Folder, "Fichiers du projet") }
+                IconButton(onClick = { ouvrirGit(mc.cwd) }) { Icon(Icons.Filled.AccountTree, "Git du projet") }
             },
         )
         vue.ouverture?.let { err ->
@@ -211,6 +229,7 @@ fun EcranChat(modele: ModeleAppli, dest: DestChat, retour: () -> Unit) {
         VueTaches(vue.taches)
         BandeauEtat(vue)
         Saisie(mc, vue)
+    }
     }
 
     choisi?.let { m ->

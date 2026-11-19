@@ -49,6 +49,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mawena.ccs.logique.Coloration
+import com.mawena.ccs.logique.LiensFichiers
 import com.mawena.ccs.logique.Markdown
 import kotlinx.coroutines.delay
 
@@ -89,8 +90,18 @@ fun colorer(code: String, langue: String, c: CouleursCode): AnnotatedString = bu
     }
 }
 
-/** Segments en ligne (gras, italique, code, barré, liens cliquables) en texte annoté. */
-fun annoter(segments: List<Markdown.Segment>, lien: Color, fondCode: Color): AnnotatedString = buildAnnotatedString {
+/**
+ * Segments en ligne (gras, italique, code, barré, liens cliquables) en texte annoté. Avec `ouvre`,
+ * les chemins de fichiers du projet (en code ou dans le texte) deviennent des liens qui les ouvrent.
+ */
+fun annoter(segments: List<Markdown.Segment>, lien: Color, fondCode: Color, ouvre: OuvreFichier? = null): AnnotatedString = buildAnnotatedString {
+    val styleLien = TextLinkStyles(SpanStyle(color = lien, textDecoration = TextDecoration.Underline))
+    fun versFichier(r: LiensFichiers.Ref, style: SpanStyle, texte: String) {
+        val o = ouvre ?: return
+        withLink(LinkAnnotation.Clickable("fichier:${r.chemin}", styleLien) { o.ouvrir(o.liens.absolu(r), r.ligne) }) {
+            withStyle(style) { append(texte) }
+        }
+    }
     for (s in segments) {
         val style = SpanStyle(
             fontWeight = if (s.gras) FontWeight.Bold else null,
@@ -101,10 +112,30 @@ fun annoter(segments: List<Markdown.Segment>, lien: Color, fondCode: Color): Ann
             fontSize = if (s.code) 13.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
         )
         if (s.lien != null && (s.lien.startsWith("http://") || s.lien.startsWith("https://") || s.lien.startsWith("mailto:"))) {
-            withLink(LinkAnnotation.Url(s.lien, TextLinkStyles(SpanStyle(color = lien, textDecoration = TextDecoration.Underline)))) {
+            withLink(LinkAnnotation.Url(s.lien, styleLien)) {
                 withStyle(style) { append(s.texte) }
             }
-        } else withStyle(style) { append(s.texte) }
+            continue
+        }
+        if (ouvre != null && s.lien == null) {
+            if (s.code) {
+                val r = ouvre.liens.ref(s.texte)
+                if (r != null) { versFichier(r, style, s.texte); continue }
+            } else {
+                val refs = ouvre.liens.trouver(s.texte)
+                if (refs.isNotEmpty()) {
+                    var a = 0
+                    for (r in refs) {
+                        withStyle(style) { append(s.texte.substring(a, r.index)) }
+                        versFichier(r, style, r.texte)
+                        a = r.index + r.texte.length
+                    }
+                    withStyle(style) { append(s.texte.substring(a)) }
+                    continue
+                }
+            }
+        }
+        withStyle(style) { append(s.texte) }
     }
 }
 
@@ -120,11 +151,12 @@ fun MarkdownVue(texte: String, modifier: Modifier = Modifier) {
 @Composable
 private fun BlocVue(b: Markdown.Bloc) {
     val lien = MaterialTheme.colorScheme.primary
+    val ouvre = LocalOuvreFichier.current
     val cc = couleursCode()
     when (b) {
-        is Markdown.Paragraphe -> Text(remember(b, lien) { annoter(b.contenu, lien, cc.fond) }, style = MaterialTheme.typography.bodyMedium)
+        is Markdown.Paragraphe -> Text(remember(b, lien, ouvre) { annoter(b.contenu, lien, cc.fond, ouvre) }, style = MaterialTheme.typography.bodyMedium)
         is Markdown.Titre -> Text(
-            remember(b, lien) { annoter(b.contenu, lien, cc.fond) },
+            remember(b, lien, ouvre) { annoter(b.contenu, lien, cc.fond, ouvre) },
             style = when (b.niveau) {
                 1 -> MaterialTheme.typography.titleLarge
                 2 -> MaterialTheme.typography.titleMedium
@@ -139,7 +171,7 @@ private fun BlocVue(b: Markdown.Bloc) {
                     val marque = when (e.coche) { true -> "☑"; false -> "☐"; null -> e.marque }
                     Text(marque, Modifier.width(if (e.marque.length > 2) 30.dp else 20.dp), style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(remember(e, lien) { annoter(e.contenu, lien, cc.fond) }, style = MaterialTheme.typography.bodyMedium)
+                    Text(remember(e, lien, ouvre) { annoter(e.contenu, lien, cc.fond, ouvre) }, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }

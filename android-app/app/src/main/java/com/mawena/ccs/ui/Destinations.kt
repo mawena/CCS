@@ -9,12 +9,23 @@ object Routes {
     const val PROJET = "projet?cwd={cwd}"
     const val CHAT = "chat?cwd={cwd}&sid={sid}&chemin={chemin}&titre={titre}&chat={chat}"
 
+    const val FICHIER = "fichier?chemin={chemin}&ligne={ligne}"
+    const val FICHIERS_PROJET = "fichiers-projet?cwd={cwd}"
+    const val GIT_PROJET = "git-projet?cwd={cwd}"
+    const val COMMIT = "git-commit?cwd={cwd}&id={id}"
+
     fun projet(cwd: String) = "projet?cwd=${Uri.encode(cwd)}"
+    fun fichier(chemin: String, ligne: Int? = null) = "fichier?chemin=${Uri.encode(chemin)}&ligne=${ligne ?: ""}"
+    fun fichiersProjet(cwd: String) = "fichiers-projet?cwd=${Uri.encode(cwd)}"
+    fun gitProjet(cwd: String) = "git-projet?cwd=${Uri.encode(cwd)}"
+    fun commit(cwd: String, id: String) = "git-commit?cwd=${Uri.encode(cwd)}&id=${Uri.encode(id)}"
 
     /** Onglet à allumer pour une route (Projet et Chat sont sous Sessions, Analyse sous Accueil). */
     fun onglet(route: String?): String? = when {
         route == null -> null
         route.startsWith("projet") || route.startsWith("chat") -> Onglet.Sessions.route
+        route.startsWith("fichier") -> Onglet.Fichiers.route
+        route.startsWith("git") -> Onglet.Git.route
         route == ANALYSE -> Onglet.Accueil.route
         else -> route
     }

@@ -105,6 +105,20 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
     private val _vue = MutableStateFlow(VueChat())
     val vue: StateFlow<VueChat> = _vue.asStateFlow()
 
+    /** Fichiers du projet (`work.files`, chemins relatifs) : liens des chemins cités par Claude. */
+    private val _fichiers = MutableStateFlow<Set<String>>(emptySet())
+    val fichiers: StateFlow<Set<String>> = _fichiers.asStateFlow()
+
+    /** Relit la liste des fichiers du projet (après un tour : Claude a pu en créer). */
+    fun chargerFichiers() {
+        val id = chatId ?: return
+        viewModelScope.launch {
+            runCatching {
+                client.appeler("work.files", com.mawena.ccs.reseau.IndexFichiers.serializer(), buildJsonObject { put("chat_id", id) })
+            }.onSuccess { _fichiers.value = it.files.toSet() }
+        }
+    }
+
     private val _reglages = MutableStateFlow(ReglagesChat())
     val reglages: StateFlow<ReglagesChat> = _reglages.asStateFlow()
 

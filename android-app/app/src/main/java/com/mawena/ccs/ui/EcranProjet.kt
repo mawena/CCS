@@ -49,11 +49,18 @@ private const val PAS = 30
 
 /**
  * Écran Projet (`project.js`) : nom et chemin, compte associé au dossier, « Nouveau chat » et les
- * conversations du projet. Fichiers, feuille de route et Git viendront avec leurs tâches.
+ * conversations du projet ; onglets Fichiers et Git (feuille de route : tâche 7).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EcranProjet(modele: ModeleAppli, cwd: String, retour: () -> Unit, ouvrirChat: (DestChat) -> Unit) {
+fun EcranProjet(
+    modele: ModeleAppli,
+    cwd: String,
+    retour: () -> Unit,
+    ouvrirChat: (DestChat) -> Unit,
+    ouvrirFichier: (String) -> Unit = {},
+    ouvrirCommit: (String, String) -> Unit = { _, _ -> },
+) {
     val client = modele.depot.client
     val etat by modele.etat.collectAsStateWithLifecycle()
     val portee = rememberCoroutineScope()
@@ -66,6 +73,7 @@ fun EcranProjet(modele: ModeleAppli, cwd: String, retour: () -> Unit, ouvrirChat
     var nouvelle by remember { mutableStateOf(false) }
     val actions = remember { EtatActions() }
     val connecte = etat is EtatConnexion.Connecte
+    var onglet by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
 
     suspend fun charger() {
         charge = true
@@ -87,7 +95,14 @@ fun EcranProjet(modele: ModeleAppli, cwd: String, retour: () -> Unit, ouvrirChat
     val entree = liste?.projets?.firstOrNull { it.cwd == cwd }
     Column(Modifier.fillMaxSize()) {
         BarreHaut(entree?.name ?: Format.base(cwd), cwd, retour = retour)
-        PullToRefreshBox(
+        androidx.compose.material3.PrimaryTabRow(selectedTabIndex = onglet) {
+            listOf("Conversations", "Fichiers", "Git").forEachIndexed { i, t ->
+                androidx.compose.material3.Tab(selected = onglet == i, onClick = { onglet = i }, text = { Text(t) })
+            }
+        }
+        if (onglet == 1) com.mawena.ccs.ui.fichiers.PanneauFichiers(modele, cwd, ouvrirFichier)
+        else if (onglet == 2) com.mawena.ccs.ui.git.PanneauGit(modele, cwd, ouvrirCommit = { ouvrirCommit(cwd, it) })
+        else PullToRefreshBox(
             isRefreshing = charge && liste != null,
             onRefresh = { portee.launch { charger() } },
             modifier = Modifier.fillMaxSize(),

@@ -9,7 +9,8 @@ import kotlinx.serialization.json.contentOrNull
 object Diff {
     enum class Genre { Ajout, Retrait, Contexte, Morceau }
 
-    data class Ligne(val genre: Genre, val texte: String)
+    /** `ancien`, `nouveau` : numéros de ligne (diffs de git), absents pour les outils de Claude. */
+    data class Ligne(val genre: Genre, val texte: String, val ancien: Int? = null, val nouveau: Int? = null)
 
     /** Diff d'un outil de modification : fichier et lignes. */
     data class Fichier(val chemin: String, val lignes: List<Ligne>) {

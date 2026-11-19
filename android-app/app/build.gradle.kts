@@ -15,7 +15,7 @@ android {
         minSdk = 26
         targetSdk = 36
         // Toujours croissant (l'appli Flutter 0.26.1 avait le numéro 27).
-        versionCode = 29
+        versionCode = 30
         versionName = "0.27.0"
     }
 

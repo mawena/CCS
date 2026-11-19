@@ -46,6 +46,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mawena.ccs.reseau.EtatConnexion
 import com.mawena.ccs.ui.chat.EcranChat
+import com.mawena.ccs.ui.fichiers.EcranFichier
+import com.mawena.ccs.ui.fichiers.EcranFichiersOnglet
+import com.mawena.ccs.ui.fichiers.EcranFichiersProjet
+import com.mawena.ccs.ui.git.EcranCommit
+import com.mawena.ccs.ui.git.EcranGitOnglet
+import com.mawena.ccs.ui.git.EcranGitProjet
 
 enum class Onglet(val route: String, val titre: String, val icone: ImageVector) {
     Accueil("accueil", "Accueil", Icons.Filled.Home),
@@ -110,13 +116,37 @@ fun EcranPrincipal(modele: ModeleAppli) {
                         modele, e.arguments?.getString("cwd").orEmpty(),
                         retour = { nav.popBackStack() },
                         ouvrirChat = { nav.navigate(it.route()) },
+                        ouvrirFichier = { nav.navigate(Routes.fichier(it)) },
+                        ouvrirCommit = { cwd, id -> nav.navigate(Routes.commit(cwd, id)) },
                     )
                 }
                 composable(Routes.CHAT, arguments = listOf("cwd", "sid", "chemin", "titre", "chat").map(argument)) { e ->
-                    EcranChat(modele, DestChat.de(e), retour = { nav.popBackStack() })
+                    EcranChat(
+                        modele, DestChat.de(e), retour = { nav.popBackStack() },
+                        ouvrirFichier = { chemin, ligne -> nav.navigate(Routes.fichier(chemin, ligne)) },
+                        ouvrirFichiers = { nav.navigate(Routes.fichiersProjet(it)) },
+                        ouvrirGit = { nav.navigate(Routes.gitProjet(it)) },
+                    )
                 }
-                composable(Onglet.Fichiers.route) { EcranProvisoire("Fichiers", "Navigateur de fichiers : phase 25, tâche 5.") }
-                composable(Onglet.Git.route) { EcranProvisoire("Git", "État, diff et commits : phase 25, tâche 6.") }
+                composable(Onglet.Fichiers.route) { EcranFichiersOnglet(modele, ouvrirFichier = { nav.navigate(Routes.fichier(it)) }) }
+                composable(Routes.FICHIERS_PROJET, arguments = listOf(argument("cwd"))) { e ->
+                    EcranFichiersProjet(modele, e.arguments?.getString("cwd").orEmpty(), retour = { nav.popBackStack() },
+                        ouvrirFichier = { nav.navigate(Routes.fichier(it)) })
+                }
+                composable(Routes.FICHIER, arguments = listOf(argument("chemin"), argument("ligne"))) { e ->
+                    EcranFichier(
+                        modele, e.arguments?.getString("chemin").orEmpty(), e.arguments?.getString("ligne")?.toIntOrNull(),
+                        retour = { nav.popBackStack() },
+                    )
+                }
+                composable(Onglet.Git.route) { EcranGitOnglet(modele, ouvrirGit = { nav.navigate(Routes.gitProjet(it)) }) }
+                composable(Routes.GIT_PROJET, arguments = listOf(argument("cwd"))) { e ->
+                    val cwd = e.arguments?.getString("cwd").orEmpty()
+                    EcranGitProjet(modele, cwd, retour = { nav.popBackStack() }, ouvrirCommit = { nav.navigate(Routes.commit(cwd, it)) })
+                }
+                composable(Routes.COMMIT, arguments = listOf(argument("cwd"), argument("id"))) { e ->
+                    EcranCommit(modele, e.arguments?.getString("cwd").orEmpty(), e.arguments?.getString("id").orEmpty(), retour = { nav.popBackStack() })
+                }
                 composable(Onglet.Plus.route) { EcranPlus(modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) }) }
             }
         }
