@@ -2,6 +2,7 @@ package com.mawena.ccs.reseau
 
 import com.mawena.ccs.donnees.Adresse
 import com.mawena.ccs.donnees.Identifiants
+import com.mawena.ccs.donnees.Preferences
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -36,8 +37,11 @@ sealed interface EtatConnexion {
     data object Arrete : EtatConnexion
     data class Connexion(val tentative: Int) : EtatConnexion
     data object Connecte : EtatConnexion
-    /** Coupé ; nouvel essai dans `attenteMs` (ou plus tôt sur [CcsClient.reessayer]). */
-    data class HorsLigne(val raison: String, val attenteMs: Long) : EtatConnexion
+    /**
+     * Coupé ; nouvel essai dans `attenteMs` (ou plus tôt sur [CcsClient.reessayer]).
+     * `machineInjoignable` : le serveur répond, mais la machine pilotée non (fermeture 4010).
+     */
+    data class HorsLigne(val raison: String, val attenteMs: Long, val machineInjoignable: Boolean = false) : EtatConnexion
     /** Le serveur refuse les identifiants (jeton révoqué, session Portier finie) : se reconnecter. */
     data class Refuse(val raison: String) : EtatConnexion
 }
@@ -49,6 +53,9 @@ sealed interface EtatConnexion {
  * Comme le client web (`ccs_app/web/api.js`) : un appel fait hors ligne attend dans la file et part
  * à la connexion ; un appel déjà envoyé quand la connexion tombe échoue (`hors_ligne`), car son sort
  * est inconnu. [reconnexions] signale chaque reconnexion pour que les écrans se rattachent.
+ *
+ * [machine] : machine pilotée (vide : ce serveur), gardée dans `prefs` ; la connexion passe alors par
+ * le pont du serveur jusqu'à celui de l'autre machine (`?machine=<id>`), comme `setMachine` du web.
  */
 class CcsClient(
     private val http: OkHttpClient,
@@ -56,7 +63,15 @@ class CcsClient(
     private val delaiAppelMs: Long = 30_000,
     private val attenteMinMs: Long = 1_000,
     private val attenteMaxMs: Long = 30_000,
+    private val prefs: Preferences? = null,
 ) {
+    private val _machine = MutableStateFlow(prefs?.lire(CLE_MACHINE).orEmpty())
+    val machine: StateFlow<String> = _machine.asStateFlow()
+
+    /** Nom affiché de la machine pilotée : « Ce serveur », ou son nom gardé au choix. */
+    val nomMachine: String
+        get() = _machine.value.let { m -> if (m.isEmpty()) CE_SERVEUR else prefs?.lire(CLE_NOM)?.ifBlank { null } ?: m }
+
     private val _etat = MutableStateFlow<EtatConnexion>(EtatConnexion.Arrete)
     val etat: StateFlow<EtatConnexion> = _etat.asStateFlow()
 
@@ -75,7 +90,7 @@ class CcsClient(
         @Volatile var envoye = false
     }
 
-    private class Fin(val refus: Boolean, val raison: String)
+    private class Fin(val refus: Boolean, val raison: String, val machine: Boolean = false)
 
     private val attentes = ConcurrentHashMap<Long, Attente>()
     private val suivant = AtomicLong(1)
@@ -83,26 +98,57 @@ class CcsClient(
     private var socket: WebSocket? = null     // ouvert, sous `verrou`
     private var boucle: Job? = null
     @Volatile private var dejaOuvert = false
+    @Volatile private var identifiants: Identifiants? = null
+    @Volatile private var generation = 0       // connexion courante : les écouteurs d'avant se taisent
 
     fun evenements(nom: String): Flow<JsonObject> = evenements.filter { it.nom == nom }.map { it.donnees }
 
     /** Se connecte (ou se reconnecte) avec ces identifiants. */
+    @Synchronized
     fun demarrer(identifiants: Identifiants) {
         arreter()
         dejaOuvert = false
-        _etat.value = EtatConnexion.Connexion(1)
-        boucle = portee.launch { tourner(identifiants) }
+        lancer(identifiants)
     }
 
+    @Synchronized
     fun arreter() {
+        couper("Déconnecté.")
+        identifiants = null
+        _etat.value = EtatConnexion.Arrete
+    }
+
+    /**
+     * Pilote une autre machine (`id` vide : ce serveur). Les appels en cours appartiennent à
+     * l'ancienne : ils sont rejetés (`hors_ligne`) et la connexion repart tout de suite.
+     */
+    @Synchronized
+    fun changerMachine(id: String, nom: String = id) {
+        prefs?.ecrire(CLE_NOM, nom.takeIf { id.isNotEmpty() && it.isNotBlank() })
+        if (id == _machine.value) return
+        prefs?.ecrire(CLE_MACHINE, id.ifEmpty { null })
+        _machine.value = id
+        val i = identifiants ?: return
+        if (boucle == null) return           // arrêté ou refusé : on garde le choix pour plus tard
+        couper("Machine changée.")
+        lancer(i)
+    }
+
+    private fun lancer(i: Identifiants) {
+        identifiants = i
+        _etat.value = EtatConnexion.Connexion(1)
+        boucle = portee.launch { tourner(i) }
+    }
+
+    private fun couper(raison: String) {
+        generation++
         boucle?.cancel()
         boucle = null
         synchronized(verrou) {
             socket?.close(1000, null)
             socket = null
         }
-        echouerTout("hors_ligne", "Déconnecté.")
-        _etat.value = EtatConnexion.Arrete
+        echouerTout("hors_ligne", raison)
     }
 
     /** Nouvel essai tout de suite si la connexion attend (réseau revenu, appli au premier plan). */
@@ -160,10 +206,10 @@ class CcsClient(
             _etat.value = EtatConnexion.Connexion(tentative)
             val fin = CompletableDeferred<Fin>()
             val requete = Request.Builder()
-                .url(Adresse.api(identifiants.serveur, "api/ws"))
+                .url(Adresse.ws(identifiants.serveur, _machine.value))
                 .authentifier(identifiants)
                 .build()
-            val ws = http.newWebSocket(requete, Ecouteur(fin) {
+            val ws = http.newWebSocket(requete, Ecouteur(fin, generation) {
                 attente = attenteMinMs
                 tentative = 0
             })
@@ -176,10 +222,12 @@ class CcsClient(
             }
             if (r.refus) {
                 echouerTout("refuse", r.raison)
+                val moi = kotlinx.coroutines.currentCoroutineContext()[Job]
+                synchronized(this) { if (boucle === moi) boucle = null }
                 _etat.value = EtatConnexion.Refuse(r.raison)
                 return
             }
-            _etat.value = EtatConnexion.HorsLigne(r.raison, attente)
+            _etat.value = EtatConnexion.HorsLigne(r.raison, attente, r.machine)
             withTimeoutOrNull(attente) { reveil.first() }
             attente = (attente * 2).coerceAtMost(attenteMaxMs)
         }
@@ -187,9 +235,11 @@ class CcsClient(
 
     private inner class Ecouteur(
         private val fin: CompletableDeferred<Fin>,
+        private val gen: Int,
         private val ouvert: () -> Unit,
     ) : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            if (gen != generation) { webSocket.cancel(); return }
             ouvert()
             synchronized(verrou) {
                 socket = webSocket
@@ -201,6 +251,7 @@ class CcsClient(
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            if (gen != generation) return
             when (val m = CodecRpc.decoder(text)) {
                 is MessageRpc.Resultat -> attentes.remove(m.id)?.resultat?.complete(m.resultat)
                 is MessageRpc.Echec -> m.id?.let { attentes.remove(it) }
@@ -234,10 +285,16 @@ class CcsClient(
 
     companion object {
         const val FERME_PAR_AUTH = 4001
+        /** La machine pilotée est injoignable (hors ligne, tunnel coupé) : on retente plus tard. */
+        const val MACHINE_INJOIGNABLE = 4010
+        const val CE_SERVEUR = "Ce serveur"
         private const val MAX_ATTENTES = 100
+        private const val CLE_MACHINE = "machine"
+        private const val CLE_NOM = "machine-nom"
 
         private fun fermeture(code: Int, raison: String) = when (code) {
             FERME_PAR_AUTH -> Fin(true, "Session terminée.")
+            MACHINE_INJOIGNABLE -> Fin(false, raison.ifBlank { "La machine pilotée est injoignable." }, machine = true)
             1011 -> Fin(false, "Pont injoignable sur le serveur.")
             1012 -> Fin(false, "Connexion au pont perdue.")
             else -> Fin(false, raison.ifBlank { "Connexion fermée." })

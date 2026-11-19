@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
@@ -33,6 +34,9 @@ import kotlinx.serialization.json.put
  *
  * Tout passe par une seule file traitée dans l'ordre : le collecteur des événements ne bloque
  * jamais le flux partagé (les écrans du chat le lisent aussi).
+ *
+ * Choix : la veille partage le client de l'appli, donc suit la machine pilotée (comme le web) ;
+ * au changement de machine, ce qu'elle savait des chats de l'ancienne est oublié.
  */
 class Veille(private val ctx: Context, private val client: CcsClient, private val portee: CoroutineScope) {
     private sealed interface Ordre {
@@ -40,6 +44,7 @@ class Veille(private val ctx: Context, private val client: CcsClient, private va
         data object Synchro : Ordre
         data object Tic : Ordre
         class Affiche(val chatId: String?) : Ordre
+        data object Oublier : Ordre
     }
 
     private val veilleur = Veilleur()
@@ -66,6 +71,7 @@ class Veille(private val ctx: Context, private val client: CcsClient, private va
                     if (it is EtatConnexion.Connecte) f.trySend(Ordre.Synchro) else seuilLu = false
                 }
             }
+            launch { client.machine.drop(1).collect { f.trySend(Ordre.Oublier) } }
             launch {
                 while (true) {
                     delay(TIC_MS)
@@ -86,6 +92,11 @@ class Veille(private val ctx: Context, private val client: CcsClient, private va
                             executer(veilleur.rappels(System.currentTimeMillis(), seuilMs))
                         }
                         is Ordre.Affiche -> executer(veilleur.afficher(o.chatId))
+                        Ordre.Oublier -> {
+                            executer(veilleur.garderSeulement(emptySet()))
+                            derniers.clear(); infos.clear(); titres.clear()
+                            seuilLu = false
+                        }
                     }
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e

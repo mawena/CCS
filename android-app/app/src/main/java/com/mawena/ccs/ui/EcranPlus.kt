@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
@@ -31,7 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mawena.ccs.BuildConfig
 
-/** Plus : réglages, terminaux, analyse, serveur, compte, version, version web, déconnexion. */
+/** Plus : machine pilotée, réglages, terminaux, analyse, serveur, compte, version, version web, déconnexion. */
 @Composable
 fun EcranPlus(modele: ModeleAppli, ouvrirAnalyse: () -> Unit, ouvrirReglages: () -> Unit = {}, ouvrirTerminaux: () -> Unit = {}) {
     val identifiants by modele.identifiants.collectAsStateWithLifecycle()
@@ -43,6 +44,15 @@ fun EcranPlus(modele: ModeleAppli, ouvrirAnalyse: () -> Unit, ouvrirReglages: ()
             supportingContent = { Text(identifiants?.serveur.orEmpty()) },
             leadingContent = { Icon(Icons.Filled.Dns, null) },
         )
+        if (choixMachinePossible(modele)) {
+            val machine by modele.machine.collectAsStateWithLifecycle()
+            ListItem(
+                headlineContent = { Text("Machine pilotée") },
+                supportingContent = { Text(modele.depot.client.nomMachine + if (machine.isEmpty()) "" else " · toucher pour changer") },
+                leadingContent = { Icon(Icons.Filled.Computer, null) },
+                modifier = Modifier.clickable { modele.choixMachine.value = true },
+            )
+        }
         ListItem(
             headlineContent = { Text("Compte") },
             supportingContent = {

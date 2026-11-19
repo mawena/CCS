@@ -29,7 +29,7 @@ class Depot(context: Context) {
     val recents = DossiersRecents(prefs)
     val reglages = com.mawena.ccs.donnees.PrefsAppli(prefs)
     val api = ApiHttp(http)
-    val client = CcsClient(http, portee)
+    val client = CcsClient(http, portee, prefs = prefs)
     val terminaux = com.mawena.ccs.terminal.Terminaux(client)
     val veille = com.mawena.ccs.notif.Veille(context.applicationContext, client, portee)
 

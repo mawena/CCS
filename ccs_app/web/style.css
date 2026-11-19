@@ -131,6 +131,10 @@ a.button.portier[hidden] { display: none; }
   .view[data-view="sessions"] { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
 }
 #logout { margin-left: auto; }
+.machine-btn { min-height: 36px; padding: 0 10px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+.machine-btn.elsewhere { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+.machine-item.current { background: var(--soft); }
+.machine-item:disabled { opacity: 0.5; }
 
 /* ---- éléments communs des écrans ---- */
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; }

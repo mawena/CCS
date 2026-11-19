@@ -26,6 +26,7 @@ SESSION, DEVICE = "ccs_session", "ccs_device"
 RECHECK_S = 300          # une session expirée ou révoquée ferme ses WebSocket au plus tard après ce délai
 CLOSED_BY_AUTH = 4001
 BRIDGE_LOST = 1012       # connexion au pont perdue : le navigateur se reconnecte
+MACHINE_DOWN = 4010      # `?machine=` : l'autre machine est injoignable (raison en clair)
 
 
 def load_config(path=None):
@@ -255,6 +256,7 @@ def make_app(auth, bridges, config):
         if who is None:
             raise web.HTTPUnauthorized()
         user, ticket, token, kind = who
+        machine = request.query.get("machine") or ""
         ws = web.WebSocketResponse(max_msg_size=rpc.MAX_LINE, heartbeat=30)
         await ws.prepare(request)
         try:
@@ -263,6 +265,16 @@ def make_app(auth, bridges, config):
             log.warning("pont de %s injoignable", user)
             await ws.close(code=1011, message=b"pont injoignable")
             return ws
+        if machine:
+            # le pont relaie cette connexion vers le pont CCS de l'autre machine (tunnel Ricochet)
+            try:
+                ready = await bridge.call("machine.attach", machine=machine)
+            except (OSError, rpc.RpcError) as e:
+                why = e.message if isinstance(e, rpc.RpcError) else "pont injoignable"
+                await bridge.close()
+                await ws.close(code=MACHINE_DOWN, message=why.encode("utf-8")[:120].decode("utf-8", "ignore").encode("utf-8"))
+                return ws
+            await ws.send_json({"event": "machine.ready", "data": ready})
 
         def on_event(name, data):
             if not ws.closed:
@@ -272,7 +284,8 @@ def make_app(auth, bridges, config):
         async def handle(msg):
             mid = msg.get("id")
             method, params = msg.get("method"), msg.get("params") or {}
-            if not isinstance(method, str) or method == "hello" or not isinstance(params, dict):
+            if (not isinstance(method, str) or method in ("hello", "machine.attach")
+                    or not isinstance(params, dict)):
                 reply = {"id": mid, "error": {"code": "refuse", "message": "Requête refusée."}}
             else:
                 try:

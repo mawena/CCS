@@ -91,8 +91,13 @@ class Connection:
 
 
 class RpcServer:
-    def __init__(self, handlers, on_connect=None, on_close=None):
+    """`keep_local(method)` : sur une connexion relayée (`peer["forward"]`, appel asynchrone
+    `forward(method, params)`), les méthodes pour lesquelles elle répond vrai restent traitées
+    ici ; toutes les autres partent au relais."""
+
+    def __init__(self, handlers, on_connect=None, on_close=None, keep_local=None):
         self.handlers = dict(handlers)
+        self.keep_local = keep_local or (lambda method: False)
         self.on_connect = on_connect
         self.on_close = on_close
         self._server = None
@@ -158,7 +163,12 @@ class RpcServer:
         if not isinstance(method, str) or not isinstance(params, dict):
             await conn.send(_error(mid, "invalide", "Requête invalide."))
             return
-        handler = self.handlers.get(method)
+        forward = conn.peer.get("forward")
+        if forward is not None and not self.keep_local(method):
+            async def handler(_conn, p):
+                return await forward(method, p)
+        else:
+            handler = self.handlers.get(method)
         if handler is None:
             await conn.send(_error(mid, "introuvable", f"Méthode inconnue : {method}"))
             return
