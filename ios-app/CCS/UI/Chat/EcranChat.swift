@@ -193,6 +193,11 @@ private struct FilChatVue: View {
                     } label: {
                         Label("Fichiers du projet", systemImage: "folder")
                     }
+                    Button {
+                        naviguer(.gitProjet(mc.cwd))
+                    } label: {
+                        Label("Git du projet", systemImage: "arrow.triangle.branch")
+                    }
                     Divider()
                     Button {
                         effacer = true

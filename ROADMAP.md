@@ -606,7 +606,7 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [x] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique, comptes par projet
 - [x] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options, `/clear`, étiquettes, recherche, coût
 - [x] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
-- [ ] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
+- [x] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
 - [ ] 7. Feuille de route, tâches de fond, travail, réglages, page téléphone
 - [ ] 8. Terminal (term.*) avec barre de touches
 - [ ] 9. Notifications locales (appli ouverte ou juste en arrière-plan), feuille de partage iOS vers un chat

@@ -4,6 +4,7 @@ import SwiftUI
 enum OngletProjet: String, CaseIterable, Hashable {
     case conversations = "Conversations"
     case fichiers = "Fichiers"
+    case git = "Git"
 }
 
 /**
@@ -39,6 +40,7 @@ struct EcranProjet: View {
             switch onglet {
             case .conversations: conversations
             case .fichiers: PanneauFichiers(base: cwd)
+            case .git: PanneauGit(cwd: cwd)
             }
         }
         .navigationTitle(entree?.name ?? Format.base(cwd))

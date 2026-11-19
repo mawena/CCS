@@ -59,6 +59,8 @@ enum Destination: Hashable {
     case chat(DestChat)
     case fichier(chemin: String, ligne: Int?)
     case fichiersProjet(String)
+    case gitProjet(String)
+    case commit(cwd: String, id: String)
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
@@ -104,7 +106,7 @@ struct EcranPrincipal: View {
         case .accueil: EcranAccueil()
         case .sessions: EcranSessions()
         case .fichiers: EcranFichiersOnglet()
-        case .git: EcranProvisoire(titre: "Git", texte: "État, diff, commit et journal des dépôts.")
+        case .git: EcranGitOnglet()
         case .plus: EcranPlus()
         }
     }
@@ -117,6 +119,8 @@ struct EcranPrincipal: View {
         case .chat(let dest): EcranChat(dest: dest)
         case .fichier(let chemin, let ligne): EcranFichier(chemin: chemin, ligne: ligne)
         case .fichiersProjet(let cwd): EcranFichiersProjet(cwd: cwd)
+        case .gitProjet(let cwd): EcranGitProjet(cwd: cwd)
+        case .commit(let cwd, let id): EcranCommit(cwd: cwd, id: id)
         }
     }
 }
