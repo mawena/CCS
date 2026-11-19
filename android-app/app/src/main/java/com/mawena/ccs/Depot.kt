@@ -22,7 +22,7 @@ class Depot(context: Context) {
         .readTimeout(60, TimeUnit.SECONDS)
         .pingInterval(25, TimeUnit.SECONDS)
         .build()
-    private val prefs = PreferencesAndroid(context.getSharedPreferences("ccs", Context.MODE_PRIVATE))
+    val prefs = PreferencesAndroid(context.getSharedPreferences("ccs", Context.MODE_PRIVATE))
     val adresse = StockageAdresse(prefs)
     val coffre = Coffre(prefs, ChiffreurKeystore())
     val recents = DossiersRecents(prefs)

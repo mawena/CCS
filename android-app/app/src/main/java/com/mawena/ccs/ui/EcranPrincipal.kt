@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -44,6 +45,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mawena.ccs.reseau.EtatConnexion
+import com.mawena.ccs.ui.chat.EcranChat
 
 enum class Onglet(val route: String, val titre: String, val icone: ImageVector) {
     Accueil("accueil", "Accueil", Icons.Filled.Home),
@@ -72,7 +74,8 @@ fun EcranPrincipal(modele: ModeleAppli) {
     Scaffold(
         snackbarHost = { SnackbarHost(hote) },
         bottomBar = {
-            NavigationBar {
+            // le chat prend tout l'écran (clavier, saisie) : pas de barre d'onglets
+            if (entree?.destination?.route?.startsWith("chat") != true) NavigationBar {
                 Onglet.entries.forEach { o ->
                     NavigationBarItem(
                         selected = route == o.route,
@@ -90,7 +93,7 @@ fun EcranPrincipal(modele: ModeleAppli) {
             }
         },
     ) { marges ->
-        Column(Modifier.fillMaxSize().padding(marges)) {
+        Column(Modifier.fillMaxSize().padding(marges).consumeWindowInsets(marges)) {
             BandeauConnexion(modele)
             NavHost(nav, startDestination = Onglet.Accueil.route, modifier = Modifier.weight(1f)) {
                 composable(Onglet.Accueil.route) { EcranAccueil(modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) }) }

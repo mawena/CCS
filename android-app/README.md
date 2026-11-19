@@ -5,7 +5,7 @@ Application Android native (Kotlin + Jetpack Compose, Material 3) de CCS. Elle p
 événements, routes HTTP pour la connexion. Elle remplace l'ancienne coquille Flutter (vue web),
 avec le même identifiant `com.mawena.ccs` : elle s'installe par-dessus.
 
-État : phase 25, tâches 1 à 3 de `ROADMAP.md`. Connexion, client WebSocket, navigation (Accueil,
+État : phase 25, tâches 1 à 4 de `ROADMAP.md`. Connexion, client WebSocket, navigation (Accueil,
 Sessions, Fichiers, Git, Plus).
 
 - **Accueil** : compte actif, meilleur compte et décision de la bascule automatique, cartes des
@@ -18,7 +18,21 @@ Sessions, Fichiers, Git, Plus).
   recherche, menu (Reprendre, Aperçu, Renommer, Supprimer avec « Annuler »), corbeille et
   restauration, **Nouvelle session** (dossier : récents, projets, dépôts git ; compte conseillé
   pour le dossier ; modèle ; droits). Écran **Projet** : compte, « Nouveau chat », conversations.
-- **Chat** : provisoire, lecture simple de l'historique ; le vrai chat arrive avec la tâche 4.
+- **Chat** (comme `web/chat.js`) : toucher une conversation la reprend (`chat.open`) ; fil en direct
+  numéroté (`chat.attach` depuis le dernier numéro après chaque reconnexion, carte « Reprendre la
+  conversation » si le pont a redémarré), 200 derniers messages du journal puis « Messages plus
+  anciens ». Markdown natif (titres, listes, cases, citations, tableaux, liens cliquables, blocs de
+  code colorés avec « Copier »), outils repliables avec résultat, regroupés quand ils se suivent,
+  diffs des modifications, sous-agents (carte + pastilles et leur vue), autorisations (Autoriser,
+  Toujours, Refuser avec motif), questions de Claude, liste de tâches, état (au travail, réflexion,
+  attente), Arrêter, séparateurs « Nouvelle conversation » / « Sujet terminé : Claude a effacé la
+  conversation » (messages d'avant grisés). Saisie multi-ligne (brouillon gardé), commandes `/`
+  envoyées seules avec complétion, commandes `!` dans le dossier du projet (sortie jointe au
+  message suivant), images (sélecteur Android, réduites au-delà de 3,5 Mo), appui long sur un
+  message : Répondre (citation), Citer un passage, Copier, Étiqueter ; volet Étiquettes ; recherche
+  dans le fil (sans accents) ; options modèle / effort / droits ; contexte, alerte « Compacter »,
+  coût de la conversation. Liste inversée : seul l'élément qui change se redessine, la vue est
+  publiée au plus toutes les 40 ms pendant une réponse.
 
 Fichiers et Git arrivent avec les tâches suivantes.
 
@@ -55,7 +69,7 @@ L'APK arrive dans `app/build/outputs/apk/release/app-release.apk`. Gradle est br
 Gagarine sur pc-bureau.
 
 **Version** : `versionName` et `versionCode` dans `app/build.gradle.kts` ; le `versionCode` doit
-toujours augmenter (28 pour 0.27.0 ; l'appli Flutter 0.26.1 avait 27).
+toujours augmenter (29 pour 0.27.0 ; l'appli Flutter 0.26.1 avait 27).
 
 ## Signature
 
@@ -87,11 +101,17 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
   - `logique/Format.kt` : textes et calculs sans Android (« il y a… », nombres courts, chemins,
     états des chats, dossiers proposés par « Nouvelle session »).
   - `donnees/Recents.kt` : derniers dossiers ouverts.
+  - `logique/` (chat) : `EvenementChat.kt` (événements du pont), `FilChat.kt` (fil : réception,
+    sous-agents, regroupement), `Markdown.kt`, `Coloration.kt`, `Diff.kt`, `Citation.kt`,
+    `Outils.kt`, `Envoi.kt` (commandes `/` et `!`, recherche, étiquettes, alerte de contexte).
   - `ui/` : thème CCS, navigation (`Destinations.kt`), composants communs (`Commun.kt`), écrans
-    (connexion, Portier, accueil, bilan, analyse, sessions, projet, chat provisoire, plus).
+    (connexion, Portier, accueil, bilan, analyse, sessions, projet, plus).
+  - `ui/chat/` : `ModeleChat.kt` (ViewModel : RPC et événements du chat), `EcranChat.kt`,
+    `ElementsChat.kt`, `MarkdownVue.kt`, `Saisie.kt` (saisie, options, images), `Feuilles.kt`.
 - `app/src/main/res/` : icône adaptative (motif dans la zone sûre, fond uni, version monochrome).
 - `app/src/test/` : tests JVM (codec RPC, client contre un faux serveur, adresse, coffre, récents,
-  lecture des réponses du pont, textes et filtres).
+  lecture des réponses du pont, textes et filtres, événements et fil du chat, Markdown,
+  coloration, diff, citation, envoi).
 
 ## Licence
 

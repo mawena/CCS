@@ -3,7 +3,7 @@ package com.mawena.ccs.ui
 import android.net.Uri
 import androidx.navigation.NavBackStackEntry
 
-/** Routes de navigation hors onglets : écran Projet et écran Chat (provisoire jusqu'à la tâche 4). */
+/** Routes de navigation hors onglets : Analyse, écran Projet et écran Chat. */
 object Routes {
     const val ANALYSE = "analyse"
     const val PROJET = "projet?cwd={cwd}"

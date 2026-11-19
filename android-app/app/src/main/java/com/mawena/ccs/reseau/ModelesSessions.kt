@@ -69,6 +69,7 @@ data class ChatOuvert(
     val options: OptionsChat? = null,
     @SerialName("session_id") val sessionId: String? = null,
     val path: String? = null,
+    @SerialName("history_before") val historiqueAvant: Double? = null,
 )
 
 @Serializable
@@ -124,10 +125,18 @@ data class MessageHistorique(
     val text: String = "",
     val ts: Double? = null,
     val tool: OutilHistorique? = null,
+    @SerialName("msg_id") val msgId: String = "",
+    val uuid: String = "",
 )
 
 @Serializable
-data class OutilHistorique(val name: String = "", val target: String = "", val result: String? = null)
+data class OutilHistorique(
+    val name: String = "",
+    val target: String = "",
+    val result: String? = null,
+    @SerialName("tool_id") val toolId: String = "",
+    @SerialName("is_error") val erreur: Boolean = false,
+)
 
 @Serializable
 data class Messages(val messages: List<MessageHistorique> = emptyList())
