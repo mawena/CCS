@@ -90,6 +90,9 @@ continuent sur le serveur si on ferme la page.
   diff ; annuler un fichier ou revenir à avant un message demande une confirmation.
 - **Terminal.** Sur écran tactile ou étroit, une barre de touches complète le clavier : Échap,
   Tab, Ctrl (collant), flèches, symboles difficiles à taper, Coller, Copier et la taille du texte.
+- **Onglets au clavier.** Ctrl+Page préc. et Ctrl+Page suiv. passent à l'onglet précédent ou
+  suivant (chats et terminaux, en boucle). Dans un onglet du navigateur, celui-ci garde souvent
+  ces touches pour lui : elles marchent surtout dans CCS installé en application.
 - **Fichiers.** Arbre avec marques git, recherche par nom, aperçu des images, ouverture à une
   ligne, édition simple (conflit signalé). La feuille de route garde son défilement quand
   tu coches une case ; le bouton « Faire une tâche » envoie la tâche dans ce chat, dans un
