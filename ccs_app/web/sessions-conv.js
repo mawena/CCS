@@ -1,6 +1,6 @@
 // Conversations de l'historique : ligne (reprise d'un tap, marque « ouverte », coût), menu « ⋯ »
 // avec aperçu sans ouvrir et renommage. Utilisé par la liste de Sessions et par l'écran Projet.
-import { ago, clear, el, errorState, loading, toast } from "./dom.js";
+import { ago, clear, contextMenu, el, errorState, loading, promptSheet, toast } from "./dom.js";
 import { quoteBlock } from "./chat-message.js";
 import { split } from "./chat-quote.js";
 
@@ -53,6 +53,14 @@ export function convRow(c, ctx, { showProject = true } = {}) {
     el("span", { class: "subtle conv-meta" }, meta, " ", cost));
   const more = el("button", { class: "flat conv-more", "aria-label": `Actions pour ${titleOf(c)}`, onclick: () => convMenu(c, ctx, name) }, "⋯");
   const row = el("div", { class: "item conv" }, main, more);
+  row.addEventListener("contextmenu", (e) => contextMenu(e, [
+    { label: "Reprendre", disabled: !c.folder_exists, run: () => ctx.resume(c) },
+    { label: "Aperçu", run: () => preview(c, ctx) },
+    { label: "Renommer…", run: () => rename(c, ctx, name) },
+    null,
+    { label: "Copier le chemin du projet", run: () => copy(c.cwd) },
+    ...(ctx.trash ? [null, { label: "Supprimer…", danger: true, run: () => ctx.trash(c) }] : []),
+  ]));
   whenVisible(row, () => loadCost(ctx.api, c, cost));
   return row;
 }
@@ -103,25 +111,23 @@ function preview(c, ctx) {
 
 // ---- renommer -------------------------------------------------------------------------------
 
-function rename(c, ctx, nameNode) {
-  const input = el("input", { type: "text", value: titleOf(c), "aria-label": "Nouveau titre", maxlength: "200", enterkeyhint: "done" });
-  const msg = el("p", { class: "message", role: "alert" });
-  const form = el("form", { class: "rename" }, input, msg);
-  const { close } = sheet("Renommer la conversation", form, [
-    el("button", { type: "button", onclick: () => close() }, "Annuler"),
-    el("button", { type: "button", class: "primary", onclick: () => form.requestSubmit() }, "Renommer"),
-  ]);
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    msg.textContent = "";
-    try {
-      const r = await ctx.api.call("conversation.rename", { session_id: c.session_id, title: input.value, path: c.path });
-      c.title = r.title;
-      nameNode.textContent = r.title;
-      close();
-      toast("Conversation renommée.", { kind: "success" });
-    } catch (err) { msg.textContent = err.message; }
-  });
-  input.focus();
-  input.select();
+export async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast("Copié.", { kind: "success" }); } catch { toast("Copie impossible ici.", { kind: "error" }); }
+}
+
+// Renomme une conversation (journal de Claude Code) ; prévient les onglets ouverts par
+// l'événement « ccs:conv-renamed ». Promesse : le nouveau titre, ou null.
+export async function renameConversation(api, c) {
+  const title = await promptSheet({ title: "Renommer la conversation", value: titleOf(c), label: "Nouveau titre", confirm: "Renommer",
+    check: async (v) => (await api.call("conversation.rename", { session_id: c.session_id, title: v, path: c.path })).title });
+  if (title === null) return null;
+  c.title = title;
+  document.dispatchEvent(new CustomEvent("ccs:conv-renamed", { detail: { session_id: c.session_id, title } }));
+  toast("Conversation renommée.", { kind: "success" });
+  return title;
+}
+
+async function rename(c, ctx, nameNode) {
+  const title = await renameConversation(ctx.api, c);
+  if (title !== null) nameNode.textContent = title;
 }

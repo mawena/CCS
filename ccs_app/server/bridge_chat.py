@@ -19,8 +19,9 @@ import re
 import secrets
 import time
 import uuid as uuidlib
+from pathlib import Path
 
-from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, markdown_render, \
+from .. import chat_engine, chat_options, conversations, chat_protocol as proto, context_alert, markdown_render, \
     message_tags, sessions, settings
 from ..chat_engine import ChatSession
 from . import events, rpc
@@ -52,6 +53,21 @@ def transcript_of(cwd, session_id):
         if path.is_file():
             return str(path)
     return None
+
+
+_titles = {}  # chemin du journal → entrée lue jusqu'ici (lecture de la seule fin nouvelle)
+
+
+def journal_title(path):
+    """Titre d'une conversation ouverte : celui donné par `/rename` ou par CCS, sinon le titre
+    automatique de Claude Code ; None s'il n'y en a pas encore."""
+    if not path:
+        return None
+    try:
+        entry = _titles[path] = conversations.read_entry(Path(path), _titles.get(path))
+    except OSError:
+        return None
+    return entry["custom_title"] or entry["ai_title"] or None
 
 
 def _history_before(chat):
@@ -205,8 +221,14 @@ class ChatHub:
         return {"chat_id": chat.chat_id, "seq": 0, "cwd": chat.cwd, **_info(chat)}
 
     async def list(self, _conn, _params):
-        return {"chats": [{"chat_id": c.chat_id, "cwd": c.cwd, "state": c.engine.state, "seq": c.seq,
-                           **_info(c)} for c in self.chats.values()]}
+        chats = [{"chat_id": c.chat_id, "cwd": c.cwd, "state": c.engine.state, "seq": c.seq,
+                  **_info(c)} for c in self.chats.values()]
+
+        def titles():
+            for c in chats:
+                c["title"] = journal_title(c["path"])
+        await asyncio.to_thread(titles)
+        return {"chats": chats}
 
     async def attach(self, conn, params):
         chat = self._get(params)

@@ -239,6 +239,26 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((att["session_id"], att["path"]), ("abc", str(journal)))
         self.assertEqual(set(att["options"]), set(want))
 
+    async def test_list_gives_journal_title(self):
+        """chat.list donne le titre de la conversation : `/rename` ou CCS d'abord, sinon le titre
+        automatique ; rien tant que le journal n'en a pas. Le dernier renommage l'emporte."""
+        import json
+        c = await self.client()
+        r = await c.call("chat.open", cwd=str(self.project), session_id="tit")
+        journal = sessions.transcript_path(str(self.project), "tit")
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text("{}\n")
+        title = lambda chats: {x["chat_id"]: x for x in chats["chats"]}[r["chat_id"]]["title"]
+        self.assertIsNone(title(await c.call("chat.list")))
+        with open(journal, "a") as fh:
+            fh.write(json.dumps({"type": "ai-title", "aiTitle": "Titre auto"}) + "\n")
+        self.assertEqual(title(await c.call("chat.list")), "Titre auto")
+        from ccs_app import conversations
+        conversations.rename("tit", "Mon titre", path=str(journal))
+        self.assertEqual(title(await c.call("chat.list")), "Mon titre")
+        conversations.rename("tit", "Autre", path=str(journal))
+        self.assertEqual(title(await c.call("chat.list")), "Autre")
+
     async def test_history_before_covers_what_the_buffer_lost(self):
         """history_before : heure d'ouverture du chat tant que le tampon a tout gardé, sinon heure du
         plus vieil événement gardé (le journal montre ce qui précède, sans doublon)."""
