@@ -1,7 +1,10 @@
 import io
 import json
 import os
+import shlex
 import subprocess
+import tempfile
+import time
 import types
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -186,8 +189,9 @@ class TestLaunch(DistantCase):
         self.assertIn("-azR", fetch)
         host, command = run.remote()[-1]
         self.assertEqual(host, "pc-bureau")
-        self.assertEqual(command, f'cd "$HOME"/{root}/app && PATH=/home/c/flutter/bin:/usr/bin '
-                                  "exec bash -c 'flutter build apk'")
+        self.assertTrue(command.startswith("exec bash -c '"))
+        self.assertTrue(command.endswith(f" ccs-distant {root}/app /home/c/flutter/bin:/usr/bin "
+                                         "'flutter build apk'"))
         self.assertIn("pc-bureau", said[0])
         self.assertIn("build/outputs rapatrié", said[-1])
 
@@ -221,6 +225,61 @@ class TestLaunch(DistantCase):
         (root / "secrets").mkdir()
         self.assertEqual(distant.include_rules(root, root, ["secrets"]), ["--include=/secrets/***"])
         self.assertNotIn("--exclude=/.git/", distant.send_argv(pc, {}, root, with_git=True))
+
+
+class TestRemoteGuard(DistantCase):
+    """Le garde distant, joué par un vrai bash comme le ferait sshd."""
+
+    def start(self, line, tmp):
+        work = Path(tmp) / "projet"
+        work.mkdir()
+        cmd = distant.remote_command(work, ".", {"path": os.environ["PATH"]}, [line])
+        cmd = cmd.replace(shlex.quote(distant.remote_dir(work)), shlex.quote("projet"))
+        env = dict(os.environ, HOME=tmp)
+        return subprocess.Popen(["sh", "-c", cmd], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                text=True, env=env), work
+
+    def test_exit_code_and_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p, work = self.start("pwd; exit 4", tmp)
+            out = p.stdout.read()  # entrée gardée ouverte, comme le fait ssh
+            p.wait(timeout=10)
+            p.stdin.close()
+            p.stdout.close()
+            self.assertEqual(p.returncode, 4)
+            self.assertEqual(out.strip(), str(work))
+
+    def test_closing_the_connection_stops_the_whole_group(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p, work = self.start("sleep 30 & echo $! > enfant; sleep 30", tmp)
+            deadline = time.monotonic() + 5
+            while not (work / "enfant").exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            child = int((work / "enfant").read_text())
+            p.stdin.close()  # ce que fait ssh quand on l'interrompt
+            p.wait(timeout=10)
+            p.stdout.close()
+            self.assertNotEqual(p.returncode, 0)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                try:
+                    os.kill(child, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.05)
+            else:
+                self.fail("le sous-processus distant tourne encore")
+
+    def test_interrupt_is_reported(self):
+        def interrupted(argv, **kw):
+            if argv[0] == "ssh" and "setsid" in argv[-1]:
+                raise KeyboardInterrupt
+            return FakeRun()(argv, **kw)
+        said = []
+        code = distant.launch(["flutter test"], run=interrupted, say=said.append, opener=opener(),
+                              cwd=self.project, fetch=["build"])
+        self.assertEqual(code, 130)
+        self.assertIn("interrompu", said[-1])
 
 
 class TestCli(DistantCase):

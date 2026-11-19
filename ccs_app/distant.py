@@ -18,6 +18,7 @@ import json
 import os
 import shlex
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -396,11 +397,53 @@ def fetch_argv(machine, overrides, root, rel, path):
             f"{target(machine, overrides)}:{remote_dir(root)}/./{inside}", f"{root}/"]
 
 
+# Côté distant, la commande tourne dans sa propre session ; un garde lit l'entrée de la
+# connexion SSH, qui ne reçoit jamais rien : sa fin (Ctrl+C, ssh ou ccs arrêtés, connexion
+# perdue) veut dire « arrête », et tout le groupe reçoit TERM, puis KILL 5 s plus tard.
+GUARD = """cd "$HOME/$1" || exit 1
+export PATH="$2"
+exec 3<&0
+setsid bash -c "$3" </dev/null &
+p=$!
+{ while read -r _; do :; done <&3; kill -TERM -- -$p; sleep 5; kill -KILL -- -$p; } >/dev/null 2>&1 &
+w=$!
+exec 3<&-
+wait $p
+c=$?
+kill $w 2>/dev/null
+exit $c"""
+
+
 def remote_command(root, rel, inv, command):
     line = command[0] if len(command) == 1 else shlex.join(command)
     where = remote_dir(root) + ("" if str(rel) == "." else "/" + Path(rel).as_posix())
-    return (f'cd "$HOME"/{shlex.quote(where)} && PATH={shlex.quote(inv["path"])} '
-            f"exec bash -c {shlex.quote(line)}")
+    return " ".join(["exec bash -c", shlex.quote(GUARD), "ccs-distant",
+                     shlex.quote(where), shlex.quote(inv["path"]), shlex.quote(line)])
+
+
+def _attached(argv):
+    """Lance ssh en gardant son entrée ouverte : la fermer arrête la commande distante."""
+    def stop(signum, frame):
+        raise KeyboardInterrupt
+    try:
+        previous = signal.signal(signal.SIGTERM, stop)
+    except ValueError:  # pas dans le fil principal
+        previous = None
+    p = subprocess.Popen(argv, stdin=subprocess.PIPE)
+    try:
+        return subprocess.CompletedProcess(argv, p.wait())
+    except KeyboardInterrupt:
+        p.stdin.close()
+        try:
+            p.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            p.kill()
+        raise
+    finally:
+        if not p.stdin.closed:
+            p.stdin.close()
+        if previous is not None:
+            signal.signal(signal.SIGTERM, previous)
 
 
 def launch(command, machine=None, tool=None, fetch=(), include=(), with_git=False, cwd=None,
@@ -410,6 +453,7 @@ def launch(command, machine=None, tool=None, fetch=(), include=(), with_git=Fals
     if not command:
         raise DistantError("Aucune commande : ccs distant lancer -- <commande>")
     cwd = cwd or os.getcwd()
+    attached = run or _attached
     run = run or subprocess.run
     overrides = load_overrides()
     machines = fetch_machines(opener=opener)
@@ -427,7 +471,12 @@ def launch(command, machine=None, tool=None, fetch=(), include=(), with_git=Fals
     if r.returncode:
         raise DistantError(f"Envoi du projet vers {chosen.id} raté (rsync, code {r.returncode})")
     say(f"envoyé en {time.monotonic() - started:.0f} s ; lancement de la commande")
-    code = _ssh(chosen, overrides, remote_command(root, rel, inv, command), run=run).returncode
+    try:
+        code = _ssh(chosen, overrides, remote_command(root, rel, inv, command),
+                    run=attached).returncode
+    except KeyboardInterrupt:
+        say(f"interrompu : commande arrêtée sur {chosen.id}")
+        return 130
     if code == 255:
         say(f"connexion à {chosen.id} perdue (ou la commande a renvoyé 255)")
     for path in fetch:
