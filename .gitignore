@@ -14,3 +14,5 @@ debian/debhelper-build-stamp
 debian/*.debhelper
 debian/*.debhelper.log
 /*.deb
+ios-app/CCS.xcodeproj/
+ios-app/build/

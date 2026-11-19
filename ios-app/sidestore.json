@@ -1,0 +1,30 @@
+{
+  "name": "CCS",
+  "identifier": "com.mawena.ccs.source",
+  "subtitle": "Claude Code Switcher pour iPhone",
+  "website": "https://github.com/mawena/CCS",
+  "apps": [
+    {
+      "name": "CCS",
+      "bundleIdentifier": "com.mawena.ccs",
+      "developerName": "Charles Gamligo",
+      "subtitle": "Vos sessions Claude Code depuis l'iPhone",
+      "localizedDescription": "Application native de CCS : comptes, sessions, chat en direct, fichiers, Git, terminal, notifications locales et partage vers un chat.",
+      "iconURL": "https://raw.githubusercontent.com/mawena/CCS/main/ios-app/CCS/Assets.xcassets/AppIcon.appiconset/icone-1024.png",
+      "category": "developer",
+      "versions": [
+        {
+          "version": "0.33.0",
+          "buildVersion": "33",
+          "date": "2026-11-19",
+          "localizedDescription": "Première version : tout le périmètre de l'appli Android.",
+          "downloadURL": "https://github.com/mawena/CCS/releases/download/v0.33.0/CCS-0.33.0.ipa",
+          "size": 1965844,
+          "minOSVersion": "17.0"
+        }
+      ],
+      "appPermissions": { "entitlements": [], "privacy": {} }
+    }
+  ],
+  "news": []
+}

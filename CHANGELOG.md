@@ -3,6 +3,21 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.33.0] — 2026-11-19
+
+### Ajouté
+
+- **Application iPhone native** (`ios-app/`, Swift + SwiftUI, iOS 17), même périmètre que
+  l'appli Android : connexion (mot de passe + TOTP ou Portier, jeton dans le trousseau), comptes
+  et accueil, sessions et projets, chat complet en direct, fichiers, Git, feuille de route,
+  tâches de fond, réglages, terminal (SwiftTerm, barre de touches avec Ctrl et Alt collants),
+  notifications locales (fin de tour, autorisation à donner depuis la notification, rappel
+  d'attente) et partage vers un chat (« Ouvrir dans CCS », lien `ccs://partager`).
+- `.ipa` non signé joint à la release (`CCS-0.33.0.ipa`), à installer avec SideStore (identifiant
+  Apple gratuit) ; source SideStore `ios-app/sidestore.json` pour les mises à jour.
+- Construction sans Mac sur Codemagic (`codemagic.yaml`, workflow `ios-natif`) : projet XcodeGen,
+  tests XCTest sur simulateur, archive non signée.
+
 ## [0.32.0] — 2026-11-19
 
 ### Ajouté

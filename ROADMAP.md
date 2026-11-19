@@ -607,3 +607,21 @@ même temps : boutons au survol posés sur le texte des réponses.
 - [x] 4. Titre des onglets : suit le renommage (événement `ccs:conv-renamed`), `chat.list` donne le titre du journal
 - [x] 5. Bureau : actions au survol d'une réponse dans leur colonne, plus sur le texte
 - [x] 6. Tests (titre de `chat.list`, fil GTK), essai dans Chrome sans écran, release mineure 0.30.0
+
+## Phase 28 — Application iPhone native (Swift + SwiftUI, 0.33.0)
+
+Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limites d'Apple. Swift + SwiftUI (iOS 17), même périmètre que l'appli Android (phase 25, sert de référence). Pas de Mac : projet décrit par XcodeGen (`ios-app/project.yml`), construit et testé sur **Codemagic** (offre gratuite, 500 min/mois de macOS), `.ipa` non signé. Installation par **SideStore** avec un identifiant Apple gratuit : appli à re-signer tous les 7 jours, pas de notifications push (APNs réservé au compte payant).
+
+- [x] 0. Squelette : `ios-app/` (XcodeGen), `codemagic.yaml` (tests sur simulateur, `.ipa` non signé)
+- [x] 0b. Charles : compte Codemagic relié au dépôt, jeton d'API dans `~/.config/codemagic/jeton`, SideStore sur l'iPhone ; première construction installée (19/11, connexion, comptes, sessions et chat validés sur l'iPhone 14 Pro)
+- [x] 1. Fondations : connexion (mot de passe + TOTP, Portier, jeton d'appareil dans le trousseau), client WebSocket `/api/ws` (RPC + événements, reconnexion), navigation, thème clair/sombre, icône
+- [x] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
+- [x] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique, comptes par projet
+- [x] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options, `/clear`, étiquettes, recherche, coût
+- [x] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
+- [x] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
+- [x] 7. Feuille de route, tâches de fond, travail, réglages, page téléphone
+- [x] 8. Terminal (term.*) avec barre de touches
+- [x] 9. Notifications locales (appli ouverte ou juste en arrière-plan), feuille de partage iOS vers un chat
+- [x] 10. Tests (XCTest), documentation (installation SideStore), release mineure 0.33.0 (`.ipa` joint, source SideStore pour les mises à jour)
+- [ ] 11. Essai par Charles sur l'iPhone 14 Pro (terminal, notifications, partage, fichiers, Git)
