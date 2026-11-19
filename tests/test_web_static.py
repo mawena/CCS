@@ -109,6 +109,12 @@ class StaticTest(unittest.TestCase):
         self.assertIn("term.input", (WEB / "terminal.js").read_text(encoding="utf-8"))
         self.assertIn("ccs add", (WEB / "home.js").read_text(encoding="utf-8"))
 
+    def test_ctrl_page_switches_tabs(self):
+        sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
+        self.assertIn('"PageDown"', sessions)
+        self.assertIn('window.addEventListener("keydown", onTabKey, true)', sessions)
+        self.assertIn('window.removeEventListener("keydown", onTabKey, true)', sessions)
+
     def test_sessions_can_open_any_folder(self):
         """Comme « Nouvelle session… » du bureau : un dossier encore sans conversation s'ouvre aussi
         (chat ou terminal) ; l'onglet prend le chemin réel renvoyé par le pont (~ développé)."""

@@ -397,6 +397,24 @@ export function mountSessions(root, api, ctx = {}) {
     if (data) loadList({ quiet: true });
   };
   document.addEventListener("ccs:conv-renamed", onRenamed);
+  // Ctrl+Page préc. / Ctrl+Page suiv. : onglet précédent / suivant, dans l'ordre de la barre, en boucle.
+  // Capturé avant le chat et le terminal. Dans un onglet du navigateur, celui-ci garde souvent ces
+  // touches pour ses propres onglets : elles arrivent ici surtout dans CCS installé en application.
+  const onTabKey = (e) => {
+    if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || (e.key !== "PageUp" && e.key !== "PageDown")) return;
+    if (!tabs.size || document.querySelector("dialog[open], .ctx-menu")) return;
+    const order = [...tabBar.children].map((n) => [...tabs].find(([, t]) => t.tab === n)?.[0]).filter(Boolean);
+    if (!order.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const i = order.indexOf(current);
+    const next = order[(i < 0 ? 0 : i + (e.key === "PageDown" ? 1 : -1) + order.length) % order.length];
+    show(next);
+    const t = tabs.get(next);
+    t.tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (t.term) t.view.resize();
+  };
+  window.addEventListener("keydown", onTabKey, true);
   // titre automatique de Claude Code (après la première réponse) : relu quand un chat redevient prêt
   let titleTimer;
   const refreshTitles = () => { clearTimeout(titleTimer); titleTimer = setTimeout(async () => {
@@ -427,6 +445,7 @@ export function mountSessions(root, api, ctx = {}) {
       for (const off of offs) off();
       document.removeEventListener("ccs:new-chat", onNewChat);
       document.removeEventListener("ccs:conv-renamed", onRenamed);
+      window.removeEventListener("keydown", onTabKey, true);
       clearTimeout(titleTimer);
       document.body.classList.remove("chat-mode");
       project?.screen.destroy();
