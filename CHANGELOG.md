@@ -3,6 +3,16 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.34.0] — 2026-11-19
+
+### Ajouté
+
+- **Onglets au clavier dans la version web** : Ctrl+Page préc. et Ctrl+Page suiv. passent à
+  l'onglet précédent ou suivant (chats et terminaux, en boucle). Dans un onglet du navigateur,
+  celui-ci garde souvent ces touches : elles marchent surtout dans CCS installé en application.
+- `docs/interfaces.md` : inventaire des interfaces publiques (commandes, pont, routes HTTP,
+  fichiers de configuration, variables d'environnement) et des points à revoir avant la 1.0.0.
+
 ## [0.33.0] — 2026-11-19
 
 ### Ajouté
