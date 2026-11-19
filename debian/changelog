@@ -1,3 +1,10 @@
+ccs (0.28.0) unstable; urgency=medium
+
+  * Application Android native (Kotlin + Jetpack Compose), APK joint à la
+    release GitHub.
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 17:00:00 +0100
+
 ccs (0.27.0) unstable; urgency=medium
 
   * Web : un sous-agent fini quitte la barre, « Terminés (n) » garde leur

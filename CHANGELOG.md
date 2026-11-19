@@ -3,6 +3,16 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.28.0] — 2026-11-19
+
+### Ajouté
+
+- **Application Android native** (Kotlin + Jetpack Compose), à la place de la coquille web :
+  accueil et comptes, sessions et projets, chat complet, fichiers, Git, feuille de route,
+  tâches de nuit, changements et retour arrière, réglages, terminal ; notifications de fin de
+  tour et d'attente (Autoriser / Refuser depuis la notification), partage Android vers un chat,
+  raccourcis. Icône entière dans le lanceur. APK `ccs-0.28.0.apk` joint à la release.
+
 ## [0.27.0] — 2026-11-19
 
 ### Ajouté

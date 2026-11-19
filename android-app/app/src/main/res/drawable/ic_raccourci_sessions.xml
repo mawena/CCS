@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icône du raccourci d'appli : pastille bleue CCS, pictogramme Material blanc. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <path android:pathData="M24,0a24,24 0 1,0 0.01,0z" android:fillColor="#3584E4" />
+    <group android:translateX="12" android:translateY="12">
+        <path android:pathData="M21,6h-2v9H6v2c0,0.55 0.45,1 1,1h11l4,4V7c0,-0.55 -0.45,-1 -1,-1zM17,12V3c0,-0.55 -0.45,-1 -1,-1H3c-0.55,0 -1,0.45 -1,1v14l4,-4h10c0.55,0 1,-0.45 1,-1z" android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="raccourci_nouveau_court">Nouveau chat</string>
+    <string name="raccourci_nouveau_long">Nouveau chat dans un dossier</string>
+    <string name="raccourci_sessions_court">Sessions</string>
+    <string name="raccourci_sessions_long">Sessions et chats en cours</string>
+</resources>

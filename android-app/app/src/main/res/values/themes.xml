@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="fond">#FAFAFB</color>
+    <color name="fond_icone">#2F343E</color>
+    <style name="Theme.Ccs" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fond</item>
+        <item name="android:colorAccent">#3584E4</item>
+    </style>
+</resources>

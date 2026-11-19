@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Raccourcis d'appli (appui long sur l'icône) : traités par MainActivity.recevoir. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="nouveau-chat"
+        android:enabled="true"
+        android:icon="@drawable/ic_raccourci_nouveau"
+        android:shortcutShortLabel="@string/raccourci_nouveau_court"
+        android:shortcutLongLabel="@string/raccourci_nouveau_long">
+        <intent
+            android:action="com.mawena.ccs.action.NOUVEAU_CHAT"
+            android:targetPackage="com.mawena.ccs"
+            android:targetClass="com.mawena.ccs.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="sessions"
+        android:enabled="true"
+        android:icon="@drawable/ic_raccourci_sessions"
+        android:shortcutShortLabel="@string/raccourci_sessions_court"
+        android:shortcutLongLabel="@string/raccourci_sessions_long">
+        <intent
+            android:action="com.mawena.ccs.action.SESSIONS"
+            android:targetPackage="com.mawena.ccs"
+            android:targetClass="com.mawena.ccs.MainActivity" />
+    </shortcut>
+</shortcuts>
