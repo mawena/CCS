@@ -4,8 +4,8 @@ import SwiftUI
 @MainActor
 struct CarteBilan: View {
     @Environment(ModeleAppli.self) private var modele
-    @State private var bilan: Bilan?
-    @State private var erreur: String?
+    @State private var bilan: Bilan? = nil
+    @State private var erreur: String? = nil
     @State private var enCours = false
     @State private var reussiesOuvertes = false
 

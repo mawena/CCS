@@ -15,8 +15,9 @@ final class ModeleAppli {
     var avisConnexion: String?
     private(set) var theme: Theme
 
-    /// Coûts des conversations déjà lus (clé : chemin + date).
+    /// Coûts des conversations déjà lus (clé : chemin + date), demandés un à la fois.
     @ObservationIgnored var couts: [String: String] = [:]
+    @ObservationIgnored private var fileCouts: Task<Void, Never>?
 
     init() {
         let a = Prefs.adresse
@@ -75,6 +76,21 @@ final class ModeleAppli {
         Coffre.ecrire(nil)
         identifiants = nil
         couts = [:]
+    }
+
+    /// Coût court d'une conversation (« 0,42 $ ») ; le coût est un plus : un échec est tu.
+    func cout(chemin: String, cle: String) async -> String? {
+        if let c = couts[cle] { return c }
+        let precedent = fileCouts
+        let t = Task { @MainActor () -> String? in
+            _ = await precedent?.value
+            if let c = self.couts[cle] { return c }
+            guard let r = try? await self.client.appeler("conversation.cost", ["path": .chaine(chemin)], en: Cout.self) else { return nil }
+            self.couts[cle] = r.short
+            return r.short
+        }
+        fileCouts = Task { @MainActor in _ = await t.value }
+        return await t.value
     }
 
     /// Rend false si l'adresse est invalide.

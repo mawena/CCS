@@ -571,7 +571,7 @@ Charles (19/11/2026) : « je veux une application complète construite de bout e
 
 - [ ] 1. Fondations : projet Gradle (Kotlin, Compose, Material 3, thème CCS clair/sombre), connexion (mot de passe + TOTP, Portier, appairage → jeton gardé chiffré), client WebSocket `/api/ws` (RPC + événements, reconnexion), navigation, icône adaptative dans la zone sûre (logo coupé sur le Pixel)
 - [x] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
-- [ ] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique des conversations, comptes par projet
+- [x] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique des conversations, comptes par projet
 - [ ] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options (modèle, effort), `/clear` et séparateurs, étiquettes, recherche, coût
 - [ ] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
 - [ ] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
@@ -590,7 +590,7 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [ ] 0b. Charles : compte Codemagic relié au dépôt, jeton d'API dans `~/.config/codemagic/jeton`, SideStore sur l'iPhone ; première construction installée
 - [x] 1. Fondations : connexion (mot de passe + TOTP, Portier, jeton d'appareil dans le trousseau), client WebSocket `/api/ws` (RPC + événements, reconnexion), navigation, thème clair/sombre, icône
 - [x] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
-- [ ] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique, comptes par projet
+- [x] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique, comptes par projet
 - [ ] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options, `/clear`, étiquettes, recherche, coût
 - [ ] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
 - [ ] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push

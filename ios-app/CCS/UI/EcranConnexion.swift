@@ -15,11 +15,11 @@ struct EcranConnexion: View {
     @State private var code = ""
     @State private var voirMotDePasse = false
     @State private var codeDemande = false
-    @State private var enAttente: String?
-    @State private var secret: String?
-    @State private var message: String?
+    @State private var enAttente: String? = nil
+    @State private var secret: String? = nil
+    @State private var message: String? = nil
     @State private var occupe = false
-    @State private var portier: InfoPortier?
+    @State private var portier: InfoPortier? = nil
     @State private var vuePortier = false
     @State private var changerServeur = false
     @State private var nouvelleAdresse = ""

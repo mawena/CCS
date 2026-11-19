@@ -75,6 +75,7 @@ struct EcranPrincipal: View {
                         racine(o)
                             .navigationDestination(for: Destination.self) { d in destination(d) }
                     }
+                    .environment(\.naviguer, Naviguer { d in ajouter(d, dans: o) })
                     .tabItem { Label(o.titre, systemImage: o.icone) }
                     .tag(o)
                 }
@@ -87,6 +88,12 @@ struct EcranPrincipal: View {
             get: { piles[o] ?? [] },
             set: { piles[o] = $0 }
         )
+    }
+
+    private func ajouter(_ d: Destination, dans o: Onglet) {
+        var p = piles[o] ?? []
+        p.append(d)
+        piles[o] = p
     }
 
     @ViewBuilder

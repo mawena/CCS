@@ -9,14 +9,14 @@ import SwiftUI
 struct EcranAccueil: View {
     @Environment(ModeleAppli.self) private var modele
 
-    @State private var comptes: EtatComptes?
-    @State private var cartes: Cartes?
-    @State private var erreur: String?
+    @State private var comptes: EtatComptes? = nil
+    @State private var cartes: Cartes? = nil
+    @State private var erreur: String? = nil
     @State private var actualisation = false
-    @State private var version: String?
+    @State private var version: String? = nil
     @State private var ouverts: Set<String> = []
-    @State private var aBasculer: Carte?
-    @State private var bascule: String?
+    @State private var aBasculer: Carte? = nil
+    @State private var bascule: String? = nil
 
     private var client: CcsClient { return modele.client }
 

@@ -5,8 +5,8 @@ import SwiftUI
 struct EcranAnalyse: View {
     @Environment(ModeleAppli.self) private var modele
     @State private var jours = 7
-    @State private var rapport: Rapport?
-    @State private var erreur: String?
+    @State private var rapport: Rapport? = nil
+    @State private var erreur: String? = nil
     @State private var essai = 0
 
     private struct Cle: Equatable {
