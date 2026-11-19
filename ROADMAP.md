@@ -610,4 +610,5 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [x] 7. Feuille de route, tâches de fond, travail, réglages, page téléphone
 - [x] 8. Terminal (term.*) avec barre de touches
 - [x] 9. Notifications locales (appli ouverte ou juste en arrière-plan), feuille de partage iOS vers un chat
-- [ ] 10. Tests (XCTest), essai sur l'iPhone, documentation (installation SideStore), release mineure 0.31.0 (`.ipa` joint, source SideStore pour les mises à jour)
+- [x] 10. Tests (XCTest), documentation (installation SideStore), release mineure 0.33.0 (`.ipa` joint, source SideStore pour les mises à jour)
+- [ ] 11. Essai par Charles sur l'iPhone 14 Pro (terminal, notifications, partage, fichiers, Git)
