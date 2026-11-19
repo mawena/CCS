@@ -594,3 +594,16 @@ Charles (19/11/2026) : lancer et gérer depuis la version web une session sur le
 - [x] 5. Appli Android : même choix de machine (puce dans Sessions, entrée dans Plus, bandeau sur tous les écrans, notifications qui suivent la machine ; 127 tests JVM)
 - [x] 6. Documentation, release mineure 0.29.0
 - [x] 7. Essai par Charles depuis son téléphone (PC allumé, CCS à jour sur le PC) : OK
+
+## Phase 27 — Clic droit dans la version web (0.30.0)
+
+Charles (19/11/2026) : un clic droit sur un onglet (et ailleurs) doit proposer les actions de
+CCS ; renommer une session ne changeait pas son onglet. Bug d'affichage du bureau signalé en
+même temps : boutons au survol posés sur le texte des réponses.
+
+- [x] 1. Menu contextuel commun (`contextMenu`, clavier et Échap) et feuille de saisie (`promptSheet`)
+- [x] 2. Onglets et « En cours » : Renommer, nouveau chat / terminal, projet, chemin, fermer, fermer les autres
+- [x] 3. Projets et conversations : leurs actions au clic droit
+- [x] 4. Titre des onglets : suit le renommage (événement `ccs:conv-renamed`), `chat.list` donne le titre du journal
+- [x] 5. Bureau : actions au survol d'une réponse dans leur colonne, plus sur le texte
+- [x] 6. Tests (titre de `chat.list`, fil GTK), essai dans Chrome sans écran, release mineure 0.30.0
