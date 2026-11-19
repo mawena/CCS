@@ -118,3 +118,17 @@ details.details > div { display: grid; gap: 8px; padding-bottom: 6px; }
 .theme-choice button { flex: 1; }
 .theme-choice button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
 .form-error:empty { display: none; }
+
+/* ---- Machines (calcul réparti) ---- */
+.machine-card { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.machine-card.offline { opacity: 0.6; }
+.machine-card h3 { margin: 0; font-size: 1em; overflow-wrap: anywhere; }
+.dot.ok { background: var(--success); }
+.dot.off { background: var(--subtle); }
+.machine-load { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 12%, transparent); overflow: hidden; }
+.machine-load span { display: block; height: 100%; background: var(--success); }
+.machine-load.warn span { background: var(--warning); }
+.machine-load.bad span { background: var(--error); }
+.machine-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.machine-tools .chip { font-size: 0.8em; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.machine-run code { overflow-wrap: anywhere; white-space: pre-wrap; }

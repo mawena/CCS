@@ -194,6 +194,21 @@ class TestLaunch(DistantCase):
                                          "'flutter build apk'"))
         self.assertIn("pc-bureau", said[0])
         self.assertIn("build/outputs rapatrié", said[-1])
+        self.assertEqual(list(distant._running_dir().iterdir()), [])
+
+    def test_running_command_is_listed_while_it_runs(self):
+        seen = []
+
+        class Watching(FakeRun):
+            def __call__(self, argv, **kw):
+                if argv[0] == "ssh" and argv[-1].startswith("exec bash -c"):
+                    seen.extend(distant.running(alive=lambda pid: True))
+                return super().__call__(argv, **kw)
+        code, _ = self.launch(Watching(), ["flutter test"])
+        self.assertEqual(code, 0)
+        self.assertEqual([(r["machine"], r["commande"], r["dossier"]) for r in seen],
+                         [("pc-bureau", "flutter test", "")])
+        self.assertEqual(distant.running(alive=lambda pid: True), [])
 
     def test_failure_keeps_the_exit_code_and_skips_fetch(self):
         run = FakeRun(codes={"ssh": 3})
@@ -330,3 +345,41 @@ class TestChatHint(DistantCase):
 if __name__ == "__main__":
     import unittest
     unittest.main()
+
+
+class ClientSettingsTest(HomeTestCase):
+    def test_save_keeps_token_private_and_reuses_it(self):
+        r = distant.save_client("https://relais.test/", "jeton-1")
+        self.assertEqual(r["relais"], "https://relais.test")
+        self.assertIs(r["jeton"], True)
+        path = distant.client_path()
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        distant.save_client("https://autre.test", None)
+        self.assertEqual(distant.load_client(), {"relais": "https://autre.test", "jeton": "jeton-1"})
+
+    def test_refuses_bad_values(self):
+        for relais, jeton in (("relais.test", "j"), ('https://a"b', "j"), ("https://a", 'x"y'),
+                              ("https://a", "")):
+            with self.assertRaises(distant.DistantError):
+                distant.save_client(relais, jeton)
+        self.assertFalse(distant.client_path().exists())
+
+
+class RunningTest(HomeTestCase):
+    def test_register_list_prune_and_stop(self):
+        m = distant.Machine(id="pc")
+        path = distant._register(m, Path("/p/projet"), Path("app"), ["flutter build apk"])
+        pid = os.getpid()
+        (distant._running_dir() / "999999.json").write_text(json.dumps({"pid": 999999}))
+        (distant._running_dir() / "casse.json").write_text("{")
+        alive = lambda p: p == pid  # noqa: E731
+        r = distant.running(alive)
+        self.assertEqual([(x["pid"], x["machine"], x["dossier"], x["commande"]) for x in r],
+                         [(pid, "pc", "app", "flutter build apk")])
+        self.assertEqual(sorted(p.name for p in distant._running_dir().iterdir()), [path.name])
+        killed = []
+        distant.stop(pid, alive, kill=lambda p, s: killed.append((p, s)))
+        self.assertEqual(killed, [(pid, distant.signal.SIGTERM)])
+        with self.assertRaises(distant.DistantError):
+            distant.stop(4, alive, kill=lambda p, s: killed.append(p))
+        self.assertEqual(len(killed), 1)

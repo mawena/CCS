@@ -3,6 +3,7 @@ import { mountAnalysis } from "./analysis.js";
 import { el } from "./dom.js";
 import { mountFiles } from "./files-browser.js";
 import { mountHome } from "./home.js";
+import { mountMachines } from "./machines-page.js";
 import { mountSessions } from "./sessions.js";
 import { mountSettings } from "./settings.js";
 
@@ -15,5 +16,6 @@ export const VIEWS = {
   sessions: { title: "Sessions", icon: "💬", mount: mountSessions },
   fichiers: { title: "Fichiers", icon: "📁", mount: mountFiles },
   analyse: { title: "Analyse", icon: "▤", mount: mountAnalysis },
+  machines: { title: "Machines", icon: "🖥", mount: mountMachines },
   reglages: { title: "Réglages", icon: "⚙", mount: mountSettings },
 };
