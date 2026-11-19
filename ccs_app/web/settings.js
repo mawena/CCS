@@ -56,6 +56,7 @@ const GROUPS = [
   ]],
   ["Chat et sessions", [
     { path: "chat.rights", label: "Droits des nouveaux chats", type: RIGHTS },
+    { path: "chat.auto_clear", label: "Effacement automatique : Claude vide la conversation (/clear) en fin de sujet", type: "bool" },
     { path: "chat.idle_suspend_min", label: "Mise en veille d'un chat inactif (minutes, 0 = jamais)", type: "number", min: 0, max: 1440 },
     { path: "sessions.idle_hours", label: "Session inactive après (heures)", type: "number", min: 0.01, max: 720 },
   ]],

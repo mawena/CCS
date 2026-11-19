@@ -987,6 +987,23 @@ def cmd_mise_a_jour(args):
     return code
 
 
+def cmd_chat(args):
+    """Chats de CCS : `effacer` demande `/clear` à la fin du tour en cours (lancé par Claude)."""
+    from . import chat_engine
+    token = os.environ.get(chat_engine.CLEAR_TOKEN_VAR, "")
+    if not token:
+        print("Pas dans un chat de CCS (ou effacement automatique désactivé dans les réglages) : "
+              "rien à effacer.", file=sys.stderr)
+        return 1
+    try:
+        chat_engine.request_clear(token)
+    except (OSError, ValueError) as e:
+        print(f"Demande d'effacement impossible : {e}", file=sys.stderr)
+        return 1
+    print("La conversation sera effacée (/clear) à la fin de ce tour.")
+    return 0
+
+
 def cmd_distant(args):
     """Calcul réparti : machines du réseau Ricochet et commandes lancées dessus."""
     from . import distant
@@ -1188,6 +1205,10 @@ def build_parser():
     dil.add_argument("--avec-git", action="store_true", help="envoyer aussi le dossier .git")
     dil.add_argument("commande", nargs=argparse.REMAINDER, help="la commande, après --")
     di.set_defaults(func=cmd_distant)
+    ch = sub.add_parser("chat", help="chats de CCS (commandes pour Claude)")
+    ch_sub = ch.add_subparsers(dest="action", required=True)
+    ch_sub.add_parser("effacer", help="vide la conversation (/clear) à la fin du tour en cours")
+    ch.set_defaults(func=cmd_chat)
     jo = sub.add_parser("journal", help="journal des bascules, avec leur raison")
     period = jo.add_mutually_exclusive_group()
     period.add_argument("--jours", type=int, default=7, metavar="N", help="N derniers jours (7 par défaut)")

@@ -619,3 +619,34 @@ out = { kids: [...view.thread.children].map((n) => [n.className, n.textContent.s
         self.assertIn("before-reset", k[1][0])
         self.assertEqual(k[2], ["reset-sep", "Nouvelle conversation "])
         self.assertNotIn("before-reset", k[3][0])
+
+
+@unittest.skipUnless(NODE, "node absent")
+class SlashCommandTest(unittest.TestCase):
+    """`/clear` part seul : la CLI ne le reconnaît qu'en tête du message (19/11/2026)."""
+
+    def test_command_skips_quote_and_shell_notes(self):
+        out = run(ReplyTest.START + """
+act(claude).click();
+view.shellNotes = ["J'ai lancé `ls` (code 0) :\\n```\\na\\n```\\n\\n"];
+type(view, "  /clear ");
+await submit(view);
+const first = { sent: sent()[0].text, quote: view.quote, notes: view.shellNotes.length };
+type(view, "Suite");
+await submit(view);
+out = { first, second: sent()[1].text };
+""")
+        self.assertEqual(out["first"], {"sent": "/clear", "quote": {"author": "claude", "text": "Deux options :\n\n- A\n- B"}, "notes": 1})
+        self.assertTrue(out["second"].startswith("> **Claude"), out["second"][:40])   # citation en tête
+        self.assertIn("J'ai lancé `ls`", out["second"])
+        self.assertTrue(out["second"].endswith("Suite"))
+
+    def test_auto_clear_separator(self):
+        out = run("""
+const view = open();
+await settle();
+await live(view, { type: "UserSent", text: "Avant", images: 0, nonce: "x" },
+                 { type: "ConversationReset", conversation_id: "c2", trigger: "ccs_auto" });
+out = [...view.thread.children].map((n) => n.textContent.slice(0, 13));
+""")
+        self.assertEqual(out[-1], "Sujet terminé")

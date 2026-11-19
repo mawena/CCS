@@ -871,6 +871,11 @@ class ChatTabTest(HomeTestCase):
         self.assertLess(before.get_opacity(), 1)
         self.assertEqual(tab.messages._last.get_opacity(), 1)
 
+    def test_auto_clear_separator(self):
+        tab, _owner = self.make(spawn=False)
+        tab._dispatch(proto.ConversationReset("c2", "ccs_auto"))
+        self.assertTrue(any(t.startswith("Sujet terminé : Claude a effacé") for t in texts(tab)))
+
     def test_compacted_without_token_count(self):
         tab, _owner = self.make(spawn=False)
         tab._dispatch(proto.Compacted(None, "auto"))
@@ -901,6 +906,16 @@ class ChatTabTest(HomeTestCase):
         self.assertTrue(sent.endswith("```\n\nque penses-tu de ça ?"))
         self.assertIn("que penses-tu de ça ?", texts(tab))          # la bulle ne montre que le texte saisi
         self.assertEqual(tab._shell_notes, [])                       # joint une seule fois
+
+    def test_slash_command_goes_alone(self):
+        from unittest import mock
+        tab, _owner = self.make()
+        self.say(tab, "!echo note-7")
+        self.assertTrue(pump_until(lambda: tab._shell_notes))
+        with mock.patch.object(tab.engine, "send", return_value=True) as send:
+            self.say(tab, "/clear")
+        self.assertEqual(send.call_args.args[0], "/clear")
+        self.assertEqual(len(tab._shell_notes), 1)                   # pour le message suivant
 
     def test_shell_card_stop_button(self):
         tab, _owner = self.make()
