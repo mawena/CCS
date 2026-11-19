@@ -1188,8 +1188,11 @@ class MessageList(Gtk.ScrolledWindow):
         view = self._markdown(text)
         bubble = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=["ccs-bubble-claude"], hexpand=True,
                          margin_end=24, visible=bool(text))
-        overlay = Gtk.Overlay(child=view, hexpand=True)
-        # « Répondre » et « Copier » (texte Markdown brut) : visibles au survol de la réponse
+        # « Répondre » et « Copier » (texte Markdown brut) : visibles au survol de la réponse, dans
+        # une colonne à droite du texte (posés par-dessus, ils cachaient la fin de la première ligne)
+        view.set_hexpand(True)
+        row = Gtk.Box(spacing=4, hexpand=True)
+        row.append(view)
         actions = Gtk.Box(halign=Gtk.Align.END, valign=Gtk.Align.START, opacity=0,
                           css_classes=["ccs-hover-actions"])
         copy = Gtk.Button(icon_name="edit-copy-symbolic", tooltip_text="Copier la réponse",
@@ -1205,13 +1208,13 @@ class MessageList(Gtk.ScrolledWindow):
             bubble.tag_hover = self._tag_button()
             actions.append(bubble.tag_hover)
         actions.append(copy)
-        overlay.add_overlay(actions)
+        row.append(actions)
         hover = Gtk.EventControllerMotion()
         hover.connect("enter", _show_actions, 1)
         hover.connect("leave", _show_actions, 0)
         bubble.add_controller(hover)
         bubble.copy_button, bubble.hover_actions = copy, actions
-        bubble.append(overlay)
+        bubble.append(row)
         bubble.tag_id, bubble.tag_role = msg_id or "", "assistant"
         if msg_id:
             bubble.tags_box = self._tags_widget(msg_id, Gtk.Align.START)
