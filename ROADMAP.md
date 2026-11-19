@@ -492,10 +492,10 @@ Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ou
 - [x] 6. Tests, essai réel (relais et agent locaux, vrai `ssh` et `rsync`), documentation, release mineure 0.21.0
 - [x] 7. Mise en place faite (jeton des tunnels, `client.toml`, `[tunnel]` et SSH sur `pc-bureau`) ; essai réel réussi le 18/11 : APK de Portail construit sur `pc-bureau` (Gradle 3 min 35) et rapatrié sur le VPS
 
-Étape B — répartir et voir (0.30.0)
-- [x] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton)
-- [x] 9. Plusieurs commandes à la fois sur plusieurs machines (tests d'un côté, build de l'autre), limite par machine, file d'attente
-- [x] 10. Tâches de nuit et suites de tests longues envoyées à la machine la moins chargée ; le VPS garde ses services de production tranquilles
+Étape B — répartir et voir (0.31.0, puis 0.32.0)
+- [x] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton) — 0.31.0, refaite en 0.32.0 (journal, lancement, limites)
+- [x] 9. Plusieurs commandes à la fois sur plusieurs machines (tests d'un côté, build de l'autre), limite par machine, file d'attente — 0.32.0
+- [x] 10. Tâches de nuit et suites de tests longues envoyées à la machine la moins chargée ; le VPS garde ses services de production tranquilles — 0.32.0
 - [x] 11. Arrêt propre de la commande distante quand on interrompt `ccs distant lancer` (0.25.1 : garde côté distant, essai réel sur `pc-bureau`)
 - [x] 12. Tests, documentation, release mineure
 
@@ -594,3 +594,16 @@ Charles (19/11/2026) : lancer et gérer depuis la version web une session sur le
 - [x] 5. Appli Android : même choix de machine (puce dans Sessions, entrée dans Plus, bandeau sur tous les écrans, notifications qui suivent la machine ; 127 tests JVM)
 - [x] 6. Documentation, release mineure 0.29.0
 - [x] 7. Essai par Charles depuis son téléphone (PC allumé, CCS à jour sur le PC) : OK
+
+## Phase 27 — Clic droit dans la version web (0.30.0)
+
+Charles (19/11/2026) : un clic droit sur un onglet (et ailleurs) doit proposer les actions de
+CCS ; renommer une session ne changeait pas son onglet. Bug d'affichage du bureau signalé en
+même temps : boutons au survol posés sur le texte des réponses.
+
+- [x] 1. Menu contextuel commun (`contextMenu`, clavier et Échap) et feuille de saisie (`promptSheet`)
+- [x] 2. Onglets et « En cours » : Renommer, nouveau chat / terminal, projet, chemin, fermer, fermer les autres
+- [x] 3. Projets et conversations : leurs actions au clic droit
+- [x] 4. Titre des onglets : suit le renommage (événement `ccs:conv-renamed`), `chat.list` donne le titre du journal
+- [x] 5. Bureau : actions au survol d'une réponse dans leur colonne, plus sur le texte
+- [x] 6. Tests (titre de `chat.list`, fil GTK), essai dans Chrome sans écran, release mineure 0.30.0

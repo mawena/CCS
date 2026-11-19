@@ -1,7 +1,22 @@
+ccs (0.32.0) unstable; urgency=medium
+
+  * Plusieurs travaux distants à la fois avec file d'attente, travaux en
+    arrière-plan et de nuit, page « Machines » refaite (journal, lancement).
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 22:00:00 +0100
+
+ccs (0.31.0) unstable; urgency=medium
+
+  * Page « Machines » du calcul réparti (web et bureau) : commandes en
+    cours avec arrêt, machines du relais et leurs outils, réglages Ricochet.
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 22:00:00 +0100
+
 ccs (0.30.0) unstable; urgency=medium
 
-  * Page « Machines » (web et bureau), plusieurs travaux distants à la fois
-    avec file d'attente, travaux en arrière-plan et de nuit.
+  * Version web : menus du clic droit (onglets, En cours, projets,
+    conversations) ; le titre des onglets suit le renommage.
+  * Bureau : les boutons au survol d'une réponse ne cachent plus le texte.
 
  -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 21:00:00 +0100
 

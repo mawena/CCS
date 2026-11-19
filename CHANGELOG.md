@@ -3,22 +3,59 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.32.0] — 2026-11-19
+
+### Ajouté
+
+- **Plusieurs travaux à la fois** : places par machine (`limite` dans `distant.toml`, 2 par
+  défaut, réglable depuis la page), file d'attente quand toutes les machines sont pleines.
+- **Travaux en arrière-plan et de nuit** : `ccs distant lancer --detache`, `--quand nuit|HH:MM` ;
+  `ccs distant travaux`, `journal <id>`, `arreter <id>`. Claude est invité à envoyer les longues
+  suites de tests la nuit, pour garder le VPS léger.
+- Pont : `machines.jobs`, `machines.log`, `machines.start`, `machines.limit` ; `machines.list`
+  donne aussi outils, limite et places prises.
+
+### Modifié
+
+- **Page « Machines » refaite** (web : Réglages → « Gérer les machines », ou la feuille « Machine
+  pilotée » ; bureau : Réglages → Machines) : travaux en cours, en attente, programmés et finis
+  avec « Journal » et « Arrêter », formulaire « Lancer une commande » (dossier, machine,
+  maintenant / cette nuit / à une heure), places et limite par machine, réglages du relais.
+- Le registre des commandes passe de `~/.cache/ccs/distant-en-cours/` à
+  `~/.cache/ccs/distant/travaux/` (finis gardés 24 h, 30 au plus) ; `machines.running` et
+  `machines.tools` du pont sont remplacés par `machines.jobs` et l'inventaire de `machines.list`.
+
+## [0.31.0] — 2026-11-19
+
+### Ajouté
+
+- **Page « Machines » du calcul réparti.** Onglet Machines dans la version web, page Machines
+  dans les Réglages du bureau : commandes `ccs distant lancer` en cours (machine, projet,
+  durée) avec « Arrêter », confirmé, qui arrête aussi la commande distante ; machines du relais
+  Ricochet (en ligne ou non, charge, mémoire, outils relevés, « Relever les outils ») ;
+  réglages du client Ricochet (adresse du relais, jeton jamais réaffiché, `client.toml` en
+  droits 600).
+- `ccs distant lancer` note la commande en cours dans `~/.cache/ccs/distant-en-cours/` le temps
+  qu'elle tourne.
+
 ## [0.30.0] — 2026-11-19
 
 ### Ajouté
 
-- **Page « Machines »** dans le web (`#/machines`, depuis Réglages et la feuille « Machine
-  pilotée ») et dans l'appli du PC (Réglages → Machines) : machines, charge, mémoire, outils,
-  places ; travaux en cours, en attente, programmés et finis, avec journal et arrêt ; lancer une
-  commande ; adresse et jeton du relais Ricochet.
-- **Plusieurs travaux à la fois** : places par machine (`limite`, 2 par défaut), file d'attente
-  quand toutes les machines sont pleines.
-- **Travaux en arrière-plan et de nuit** : `ccs distant lancer --detache`, `--quand nuit|HH:MM` ;
-  `ccs distant travaux`, `journal <id>`, `arreter <id>`. Claude est invité à envoyer les longues
-  suites de tests la nuit, pour garder le VPS léger.
-- Pont : `machines.jobs`, `machines.stop`, `machines.log`, `machines.start`,
-  `machines.settings`, `machines.configure`, `machines.limit` ; `machines.list` donne aussi
-  outils, limite et places prises.
+- **Clic droit dans la version web.** Sur un onglet ou une ligne « En cours » : Renommer…,
+  Nouveau chat ou Terminal dans ce projet, Ouvrir le projet, Copier le chemin, Fermer, Fermer
+  les autres onglets (une seule confirmation). Sur un projet : Ouvrir, Nouveau chat, Terminal,
+  Copier le chemin, Retirer de la liste. Sur une conversation : Reprendre, Aperçu, Renommer,
+  Copier le chemin, Supprimer.
+
+### Corrigé
+
+- **Web : l'onglet ne suivait pas le renommage d'une conversation.** Le titre de l'onglet, de
+  « En cours » et de l'en-tête du chat change aussitôt ; `chat.list` donne le titre du journal
+  (`/rename` ou CCS, sinon le titre automatique de Claude Code), relu quand un chat redevient
+  prêt : un nouveau chat prend son titre après la première réponse au lieu du nom du dossier.
+- **Bureau : les boutons au survol d'une réponse** (Répondre, Étiqueter, Copier) étaient posés
+  sur le texte et cachaient la fin de la première ligne ; ils ont maintenant leur colonne.
 
 ## [0.29.0] — 2026-11-19
 

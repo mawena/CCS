@@ -437,7 +437,8 @@ indique la commande à lancer : `sudo apt install gir1.2-vte-3.91`.
 
 ## Renommer une conversation
 
-« Renommer… » (onglet Sessions, menu d'un onglet du terminal)
+« Renommer… » (onglet Sessions, menu d'un onglet du terminal, clic droit sur un onglet de la
+version web)
 ou `ccs title <identifiant> <titre>` donne un titre à une conversation, comme
 `/rename` dans Claude Code : le titre est enregistré dans la conversation et
 s'affiche partout, VS Code compris.
@@ -614,6 +615,10 @@ mêmes fonctions que le bureau :
   **Projets** : « + Ajouter » (dossier existant ou nouveau, `git init` en option), « ✕ » retire
   un projet de la liste sans rien effacer. **Supprimer** (menu « ⋯ » d'une conversation) la met
   à la **Corbeille** (en bas de la liste) : restaurable 30 jours, puis effacée.
+  **Clic droit** (grand écran) sur un onglet ou une ligne « En cours » : Renommer, nouveau chat
+  ou terminal dans le projet, ouvrir le projet, copier le chemin, fermer, fermer les autres ;
+  sur un projet ou une conversation : ses actions habituelles. Renommer un chat renomme sa
+  conversation, et l'onglet suit (titre automatique de Claude Code compris).
 - **Chat** : options (modèle, effort, droits) repliées, brouillon gardé par chat, diff
   lisible des modifications de Claude, chemins cités ouverts dans le volet Fichiers, complétion
   `@` et `/`, messages enregistrés, Compacter, commande `!`, recherche dans le fil, volet
