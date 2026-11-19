@@ -242,7 +242,10 @@ class TestRemoteGuard(DistantCase):
     def test_exit_code_and_folder(self):
         with tempfile.TemporaryDirectory() as tmp:
             p, work = self.start("pwd; exit 4", tmp)
-            out, _ = p.communicate(timeout=10)
+            out = p.stdout.read()  # entrée gardée ouverte, comme le fait ssh
+            p.wait(timeout=10)
+            p.stdin.close()
+            p.stdout.close()
             self.assertEqual(p.returncode, 4)
             self.assertEqual(out.strip(), str(work))
 
