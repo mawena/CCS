@@ -159,3 +159,78 @@ export function resizable(node, key, { min = 200, max = 900 } = {}) {
   node.append(handle);
   return handle;
 }
+
+// Menu du clic droit, posé sous le pointeur. items : [{ label, run, danger?, disabled? }] ou null
+// (séparateur). Se ferme au clic ailleurs, à Échap, au défilement ou au changement de taille.
+let openMenu = null;
+export function contextMenu(event, items) {
+  event.preventDefault();
+  event.stopPropagation();
+  openMenu?.();
+  const node = el("div", { class: "ctx-menu", role: "menu" });
+  const close = () => {
+    node.remove();
+    document.removeEventListener("pointerdown", outside, true);
+    document.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("blur", close);
+    window.removeEventListener("resize", close);
+    window.removeEventListener("scroll", close, true);
+    if (openMenu === close) openMenu = null;
+  };
+  const outside = (e) => { if (!node.contains(e.target)) close(); };
+  const onKey = (e) => {
+    const buttons = [...node.querySelectorAll("button:not([disabled])")];
+    const at = buttons.indexOf(document.activeElement);
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      buttons[(at + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus();
+    }
+  };
+  for (const it of items) {
+    if (!it) { if (node.lastChild && !node.lastChild.classList.contains("sep")) node.append(el("hr", { class: "sep" })); continue; }
+    node.append(el("button", { type: "button", role: "menuitem", class: `menu-item${it.danger ? " danger-text" : ""}`, disabled: it.disabled,
+      onclick: () => { close(); it.run(); } }, it.label));
+  }
+  if (node.lastChild?.classList.contains("sep")) node.lastChild.remove();
+  document.body.append(node);
+  const { innerWidth: w, innerHeight: h } = window;
+  const r = node.getBoundingClientRect();
+  node.style.left = `${Math.max(4, Math.min(event.clientX, w - r.width - 4))}px`;
+  node.style.top = `${Math.max(4, Math.min(event.clientY, h - r.height - 4))}px`;
+  node.querySelector("button:not([disabled])")?.focus({ preventScroll: true });
+  setTimeout(() => {
+    document.addEventListener("pointerdown", outside, true);
+    window.addEventListener("scroll", close, true);
+  });
+  document.addEventListener("keydown", onKey, true);
+  window.addEventListener("blur", close);
+  window.addEventListener("resize", close);
+  openMenu = close;
+  return close;
+}
+
+// Demande un texte dans une feuille (renommer…). Promesse : le texte, ou null si l'on annule.
+// check(texte) peut lever : son message s'affiche et la feuille reste ouverte.
+export function promptSheet({ title, value = "", label = "Nom", confirm = "Valider", maxlength = 200, check = null }) {
+  return new Promise((resolve) => {
+    const input = el("input", { type: "text", value, "aria-label": label, maxlength: String(maxlength), enterkeyhint: "done" });
+    const msg = el("p", { class: "message", role: "alert" });
+    const form = el("form", { class: "rename" }, input, msg);
+    const dlg = el("dialog", { class: "sheet", "aria-label": title });
+    const done = (v) => { if (dlg.open) dlg.close(); dlg.remove(); resolve(v); };
+    dlg.append(el("h2", {}, title), form, el("div", { class: "sheet-actions" },
+      el("button", { type: "button", onclick: () => done(null) }, "Annuler"),
+      el("button", { type: "button", class: "primary", onclick: () => form.requestSubmit() }, confirm)));
+    dlg.addEventListener("cancel", (e) => { e.preventDefault(); done(null); });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = "";
+      try { done(check ? await check(input.value) : input.value); } catch (err) { msg.textContent = err.message; }
+    });
+    document.body.append(dlg);
+    dlg.showModal();
+    input.focus();
+    input.select();
+  });
+}
