@@ -87,7 +87,9 @@ async function offerMachines() {
   b.hidden = !machines.length && !state.api.machine;
 }
 
+let announced = null;
 function switchMachine(id, name) {
+  announced = null;
   pickMachine(state.api, id, name);
   showMachine();
   banner(id ? `Connexion à ${name}…` : "", "info");
@@ -110,7 +112,16 @@ function start(user) {
   document.getElementById("shell").hidden = false;
   state.api = new Api();
   state.api.on("offline", () => banner("Connexion perdue : reconnexion…", "warning"));
-  state.api.on("online", () => { banner(""); checkVersion(); });
+  // vers une autre machine, le WebSocket s'ouvre avant le tunnel : « machine.ready » le confirme
+  state.api.on("online", () => {
+    banner(state.api.machine ? `Connexion à ${machineName(state.api)}…` : "", "info");
+    checkVersion();
+  });
+  state.api.on("machine.ready", (d) => {
+    banner("");
+    if (announced !== d.machine) toast(`Tu pilotes ${d.name || d.machine}.`);   // pas à chaque reconnexion
+    announced = d.machine;
+  });
   state.api.on("machine-down", (d) => banner(`${machineName(state.api)} injoignable : ${d.reason || "sans détail"}. `
     + "Nouvel essai bientôt ; ☁ en haut pour revenir au serveur.", "error"));
   state.api.on("logged-out", () => { state.api.close(); showLogin(start); });

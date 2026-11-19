@@ -167,6 +167,8 @@ class WebTest(AioHTTPTestCase):
     async def test_ws_machine_relays_through_the_bridge(self):
         await self.login()
         ws = await self.client.ws_connect("/api/ws?machine=pc", headers={"Origin": ORIGIN})
+        ready = await ws.receive_json(timeout=5)
+        self.assertEqual(ready, {"event": "machine.ready", "data": {"echo": {"machine": "pc"}}})
         await ws.send_json({"id": 1, "method": "chat.list", "params": {}})
         self.assertEqual((await ws.receive_json(timeout=5))["id"], 1)
         bridge = self.bridges.connected[0][3]

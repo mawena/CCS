@@ -268,12 +268,13 @@ def make_app(auth, bridges, config):
         if machine:
             # le pont relaie cette connexion vers le pont CCS de l'autre machine (tunnel Ricochet)
             try:
-                await bridge.call("machine.attach", machine=machine)
+                ready = await bridge.call("machine.attach", machine=machine)
             except (OSError, rpc.RpcError) as e:
                 why = e.message if isinstance(e, rpc.RpcError) else "pont injoignable"
                 await bridge.close()
                 await ws.close(code=MACHINE_DOWN, message=why.encode("utf-8")[:120].decode("utf-8", "ignore").encode("utf-8"))
                 return ws
+            await ws.send_json({"event": "machine.ready", "data": ready})
 
         def on_event(name, data):
             if not ws.closed:
