@@ -107,7 +107,11 @@ export class ChatView {
     this.watchThread();
     // Sous-agents : une pastille par sous-agent au-dessus du fil, chacun sa vue (comme sur le bureau).
     this.mainPill = el("button", { type: "button", class: "agent-pill active", onclick: () => this.showAgent(null) }, "Conversation");
-    this.agentBar = el("div", { class: "agent-bar", hidden: true, role: "tablist", "aria-label": "Sous-agents" }, this.mainPill);
+    // Sous-agents finis : hors de la barre, mais dans « Terminés (n) », leur historique.
+    this.historyBtn = el("button", { type: "button", class: "agent-pill agent-history-btn", hidden: true,
+      "aria-expanded": "false", onclick: () => this.toggleAgentHistory() }, "Terminés");
+    this.agentBar = el("div", { class: "agent-bar", hidden: true, role: "tablist", "aria-label": "Sous-agents" }, this.mainPill, this.historyBtn);
+    this.agentHistory = el("div", { class: "agent-history", hidden: true, role: "list", "aria-label": "Sous-agents terminés" });
     this.thread.addEventListener("click", (e) => this.pick(e));
     this.working = el("div", { class: "working", hidden: true, role: "status" }, el("span", { class: "spinner" }), el("span", {}, "Claude travaille…"));
     this.todos = el("div", { class: "todos", hidden: true });
@@ -179,7 +183,7 @@ export class ChatView {
           el("div", { class: "chat-sub" }, this.state, el("span", { class: "subtle cwd" }, cwd))),
         actions, this.menu),
       this.findbar.node,
-      el("div", { class: "chat-body" }, this.drawer, el("div", { class: "chat-main" }, this.agentBar, el("div", { class: "thread-wrap" }, this.thread, this.downBtn), this.form)));
+      el("div", { class: "chat-body" }, this.drawer, el("div", { class: "chat-main" }, this.agentBar, this.agentHistory, el("div", { class: "thread-wrap" }, this.thread, this.downBtn), this.form)));
     this.node.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") { e.preventDefault(); this.findbar.show(); }
     });
@@ -705,6 +709,8 @@ export class ChatView {
     for (const a of this.agents.values()) { a.view.remove(); a.pill.remove(); }
     this.agents.clear();
     this.agentBar.hidden = true;
+    this.agentHistory.hidden = true;
+    clear(this.agentHistory);
     clear(this.thread);
     this.setTodos([]);
     this.heavy = false;
@@ -909,7 +915,7 @@ export class ChatView {
       onclick: () => this.showAgent(id) }, mark, el("span", { class: "agent-name" }, name));
     this.agents.set(id, { name, view, pill, mark, card, done: false, background });
     this.thread.after(view);
-    this.agentBar.append(pill);
+    this.historyBtn.before(pill);               // « Terminés » reste au bout de la barre
     this.tools.set(id, card);
     this.tidyPills();
     return this.append(card);
@@ -934,11 +940,36 @@ export class ChatView {
     this.tidyPills();
   }
 
-  // Comme sur le bureau : chaque sous-agent garde sa pastille (✓ quand il a fini) ; la barre
-  // s'affiche dès le premier sous-agent.
+  // Un sous-agent qui travaille a sa pastille ; fini, il quitte la barre (sauf si on le regarde)
+  // et passe dans « Terminés (n) ». La barre reste tant qu'il y a eu un sous-agent.
   tidyPills() {
-    for (const a of this.agents.values()) a.pill.hidden = false;
+    let done = 0;
+    for (const [id, a] of this.agents) {
+      a.pill.hidden = a.done && id !== this.shownAgent;
+      if (a.done) done += 1;
+    }
+    this.historyBtn.hidden = done === 0;
+    this.historyBtn.textContent = `Terminés (${done})`;
+    if (!done) this.agentHistory.hidden = true;
+    this.historyBtn.setAttribute("aria-expanded", String(!this.agentHistory.hidden));
     this.agentBar.hidden = this.agents.size === 0;
+  }
+
+  // Historique des sous-agents finis : le plus récent en tête ; un clic ouvre sa vue.
+  toggleAgentHistory(force) {
+    const show = force ?? this.agentHistory.hidden;
+    clear(this.agentHistory);
+    if (show) {
+      const done = [...this.agents].filter(([, a]) => a.done).reverse();
+      for (const [id, a] of done) {
+        this.agentHistory.append(el("button", { type: "button", class: "agent-history-item", role: "listitem",
+          onclick: () => { this.toggleAgentHistory(false); this.showAgent(id); } },
+          el("span", { class: "agent-mark" }, a.mark.textContent), el("span", { class: "agent-name" }, a.name),
+          el("span", { class: "subtle" }, a.card.status.textContent)));
+      }
+    }
+    this.agentHistory.hidden = !show;
+    this.tidyPills();
   }
 
   // Événement émis par un sous-agent : dans sa vue, pas dans le fil.

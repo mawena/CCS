@@ -552,24 +552,33 @@ out.asked = [view.thread.hidden, view.thread.querySelectorAll(".permission").len
         self.assertEqual(out["sent"], [False, True])
         self.assertEqual(out["asked"], [False, 1])
 
-    def test_finished_agent_keeps_its_pill_with_a_check(self):
+    def test_finished_agent_leaves_the_bar_for_the_history(self):
         out = run(AGENT + """
 await live(view, start("a1"), { type: "ToolResult", tool_id: "a1", text: "3 tests trouvés", is_error: false });
 const agent = view.agents.get("a1");
 const card = view.thread.querySelector(".agent-card");
 out = { bar: view.agentBar.hidden, status: card.querySelector(".agent-status").textContent,
   result: card.querySelector(".tool-result").textContent, done: card.classList.contains("done") };
+out.pills = pills();
 card.querySelector(".see-agent").click();
 out.reopened = [view.agentBar.hidden, pills(), agent.view.hidden];
 view.mainPill.click();
-out.closed = view.agentBar.hidden;
+out.closed = [view.agentBar.hidden, pills()];
+view.historyBtn.click();
+const items = view.agentHistory.querySelectorAll(".agent-history-item");
+out.history = [view.agentHistory.hidden, items.map((n) => n.textContent)];
+items[0].click();
+out.fromHistory = [view.agentHistory.hidden, agent.view.hidden, pills()];
 """)
-        self.assertFalse(out["bar"])                 # la pastille reste, avec ✓
+        self.assertFalse(out["bar"])                 # la barre reste : accès à l'historique
+        self.assertEqual(out["pills"], ["Conversation*", "Terminés (1)"])
         self.assertEqual(out["status"], "✓ terminé")
         self.assertEqual(out["result"], "3 tests trouvés")
         self.assertTrue(out["done"])
-        self.assertEqual(out["reopened"], [False, ["Conversation", "✓Chercher les tests*"], False])
-        self.assertFalse(out["closed"])
+        self.assertEqual(out["reopened"], [False, ["Conversation", "✓Chercher les tests*", "Terminés (1)"], False])
+        self.assertEqual(out["closed"], [False, ["Conversation*", "Terminés (1)"]])
+        self.assertEqual(out["history"], [False, ["✓Chercher les tests✓ terminé"]])
+        self.assertEqual(out["fromHistory"], [True, False, ["Conversation", "✓Chercher les tests*", "Terminés (1)"]])
 
     def test_background_agent_ends_with_its_notice(self):
         out = run(AGENT + """
@@ -577,9 +586,11 @@ await live(view, start("a1", { run_in_background: true }), { type: "ToolResult",
 out = { early: [view.agents.get("a1").done, pills(), view.thread.querySelector(".agent-status").textContent] };
 await live(view, { type: "TaskNotice", tool_id: "a1", summary: "Sous-agent fini" });
 out.late = [view.agents.get("a1").done, view.agentBar.hidden, view.thread.querySelector(".agent-status").textContent];
+out.latePills = pills();
 """)
         self.assertEqual(out["early"], [False, ["Conversation*", "Chercher les tests"], "en arrière-plan…"])
         self.assertEqual(out["late"], [True, False, "✓ terminé"])
+        self.assertEqual(out["latePills"], ["Conversation*", "Terminés (1)"])
 
     def test_interrupt_stops_agents_and_new_thread_forgets_them(self):
         out = run(AGENT + """
@@ -592,7 +603,7 @@ out.reset = [view.agents.size, view.agentBar.hidden, view.thread.hidden, view.ag
 """)
         self.assertEqual(out["done"], [True, True])
         self.assertEqual(out["status"], ["arrêté", "arrêté"])
-        self.assertEqual(out["reset"], [0, True, False, 1, 0])
+        self.assertEqual(out["reset"], [0, True, False, 2, 0])     # « Conversation » et « Terminés »
 
 
 if __name__ == "__main__":

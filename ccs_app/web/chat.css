@@ -178,6 +178,11 @@ dialog.saved { width: min(520px, calc(100vw - 24px)); }
 .agent-bar { display: flex; gap: 6px; padding: 6px 10px; overflow-x: auto; border-bottom: 1px solid var(--line); flex: none; scrollbar-width: none; }
 .agent-pill { display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 240px; min-height: 0; padding: 4px 12px;
   border-radius: 99px; border: 1px solid var(--line); background: var(--soft); font-size: 0.85em; }
+.agent-history { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; border-bottom: 1px solid var(--line); max-height: 40vh; overflow-y: auto; flex: none; }
+.agent-history-item { display: flex; align-items: center; gap: 8px; min-height: 0; padding: 6px 10px; text-align: left; background: none; border: none; border-radius: 8px; }
+.agent-history-item:hover { background: var(--hover, rgba(127,127,127,.12)); }
+.agent-history-item .agent-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-history-btn { margin-left: auto; }
 .agent-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .agent-pill .agent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-pill .spinner { width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; flex: none; }
