@@ -138,6 +138,6 @@ details.details > div { display: grid; gap: 8px; padding-bottom: 6px; }
 .job:first-child { border-top: 0; }
 .job-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .job-cmd { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
-h2.job-cmd { font-size: 1em; }
+h2.job-cmd { font-size: 1em; white-space: normal; overflow-wrap: anywhere; }
 .job-why { font-size: 0.9em; color: var(--warning); }
 .job-actions { display: flex; gap: 8px; flex-wrap: wrap; }

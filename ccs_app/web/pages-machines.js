@@ -37,10 +37,11 @@ function lastProject() {
 
 function bar(label, ratio, value, title) {
   const pct = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
+  const fill = el("div", { class: `bar-fill${pct >= 90 ? " hot" : ""}` });
+  fill.style.width = `${pct}%`;                       // pas d'attribut style (politique de sécurité)
   return el("div", { class: "bar machine-bar", title },
     el("span", { class: "bar-name" }, label),
-    el("span", { class: "bar-track", role: "progressbar", "aria-label": label, "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pct) },
-      el("span", { class: `bar-fill${pct >= 90 ? " hot" : ""}`, style: `width: ${pct}%` })),
+    el("div", { class: "bar-track", role: "progressbar", "aria-label": label, "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(pct) }, fill),
     el("span", { class: "bar-value" }, value));
 }
 
@@ -68,7 +69,7 @@ export function mountMachines(root, api) {
   const jobsBox = el("div", { class: "stack" }, loading());
   const formBox = el("div", {});
   const relayBox = el("div", { class: "stack" }, loading());
-  wrap.append(note,
+  wrap.append(...(note ? [note] : []),
     el("section", { class: "card flat section", "aria-label": "Machines" }, el("h2", {}, "Machines"), machinesBox),
     el("section", { class: "card flat section", "aria-label": "Travaux" }, el("h2", {}, "Travaux"), jobsBox),
     el("section", { class: "card flat section", "aria-label": "Lancer une commande" }, el("h2", {}, "Lancer une commande"), formBox),
