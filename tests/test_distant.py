@@ -305,7 +305,8 @@ class TestCli(DistantCase):
                                       "--", "flutter", "build", "apk", "--release")
         self.assertEqual(code, 7)
         launch.assert_called_once_with(["flutter", "build", "apk", "--release"], machine="pc-bureau", tool=None,
-                                       fetch=["build"], include=[], with_git=False)
+                                       fetch=["build"], include=[], with_git=False, when="",
+                                       job_id=None, detached=False)
 
     def test_errors_are_plain(self):
         distant.client_path().unlink()
