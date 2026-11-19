@@ -6,8 +6,16 @@ import WebKit
 @MainActor
 @Observable
 final class ModeleAppli {
-    let client = CcsClient()
-    let avis = Avis()
+    let client: CcsClient
+    let avis: Avis
+    /// Terminaux ouverts dans l'appli (ils survivent à la navigation).
+    let terminaux: Terminaux
+    /// Veille des chats : notifications locales (fin de tour, demande en attente).
+    let veille: Veille
+    /// Partage reçu (« Ouvrir dans CCS », `ccs://partager`) : la feuille de partage s'ouvre.
+    var partage: Partage? = nil
+    /// Chat à ouvrir (toucher sur une notification, partage livré).
+    var aOuvrir: DestChat? = nil
 
     private(set) var adresse: String
     private(set) var identifiants: Identifiants? = nil
@@ -20,6 +28,12 @@ final class ModeleAppli {
     @ObservationIgnored private var fileCouts: Task<Void, Never>? = nil
 
     init() {
+        let c = CcsClient()
+        let av = Avis()
+        client = c
+        avis = av
+        terminaux = Terminaux(client: c, dire: { m in av.dire(m) })
+        veille = Veille(client: c)
         let a = Prefs.adresse
         adresse = a
         theme = Prefs.theme
@@ -29,12 +43,14 @@ final class ModeleAppli {
             self?.oublier()
             self?.avisConnexion = raison + " Reconnecte-toi."
         }
+        veille.ouvrir = { [weak self] d in self?.aOuvrir = d }
         if let i = identifiants { demarrer(i) }
     }
 
     private func demarrer(_ i: Identifiants) {
         guard i.portier else {
             client.demarrer(i)
+            veille.demarrer()
             return
         }
         // connexion Portier sans jeton d'appareil : on le demande une fois, avant le WebSocket
@@ -46,7 +62,7 @@ final class ModeleAppli {
                 Coffre.ecrire(j)
                 self.identifiants = j
             }
-            if self.identifiants != nil, case .arrete = self.client.etat { self.client.demarrer(j) }
+            if self.identifiants != nil, case .arrete = self.client.etat { self.client.demarrer(j); self.veille.demarrer() }
         }
     }
 
@@ -60,6 +76,7 @@ final class ModeleAppli {
         identifiants = i
         avisConnexion = nil
         client.demarrer(i)
+        veille.demarrer()
     }
 
     func deconnecter() {
@@ -76,6 +93,8 @@ final class ModeleAppli {
         Coffre.ecrire(nil)
         identifiants = nil
         couts = [:]
+        terminaux.oublier()
+        veille.arreter()
     }
 
     /// Coût court d'une conversation (« 0,42 $ ») ; le coût est un plus : un échec est tu.

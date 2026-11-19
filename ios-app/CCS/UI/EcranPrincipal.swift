@@ -62,6 +62,8 @@ enum Destination: Hashable {
     case gitProjet(String)
     case commit(cwd: String, id: String)
     case reglages
+    case terminaux
+    case terminal(String)
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
@@ -85,6 +87,18 @@ struct EcranPrincipal: View {
                     .tag(o)
                 }
             }
+        }
+        .sheet(item: Binding<Partage?>(get: { modele.partage }, set: { modele.partage = $0 })) { p in
+            FeuillePartage(partage: p) { dest in
+                modele.partage = nil
+                modele.aOuvrir = dest
+            }
+        }
+        .onChange(of: modele.aOuvrir) { _, d in
+            guard let d = d else { return }
+            modele.aOuvrir = nil
+            onglet = .sessions
+            piles[.sessions] = [.chat(d)]
         }
     }
 
@@ -123,6 +137,8 @@ struct EcranPrincipal: View {
         case .gitProjet(let cwd): EcranGitProjet(cwd: cwd)
         case .commit(let cwd, let id): EcranCommit(cwd: cwd, id: id)
         case .reglages: EcranReglages()
+        case .terminaux: EcranTerminaux()
+        case .terminal(let id): EcranTerminal(id: id)
         }
     }
 }
@@ -187,6 +203,9 @@ struct EcranPlus: View {
                 NavigationLink(value: Destination.reglages) {
                     Label("Réglages", systemImage: "gearshape")
                 }
+                NavigationLink(value: Destination.terminaux) {
+                    Label("Terminaux", systemImage: "terminal")
+                }
                 NavigationLink(value: Destination.analyse) {
                     Label("Analyse", systemImage: "chart.bar")
                 }
@@ -196,7 +215,7 @@ struct EcranPlus: View {
                     }
                 }
             } footer: {
-                Text("Réglages : notifications, serveur, téléphone (ntfy), appareils. Analyse : usage par projet, modèle, compte et heure.")
+                Text("Réglages : notifications, serveur, téléphone (ntfy), appareils. Terminaux : un shell sur le serveur. Analyse : usage par projet, modèle, compte et heure.")
             }
             Section("Connexion") {
                 LabeledContent("Serveur", value: modele.adresse.replacingOccurrences(of: "https://", with: ""))

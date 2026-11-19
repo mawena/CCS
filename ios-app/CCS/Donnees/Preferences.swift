@@ -43,6 +43,14 @@ enum Prefs {
         set { ecrire("theme", newValue.rawValue) }
     }
 
+    // MARK: terminal
+
+    /// Taille du texte du terminal (points), bornée par `Touches`.
+    static var tailleTerminal: Int {
+        get { let t = d.integer(forKey: "taille-terminal"); return t == 0 ? Touches.tailleDefaut : Touches.borner(t) }
+        set { d.set(Touches.borner(newValue), forKey: "taille-terminal") }
+    }
+
     // MARK: dossiers récents de « Nouvelle session » (8 au plus, le plus récent d'abord)
 
     static func recents() -> [String] {

@@ -39,6 +39,8 @@ struct Racine: View {
         .onChange(of: phase) { _, nouvelle in
             // retour au premier plan : nouvel essai tout de suite, ou vérification de la connexion
             if nouvelle == .active { modele.client.reessayer() }
+            if nouvelle != .inactive { modele.veille.premierPlan(nouvelle == .active) }
         }
+        .onOpenURL { u in modele.recevoir(u) }
     }
 }

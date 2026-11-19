@@ -8,11 +8,18 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.9"
+packages:
+  # émulateur de terminal (VT100/xterm) du terminal intégré
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm
+    exactVersion: 1.10.1
 targets:
   CCS:
     type: application
     platform: iOS
     sources: [CCS]
+    dependencies:
+      - package: SwiftTerm
     info:
       path: CCS/Info.plist
       properties:
@@ -20,6 +27,17 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         ITSAppUsesNonExemptEncryption: false
+        # « Ouvrir dans CCS » depuis la feuille de partage d'iOS (fichiers de tout type)
+        LSSupportsOpeningDocumentsInPlace: false
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Fichier
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.data, public.content, public.item]
+        # ccs://partager?texte=… (raccourci « Partager vers CCS » pour le texte et les liens)
+        CFBundleURLTypes:
+          - CFBundleURLName: com.mawena.ccs
+            CFBundleURLSchemes: [ccs]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mawena.ccs

@@ -34,8 +34,15 @@ struct EcranChat: View {
                 mc = m
                 m.demarrer()
             }
+            if let id = mc?.chatId { modele.veille.afficher(id) }
         }
-        .onDisappear { mc?.quitter() }
+        .onDisappear {
+            mc?.quitter()
+            modele.veille.quitter(mc?.chatId)
+        }
+        .onChange(of: mc?.chatId) { _, id in
+            if let id = id { modele.veille.afficher(id) }
+        }
     }
 
     private var titre: String {
@@ -219,6 +226,12 @@ private struct FilChatVue: View {
                         naviguer(.gitProjet(mc.cwd))
                     } label: {
                         Label("Git du projet", systemImage: "arrow.triangle.branch")
+                    }
+                    Button {
+                        let cwd = mc.cwd
+                        Task { await ouvrirTerminal(modele, cwd: cwd, naviguer: naviguer) }
+                    } label: {
+                        Label("Terminal dans ce projet", systemImage: "terminal")
                     }
                     Divider()
                     Button {

@@ -255,3 +255,33 @@ struct ListeAcces: LisibleJSON {
     var tokens: [Acces] = []
     init(json j: JSON) { tokens = j.liste("tokens").map { Acces(json: $0) } }
 }
+
+// MARK: terminaux (`term.*`)
+
+struct TerminalOuvert: LisibleJSON {
+    var termId = ""
+    init(json j: JSON) { termId = j.texte("term_id") }
+}
+
+struct InfoTerminal: LisibleJSON, Equatable, Identifiable {
+    var termId = ""
+    var cwd = ""
+    var name = "Terminal"
+    var id: String { return termId }
+    init(json j: JSON) {
+        termId = j.texte("term_id")
+        cwd = j.texte("cwd")
+        let n = j.texte("name")
+        name = n.isEmpty ? "Terminal" : n
+    }
+}
+
+struct ListeTerminaux: LisibleJSON {
+    var terms: [InfoTerminal] = []
+    init(json j: JSON) { terms = j.liste("terms").map { InfoTerminal(json: $0) } }
+}
+
+struct SortieTerminal: LisibleJSON {
+    var output = ""
+    init(json j: JSON) { output = j.texte("output") }
+}

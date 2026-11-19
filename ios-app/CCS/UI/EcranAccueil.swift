@@ -44,6 +44,7 @@ struct EcranAccueil: View {
                     }
                     CartePause(etat: e) { Task { await charger() } }
                     SectionTaches(home: e.home)
+                    CarteAjoutCompte(home: e.home)
                 } else if let m = erreur {
                     EtatErreur(message: m) { Task { await charger() } }
                 } else {
@@ -346,6 +347,48 @@ private struct CartePause: View {
             }
             occupe = false
             relire()
+        }
+    }
+}
+
+/**
+ * « Ajouter un compte Claude » (`home.js`) : `ccs add <nom>` dans un terminal ; on y ouvre le lien
+ * de connexion puis on colle le code.
+ */
+@MainActor
+private struct CarteAjoutCompte: View {
+    @Environment(ModeleAppli.self) private var modele
+    @Environment(\.naviguer) private var naviguer
+    let home: String
+    @State private var nom = ""
+    @State private var erreur: String? = nil
+    @State private var occupe = false
+
+    var body: some View {
+        CarteFond {
+            Text("Ajouter un compte Claude").font(.subheadline.weight(.semibold))
+            Text("Lance « ccs add » dans un terminal : ouvre le lien de connexion sur ton téléphone ou ton PC, puis colle le code dans le terminal.")
+                .font(.caption).foregroundStyle(.secondary)
+            TextField("Nom du compte (ex. perso2)", text: $nom)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: nom) { _, _ in erreur = nil }
+            if let m = erreur { Text(m).font(.caption).foregroundStyle(.red) }
+            Button("Ouvrir le terminal") {
+                guard nom.range(of: "^[A-Za-z0-9_-]{1,32}$", options: .regularExpression) != nil else {
+                    erreur = "Nom : lettres, chiffres, - et _ seulement."
+                    return
+                }
+                occupe = true
+                let n = nom
+                Task {
+                    await ouvrirTerminal(modele, cwd: home.isEmpty ? "~" : home, commande: "ccs add", nom: n, naviguer: naviguer)
+                    occupe = false
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(occupe)
         }
     }
 }

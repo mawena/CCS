@@ -56,6 +56,16 @@ struct EcranProjet: View {
                 }
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if entree?.exists != false {
+                    Button {
+                        Task { await ouvrirTerminal(modele, cwd: cwd, naviguer: naviguer) }
+                    } label: { Image(systemName: "terminal") }
+                        .accessibilityLabel("Terminal dans ce projet")
+                }
+            }
+        }
         .task(id: client.etat.estConnecte) {
             guard client.etat.estConnecte else { return }
             await charger()
