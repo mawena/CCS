@@ -626,6 +626,10 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [x] 10. Tests (XCTest), documentation (installation SideStore), release mineure 0.33.0 (`.ipa` joint, source SideStore pour les mises à jour)
 - [ ] 11. Essai par Charles sur l'iPhone 14 Pro (terminal, notifications, partage, fichiers, Git)
 
+## Raccourci Ctrl+Page préc./suiv. dans la version web (0.34.0)
+
+- [x] 1. Ctrl+Page préc. / Ctrl+Page suiv. : onglet précédent / suivant (chats et terminaux, en boucle), essai dans Chrome sans écran, release mineure 0.34.0
+
 ## Phase 29 — Vers la 1.0.0
 
 Charles (19/11/2026) : passer en 1.0.0. En SemVer, la 1.0 engage à ne plus casser sans version
@@ -633,7 +637,7 @@ majeure les interfaces publiques : commandes `ccs`, pont (`machines.*`, `chat.*`
 configuration. Le reste des tâches ouvertes (dossier entier, sessions sur une autre machine,
 archive de l'ancien dépôt) vient après.
 
-- [ ] 1. Inventaire des interfaces publiques (commandes `ccs`, méthodes du pont, fichiers de config et leurs clés) dans `docs/`
+- [x] 1. Inventaire des interfaces publiques (commandes `ccs`, méthodes du pont, fichiers de config et leurs clés) : `docs/interfaces.md`, avec les points à revoir
 - [ ] 2. Relecture : noms incohérents, restes d'anciennes versions, options inutiles ; corrections avant le gel
 - [ ] 3. Essais réels encore ouverts : APK sur le Pixel (6c de la phase 24, 11 de la phase 25), iPhone (11 de la phase 28) ; corrections
 - [ ] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
