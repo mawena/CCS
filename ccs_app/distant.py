@@ -137,6 +137,99 @@ def load_overrides():
     return machines if isinstance(machines, dict) else {}
 
 
+def client_settings():
+    """Réglages du client Ricochet à montrer (le jeton n'est jamais renvoyé)."""
+    try:
+        data = tomllib.loads(client_path().read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        data = {}
+    return {"relais": str(data.get("relais", "")), "jeton": bool(data.get("jeton")),
+            "agent": shutil.which("ricochet-agent") is not None}
+
+
+def save_client(relais, jeton=None):
+    """Écrit `client.toml` (droits 600) ; sans jeton, l'ancien est gardé."""
+    relais = str(relais or "").strip().rstrip("/")
+    if not relais.startswith(("https://", "http://")) or any(c in relais for c in '"\\\n '):
+        raise DistantError("Adresse du relais invalide : https://…")
+    if jeton is None or jeton == "":
+        try:
+            jeton = str(tomllib.loads(client_path().read_text(encoding="utf-8")).get("jeton", ""))
+        except (OSError, tomllib.TOMLDecodeError):
+            jeton = ""
+    jeton = str(jeton).strip()
+    if not jeton:
+        raise DistantError("Il faut le jeton des tunnels du relais.")
+    if any(c in jeton for c in '"\\\n\r'):
+        raise DistantError("Jeton invalide.")
+    path = client_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(f'relais = "{relais}"\njeton = "{jeton}"\n')
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+    return client_settings()
+
+
+# ------------------------------------------------------------------ commandes en cours
+
+def _running_dir():
+    d = _cache_dir() / "distant-en-cours"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _alive(pid):
+    """Le processus existe et c'est bien un `ccs distant` (pas un numéro réutilisé)."""
+    try:
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return False
+    return b"distant" in cmdline
+
+
+def _register(machine, root, rel, command):
+    record = {"pid": os.getpid(), "machine": machine.id, "projet": str(root),
+              "dossier": "" if str(rel) == "." else Path(rel).as_posix(),
+              "commande": command[0] if len(command) == 1 else shlex.join(command),
+              "debut": time.time()}
+    path = _running_dir() / f"{record['pid']}.json"
+    core.atomic_write_json(path, record)
+    return path
+
+
+def running(alive=None):
+    """Commandes `ccs distant lancer` en cours sur cette machine, les plus anciennes d'abord."""
+    alive = alive or _alive
+    out = []
+    for path in _running_dir().glob("*.json"):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+            pid = int(record["pid"])
+        except (OSError, ValueError, KeyError, TypeError):
+            path.unlink(missing_ok=True)
+            continue
+        if not alive(pid):
+            path.unlink(missing_ok=True)
+            continue
+        out.append(record)
+    return sorted(out, key=lambda r: r.get("debut", 0))
+
+
+def stop(pid, alive=None, kill=None):
+    """Arrête une commande en cours : la commande distante est arrêtée elle aussi."""
+    if not any(r["pid"] == pid for r in running(alive)):
+        raise DistantError("Cette commande est déjà finie.")
+    try:
+        (kill or os.kill)(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        raise DistantError("Cette commande est déjà finie.") from None
+    except PermissionError:
+        raise DistantError("Arrêt refusé : la commande appartient à un autre utilisateur.") from None
+
+
 # ------------------------------------------------------------------ machines
 
 def parse_machines(items):
@@ -460,35 +553,39 @@ def launch(command, machine=None, tool=None, fetch=(), include=(), with_git=Fals
     tool = tool or (None if machine else wanted_tool(command))
     chosen, inv = choose(machines, overrides, tool=tool, wanted=machine, run=run)
     root, rel = project_root(cwd)
-    say(f"{chosen.id} ({chosen.host or '?'}, charge {chosen.load:.1f} sur {chosen.cores} cœurs) : "
-        f"envoi de {root.name}…")
-    started = time.monotonic()
-    r = _ssh(chosen, overrides, f'mkdir -p "$HOME"/{shlex.quote(remote_dir(root))}', run=run,
-             stdin=subprocess.DEVNULL)
-    if r.returncode:
-        raise DistantError(f"{chosen.id} : SSH refusé ou injoignable (code {r.returncode})")
-    r = run(send_argv(chosen, overrides, root, include, with_git, cwd))
-    if r.returncode:
-        raise DistantError(f"Envoi du projet vers {chosen.id} raté (rsync, code {r.returncode})")
-    say(f"envoyé en {time.monotonic() - started:.0f} s ; lancement de la commande")
+    record = _register(chosen, root, rel, command)
     try:
-        code = _ssh(chosen, overrides, remote_command(root, rel, inv, command),
-                    run=attached).returncode
-    except KeyboardInterrupt:
-        say(f"interrompu : commande arrêtée sur {chosen.id}")
-        return 130
-    if code == 255:
-        say(f"connexion à {chosen.id} perdue (ou la commande a renvoyé 255)")
-    for path in fetch:
-        if code and code != 0:
-            say(f"commande en échec (code {code}) : {path} non rapatrié")
-            continue
-        r = run(fetch_argv(chosen, overrides, root, rel, path))
-        say(f"{path} rapatrié" if r.returncode == 0
-            else f"{path} : rien à rapatrier (rsync, code {r.returncode})")
-        if r.returncode and not code:
-            code = 1
-    return code
+        say(f"{chosen.id} ({chosen.host or '?'}, charge {chosen.load:.1f} sur {chosen.cores} cœurs) : "
+            f"envoi de {root.name}…")
+        started = time.monotonic()
+        r = _ssh(chosen, overrides, f'mkdir -p "$HOME"/{shlex.quote(remote_dir(root))}', run=run,
+                 stdin=subprocess.DEVNULL)
+        if r.returncode:
+            raise DistantError(f"{chosen.id} : SSH refusé ou injoignable (code {r.returncode})")
+        r = run(send_argv(chosen, overrides, root, include, with_git, cwd))
+        if r.returncode:
+            raise DistantError(f"Envoi du projet vers {chosen.id} raté (rsync, code {r.returncode})")
+        say(f"envoyé en {time.monotonic() - started:.0f} s ; lancement de la commande")
+        try:
+            code = _ssh(chosen, overrides, remote_command(root, rel, inv, command),
+                        run=attached).returncode
+        except KeyboardInterrupt:
+            say(f"interrompu : commande arrêtée sur {chosen.id}")
+            return 130
+        if code == 255:
+            say(f"connexion à {chosen.id} perdue (ou la commande a renvoyé 255)")
+        for path in fetch:
+            if code and code != 0:
+                say(f"commande en échec (code {code}) : {path} non rapatrié")
+                continue
+            r = run(fetch_argv(chosen, overrides, root, rel, path))
+            say(f"{path} rapatrié" if r.returncode == 0
+                else f"{path} : rien à rapatrier (rsync, code {r.returncode})")
+            if r.returncode and not code:
+                code = 1
+        return code
+    finally:
+        record.unlink(missing_ok=True)
 
 
 def describe(machines, overrides, probe=True, run=None):

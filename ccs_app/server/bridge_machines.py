@@ -111,7 +111,10 @@ class MachinesApi:
         self.links = {}                       # connexion → Link
         bridge.close_hooks.append(self._forget)
         bridge.busy_checks.append(lambda: bool(self.links))
-        bridge.add_handlers({"machines.list": self.list, "machine.attach": self.attach})
+        bridge.add_handlers({"machines.list": self.list, "machine.attach": self.attach,
+                             "machines.tools": self.tools, "machines.running": self.running,
+                             "machines.stop": self.stop, "machines.settings": self.settings,
+                             "machines.configure": self.configure})
 
     async def _machines(self):
         if not distant.configured():
@@ -127,7 +130,60 @@ class MachinesApi:
             machines = await self._machines()
         except rpc.RpcError as e:
             return {"machines": [], "message": e.message}
-        return {"machines": [public(m) for m in machines]}
+        known = await asyncio.to_thread(distant._load_inventory)
+        out = []
+        for m in machines:
+            item = public(m)
+            inv = known.get(m.id) or {}
+            item["tools"] = sorted(k for k, v in (inv.get("outils") or {}).items() if v)
+            item["tools_at"] = inv.get("quand") or 0
+            out.append(item)
+        return {"machines": out}
+
+    async def tools(self, _conn, params):
+        """Outils d'une machine, relus par SSH (une dizaine de secondes)."""
+        mid = params.get("machine")
+        if not isinstance(mid, str) or not MACHINE_ID.match(mid):
+            raise rpc.RpcError("invalide", "Machine invalide.")
+        machine = next((m for m in await self._machines() if m.id == mid), None)
+        if machine is None or not machine.online:
+            raise rpc.RpcError("introuvable", f"{mid} est hors ligne ou inconnue du relais.")
+
+        def probe():
+            overrides = distant.load_overrides()
+            return distant.inventory(machine, overrides, refresh=True)
+        try:
+            inv = await asyncio.to_thread(probe)
+        except distant.DistantError as e:
+            raise rpc.RpcError("introuvable", str(e)) from None
+        return {"tools": sorted(k for k, v in inv.get("outils", {}).items() if v),
+                "tools_at": inv.get("quand") or 0}
+
+    async def running(self, _conn, _params):
+        return {"running": await asyncio.to_thread(distant.running)}
+
+    async def stop(self, _conn, params):
+        pid = params.get("pid")
+        if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1:
+            raise rpc.RpcError("invalide", "Commande invalide.")
+        try:
+            await asyncio.to_thread(distant.stop, pid)
+        except distant.DistantError as e:
+            raise rpc.RpcError("introuvable", str(e)) from None
+        return {"ok": True}
+
+    async def settings(self, _conn, _params):
+        return {"settings": await asyncio.to_thread(distant.client_settings)}
+
+    async def configure(self, _conn, params):
+        relais, jeton = params.get("relais"), params.get("jeton")
+        if not isinstance(relais, str) or (jeton is not None and not isinstance(jeton, str)):
+            raise rpc.RpcError("invalide", "Réglages invalides.")
+        try:
+            settings = await asyncio.to_thread(distant.save_client, relais, jeton)
+        except distant.DistantError as e:
+            raise rpc.RpcError("invalide", str(e)) from None
+        return {"settings": settings}
 
     @staticmethod
     async def _ssh(machine):
