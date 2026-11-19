@@ -569,25 +569,38 @@ Charles (19/11/2026) : « pourquoi tu me proposes des /clear, alors que quand je
 
 Charles (19/11/2026) : « je veux une application complète construite de bout en bout avec le langage le plus adéquat ». L'appli 0.26 n'était que la page web en plein écran. Choix : Kotlin + Jetpack Compose (langage officiel d'Android, meilleure intégration : notifications, partage, fond). Tout le périmètre du web. Elle remplace la coquille Flutter dans `android-app/` ; construite sur `pc-bureau` (SDK `~/Android`, JDK 17/21), installée sur le Pixel 4 XL par adb sans fil.
 
-- [ ] 1. Fondations : projet Gradle (Kotlin, Compose, Material 3, thème CCS clair/sombre), connexion (mot de passe + TOTP, Portier, appairage → jeton gardé chiffré), client WebSocket `/api/ws` (RPC + événements, reconnexion), navigation, icône adaptative dans la zone sûre (logo coupé sur le Pixel)
+- [x] 1. Fondations : projet Gradle (Kotlin, Compose, Material 3, thème CCS clair/sombre), connexion (mot de passe + TOTP, Portier, appairage → jeton gardé chiffré), client WebSocket `/api/ws` (RPC + événements, reconnexion), navigation, icône adaptative dans la zone sûre (logo coupé sur le Pixel)
 - [x] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
 - [x] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique des conversations, comptes par projet
-- [ ] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options (modèle, effort), `/clear` et séparateurs, étiquettes, recherche, coût
-- [ ] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
-- [ ] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
-- [ ] 7. Feuille de route, tâches de fond, travail (changements, retour arrière), réglages, page téléphone
-- [ ] 8. Terminal (term.*) avec clavier adapté
-- [ ] 9. Notifications de fin de tour et de questions (service de fond), partage Android vers un chat
+- [x] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options (modèle, effort), `/clear` et séparateurs, étiquettes, recherche, coût
+- [x] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
+- [x] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
+- [x] 7. Feuille de route, tâches de fond, travail (changements, retour arrière), réglages, page téléphone
+- [x] 8. Terminal (term.*) avec clavier adapté
+- [x] 9. Notifications de fin de tour et de questions (service de fond), partage Android vers un chat, raccourcis d'appli ; sous-agents finis rangés dans « Terminés (n) »
 - [x] 9b. Serveur (0.27.0) : `/api/app-token` après Portier, jeton d'appareil accepté par `/api/tokens` et `/api/revoke`
-- [x] 9c. Web (0.27.0) : sous-agent fini retiré de la barre, historique « Terminés (n) » (à reprendre dans l'appli native)
-- [ ] 10. Tests (unitaires JVM), essai sur le Pixel, documentation, release mineure 0.28.0 (APK joint)
+- [x] 9c. Web (0.27.0) : sous-agent fini retiré de la barre, historique « Terminés (n) »
+- [x] 10. Tests (122 tests JVM), documentation, release mineure 0.28.0 (APK joint)
+- [ ] 11. Essai complet sur le Pixel par Charles : connexion, chat, notifications, partage, terminal ; corrections
 
-## Phase 26 — Application iPhone native (Swift + SwiftUI)
+## Phase 26 — Piloter les sessions du PC depuis le web (0.29.0)
+
+Charles (19/11/2026) : lancer et gérer depuis la version web une session sur le PC, comme le bureau gère celles du serveur. Choix : le pont du serveur relaie la connexion du web par `ssh` dans le tunnel Ricochet (déjà réglé pour le calcul réparti) jusqu'au pont local du PC, celui de l'application de bureau ; tout le web suit la machine choisie.
+
+- [x] 1. Pont : `machines.list` (relais Ricochet) et `machine.attach` (ssh + petit programme python3 de l'autre côté, pont local lancé s'il manque) ; connexion relayée sauf `hello`, `machine.attach`, `machines.*`
+- [x] 2. `ccs-web` : `/api/ws?machine=<id>`, code 4010 et raison si la machine est injoignable
+- [x] 3. Web : bouton « Machine pilotée » dans la barre du haut, fenêtre de choix, bandeau d'erreur, choix gardé
+- [x] 4. Tests (relais réel en local, ws, node) et essai réel vers `pc-bureau` par le tunnel
+- [x] 5. Appli Android : même choix de machine (puce dans Sessions, entrée dans Plus, bandeau sur tous les écrans, notifications qui suivent la machine ; 127 tests JVM)
+- [x] 6. Documentation, release mineure 0.29.0
+- [ ] 7. Essai par Charles depuis son téléphone (PC allumé, CCS à jour sur le PC)
+
+## Phase 27 — Application iPhone native (Swift + SwiftUI)
 
 Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limites d'Apple. Swift + SwiftUI (iOS 17), même périmètre que l'appli Android (phase 25, sert de référence). Pas de Mac : projet décrit par XcodeGen (`ios-app/project.yml`), construit et testé sur **Codemagic** (offre gratuite, 500 min/mois de macOS), `.ipa` non signé. Installation par **SideStore** avec un identifiant Apple gratuit : appli à re-signer tous les 7 jours, pas de notifications push (APNs réservé au compte payant).
 
 - [x] 0. Squelette : `ios-app/` (XcodeGen), `codemagic.yaml` (tests sur simulateur, `.ipa` non signé)
-- [ ] 0b. Charles : compte Codemagic relié au dépôt, jeton d'API dans `~/.config/codemagic/jeton`, SideStore sur l'iPhone ; première construction installée
+- [x] 0b. Charles : compte Codemagic relié au dépôt, jeton d'API dans `~/.config/codemagic/jeton`, SideStore sur l'iPhone ; première construction installée (19/11, connexion, comptes, sessions et chat validés sur l'iPhone 14 Pro)
 - [x] 1. Fondations : connexion (mot de passe + TOTP, Portier, jeton d'appareil dans le trousseau), client WebSocket `/api/ws` (RPC + événements, reconnexion), navigation, thème clair/sombre, icône
 - [x] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
 - [x] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique, comptes par projet

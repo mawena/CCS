@@ -1,6 +1,11 @@
 // Connexion au pont par le WebSocket de ccs-web : appels (promesses), événements poussés,
 // reconnexion automatique (1 s, 2 s, 4 s… jusqu'à 30000 ms) et signal « reconnected » pour que
 // chaque écran se rattache (les chats rejouent ce qu'ils ont manqué).
+// `machine` : la connexion passe par le pont du serveur jusqu'au pont CCS d'une autre machine
+// (tunnel Ricochet) ; vide, c'est ce serveur. Le choix est gardé dans le navigateur.
+
+const MACHINE_KEY = "ccs.machine";
+export const MACHINE_DOWN = 4010;
 
 export async function post(path, body = {}) {
   const r = await fetch(path, {
@@ -26,6 +31,7 @@ export class Api {
     this.delay = 1000;
     this.stopped = false;
     this.everOpen = false;
+    try { this.machine = localStorage.getItem(MACHINE_KEY) || ""; } catch { this.machine = ""; }
   }
 
   on(event, fn) {
@@ -44,7 +50,8 @@ export class Api {
 
   connect() {
     this.stopped = false;
-    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/ws`;
+    const query = this.machine ? `?machine=${encodeURIComponent(this.machine)}` : "";
+    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/ws${query}`;
     const ws = new WebSocket(url);
     this.ws = ws;
     ws.onopen = () => {
@@ -69,7 +76,7 @@ export class Api {
       if (msg.error) p.reject(Object.assign(new Error(msg.error.message), { code: msg.error.code }));
       else p.resolve(msg.result || {});
     };
-    ws.onclose = () => {
+    ws.onclose = (e) => {
       // Seuls les appels vraiment envoyés sont rejetés (leur sort est inconnu) ; ceux qui attendent
       // encore dans la file partiront à la reconnexion : les rejeter ferait un doublon au « Réessayer ».
       for (const [id, p] of [...this.pending]) {
@@ -78,16 +85,17 @@ export class Api {
         p.reject(Object.assign(new Error("Connexion perdue."), { code: "hors_ligne" }));
       }
       if (this.stopped) return;
-      this.emit("offline");
+      if (e?.code === MACHINE_DOWN) this.emit("machine-down", { machine: this.machine, reason: e.reason || "" });
+      else this.emit("offline");
       this.reconnect();
     };
   }
 
   async reconnect() {
-    const wait = this.delay;
+    const wait = this.delay, ws = this.ws;
     this.delay = Math.min(this.delay * 2, 30000);
     await new Promise((r) => setTimeout(r, wait));
-    if (this.stopped) return;
+    if (this.stopped || this.ws !== ws) return;     // arrêté, ou machine changée entre-temps
     if (!(await session().catch(() => ({ offline: true })))) { this.emit("logged-out"); return; }
     this.connect();
   }
@@ -102,6 +110,26 @@ export class Api {
       else if (this.queue.length < 100) this.queue.push({ id, msg });
       else { this.pending.delete(id); reject(new Error("Trop de demandes en attente.")); }
     });
+  }
+
+  // Change de machine : les appels en cours appartiennent à l'ancienne, ils sont rejetés.
+  setMachine(id) {
+    this.machine = id || "";
+    try {
+      if (this.machine) localStorage.setItem(MACHINE_KEY, this.machine);
+      else localStorage.removeItem(MACHINE_KEY);
+    } catch { /* navigation privée */ }
+    const old = this.ws;
+    if (old) { old.onclose = null; old.onmessage = null; old.close(); }
+    this.queue = [];
+    for (const p of this.pending.values()) {
+      p.reject(Object.assign(new Error("Machine changée."), { code: "hors_ligne" }));
+    }
+    this.pending.clear();
+    this.everOpen = false;
+    this.delay = 1000;
+    this.emit("machine", this.machine);
+    this.connect();
   }
 
   close() {

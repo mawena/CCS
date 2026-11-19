@@ -739,6 +739,20 @@ Réseau coupé : un bandeau l'indique, la reconnexion est automatique et les mes
 attendent. Après un redémarrage du serveur (mise à jour), l'onglet se rebranche tout seul ;
 une autorisation donnée ailleurs (web, téléphone) se fige aussi au bureau.
 
+### Piloter le PC depuis le web
+
+Avec le [calcul réparti](#calcul-réparti--lancer-un-travail-sur-une-autre-machine) réglé sur le
+serveur, le bouton **☁ Ce serveur** de la barre du haut de la version web ouvre « Machine
+pilotée » : ce serveur, puis les autres machines du relais Ricochet (en ligne ou non, charge).
+Choisir le PC fait passer **tout** le web sur lui : sessions et chats, fichiers, feuille de
+route, Git, terminal. Le bouton prend alors la couleur d'accent et le nom du PC ; le choix est
+gardé dans le navigateur. Retour au serveur : même bouton, « Ce serveur ».
+
+Comment : le pont du serveur ouvre `ssh` par le tunnel Ricochet et branche la connexion sur le
+pont CCS local du PC (celui de l'application de bureau, lancé s'il ne tourne pas) : les chats
+sont donc les mêmes qu'au bureau. Il faut le PC allumé, CCS installé dessus et le tunnel SSH
+du calcul réparti. Si le PC ne répond pas, un bandeau donne la raison et le web réessaie seul.
+
 ### Limites à connaître
 
 - Retirer un serveur dans le bureau **ne révoque pas** son jeton sur le serveur : fais-le dans la version web, Réglages → Appareils.
@@ -797,18 +811,17 @@ chaque tunnel est dans le journal d'audit de Ricochet.
 
 ## Application Android
 
-`android-app/` contient une application Flutter (paquet `com.mawena.ccs`) qui ouvre la version
-web en plein écran : adresse du serveur modifiable (Retour sur la page d'accueil, puis
-« Serveur »), session gardée, envoi et téléchargement de fichiers, écran hors ligne. Elle se
-construit sur une machine qui a Flutter, par exemple :
+`android-app/` contient l'application **native** (Kotlin + Jetpack Compose, Material 3, paquet
+`com.mawena.ccs`) : tout ce que fait la version web — accueil et comptes, sessions et projets,
+chat complet (sous-agents, autorisations, questions, pièces jointes, `/clear`), fichiers, Git,
+feuille de route, tâches de nuit, réglages, terminal (émulateur de Termux) — plus des
+notifications de fin de tour et d'attente (avec Autoriser / Refuser), le partage Android vers un
+chat et des raccourcis d'appli. Connexion par appairage (mot de passe + code) ou par Portier,
+puis jeton d'appareil gardé chiffré, révocable dans Réglages → Appareils.
 
-```
-cd android-app
-ccs distant lancer --machine pc-bureau --rapatrier build/app/outputs/flutter-apk -- flutter build apk --release
-```
-
-L'APK est signé avec la clé de débogage de la machine qui le construit : construire toujours au
-même endroit pour pouvoir installer les mises à jour par-dessus.
+L'APK est joint à chaque release GitHub (`ccs-<version>.apk`). Pour le construire (SDK Android
+sur `pc-bureau`) : voir [android-app/README.md](android-app/README.md). Il est signé avec la clé
+de débogage de `pc-bureau` : construire toujours là pour installer les mises à jour par-dessus.
 
 ## Installation
 

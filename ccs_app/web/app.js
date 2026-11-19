@@ -3,6 +3,7 @@ import { Api, post, session } from "./api.js";
 import { clear, confirmSheet, el, toast } from "./dom.js";
 import { offerInstall } from "./install.js";
 import { showLogin } from "./login.js";
+import { machineName, machineSheet, otherMachines, pickMachine } from "./machines.js";
 import { VIEWS } from "./views.js";
 
 const state = { api: null, user: null, cleanup: null, view: null, route: null, title: "CCS", waiting: 0 };
@@ -67,6 +68,36 @@ function soonRefreshWaiting() {
   waitingTimer = setTimeout(refreshWaiting, 400);
 }
 
+// Bouton de la machine pilotée (barre du haut) : caché tant qu'il n'y a pas d'autre machine.
+function showMachine() {
+  const b = document.getElementById("machine");
+  const api = state.api;
+  if (!b || !api) return;
+  b.textContent = `${api.machine ? "🖥" : "☁"} ${machineName(api)}`;
+  b.classList.toggle("elsewhere", Boolean(api.machine));
+  b.title = api.machine ? `Tu pilotes ${machineName(api)} (changer de machine)` : "Changer de machine";
+  document.body.classList.toggle("on-machine", Boolean(api.machine));
+}
+
+async function offerMachines() {
+  const b = document.getElementById("machine");
+  if (!b) return;
+  if (state.api.machine) { b.hidden = false; return; }
+  const { machines } = await otherMachines(state.api);
+  b.hidden = !machines.length && !state.api.machine;
+}
+
+let announced = null;
+function switchMachine(id, name) {
+  announced = null;
+  pickMachine(state.api, id, name);
+  showMachine();
+  banner(id ? `Connexion à ${name}…` : "", "info");
+  state.view = null;                 // chaque page repart de zéro sur la nouvelle machine
+  render();
+  soonRefreshWaiting();
+}
+
 function buildNav() {
   const nav = clear(document.getElementById("nav"));
   for (const [name, v] of Object.entries(VIEWS)) {
@@ -81,16 +112,29 @@ function start(user) {
   document.getElementById("shell").hidden = false;
   state.api = new Api();
   state.api.on("offline", () => banner("Connexion perdue : reconnexion…", "warning"));
-  state.api.on("online", () => { banner(""); checkVersion(); });
+  // vers une autre machine, le WebSocket s'ouvre avant le tunnel : « machine.ready » le confirme
+  state.api.on("online", () => {
+    banner(state.api.machine ? `Connexion à ${machineName(state.api)}…` : "", "info");
+    checkVersion();
+  });
+  state.api.on("machine.ready", (d) => {
+    banner("");
+    if (announced !== d.machine) toast(`Tu pilotes ${d.name || d.machine}.`);   // pas à chaque reconnexion
+    announced = d.machine;
+  });
+  state.api.on("machine-down", (d) => banner(`${machineName(state.api)} injoignable : ${d.reason || "sans détail"}. `
+    + "Nouvel essai bientôt ; ☁ en haut pour revenir au serveur.", "error"));
   state.api.on("logged-out", () => { state.api.close(); showLogin(start); });
   state.api.on("notice", (d) => banner(d.text, "info"));
   state.api.on("chat.event", soonRefreshWaiting);
   state.api.on("reconnected", soonRefreshWaiting);
   state.api.connect();
+  showMachine();
   buildNav();
   render();
   refreshWaiting();
   offerInstall();
+  offerMachines();
 }
 
 // Version du serveur : une page restée ouverte pendant une mise à jour garde l'ancien code en
@@ -112,6 +156,10 @@ setInterval(() => { if (!document.hidden) refreshWaiting(); }, 20000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { refreshWaiting(); checkVersion(); } });
 
 window.addEventListener("hashchange", () => { if (state.api) render(); });
+
+document.getElementById("machine").addEventListener("click", () => {
+  if (state.api) machineSheet(state.api, switchMachine);
+});
 
 document.getElementById("logout").addEventListener("click", async () => {
   if (!await confirmSheet({ title: "Se déconnecter ?", body: "Les chats continuent sur le serveur.",

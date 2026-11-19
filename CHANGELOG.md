@@ -3,6 +3,30 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.29.0] — 2026-11-19
+
+### Ajouté
+
+- **Piloter le PC depuis le web.** Bouton « Machine pilotée » dans la barre du haut : ce
+  serveur ou une autre machine du relais Ricochet. Sur le PC, tout le web suit : sessions,
+  chats (les mêmes qu'au bureau), fichiers, feuille de route, Git, terminal. Le pont du
+  serveur relaie la connexion par `ssh` dans le tunnel Ricochet jusqu'au pont local du PC
+  (`machines.list`, `machine.attach`, `/api/ws?machine=<id>`) ; machine injoignable : code
+  4010 avec la raison, nouvel essai automatique.
+- **Application Android 0.29.0 : même choix de machine** (puce dans Sessions, « Machine
+  pilotée » dans Plus, bandeau sur tous les écrans) ; les notifications suivent la machine
+  choisie. APK `ccs-0.29.0.apk` joint à la release.
+
+## [0.28.0] — 2026-11-19
+
+### Ajouté
+
+- **Application Android native** (Kotlin + Jetpack Compose), à la place de la coquille web :
+  accueil et comptes, sessions et projets, chat complet, fichiers, Git, feuille de route,
+  tâches de nuit, changements et retour arrière, réglages, terminal ; notifications de fin de
+  tour et d'attente (Autoriser / Refuser depuis la notification), partage Android vers un chat,
+  raccourcis. Icône entière dans le lanceur. APK `ccs-0.28.0.apk` joint à la release.
+
 ## [0.27.0] — 2026-11-19
 
 ### Ajouté

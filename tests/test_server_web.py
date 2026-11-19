@@ -60,6 +60,8 @@ class FakeBridgeClient:
         self.calls.append((method, params))
         if method == "boom":
             raise rpc.RpcError("refuse", "non")
+        if method == "machine.attach" and params.get("machine") == "eteint":
+            raise rpc.RpcError("introuvable", "eteint est hors ligne.")
         return {"echo": params}
 
     async def close(self):
@@ -161,6 +163,28 @@ class WebTest(AioHTTPTestCase):
                 break
             await __import__("asyncio").sleep(0.01)
         self.assertTrue(bridge.closed)
+
+    async def test_ws_machine_relays_through_the_bridge(self):
+        await self.login()
+        ws = await self.client.ws_connect("/api/ws?machine=pc", headers={"Origin": ORIGIN})
+        ready = await ws.receive_json(timeout=5)
+        self.assertEqual(ready, {"event": "machine.ready", "data": {"echo": {"machine": "pc"}}})
+        await ws.send_json({"id": 1, "method": "chat.list", "params": {}})
+        self.assertEqual((await ws.receive_json(timeout=5))["id"], 1)
+        bridge = self.bridges.connected[0][3]
+        self.assertEqual(bridge.calls[0], ("machine.attach", {"machine": "pc"}))
+        await ws.send_json({"id": 2, "method": "machine.attach", "params": {"machine": "x"}})
+        self.assertEqual((await ws.receive_json(timeout=5))["error"]["code"], "refuse")
+        await ws.close()
+
+    async def test_ws_machine_down_closes_with_the_reason(self):
+        await self.login()
+        ws = await self.client.ws_connect("/api/ws?machine=eteint", headers={"Origin": ORIGIN})
+        msg = await ws.receive(timeout=5)
+        self.assertEqual(msg.type, WSMsgType.CLOSE)
+        self.assertEqual(msg.data, web.MACHINE_DOWN)
+        self.assertEqual(msg.extra, "eteint est hors ligne.")
+        self.assertTrue(self.bridges.connected[0][3].closed)
 
     async def test_logout_closes_open_websockets(self):
         await self.login()
