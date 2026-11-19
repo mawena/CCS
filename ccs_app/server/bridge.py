@@ -90,6 +90,11 @@ class Bridge:
         self.last_activity = self.clock()
         return {"user": self.user}
 
+    @staticmethod
+    def keeps_local(method):
+        """Sur une connexion relayée vers une autre machine, ce qui reste traité ici."""
+        return method in ("hello", "machine.attach") or method.startswith("machines.")
+
     def _on_connect(self, conn):
         self.clients.add(conn)
 
@@ -101,7 +106,7 @@ class Bridge:
 
     async def start(self, socket_path):
         self._server = rpc.RpcServer(self.handlers(), on_connect=self._on_connect,
-                                     on_close=self._on_close)
+                                     on_close=self._on_close, keep_local=self.keeps_local)
         await self._server.start_unix(socket_path, 0o600 if self.local else 0o660)
 
     async def prepare(self):
@@ -244,11 +249,11 @@ def build(user, key, local=False, chat=None, **kwargs):
     """Pont complet, tel que le lance `ccs bridge` : comptes et réglages, chats, données
     (projets, fichiers, feuille de route, tâches, analyse) et terminaux. `chat` : options du
     moteur de chat (`claude`, `environ`), pour le banc d'essai."""
-    from . import (bridge_admin, bridge_chat, bridge_data, bridge_files, bridge_git, bridge_term,
-                   bridge_work)
+    from . import (bridge_admin, bridge_chat, bridge_data, bridge_files, bridge_git,
+                   bridge_machines, bridge_term, bridge_work)
     b = Bridge(user, key, local=local, **kwargs)
     b.hubs = {"chat": bridge_chat.ChatHub(b, **(chat or {})), "data": bridge_data.DataApi(b),
               "term": bridge_term.TermHub(b), "work": bridge_work.WorkApi(b),
               "admin": bridge_admin.AdminApi(b), "git": bridge_git.GitApi(b),
-              "files": bridge_files.FileOps(b)}
+              "files": bridge_files.FileOps(b), "machines": bridge_machines.MachinesApi(b)}
     return b
