@@ -3,6 +3,25 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.30.0] — 2026-11-19
+
+### Ajouté
+
+- **Clic droit dans la version web.** Sur un onglet ou une ligne « En cours » : Renommer…,
+  Nouveau chat ou Terminal dans ce projet, Ouvrir le projet, Copier le chemin, Fermer, Fermer
+  les autres onglets (une seule confirmation). Sur un projet : Ouvrir, Nouveau chat, Terminal,
+  Copier le chemin, Retirer de la liste. Sur une conversation : Reprendre, Aperçu, Renommer,
+  Copier le chemin, Supprimer.
+
+### Corrigé
+
+- **Web : l'onglet ne suivait pas le renommage d'une conversation.** Le titre de l'onglet, de
+  « En cours » et de l'en-tête du chat change aussitôt ; `chat.list` donne le titre du journal
+  (`/rename` ou CCS, sinon le titre automatique de Claude Code), relu quand un chat redevient
+  prêt : un nouveau chat prend son titre après la première réponse au lieu du nom du dossier.
+- **Bureau : les boutons au survol d'une réponse** (Répondre, Étiqueter, Copier) étaient posés
+  sur le texte et cachaient la fin de la première ligne ; ils ont maintenant leur colonne.
+
 ## [0.29.0] — 2026-11-19
 
 ### Ajouté

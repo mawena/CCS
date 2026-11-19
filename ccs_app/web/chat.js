@@ -208,6 +208,8 @@ export class ChatView {
     this.attach();                                   // l'historique suit le premier rattachement
   }
 
+  setTitle(title) { const n = this.node.querySelector(".chat-title .title"); if (n) n.textContent = title; }
+
   destroy() { this.dead = true; clearTimeout(this.ctxTimer); for (const off of this.offs) off(); for (const { panel } of this.panels.values()) panel.destroy?.(); this.node.remove(); }
 
   // ---- saisie -----------------------------------------------------------------------------

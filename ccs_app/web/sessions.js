@@ -2,10 +2,10 @@
 // à gauche, onglets de chat ou écran Projet à droite. Au téléphone, une colonne : la liste, puis
 // le chat (ou le projet) en plein écran avec un bouton de retour.
 import { ChatView } from "./chat.js";
-import { clear, confirmSheet, el, emptyState, errorState, loading, resizable, toast } from "./dom.js";
+import { clear, confirmSheet, contextMenu, el, emptyState, errorState, loading, promptSheet, resizable, toast } from "./dom.js";
 import { addProject, openTrash, removeProject, trashConversation } from "./sessions-manage.js";
 import { baseName as base, ProjectScreen } from "./project.js";
-import { convRow } from "./sessions-conv.js";
+import { convRow, copy, renameConversation } from "./sessions-conv.js";
 import { newSession } from "./sessions-new.js";
 import { TerminalView } from "./terminal.js";
 
@@ -102,13 +102,13 @@ export function mountSessions(root, api, ctx = {}) {
 
   // ---- onglets ---------------------------------------------------------------------------------
 
-  async function closeTab(id) {
+  async function closeTab(id, { ask = true } = {}) {
     const t = tabs.get(id);
     if (!t) return;
     const name = t.title || base(t.cwd);
-    const ok = t.term
+    const ok = !ask || (t.term
       ? await confirmSheet({ title: `Fermer le terminal « ${name} » ?`, body: "Ce qui y tourne est arrêté.", confirm: "Fermer", danger: true })
-      : await confirmSheet({ title: `Fermer le chat « ${name} » ?`, body: "Claude s'arrête ; la conversation reste dans l'historique.", confirm: "Fermer", danger: true });
+      : await confirmSheet({ title: `Fermer le chat « ${name} » ?`, body: "Claude s'arrête ; la conversation reste dans l'historique.", confirm: "Fermer", danger: true }));
     if (!ok || !tabs.has(id)) return;
     if (t.term) t.view.destroy(true);
     else {
@@ -122,6 +122,60 @@ export function mountSessions(root, api, ctx = {}) {
     if (current === id || !current) show(current === id ? (tabs.size ? [...tabs.keys()].pop() : null) : current);
   }
 
+  async function closeOthers(id) {
+    const others = [...tabs.keys()].filter((k) => k !== id);
+    if (!others.length) return;
+    const ok = await confirmSheet({ title: `Fermer les ${others.length} autre(s) onglet(s) ?`,
+      body: "Claude s'arrête dans ces chats (leurs conversations restent dans l'historique) ; ce qui tourne dans ces terminaux est arrêté.", confirm: "Fermer", danger: true });
+    if (!ok) return;
+    show(id);
+    for (const k of others) await closeTab(k, { ask: false });
+  }
+
+  // Titre d'un onglet (et de son chat, de « En cours »).
+  function setTitle(id, title) {
+    const t = tabs.get(id);
+    if (!t || !title || t.title === title) return;
+    t.title = title;
+    t.label.textContent = (t.term ? "▸ " : "") + title;
+    t.closeBtn.setAttribute("aria-label", `Fermer ${title}`);
+    t.view.setTitle?.(title);
+    renderRunning();
+  }
+
+  // Renommer : la conversation elle-même pour un chat (comme `/rename`), le seul onglet pour un terminal.
+  async function renameTab(id) {
+    let t = tabs.get(id);
+    if (!t) return;
+    if (t.term) {
+      const v = await promptSheet({ title: "Renommer le terminal", value: t.title, confirm: "Renommer", maxlength: 80 });
+      if (v && v.trim()) setTitle(id, v.trim());
+      return;
+    }
+    if (!t.sessionId || !t.path) { await sync(); t = tabs.get(id); }
+    if (!t) return;
+    if (!t.sessionId || !t.path) { toast("Cette conversation n'a pas encore commencé : envoie d'abord un message.", { kind: "error" }); return; }
+    await renameConversation(api, { session_id: t.sessionId, path: t.path, title: t.title });
+  }
+
+  // Clic droit sur un onglet ou une ligne de « En cours ».
+  function tabMenu(e, id) {
+    const t = tabs.get(id);
+    if (!t) return;
+    const ok = Boolean(t.cwd);
+    contextMenu(e, [
+      { label: "Renommer…", run: () => renameTab(id) },
+      null,
+      { label: "Nouveau chat dans ce projet", disabled: !ok, run: () => open(t.cwd) },
+      { label: "Terminal dans ce projet", disabled: !ok, run: () => openTerm(t.cwd) },
+      { label: "Ouvrir le projet", disabled: !ok, run: () => showProject(t.cwd, { push: true }) },
+      { label: "Copier le chemin", disabled: !ok, run: () => copy(t.cwd) },
+      null,
+      { label: t.term ? "Fermer le terminal" : "Fermer le chat", danger: true, run: () => closeTab(id) },
+      { label: "Fermer les autres onglets", danger: true, disabled: tabs.size < 2, run: () => closeOthers(id) },
+    ]);
+  }
+
   // meta : { state, session_id, options, silent } ; silent : ne change ni l'onglet courant ni l'historique
   // (restauration au chargement et à la reconnexion : Retour ne doit pas se presser deux fois).
   function addTab(chatId, cwd, title, history, termOptions, meta = {}) {
@@ -132,11 +186,13 @@ export function mountSessions(root, api, ctx = {}) {
     const isTerm = Boolean(termOptions);
     const view = isTerm ? new TerminalView(holder, api, termOptions) : new ChatView(holder, api, { chatId, cwd, title, history, sessionId: meta.session_id || null, options: meta.options || null,
       host: { back: () => back.click(), resume: (v) => resumeStopped(chatId, v), stopped: () => { const t = tabs.get(chatId); if (t) { t.state = "stopped"; renderRunning(); } } } });
-    const close = el("button", { class: "flat tab-close", "aria-label": `Fermer ${title || base(cwd)}`, onclick: (e) => { e.stopPropagation(); closeTab(chatId); } }, "×");
-    const tab = el("div", { class: `tab${isTerm ? " term-tab" : ""}`, role: "tab", tabindex: "0", onclick: () => { show(chatId); if (isTerm) view.resize(); } },
-      el("span", {}, (isTerm ? "▸ " : "") + (title || base(cwd))), close);
+    const closeBtn = el("button", { class: "flat tab-close", "aria-label": `Fermer ${title || base(cwd)}`, onclick: (e) => { e.stopPropagation(); closeTab(chatId); } }, "×");
+    const label = el("span", {}, (isTerm ? "▸ " : "") + (title || base(cwd)));
+    const tab = el("div", { class: `tab${isTerm ? " term-tab" : ""}`, role: "tab", tabindex: "0", onclick: () => { show(chatId); if (isTerm) view.resize(); },
+      oncontextmenu: (e) => tabMenu(e, chatId) }, label, closeBtn);
     tabBar.append(tab);
-    const rec = { tab, view, holder, term: isTerm, cwd, title: title || base(cwd), state: isTerm ? "term" : (meta.state || "starting"), sessionId: meta.session_id || null };
+    const rec = { tab, label, closeBtn, view, holder, term: isTerm, cwd, title: title || base(cwd), state: isTerm ? "term" : (meta.state || "starting"),
+      sessionId: meta.session_id || null, path: typeof history === "string" ? history : null };
     tabs.set(chatId, rec);
     renderRunning();
     if (!meta.silent) show(chatId, { push: true });
@@ -191,7 +247,7 @@ export function mountSessions(root, api, ctx = {}) {
     running.append(el("h3", {}, "En cours"));
     for (const [id, t] of tabs) {
       const [label, tone] = t.term ? ["terminal", "term"] : STATES[t.state] || ["", "stopped"];
-      running.append(el("div", { class: `item run${id === current ? " active" : ""}` },
+      running.append(el("div", { class: `item run${id === current ? " active" : ""}`, oncontextmenu: (e) => tabMenu(e, id) },
         el("button", { class: "run-main", onclick: () => { show(id, { push: true }); if (t.term) t.view.resize(); } },
           el("span", { class: `dot ${tone}`, "aria-hidden": "true" }),
           el("span", { class: "grow run-text" }, el("strong", {}, (t.term ? "▸ " : "") + t.title),
@@ -228,7 +284,14 @@ export function mountSessions(root, api, ctx = {}) {
         onclick: () => addProject(api, { folders: projects.map((p) => p.cwd), onDone: () => loadList({ quiet: true }) }) }, "+ Ajouter")));
     if (!projects.length) list.append(el("p", { class: "subtle" }, "Aucun projet ne correspond."));
     for (const p of projects.slice(0, shownProjects)) {
-      list.append(el("div", { class: "item project-item" },
+      list.append(el("div", { class: "item project-item", oncontextmenu: (e) => contextMenu(e, [
+        { label: "Ouvrir le projet", run: () => showProject(p.cwd, { push: true }) },
+        { label: "Nouveau chat", disabled: !p.exists, run: () => open(p.cwd) },
+        { label: "Terminal", disabled: !p.exists, run: () => openTerm(p.cwd) },
+        { label: "Copier le chemin", run: () => copy(p.cwd) },
+        null,
+        { label: "Retirer de la liste…", danger: true, run: () => removeProject(api, p, { onDone: () => loadList({ quiet: true }) }) },
+      ]) },
         el("button", { class: "project-open-btn grow", "aria-label": `Ouvrir le projet ${p.name}`, onclick: () => showProject(p.cwd, { push: true }) },
           el("strong", {}, p.name), el("span", { class: "subtle" }, `${p.total} conversation(s)${p.open ? ` · ${p.open} ouverte(s)` : ""}`)),
         p.exists ? el("button", { class: "small", onclick: () => open(p.cwd) }, "Nouveau chat") : null,
@@ -268,8 +331,8 @@ export function mountSessions(root, api, ctx = {}) {
       }
       for (const c of r.chats || []) {
         const t = tabs.get(c.chat_id);
-        if (t) { t.state = c.state || t.state; t.sessionId = c.session_id || t.sessionId; continue; }
-        addTab(c.chat_id, c.cwd, base(c.cwd), c.path || null, null, { state: c.state, session_id: c.session_id, options: c.options, silent: true });
+        if (t) { t.state = c.state || t.state; t.sessionId = c.session_id || t.sessionId; t.path = c.path || t.path; setTitle(c.chat_id, c.title); continue; }
+        addTab(c.chat_id, c.cwd, c.title || base(c.cwd), c.path || null, null, { state: c.state, session_id: c.session_id, options: c.options, silent: true });
       }
     }
     try {
@@ -325,9 +388,33 @@ export function mountSessions(root, api, ctx = {}) {
   search.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { shownProjects = PROJECTS_STEP; shownConvs = CONVS_STEP; loadList({ quiet: true }); }, 300); });
   const onNewChat = (e) => { if (e.detail?.cwd) open(e.detail.cwd, null, {}, e.detail.text); };
   document.addEventListener("ccs:new-chat", onNewChat);
+  // conversation renommée (onglet, liste, écran Projet) : ses onglets et la liste suivent
+  const onRenamed = (e) => {
+    const { session_id: sid, title } = e.detail || {};
+    for (const [id, t] of tabs) if (!t.term && sid && t.sessionId === sid) setTitle(id, title);
+    if (data) loadList({ quiet: true });
+  };
+  document.addEventListener("ccs:conv-renamed", onRenamed);
+  // titre automatique de Claude Code (après la première réponse) : relu quand un chat redevient prêt
+  let titleTimer;
+  const refreshTitles = () => { clearTimeout(titleTimer); titleTimer = setTimeout(async () => {
+    let r;
+    try { r = await api.call("chat.list"); } catch { return; }
+    for (const c of r.chats || []) {
+      const t = tabs.get(c.chat_id);
+      if (!t || t.term) continue;
+      t.sessionId = c.session_id || t.sessionId;
+      t.path = c.path || t.path;
+      setTitle(c.chat_id, c.title);
+    }
+  }, 1500); };
   const offs = [
     api.on("reconnected", () => { loadList({ quiet: true }); sync(); }),
-    api.on("chat.event", (d) => { if (d.event?.type === "StateChanged") setState(d.chat_id, d.event.state); }),
+    api.on("chat.event", (d) => {
+      if (d.event?.type !== "StateChanged") return;
+      setState(d.chat_id, d.event.state);
+      if (d.event.state === "idle") refreshTitles();
+    }),
   ];
   const first = ctx.sub ? decodeURIComponent(ctx.sub) : "";
   if (!first.startsWith(PROJECT_PREFIX)) show(null);
@@ -337,6 +424,8 @@ export function mountSessions(root, api, ctx = {}) {
     cleanup: () => {
       for (const off of offs) off();
       document.removeEventListener("ccs:new-chat", onNewChat);
+      document.removeEventListener("ccs:conv-renamed", onRenamed);
+      clearTimeout(titleTimer);
       document.body.classList.remove("chat-mode");
       project?.screen.destroy();
       for (const t of tabs.values()) t.view.destroy();
