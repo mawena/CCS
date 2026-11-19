@@ -74,7 +74,7 @@ final class SessionTerminal: Identifiable {
         if fin != nil { return }
         recevoir(Touches.messageFin(code))
         fin = code
-        vue.resignFirstResponder()
+        _ = vue.resignFirstResponder()
     }
 
     /// Collage : entre crochets si le programme l'a demandé (mode 2004), comme un vrai terminal.

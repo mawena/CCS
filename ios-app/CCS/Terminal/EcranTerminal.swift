@@ -40,6 +40,12 @@ struct EcranTerminal: View {
     @State private var alt = false
     @State private var confirmerFermeture = false
 
+    private func sousTitre(_ s: SessionTerminal?) -> String {
+        guard let s = s else { return "" }
+        let chemin: String = TachesFond.cheminCourt(s.cwd)
+        return s.fin != nil ? chemin + " · terminé" : chemin
+    }
+
     var body: some View {
         let s = modele.terminaux.session(id)
         Group {
@@ -66,7 +72,7 @@ struct EcranTerminal: View {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 0) {
                     Text(s?.titre ?? "Terminal").font(.headline).lineLimit(1)
-                    Text((s.map { TachesFond.cheminCourt($0.cwd) } ?? "") + (s?.fin != nil ? " · terminé" : ""))
+                    Text(sousTitre(s))
                         .font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
                 }
             }

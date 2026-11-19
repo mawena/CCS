@@ -23,6 +23,15 @@ struct SectionTaches: View {
 
     private var client: CcsClient { return modele.client }
 
+    private func entete(_ t: TacheFond) -> String {
+        var l1: String = TachesFond.sousTitre(t)
+        let resume: String = j?.summary ?? ""
+        if !resume.isEmpty { l1 += " · " + resume }
+        var l2: String = TachesFond.libelleDroits(t.rights)
+        if let m = t.model { l2 += " · " + m }
+        return l1 + "\n" + l2
+    }
+
     var body: some View {
         CarteFond {
             HStack {
@@ -152,8 +161,7 @@ private struct FeuilleTache: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 8) {
                 if let t = j?.task {
-                    Text(TachesFond.sousTitre(t) + ((j?.summary ?? "").isEmpty ? "" : " · " + (j?.summary ?? "")) + "\n" +
-                         TachesFond.libelleDroits(t.rights) + (t.model.map { " · " + $0 } ?? ""))
+                    Text(entete(t))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if let e = erreur { Text(e).font(.footnote).foregroundStyle(.red) }
