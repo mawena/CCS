@@ -43,6 +43,7 @@ struct EcranAccueil: View {
                         )
                     }
                     CartePause(etat: e) { Task { await charger() } }
+                    SectionTaches(home: e.home)
                 } else if let m = erreur {
                     EtatErreur(message: m) { Task { await charger() } }
                 } else {

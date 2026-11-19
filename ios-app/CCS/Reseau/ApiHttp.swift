@@ -72,6 +72,25 @@ enum ApiHttp {
         return (t?.isEmpty ?? true) ? nil : t
     }
 
+    /// Accès connectés au compte (`/api/tokens`) ; nil si le serveur refuse cette connexion (401).
+    static func acces(_ i: Identifiants) async throws -> ListeAcces? {
+        let (code, donnees) = try await executer(try requete(i.serveur, "api/tokens", i))
+        if code == 401 { return nil }
+        guard (200..<300).contains(code) else { throw ErreurHttp(message: "Erreur \(code)") }
+        return ListeAcces(json: JSON.lire(donnees) ?? .vide)
+    }
+
+    /// Révoque un accès (`/api/revoke`) ; rend nil si c'est fait, sinon le message à montrer.
+    static func revoquer(_ i: Identifiants, id: String) async -> String? {
+        guard var r = try? requete(i.serveur, "api/revoke", i) else { return "Adresse du serveur invalide." }
+        corpsJson(&r, ["token_id": .chaine(id)])
+        guard let res = try? await executer(r) else { return "Serveur injoignable." }
+        let (code, donnees) = res
+        if code == 401 { return "Le serveur ne reconnaît pas cette connexion pour gérer les accès." }
+        guard (200..<300).contains(code) else { return "Erreur \(code)" }
+        return JSON.lire(donnees)?.bool("revoked") == true ? nil : "Révocation impossible : cet accès n'existe plus."
+    }
+
     /// Appairage : identifiant, mot de passe Ubuntu et code → jeton d'appareil (`status` = `ok`).
     static func appairer(_ base: String, utilisateur: String, motDePasse: String, code: String, nom: String) async -> ReponseConnexion {
         return await poster(base, "api/pair", [

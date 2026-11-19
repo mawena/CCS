@@ -607,7 +607,7 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [x] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options, `/clear`, étiquettes, recherche, coût
 - [x] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
 - [x] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
-- [ ] 7. Feuille de route, tâches de fond, travail, réglages, page téléphone
+- [x] 7. Feuille de route, tâches de fond, travail, réglages, page téléphone
 - [ ] 8. Terminal (term.*) avec barre de touches
 - [ ] 9. Notifications locales (appli ouverte ou juste en arrière-plan), feuille de partage iOS vers un chat
 - [ ] 10. Tests (XCTest), essai sur l'iPhone, documentation (installation SideStore), release mineure (`.ipa` joint, source SideStore pour les mises à jour)

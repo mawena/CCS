@@ -44,6 +44,12 @@ struct EcranChat: View {
     }
 }
 
+/// Volets ouverts depuis le menu du chat.
+private enum VoletChat: String, Identifiable {
+    case changements, feuille, messages
+    var id: String { return rawValue }
+}
+
 /// Le fil, la recherche, les sous-agents et la saisie.
 @MainActor
 private struct FilChatVue: View {
@@ -59,6 +65,7 @@ private struct FilChatVue: View {
     @State private var passage: MessageChoisi? = nil
     @State private var aEtiqueter: MessageChoisi? = nil
     @State private var voletEtiquettes = false
+    @State private var volet: VoletChat? = nil
     @State private var filtreEtiquette: String? = nil
     @State private var effacer = false
     @State private var viser: String? = nil
@@ -189,6 +196,21 @@ private struct FilChatVue: View {
                     }
                     Divider()
                     Button {
+                        volet = .changements
+                    } label: {
+                        Label("Changements de la session", systemImage: "doc.badge.clock")
+                    }
+                    Button {
+                        volet = .feuille
+                    } label: {
+                        Label("Feuille de route", systemImage: "checklist")
+                    }
+                    Button {
+                        volet = .messages
+                    } label: {
+                        Label("Messages enregistrés", systemImage: "text.bubble")
+                    }
+                    Button {
                         naviguer(.fichiersProjet(mc.cwd))
                     } label: {
                         Label("Fichiers du projet", systemImage: "folder")
@@ -224,8 +246,45 @@ private struct FilChatVue: View {
                 mc.etiqueter(m.msgId, liste, texte: m.texte, role: m.auteur == .moi ? "utilisateur" : "assistant")
             }
         }
+        .sheet(item: $volet) { v in
+            voletVue(v).environment(modele)
+        }
         .sheet(isPresented: $voletEtiquettes) {
             FeuilleEtiquettes(etiquettes: mc.etiquettes, filtre: filtreEtiquette) { id in montrerMessage(id) }
+        }
+    }
+
+    @ViewBuilder
+    private func voletVue(_ v: VoletChat) -> some View {
+        switch v {
+        case .changements:
+            NavigationStack {
+                PanneauChangements(chatId: mc.chatId, cwd: mc.cwd) { chemin in
+                    volet = nil
+                    naviguer(.fichier(chemin: chemin, ligne: nil))
+                }
+                .navigationTitle("Changements de la session")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { volet = nil } } }
+            }
+        case .feuille:
+            NavigationStack {
+                PanneauFeuilleDeRoute(cwd: mc.cwd, dansCeChat: { t in
+                    volet = nil
+                    mc.envoyerTexte(t)
+                }, nouveauChat: { t in
+                    volet = nil
+                    naviguer(.chat(DestChat.nouveauAvec(mc.cwd, t)))
+                })
+                .navigationTitle("Feuille de route")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { volet = nil } } }
+            }
+        case .messages:
+            FeuilleMessages(cwd: mc.cwd, texteEnCours: mc.saisie) { t in
+                let avant = mc.saisie
+                mc.saisir(avant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? t : avant.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression) + "\n" + t)
+            }
         }
     }
 

@@ -61,6 +61,7 @@ enum Destination: Hashable {
     case fichiersProjet(String)
     case gitProjet(String)
     case commit(cwd: String, id: String)
+    case reglages
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
@@ -121,6 +122,7 @@ struct EcranPrincipal: View {
         case .fichiersProjet(let cwd): EcranFichiersProjet(cwd: cwd)
         case .gitProjet(let cwd): EcranGitProjet(cwd: cwd)
         case .commit(let cwd, let id): EcranCommit(cwd: cwd, id: id)
+        case .reglages: EcranReglages()
         }
     }
 }
@@ -168,7 +170,7 @@ struct EcranProvisoire: View {
     }
 }
 
-/// Onglet « Plus » : thème, compte connecté, déconnexion (le reste arrive avec les phases suivantes).
+/// Onglet « Plus » : réglages, terminaux, analyse, thème, compte connecté, version web, déconnexion.
 @MainActor
 struct EcranPlus: View {
     @Environment(ModeleAppli.self) private var modele
@@ -181,10 +183,20 @@ struct EcranPlus: View {
                     ForEach(Theme.allCases, id: \.self) { t in Text(t.libelle).tag(t) }
                 }
             }
-            Section("Analyse") {
-                NavigationLink(value: Destination.analyse) {
-                    Label("Usage par projet, modèle, compte et heure", systemImage: "chart.bar")
+            Section {
+                NavigationLink(value: Destination.reglages) {
+                    Label("Réglages", systemImage: "gearshape")
                 }
+                NavigationLink(value: Destination.analyse) {
+                    Label("Analyse", systemImage: "chart.bar")
+                }
+                if let u = URL(string: modele.adresse + "/") {
+                    Link(destination: u) {
+                        Label("Ouvrir la version web", systemImage: "safari")
+                    }
+                }
+            } footer: {
+                Text("Réglages : notifications, serveur, téléphone (ntfy), appareils. Analyse : usage par projet, modèle, compte et heure.")
             }
             Section("Connexion") {
                 LabeledContent("Serveur", value: modele.adresse.replacingOccurrences(of: "https://", with: ""))

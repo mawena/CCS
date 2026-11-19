@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Volets de l'écran Projet.
 enum OngletProjet: String, CaseIterable, Hashable {
-    case conversations = "Conversations"
+    case conversations = "Chats"
+    case feuille = "Feuille"
     case fichiers = "Fichiers"
     case git = "Git"
 }
@@ -39,6 +40,8 @@ struct EcranProjet: View {
             .padding(.vertical, 6)
             switch onglet {
             case .conversations: conversations
+            case .feuille:
+                PanneauFeuilleDeRoute(cwd: cwd, nouveauChat: { t in naviguer(.chat(DestChat.nouveauAvec(cwd, t))) })
             case .fichiers: PanneauFichiers(base: cwd)
             case .git: PanneauGit(cwd: cwd)
             }
