@@ -9,11 +9,16 @@ enum JSON: Equatable {
     case nul
     case booleen(Bool)
     case nombre(Double)
+    /// Entier trop grand pour un Double exact (au-delà de 2^53 : tampons en nanosecondes de
+    /// `files.read`), gardé tel quel pour repartir intact vers le serveur.
+    case grand(Int64)
     case chaine(String)
     case tableau([JSON])
     case objet([String: JSON])
 
     static let vide: JSON = .objet([:])
+    /// 2^53 : au-delà, un Double ne représente plus tous les entiers.
+    static let exactMax: Int64 = 9_007_199_254_740_992
 
     // MARK: lecture
 
@@ -44,6 +49,7 @@ enum JSON: Equatable {
 
     var nombre: Double? {
         if case .nombre(let n) = self { return n }
+        if case .grand(let n) = self { return Double(n) }
         return nil
     }
 
@@ -72,6 +78,7 @@ enum JSON: Equatable {
         switch self {
         case .chaine(let s): return s
         case .nombre(let n): return JSON.texteNombre(n)
+        case .grand(let n): return String(n)
         case .booleen(let b): return b ? "true" : "false"
         default: return nil
         }
@@ -130,6 +137,7 @@ enum JSON: Equatable {
         case .nul: s += "null"
         case .booleen(let b): s += b ? "true" : "false"
         case .nombre(let n): s += texteNombre(n)
+        case .grand(let n): s += String(n)
         case .chaine(let t): echapper(t, dans: &s)
         case .tableau(let t):
             if t.isEmpty { s += "[]"; return }
@@ -184,6 +192,8 @@ extension JSON: Decodable {
             self = .nul
         } else if let b = try? c.decode(Bool.self) {
             self = .booleen(b)
+        } else if let n = try? c.decode(Int64.self), n > JSON.exactMax || n < -JSON.exactMax {
+            self = .grand(n)
         } else if let n = try? c.decode(Double.self) {
             self = .nombre(n)
         } else if let s = try? c.decode(String.self) {

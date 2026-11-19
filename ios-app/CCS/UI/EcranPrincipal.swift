@@ -57,6 +57,8 @@ enum Destination: Hashable {
     case analyse
     case projet(String)
     case chat(DestChat)
+    case fichier(chemin: String, ligne: Int?)
+    case fichiersProjet(String)
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
@@ -101,7 +103,7 @@ struct EcranPrincipal: View {
         switch o {
         case .accueil: EcranAccueil()
         case .sessions: EcranSessions()
-        case .fichiers: EcranProvisoire(titre: "Fichiers", texte: "Navigation et lecture des fichiers des projets.")
+        case .fichiers: EcranFichiersOnglet()
         case .git: EcranProvisoire(titre: "Git", texte: "État, diff, commit et journal des dépôts.")
         case .plus: EcranPlus()
         }
@@ -113,6 +115,8 @@ struct EcranPrincipal: View {
         case .analyse: EcranAnalyse()
         case .projet(let cwd): EcranProjet(cwd: cwd)
         case .chat(let dest): EcranChat(dest: dest)
+        case .fichier(let chemin, let ligne): EcranFichier(chemin: chemin, ligne: ligne)
+        case .fichiersProjet(let cwd): EcranFichiersProjet(cwd: cwd)
         }
     }
 }

@@ -25,8 +25,8 @@ struct MessageChoisi: Identifiable, Equatable {
     var texte: String { return auteur == .moi ? Citation.texteSource(brut) : brut }
 }
 
-private let vertDiff = Color(red: 0x2E / 255.0, green: 0xA0 / 255.0, blue: 0x43 / 255.0)
-private let rougeDiff = Color(red: 0xE5 / 255.0, green: 0x53 / 255.0, blue: 0x4B / 255.0)
+let vertDiff = Color(red: 0x2E / 255.0, green: 0xA0 / 255.0, blue: 0x43 / 255.0)
+let rougeDiff = Color(red: 0xE5 / 255.0, green: 0x53 / 255.0, blue: 0x4B / 255.0)
 
 /// Une ligne du fil. `etiquettes` : celles du message montré (s'il en a).
 @MainActor

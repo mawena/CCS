@@ -48,6 +48,7 @@ struct EcranChat: View {
 @MainActor
 private struct FilChatVue: View {
     @Environment(ModeleAppli.self) private var modele
+    @Environment(\.naviguer) private var naviguer
     let mc: ModeleChat
     let titre: String
 
@@ -185,6 +186,12 @@ private struct FilChatVue: View {
                         } label: {
                             Label("Copier l'identifiant de session", systemImage: "number")
                         }
+                    }
+                    Divider()
+                    Button {
+                        naviguer(.fichiersProjet(mc.cwd))
+                    } label: {
+                        Label("Fichiers du projet", systemImage: "folder")
                     }
                     Divider()
                     Button {

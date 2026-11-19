@@ -1,9 +1,14 @@
 import SwiftUI
 
+/// Volets de l'écran Projet.
+enum OngletProjet: String, CaseIterable, Hashable {
+    case conversations = "Conversations"
+    case fichiers = "Fichiers"
+}
+
 /**
  * Écran Projet (`project.js`) : nom et chemin, compte associé au dossier, « Nouveau chat » et les
- * conversations du projet. Les onglets Feuille de route, Fichiers et Git arrivent avec les
- * tâches 5 à 7 de la phase 26.
+ * conversations du projet ; volets Feuille de route, Fichiers et Git.
  */
 @MainActor
 struct EcranProjet: View {
@@ -18,11 +23,49 @@ struct EcranProjet: View {
     @State private var montres = 30
     @State private var nouvelle = false
     @State private var actions = EtatActions()
+    @State private var onglet: OngletProjet = .conversations
 
     private var client: CcsClient { return modele.client }
     private var entree: Projet? { return liste?.projets.first { $0.cwd == cwd } }
 
     var body: some View {
+        VStack(spacing: 0) {
+            Picker("Volet", selection: $onglet) {
+                ForEach(OngletProjet.allCases, id: \.self) { o in Text(o.rawValue).tag(o) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            switch onglet {
+            case .conversations: conversations
+            case .fichiers: PanneauFichiers(base: cwd)
+            }
+        }
+        .navigationTitle(entree?.name ?? Format.base(cwd))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 0) {
+                    Text(entree?.name ?? Format.base(cwd)).font(.headline).lineLimit(1)
+                    Text(cwd).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
+                }
+            }
+        }
+        .task(id: client.etat.estConnecte) {
+            guard client.etat.estConnecte else { return }
+            await charger()
+        }
+        .actionsConversation(actions) { Task { await charger() } }
+        .sheet(isPresented: $nouvelle) {
+            FeuilleNouvelleSession(connus: [cwd], initial: cwd) { r, chemin in
+                nouvelle = false
+                let dossier = r.cwd.isEmpty ? chemin : r.cwd
+                naviguer(.chat(DestChat(cwd: dossier, sessionId: r.sessionId, chemin: r.path, titre: Format.base(dossier), chatId: r.chatId)))
+            }
+        }
+    }
+
+    private var conversations: some View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
@@ -70,29 +113,7 @@ struct EcranProjet: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(entree?.name ?? Format.base(cwd))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 0) {
-                    Text(entree?.name ?? Format.base(cwd)).font(.headline).lineLimit(1)
-                    Text(cwd).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
-                }
-            }
-        }
         .refreshable { await charger() }
-        .task(id: client.etat.estConnecte) {
-            guard client.etat.estConnecte else { return }
-            await charger()
-        }
-        .actionsConversation(actions) { Task { await charger() } }
-        .sheet(isPresented: $nouvelle) {
-            FeuilleNouvelleSession(connus: [cwd], initial: cwd) { r, chemin in
-                nouvelle = false
-                let dossier = r.cwd.isEmpty ? chemin : r.cwd
-                naviguer(.chat(DestChat(cwd: dossier, sessionId: r.sessionId, chemin: r.path, titre: Format.base(dossier), chatId: r.chatId)))
-            }
-        }
     }
 
     private var texteCompte: String {
