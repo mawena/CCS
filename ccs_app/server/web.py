@@ -192,12 +192,28 @@ def make_app(auth, bridges, config):
         return web.json_response({"actif": bool(portier_cfg["actif"]),
                                   "connexion": portier.login_url(portier_cfg, config["origin"])})
 
-    def who_params(request):
+    def who_params(request, app=True):
+        """Identité transmise à ccs-auth : jeton d'appareil (Bearer, sauf `app=False`), Portier
+        ou cookie de session."""
+        header = request.headers.get("Authorization", "")
+        if header.startswith("Bearer "):
+            if not app:
+                raise web.HTTPForbidden(text="Un jeton d'appareil ne crée pas d'autre jeton.")
+            return {"app": header[7:].strip()}
         p_user = portier_user(request)
         return {"portier": p_user} if p_user else {"session": request.cookies.get(SESSION, "")}
 
     async def tokens(request):
         return web.json_response(await safe_call("tokens", **who_params(request)))
+
+    async def app_token(request):
+        """Jeton d'appareil pour l'application Android connectée par Portier (ou par une session) :
+        durable et révocable, alors que la session de Portier finit par expirer."""
+        if not origin_ok(request):
+            raise web.HTTPForbidden()
+        d = await body(request)
+        return web.json_response(await safe_call("app_token", name=str(d.get("name") or "appareil")[:60],
+                                                 **who_params(request, app=False)))
 
     async def revoke(request):
         if not origin_ok(request):
@@ -338,6 +354,7 @@ def make_app(auth, bridges, config):
     app.router.add_get("/api/portier", portier_info)
     app.router.add_get("/api/tokens", tokens)
     app.router.add_post("/api/revoke", revoke)
+    app.router.add_post("/api/app-token", app_token)
     app.router.add_get("/api/ws", ws_handler)
     app.router.add_get("/", index)
     app.router.add_static("/", WEB_DIR, show_index=False, follow_symlinks=False)

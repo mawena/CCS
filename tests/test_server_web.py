@@ -37,6 +37,10 @@ class FakeAuth:
             return {"user": "alice", "ticket": "T2"}
         if method == "pair":
             return {"status": "ok", "user": "alice", "token": "APP-1", "ticket": "T2"}
+        if method == "app_token":
+            if not params.get("portier") and params.get("session") != "SESSION-1":
+                raise rpc.RpcError("refuse", "Session expirée.")
+            return {"token": "APP-2"}
         if method == "tokens":
             return {"tokens": [{"id": "abc", "kind": "app", "name": "PC", "created": 1, "last_used": 2}]}
         return {}
