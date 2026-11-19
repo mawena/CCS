@@ -739,6 +739,20 @@ Réseau coupé : un bandeau l'indique, la reconnexion est automatique et les mes
 attendent. Après un redémarrage du serveur (mise à jour), l'onglet se rebranche tout seul ;
 une autorisation donnée ailleurs (web, téléphone) se fige aussi au bureau.
 
+### Piloter le PC depuis le web
+
+Avec le [calcul réparti](#calcul-réparti--lancer-un-travail-sur-une-autre-machine) réglé sur le
+serveur, le bouton **☁ Ce serveur** de la barre du haut de la version web ouvre « Machine
+pilotée » : ce serveur, puis les autres machines du relais Ricochet (en ligne ou non, charge).
+Choisir le PC fait passer **tout** le web sur lui : sessions et chats, fichiers, feuille de
+route, Git, terminal. Le bouton prend alors la couleur d'accent et le nom du PC ; le choix est
+gardé dans le navigateur. Retour au serveur : même bouton, « Ce serveur ».
+
+Comment : le pont du serveur ouvre `ssh` par le tunnel Ricochet et branche la connexion sur le
+pont CCS local du PC (celui de l'application de bureau, lancé s'il ne tourne pas) : les chats
+sont donc les mêmes qu'au bureau. Il faut le PC allumé, CCS installé dessus et le tunnel SSH
+du calcul réparti. Si le PC ne répond pas, un bandeau donne la raison et le web réessaie seul.
+
 ### Limites à connaître
 
 - Retirer un serveur dans le bureau **ne révoque pas** son jeton sur le serveur : fais-le dans la version web, Réglages → Appareils.
