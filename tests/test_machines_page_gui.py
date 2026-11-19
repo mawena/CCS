@@ -129,7 +129,7 @@ class MachinesPageTest(HomeTestCase):
         self.assertIsNone(d.timer["timer"])
         self.assertEqual(self.backend.calls.count(("log", "a1")), 1)
 
-    def test_launch_sends_split_command(self):
+    def test_launch_sends_the_whole_line(self):
         p = self.make()
         p.submit()
         self.assertEqual(p.f_error.get_text(), "Écris la commande à lancer.")
@@ -137,7 +137,7 @@ class MachinesPageTest(HomeTestCase):
         p.f_target.set_selected(2)
         p.f_when.set_selected(1)
         p.submit()
-        self.assertIn(("start", ["flutter", "build", "apk", "--target", "lib/main dev.dart"], "/tmp", "pc-bureau", "nuit"),
+        self.assertIn(("start", ["flutter build apk --target 'lib/main dev.dart'"], "/tmp", "pc-bureau", "nuit"),
                       self.backend.calls)
         self.assertEqual(p.f_command.get_text(), "")
         p.f_command.set_text("make")
