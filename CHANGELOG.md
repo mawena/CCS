@@ -13,6 +13,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   serveur relaie la connexion par `ssh` dans le tunnel Ricochet jusqu'au pont local du PC
   (`machines.list`, `machine.attach`, `/api/ws?machine=<id>`) ; machine injoignable : code
   4010 avec la raison, nouvel essai automatique.
+- **Application Android 0.29.0 : même choix de machine** (puce dans Sessions, « Machine
+  pilotée » dans Plus, bandeau sur tous les écrans) ; les notifications suivent la machine
+  choisie. APK `ccs-0.29.0.apk` joint à la release.
 
 ## [0.28.0] — 2026-11-19
 

@@ -591,6 +591,6 @@ Charles (19/11/2026) : lancer et gérer depuis la version web une session sur le
 - [x] 2. `ccs-web` : `/api/ws?machine=<id>`, code 4010 et raison si la machine est injoignable
 - [x] 3. Web : bouton « Machine pilotée » dans la barre du haut, fenêtre de choix, bandeau d'erreur, choix gardé
 - [x] 4. Tests (relais réel en local, ws, node) et essai réel vers `pc-bureau` par le tunnel
-- [ ] 5. Appli Android : même choix de machine
+- [x] 5. Appli Android : même choix de machine (puce dans Sessions, entrée dans Plus, bandeau sur tous les écrans, notifications qui suivent la machine ; 127 tests JVM)
 - [ ] 6. Documentation, release mineure 0.29.0
 - [ ] 7. Essai par Charles depuis son téléphone (PC allumé, CCS à jour sur le PC)

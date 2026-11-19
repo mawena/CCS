@@ -60,6 +60,47 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
         com.mawena.ccs.notif.ServiceVeille.appliquer(getApplication())
     }
 
+    /** Machine pilotée (vide : ce serveur) ; tout l'appli la suit, notifications comprises. */
+    val machine: StateFlow<String> = depot.client.machine
+
+    /** Autres machines connues (dernière liste reçue, gardée si la connexion est coupée). */
+    private val _machines = MutableStateFlow(lireMachines())
+    val machines: StateFlow<List<com.mawena.ccs.reseau.Machine>> = _machines.asStateFlow()
+
+    private fun lireMachines(): List<com.mawena.ccs.reseau.Machine> = runCatching {
+        depot.prefs.lire(CLE_MACHINES)?.let {
+            com.mawena.ccs.reseau.CodecRpc.json.decodeFromString(
+                kotlinx.serialization.builtins.ListSerializer(com.mawena.ccs.reseau.Machine.serializer()), it,
+            )
+        }
+    }.getOrNull().orEmpty()
+
+    /** Feuille « Machine pilotée » ouverte (bandeau, puce des Sessions, Plus). */
+    val choixMachine = MutableStateFlow(false)
+
+    /** Relit `machines.list` ; rend le message du serveur (ou null). Garde l'ancienne liste en cas d'échec. */
+    suspend fun rafraichirMachines(): String? {
+        val r = kotlinx.coroutines.withTimeoutOrNull(15_000) {
+            runCatching { depot.client.appeler("machines.list", com.mawena.ccs.reseau.ListeMachines.serializer()) }.getOrNull()
+        } ?: return null
+        val autres = r.autres
+        _machines.value = autres
+        depot.prefs.ecrire(
+            CLE_MACHINES,
+            com.mawena.ccs.reseau.CodecRpc.json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(com.mawena.ccs.reseau.Machine.serializer()), autres,
+            ),
+        )
+        return r.message?.ifBlank { null }
+    }
+
+    /** Pilote `id` (vide : ce serveur) : les terminaux de l'ancienne machine sont oubliés. */
+    fun choisirMachine(id: String, nom: String) {
+        if (id == machine.value) return
+        depot.terminaux.oublier()
+        depot.client.changerMachine(id, nom)
+    }
+
     fun changerTheme(t: com.mawena.ccs.donnees.Theme) {
         depot.reglages.theme = t
         _theme.value = t
@@ -81,6 +122,7 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
         }
         viewModelScope.launch {
             depot.client.etat.collect {
+                if (it is EtatConnexion.Connecte) launch { rafraichirMachines() }
                 if (it is EtatConnexion.Refuse) {
                     oublier()
                     _avis.value = "${it.raison} Reconnecte-toi."
@@ -121,5 +163,9 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
 
     fun avisLu() {
         _avis.value = null
+    }
+
+    private companion object {
+        const val CLE_MACHINES = "machines"
     }
 }

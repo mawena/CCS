@@ -131,6 +131,12 @@ client se reconnecte seul (1 s, 2 s… 30 s ; tout de suite quand le réseau rev
 
 L'adresse du serveur se change sur l'écran de connexion (**Changer**).
 
+**Machine pilotée** : comme le web, l'appli peut piloter une autre machine (le PC, joint par le
+tunnel Ricochet) au lieu du serveur : puce en haut de **Sessions** ou **Plus → Machine pilotée**
+(cachées s'il n'y a pas d'autre machine). Le WebSocket passe alors par `/api/ws?machine=<id>` ; un
+bandeau d'accent rappelle la machine pilotée ; si elle est injoignable (fermeture 4010), l'appli
+retente comme après une coupure. Les notifications suivent la machine choisie.
+
 ## Construire
 
 Le VPS n'a pas le SDK Android : on construit sur `pc-bureau` (SDK `~/Android`, JDK 17), depuis ce
@@ -149,7 +155,7 @@ JitPack (`https://jitpack.io`, limité au groupe `com.github.termux.termux-app`)
 Gagarine sur pc-bureau.
 
 **Version** : `versionName` et `versionCode` dans `app/build.gradle.kts` ; le `versionCode` doit
-toujours augmenter (32 aujourd'hui pour 0.28.0 ; l'appli Flutter 0.26.1 avait 27).
+toujours augmenter (33 aujourd'hui pour 0.29.0 ; l'appli Flutter 0.26.1 avait 27).
 
 ## Signature
 

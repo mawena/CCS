@@ -26,6 +26,11 @@ object Adresse {
         val url = requireNotNull(normaliser(base)?.toHttpUrlOrNull()) { "adresse invalide : $base" }
         return url.newBuilder().addPathSegments(chemin.trimStart('/')).build()
     }
+
+    /** WebSocket `api/ws`, relayé vers une autre machine avec `?machine=<id>` (vide : ce serveur). */
+    fun ws(base: String, machine: String = ""): HttpUrl = api(base, "api/ws").let { u ->
+        if (machine.isEmpty()) u else u.newBuilder().addQueryParameter("machine", machine).build()
+    }
 }
 
 /** Petit magasin clé → texte, pour tester le stockage sans Android. */
