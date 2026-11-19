@@ -577,5 +577,5 @@ Charles (19/11/2026) : « je veux une application complète construite de bout e
 - [x] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
 - [x] 7. Feuille de route, tâches de fond, travail (changements, retour arrière), réglages, page téléphone
 - [x] 8. Terminal (term.*) avec clavier adapté
-- [ ] 9. Notifications de fin de tour et de questions (service de fond), partage Android vers un chat
+- [x] 9. Notifications de fin de tour et de questions (service de fond), partage Android vers un chat, raccourcis d'appli ; sous-agents finis rangés dans « Terminés (n) »
 - [ ] 10. Tests (unitaires JVM), essai sur le Pixel, documentation, release mineure (APK joint)

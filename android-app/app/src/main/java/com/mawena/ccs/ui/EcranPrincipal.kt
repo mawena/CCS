@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -84,7 +85,32 @@ fun EcranPrincipal(modele: ModeleAppli) {
             catch (e: Exception) { avis.dire("Terminal impossible : ${e.texte()}") }
         }
     }
+    // notification touchée, raccourci d'appli
+    val demande by modele.demande.collectAsStateWithLifecycle()
+    LaunchedEffect(demande) {
+        val d = demande ?: return@LaunchedEffect
+        modele.demande.value = null
+        val versSessions: () -> Unit = {
+            nav.navigate(Onglet.Sessions.route) {
+                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+        when (d) {
+            is DemandeAppli.OuvrirChat -> nav.navigate(d.dest.route()) { launchSingleTop = true }
+            DemandeAppli.Sessions -> versSessions()
+            DemandeAppli.NouveauChat -> { modele.nouvelleSession.value = true; versSessions() }
+        }
+    }
+    val partage by modele.partage.collectAsStateWithLifecycle()
     CompositionLocalProvider(LocalAvis provides avis) {
+    partage?.let { p ->
+        FeuillePartage(modele, p, fermer = { modele.partage.value = null }) { dest ->
+            modele.partage.value = null
+            nav.navigate(dest.route()) { launchSingleTop = true }
+        }
+    }
     Scaffold(
         snackbarHost = { SnackbarHost(hote) },
         bottomBar = {

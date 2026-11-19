@@ -74,6 +74,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.text.DateFormat
@@ -133,6 +135,7 @@ fun EcranReglages(modele: ModeleAppli, retour: () -> Unit) {
                     }
                 }
             }
+            item { GroupeNotifications(modele, reglages) }
             item {
                 Groupe("Connexion") {
                     val i = identifiants
@@ -276,6 +279,75 @@ fun LigneReglage(d: DefReglages.Def, valeur: JsonElement?, enregistrer: suspend 
         }
         if (d.aide.isNotEmpty()) Text(d.aide, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         erreur?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+/**
+ * Notifications de l'appli (service de fond) : actives par défaut. Si ntfy est aussi configuré
+ * sur le serveur (page Téléphone), on le dit : les deux préviendraient pour les mêmes attentes.
+ */
+@Composable
+private fun GroupeNotifications(modele: ModeleAppli, r: JsonObject?) {
+    val ctx = LocalContext.current
+    val actives by modele.notifications.collectAsStateWithLifecycle()
+    val cycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var permises by remember { mutableStateOf(com.mawena.ccs.notif.Notifs.permises(ctx)) }
+    // retour des réglages d'Android : relire la permission
+    androidx.compose.runtime.DisposableEffect(cycle) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) permises = com.mawena.ccs.notif.Notifs.permises(ctx)
+        }
+        cycle.lifecycle.addObserver(o)
+        onDispose { cycle.lifecycle.removeObserver(o) }
+    }
+    val lanceur = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { ok ->
+        permises = com.mawena.ccs.notif.Notifs.permises(ctx)
+        if (!ok) com.mawena.ccs.ui.ouvrirReglagesNotifications(ctx)
+        com.mawena.ccs.notif.ServiceVeille.appliquer(ctx)
+    }
+    fun demander() {
+        if (android.os.Build.VERSION.SDK_INT >= 33) lanceur.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        else com.mawena.ccs.ui.ouvrirReglagesNotifications(ctx)
+    }
+    fun changer(v: Boolean) {
+        modele.changerNotifications(v)
+        if (v && !permises) demander()
+    }
+    val ntfy = r != null && (DefReglages.lire(r, "phone.enabled") as? JsonPrimitive)?.booleanOrNull == true &&
+        (DefReglages.lire(r, "phone.topic") as? JsonPrimitive)?.contentOrNull.orEmpty().isNotEmpty()
+    Groupe(
+        "Notifications",
+        "Propre à ce téléphone. Fin de tour, autorisation ou question en attente (Autoriser / Refuser depuis la " +
+            "notification), rappel unique si la réponse se fait attendre (réglage « Rappel d'attente » du serveur). " +
+            "Rien pour le chat affiché à l'écran.",
+    ) {
+        Row(Modifier.fillMaxWidth().clickable { changer(!actives) }, verticalAlignment = Alignment.CenterVertically) {
+            Text("Notifications de l'appli", Modifier.weight(1f))
+            Switch(actives, { changer(it) })
+        }
+        Text(
+            "L'appli reste connectée en arrière-plan : une notification discrète « CCS connecté » le signale " +
+                "(masquable dans les réglages d'Android, canal « Connexion en arrière-plan »). Couper ce réglage " +
+                "coupe aussi cette connexion.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (actives && !permises) {
+            Text("Les notifications de CCS sont bloquées par Android.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { demander() }) { Text("Autoriser les notifications") }
+        }
+        Text(
+            if (ntfy) {
+                "ntfy est aussi actif sur le serveur (Téléphone, plus bas) : tu risques d'être prévenu deux fois. " +
+                    "Garde l'un des deux : coupe ce réglage, ou l'alerte « attente » de ntfy."
+            } else {
+                "ntfy (Téléphone, plus bas) fait la même chose sans l'appli ; inutile d'activer les deux."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (ntfy) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = { com.mawena.ccs.ui.ouvrirReglagesNotifications(ctx) }) { Text("Réglages des notifications d'Android") }
     }
 }
 

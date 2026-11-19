@@ -5,8 +5,8 @@ Application Android native (Kotlin + Jetpack Compose, Material 3) de CCS. Elle p
 événements, routes HTTP pour la connexion. Elle remplace l'ancienne coquille Flutter (vue web),
 avec le même identifiant `com.mawena.ccs` : elle s'installe par-dessus.
 
-État : phase 25, tâches 1 à 8 de `ROADMAP.md`. Connexion, client WebSocket, navigation (Accueil,
-Sessions, Fichiers, Git, Plus).
+État : phase 25, tâches 1 à 9 de `ROADMAP.md`. Connexion, client WebSocket, navigation (Accueil,
+Sessions, Fichiers, Git, Plus), notifications, partage vers CCS, raccourcis d'appli.
 
 - **Accueil** : compte actif, meilleur compte et décision de la bascule automatique, cartes des
   comptes (jauges, statut, détails repliables, « Basculer sur ce compte » avec confirmation),
@@ -86,6 +86,32 @@ Sessions, Fichiers, Git, Plus).
   ouverts ailleurs (version web) se reprennent depuis la liste. Fond sombre dans les deux thèmes.
   **Ajouter un compte** sur l'Accueil : `ccs add <nom>` dans un terminal, comme le web.
 
+- **Notifications** (Plus > Réglages > Notifications, actives par défaut) : un chat qui finit son
+  tour (retour au repos après un travail, pas après « Arrêter »), une autorisation ou une question
+  de Claude. Canaux « Fin de tour » et « Attend ta réponse » ; titre de la conversation, toucher
+  ouvre le chat ; **Autoriser** / **Refuser** dans la notification d'une autorisation
+  (`chat.answer`). Rien pour le chat affiché à l'écran (ses notifications partent quand on
+  l'ouvre) ; une demande réglée ailleurs retire la sienne. **Rappel unique** si la réponse se fait
+  attendre, avec le réglage du serveur « Rappel d'attente » (`alerts.waiting_reminder_min`,
+  10 min), comme le bureau. Mécanisme : service de premier plan (type `remoteMessaging`, sans
+  limite de durée) qui garde le WebSocket en arrière-plan, notification discrète « CCS connecté »
+  (canal « Connexion en arrière-plan », à importance minimale, masquable). Il rattache le
+  WebSocket à tous les chats du pont (`chat.list` puis `chat.attach`, à chaque connexion ; chaque
+  minute pour les chats ouverts ailleurs) ; pas de réveil programmé, Doze respecté (la reconnexion
+  suit le réseau). Permission des notifications (Android 13+) demandée au premier chat ouvert, ou
+  depuis les réglages. **ntfy** (page Téléphone du serveur) fait la même chose sans l'appli : les
+  réglages le signalent s'il est actif, pour ne garder que l'un des deux.
+- **Partage vers CCS** (feuille de partage d'Android : texte, images, fichiers, un ou plusieurs) :
+  choisir un chat en cours ou « Nouveau chat… » (dossier). Le texte va dans la saisie, les images
+  (PNG, JPEG, GIF, WebP ; 5 au plus) en pièces jointes, les autres fichiers sont envoyés dans le
+  dossier du projet (`files.upload`, jamais d'écrasement : « nom (2).ext ») puis cités dans la
+  saisie. Rien ne part à Claude avant qu'on envoie.
+- **Raccourcis d'appli** (appui long sur l'icône) : « Nouveau chat » (feuille Nouvelle session) et
+  « Sessions ».
+- **Sous-agents** dans le chat : un sous-agent fini quitte la barre des pastilles (sauf celui qu'on
+  regarde) ; « Terminés (n) » au bout de la barre liste les finis, le plus récent en tête, et
+  rouvre leur vue (comme `tidyPills` de `web/chat.js`).
+
 ## Connexion
 
 - **Appairage (recommandé)** : identifiant et mot de passe Ubuntu, puis code TOTP, envoyés à
@@ -123,7 +149,7 @@ JitPack (`https://jitpack.io`, limité au groupe `com.github.termux.termux-app`)
 Gagarine sur pc-bureau.
 
 **Version** : `versionName` et `versionCode` dans `app/build.gradle.kts` ; le `versionCode` doit
-toujours augmenter (31 aujourd'hui pour 0.27.0 ; l'appli Flutter 0.26.1 avait 27).
+toujours augmenter (32 aujourd'hui pour 0.28.0 ; l'appli Flutter 0.26.1 avait 27).
 
 ## Signature
 
@@ -168,7 +194,13 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
   - `logique/Travail.kt` (feuille de route, tâches de fond, diff unifié, retour arrière),
     `DefReglages.kt` (groupes, bornes et lecture des réglages du serveur), `Touches.kt` (Ctrl et
     Alt collants, flèches, taille du terminal).
-  - `donnees/PrefsAppli.kt` : thème et taille du texte du terminal.
+  - `donnees/PrefsAppli.kt` : thème, taille du texte du terminal, notifications.
+  - `logique/Veilleur.kt` : décision des notifications (fin de tour, attente, rappel, chat
+    affiché), sans Android ; `logique/Partage.kt` : analyse d'un partage (texte, images, fichiers),
+    noms libres, saisie composée.
+  - `notif/` : `ServiceVeille.kt` (service de premier plan), `Veille.kt` (rattachement aux chats,
+    file d'événements), `Notifs.kt` (canaux, notifications), `RecepteurActions.kt` (Autoriser /
+    Refuser) ; `ui/FeuillePartage.kt` (choix du chat pour un partage), `ui/Notifications.kt`.
   - `ui/travail/` : `PanneauFeuilleDeRoute.kt`, `SectionTaches.kt`, `PanneauChangements.kt`,
     `FeuilleMessages.kt` ; `ui/reglages/EcranReglages.kt`.
   - `terminal/` : `SessionTerminal.kt` (un terminal du pont dans l'émulateur), `Terminaux.kt`
@@ -182,12 +214,14 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
     (connexion, Portier, accueil, bilan, analyse, sessions, projet, plus).
   - `ui/chat/` : `ModeleChat.kt` (ViewModel : RPC et événements du chat), `EcranChat.kt`,
     `ElementsChat.kt`, `MarkdownVue.kt`, `Saisie.kt` (saisie, options, images), `Feuilles.kt`.
-- `app/src/main/res/` : icône adaptative (motif dans la zone sûre, fond uni, version monochrome).
+- `app/src/main/res/` : icône adaptative (motif dans la zone sûre, fond uni, version monochrome),
+  petite icône des notifications, raccourcis d'appli (`xml/raccourcis.xml`).
 - `app/src/test/` : tests JVM (codec RPC, client contre un faux serveur, adresse, coffre, récents,
   lecture des réponses du pont, textes et filtres, événements et fil du chat, Markdown,
   coloration, diff, citation, envoi, chemins et liens de fichiers, réponses de `files.*` et `git.*`,
   feuille de route, tâches, diff unifié, réglages, touches, émulateur du terminal sur la JVM,
-  `/api/app-token`, `/api/tokens` et `/api/revoke` contre un faux serveur).
+  `/api/app-token`, `/api/tokens` et `/api/revoke` contre un faux serveur, décision des
+  notifications et rappel, analyse du partage, barre des sous-agents).
 
 ## Licence
 

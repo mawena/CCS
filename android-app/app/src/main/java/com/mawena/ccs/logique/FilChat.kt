@@ -59,6 +59,19 @@ data class QuestionClaude(val question: String, val entete: String, val plusieur
 /** Sous-agent : pastille au-dessus du fil et sa vue (ses textes et outils). */
 data class VueAgent(val id: String, val nom: String, val statut: StatutAgent, val arrierePlan: Boolean)
 
+/**
+ * Barre des sous-agents (`tidyPills` / `toggleAgentHistory` de `web/chat.js`) : un sous-agent qui
+ * travaille a sa pastille ; fini, il la quitte (sauf si on le regarde) et passe dans « Terminés (n) »,
+ * le plus récent en tête. `agents` : dans l'ordre de lancement.
+ */
+object BarreAgents {
+    fun pastilles(agents: List<VueAgent>, vu: String?): List<VueAgent> =
+        agents.filter { it.statut == StatutAgent.Travaille || it.id == vu }
+
+    fun termines(agents: List<VueAgent>): List<VueAgent> =
+        agents.filter { it.statut != StatutAgent.Travaille }.asReversed()
+}
+
 /** Ce que l'écran doit faire après un événement. */
 enum class Effet { DemanderContexte, TourFini, SessionConnue, NouveauHello, MesureContexte, AutorisationArrivee }
 

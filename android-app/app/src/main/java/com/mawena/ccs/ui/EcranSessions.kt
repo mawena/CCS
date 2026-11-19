@@ -132,6 +132,11 @@ fun EcranSessions(
     LaunchedEffect(connecte) {
         if (connecte) { chargerChats(); charger() }
     }
+    // raccourci « Nouveau chat »
+    val nouvelleDemandee by modele.nouvelleSession.collectAsStateWithLifecycle()
+    LaunchedEffect(nouvelleDemandee) {
+        if (nouvelleDemandee) { modele.nouvelleSession.value = false; nouvelleDans = ""; nouvelle = true }
+    }
     LaunchedEffect(recherche) {
         if (liste == null) return@LaunchedEffect
         delay(300)

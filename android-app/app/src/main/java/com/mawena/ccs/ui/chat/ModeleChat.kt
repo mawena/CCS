@@ -88,6 +88,9 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
     private val fil = FilChat()
 
     var chatId: String? = dest.chatId; private set
+    private val _idChat = MutableStateFlow(dest.chatId)
+    /** Identifiant du chat dans le pont, connu après l'ouverture (chat affiché, pour les notifications). */
+    val idChat: StateFlow<String?> = _idChat.asStateFlow()
     var cwd: String = dest.cwd; private set
     private var chemin: String? = dest.chemin
     private var historique: Historique? = dest.chemin?.let { Historique(it) }
@@ -179,6 +182,16 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
             ouvrir()
             envoyerPrevu()
         }
+        // partage Android vers ce chat : texte ajouté à la saisie, images jointes
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(depot.remises, _idChat) { m, id -> m to id }.collect { (m, id) ->
+                if (id == null) return@collect
+                if (id in m) depot.prendreRemise(id)?.let { r ->
+                    if (r.texte.isNotEmpty()) saisir(com.mawena.ccs.logique.AnalysePartage.composer(_saisie.value, r.texte, emptyList()))
+                    r.images.forEach { joindre(it) }
+                }
+            }
+        }
     }
 
     /**
@@ -219,6 +232,7 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
 
     private fun adopter(r: ChatOuvert) {
         chatId = r.chatId
+        _idChat.value = r.chatId
         if (r.cwd.isNotEmpty()) cwd = r.cwd
         if (chemin == null && r.path != null) { chemin = r.path; if (historique == null) historique = Historique(r.path) }
         fil.definirSession(r.sessionId ?: dest.sessionId)

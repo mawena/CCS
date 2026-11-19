@@ -11,6 +11,7 @@ import com.mawena.ccs.reseau.CcsClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.update
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -30,4 +31,30 @@ class Depot(context: Context) {
     val api = ApiHttp(http)
     val client = CcsClient(http, portee)
     val terminaux = com.mawena.ccs.terminal.Terminaux(client)
+    val veille = com.mawena.ccs.notif.Veille(context.applicationContext, client, portee)
+
+    /** Ce qu'un partage Android remet à un chat (chat → saisie et images), pris par son écran. */
+    val remises = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Remise>>(emptyMap())
+
+    fun remettre(chatId: String, r: Remise) = remises.update { it + (chatId to r) }
+
+    fun prendreRemise(chatId: String): Remise? {
+        var pris: Remise? = null
+        remises.update { m -> pris = m[chatId]; m - chatId }
+        return pris
+    }
+
+    /**
+     * Démarre le client avec les identifiants gardés s'il est arrêté (service relancé par le
+     * système, action d'une notification sans l'appli). Rend false sans identifiants.
+     */
+    @Synchronized
+    fun demarrerSiBesoin(): Boolean {
+        val i = coffre.lire()?.takeIf { it.serveur == adresse.lire() } ?: return false
+        if (client.etat.value is com.mawena.ccs.reseau.EtatConnexion.Arrete) client.demarrer(i)
+        return client.etat.value !is com.mawena.ccs.reseau.EtatConnexion.Refuse
+    }
 }
+
+/** Saisie et images remises à un chat par un partage. */
+class Remise(val texte: String, val images: List<com.mawena.ccs.ui.chat.PieceJointe>)

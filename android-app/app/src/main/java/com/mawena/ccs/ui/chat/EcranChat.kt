@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,6 +59,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mawena.ccs.logique.Citation
@@ -64,6 +67,7 @@ import com.mawena.ccs.logique.ElementFil
 import com.mawena.ccs.logique.LigneFil
 import com.mawena.ccs.logique.LiensFichiers
 import com.mawena.ccs.logique.Recherche
+import com.mawena.ccs.logique.BarreAgents
 import com.mawena.ccs.logique.StatutAgent
 import com.mawena.ccs.logique.Format
 import com.mawena.ccs.ui.BarreHaut
@@ -104,6 +108,19 @@ fun EcranChat(
     LaunchedEffect(mc) {
         mc.messages.collect { m -> avis.dire(m.texte, m.action, long = m.action != null) { m.faire?.invoke() } }
     }
+    // chat à l'écran (appli au premier plan) : pas de notification pour lui
+    val cycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    LaunchedEffect(mc, cycle) {
+        cycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            var vu: String? = null
+            try {
+                mc.idChat.collect { vu = it; modele.depot.veille.afficher(it) }
+            } finally {
+                modele.depot.veille.quitter(vu)
+            }
+        }
+    }
+    com.mawena.ccs.ui.DemandeNotifications(modele)
 
     var choisi by remember { mutableStateOf<MessageChoisi?>(null) }
     var passage by remember { mutableStateOf<MessageChoisi?>(null) }
@@ -352,26 +369,54 @@ private fun BarreRecherche(q: String, nombre: Int, position: Int, changer: (Stri
     }
 }
 
-/** Pastilles : « Conversation » et un sous-agent chacune (✓ fini, ■ arrêté). */
+/**
+ * Pastilles : « Conversation », les sous-agents au travail (et celui qu'on regarde), puis
+ * « Terminés (n) » au bout : la liste des sous-agents finis, le plus récent en tête, qui rouvre leur vue.
+ */
 @Composable
 private fun PastillesAgents(vue: VueChat, voir: (String?) -> Unit) {
+    val termines = BarreAgents.termines(vue.agents)
+    var liste by remember { mutableStateOf(false) }
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         FilterChip(vue.agentVu == null, { voir(null) }, { Text("Conversation") })
-        vue.agents.forEach { a ->
+        BarreAgents.pastilles(vue.agents, vue.agentVu).forEach { a ->
             FilterChip(
                 vue.agentVu == a.id, { voir(a.id) }, { Text(a.nom, maxLines = 1) },
-                leadingIcon = {
-                    when (a.statut) {
-                        StatutAgent.Travaille -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                        StatutAgent.Fini -> Text("✓", color = Reussite)
-                        StatutAgent.Arrete -> Text("■", color = MaterialTheme.colorScheme.error)
-                    }
-                },
+                leadingIcon = { MarqueAgent(a.statut) },
                 trailingIcon = { Icon(Icons.Filled.SmartToy, null, Modifier.size(14.dp)) },
             )
         }
+        if (termines.isNotEmpty()) Box {
+            FilterChip(liste, { liste = !liste }, { Text("Terminés (${termines.size})") })
+            DropdownMenu(liste, { liste = false }) {
+                termines.forEach { a ->
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(a.nom, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                Text(
+                                    if (a.statut == StatutAgent.Arrete) "arrêté" else "✓ terminé",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        },
+                        leadingIcon = { MarqueAgent(a.statut) },
+                        onClick = { liste = false; voir(a.id) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarqueAgent(s: StatutAgent) {
+    when (s) {
+        StatutAgent.Travaille -> CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+        StatutAgent.Fini -> Text("✓", color = Reussite)
+        StatutAgent.Arrete -> Text("■", color = MaterialTheme.colorScheme.error)
     }
 }

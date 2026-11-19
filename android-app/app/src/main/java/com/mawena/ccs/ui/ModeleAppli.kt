@@ -12,6 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/** Ce qu'une intention demande à l'appli : notification, raccourci. */
+sealed interface DemandeAppli {
+    data class OuvrirChat(val dest: DestChat) : DemandeAppli
+    data object Sessions : DemandeAppli
+    data object NouveauChat : DemandeAppli
+}
+
 /** État de l'appli : adresse du serveur, identifiants gardés, connexion. */
 class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
     val depot = (appli as CcsAppli).depot
@@ -34,6 +41,24 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
 
     private val _theme = MutableStateFlow(depot.reglages.theme)
     val theme: StateFlow<com.mawena.ccs.donnees.Theme> = _theme.asStateFlow()
+
+    /** Notification touchée, raccourci : traité par l'écran principal, puis remis à null. */
+    val demande = MutableStateFlow<DemandeAppli?>(null)
+
+    /** Partage Android en attente du choix d'un chat. */
+    val partage = MutableStateFlow<com.mawena.ccs.logique.Partage?>(null)
+
+    /** « Nouveau chat » demandé (raccourci) : l'écran Sessions ouvre la feuille. */
+    val nouvelleSession = MutableStateFlow(false)
+
+    private val _notifications = MutableStateFlow(depot.reglages.notifications)
+    val notifications: StateFlow<Boolean> = _notifications.asStateFlow()
+
+    fun changerNotifications(actives: Boolean) {
+        depot.reglages.notifications = actives
+        _notifications.value = actives
+        com.mawena.ccs.notif.ServiceVeille.appliquer(getApplication())
+    }
 
     fun changerTheme(t: com.mawena.ccs.donnees.Theme) {
         depot.reglages.theme = t
@@ -69,6 +94,7 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
         _identifiants.value = i
         _avis.value = null
         depot.client.demarrer(i)
+        com.mawena.ccs.notif.ServiceVeille.appliquer(getApplication())
     }
 
     fun deconnecter() {
@@ -82,6 +108,8 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
         depot.client.arreter()
         depot.coffre.ecrire(null)
         _identifiants.value = null
+        com.mawena.ccs.notif.ServiceVeille.appliquer(getApplication())
+        androidx.core.app.NotificationManagerCompat.from(getApplication()).cancelAll()
     }
 
     /** Rend false si l'adresse est invalide. */
