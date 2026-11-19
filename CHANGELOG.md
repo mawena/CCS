@@ -14,6 +14,9 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - **`ccs chat effacer`** : la commande que Claude lance pour cela.
 - **Web : « Recharger » quand le serveur change de version**, pour une page restée ouverte
   pendant une mise à jour.
+- **Application Android** (`android-app/`, Flutter, paquet `com.mawena.ccs`) : coquille plein
+  écran de la version web (adresse du serveur modifiable, envoi et téléchargement de fichiers,
+  écran hors ligne). APK pas encore construit : la mémoire de `pc-bureau` a manqué.
 
 ### Corrigé
 

@@ -1,3 +1,11 @@
+ccs (0.26.0) unstable; urgency=medium
+
+  * Chat : /clear envoyé seul, effacement automatique en fin de sujet
+    (ccs chat effacer, réglage chat.auto_clear) ; web : « Recharger » après
+    une mise à jour du serveur ; application Android (sources).
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 14:00:00 +0100
+
 ccs (0.25.1) unstable; urgency=medium
 
   * ccs distant lancer : interrompre arrête aussi la commande sur l'autre

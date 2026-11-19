@@ -794,6 +794,21 @@ port = 22
 Ricochet ne fait que le tunnel : c'est le serveur SSH de la machine qui décide qui entre, et
 chaque tunnel est dans le journal d'audit de Ricochet.
 
+## Application Android
+
+`android-app/` contient une application Flutter (paquet `com.mawena.ccs`) qui ouvre la version
+web en plein écran : adresse du serveur modifiable (Retour sur la page d'accueil, puis
+« Serveur »), session gardée, envoi et téléchargement de fichiers, écran hors ligne. Elle se
+construit sur une machine qui a Flutter, par exemple :
+
+```
+cd android-app
+ccs distant lancer --machine pc-bureau --rapatrier build/app/outputs/flutter-apk -- flutter build apk --release
+```
+
+L'APK est signé avec la clé de débogage de la machine qui le construit : construire toujours au
+même endroit pour pouvoir installer les mises à jour par-dessus.
+
 ## Installation
 
 Ubuntu 24.04 (ou Debian/Ubuntu récent avec GTK 4, libadwaita ≥ 1.5 et, pour le
