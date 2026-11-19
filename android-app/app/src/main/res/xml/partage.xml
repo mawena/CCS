@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fichiers téléchargés du serveur pour être partagés (cache de l'appli, vidé à chaque partage). -->
+<paths>
+    <cache-path name="partage" path="partage/" />
+</paths>

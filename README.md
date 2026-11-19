@@ -797,18 +797,17 @@ chaque tunnel est dans le journal d'audit de Ricochet.
 
 ## Application Android
 
-`android-app/` contient une application Flutter (paquet `com.mawena.ccs`) qui ouvre la version
-web en plein écran : adresse du serveur modifiable (Retour sur la page d'accueil, puis
-« Serveur »), session gardée, envoi et téléchargement de fichiers, écran hors ligne. Elle se
-construit sur une machine qui a Flutter, par exemple :
+`android-app/` contient l'application **native** (Kotlin + Jetpack Compose, Material 3, paquet
+`com.mawena.ccs`) : tout ce que fait la version web — accueil et comptes, sessions et projets,
+chat complet (sous-agents, autorisations, questions, pièces jointes, `/clear`), fichiers, Git,
+feuille de route, tâches de nuit, réglages, terminal (émulateur de Termux) — plus des
+notifications de fin de tour et d'attente (avec Autoriser / Refuser), le partage Android vers un
+chat et des raccourcis d'appli. Connexion par appairage (mot de passe + code) ou par Portier,
+puis jeton d'appareil gardé chiffré, révocable dans Réglages → Appareils.
 
-```
-cd android-app
-ccs distant lancer --machine pc-bureau --rapatrier build/app/outputs/flutter-apk -- flutter build apk --release
-```
-
-L'APK est signé avec la clé de débogage de la machine qui le construit : construire toujours au
-même endroit pour pouvoir installer les mises à jour par-dessus.
+L'APK est joint à chaque release GitHub (`ccs-<version>.apk`). Pour le construire (SDK Android
+sur `pc-bureau`) : voir [android-app/README.md](android-app/README.md). Il est signé avec la clé
+de débogage de `pc-bureau` : construire toujours là pour installer les mises à jour par-dessus.
 
 ## Installation
 
