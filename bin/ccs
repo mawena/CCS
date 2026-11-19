@@ -423,6 +423,7 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
                            machines du réseau Ricochet : en ligne ou non, charge, outils
   ccs distant lancer [--machine M] [--outil O] [--rapatrier chemin] -- <commande>
                            lance une commande du projet sur une autre machine (tunnel SSH, rsync)
+  ccs chat effacer         dans un chat de CCS : vide la conversation (/clear) à la fin du tour
   ccs serveur ajouter|liste|retirer
                            serveurs CCS distants : appairage (mot de passe Ubuntu + code), liste
   ccs doctor               bilan de santé : service, version, bureau, comptes, Claude Code
@@ -476,6 +477,7 @@ main() {
     sessions|ps) exec "$CA" sessions ;;
     tache|taches|tasks) exec "$CA" tache "$@" ;;
     distant) exec "$CA" distant "$@" ;;
+    chat) exec "$CA" chat "$@" ;;
     budget) exec "$CA" budget "$@" ;;
     fiche) exec "$CA" fiche "$@" ;;
     sauvegarde|backup) exec "$CA" sauvegarde "$@" ;;

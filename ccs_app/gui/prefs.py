@@ -668,6 +668,7 @@ class PrefsPage(Adw.PreferencesPage):
         files = self.s["files"] = self.s.get("files") if isinstance(self.s.get("files"), dict) else {}
         chat.setdefault("idle_suspend_min", 30)
         chat.setdefault("rights", "manual")
+        chat.setdefault("auto_clear", True)
         files.setdefault("show_ignored", False)
         files.setdefault("layout", "B")
         g = Adw.PreferencesGroup(
@@ -683,6 +684,9 @@ class PrefsPage(Adw.PreferencesPage):
                              rights, current, lambda value, r: self._pick_rights(value, r))
         self._rights_row, self._rights_value = row, current
         g.add(row)
+        g.add(self.switch_row("Effacement automatique en fin de sujet",
+                              "Claude vide la conversation (/clear) quand un sujet est fini ; "
+                              "s'applique aux chats lancés ensuite", "chat", "auto_clear"))
         g.add(self.switch_row("Afficher les fichiers ignorés par git",
                               "Dans l'arbre des fichiers de l'espace de session", "files", "show_ignored"))
         g.add(self.combo_row("Disposition par défaut", "A : fichier au centre. B : chat au centre",

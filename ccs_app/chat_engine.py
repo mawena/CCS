@@ -7,11 +7,15 @@ l'onglet (`TabState.queue`) attend que l'état redevienne `idle`.
 """
 
 import collections
+import dataclasses
 import logging
+import os
+import secrets
 import subprocess
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from . import chat_options, chat_protocol as proto, distant, sessions, task_runner
 from .chat_options import ChatOptions
@@ -30,6 +34,46 @@ STDERR_LINES = 20
 # CLI ne montre plus aucune activité pendant ce délai, on les tient pour absorbés par le tour
 # (la CLI peut lire un message reçu en plein tour sans lui donner de `result` à part).
 SETTLE_S = 3.0
+
+# Effacement automatique (phase 24) : en fin de sujet, Claude lance `ccs chat effacer`, qui
+# dépose une demande au nom du jeton de son chat ; au retour au repos, le moteur envoie `/clear`.
+CLEAR_COMMAND = "/clear"
+CLEAR_TRIGGER = "ccs_auto"
+CLEAR_TOKEN_VAR = "CCS_CHAT_JETON"
+CLEAR_HINT = (
+    "Effacement automatique : ce chat tourne dans CCS. Quand un sujet est vraiment terminé "
+    "(travail commité, poussé et publié, mémoire et feuille de route à jour) et que l'utilisateur "
+    "n'attend plus de réponse sur ce sujet, lance `ccs chat effacer` (outil Bash) dans ton dernier "
+    "message, puis termine ta réponse en le disant en une ligne. CCS enverra `/clear` à la fin de "
+    "ton tour : la conversation repart à vide (moins de contexte, moins de quota). Ne propose "
+    "donc plus à l'utilisateur de taper `/clear` lui-même. Ne le fais pas si une question est en "
+    "suspens, si un travail ou un sous-agent tourne encore, ou au milieu d'un sujet."
+)
+
+
+def clear_requests_dir():
+    """Dossier des demandes d'effacement (une par jeton de chat)."""
+    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(base) / "ccs" / "effacer"
+
+
+def request_clear(token):
+    """Demande déposée par `ccs chat effacer` : un fichier vide au nom du jeton."""
+    if not token or not token.isalnum():
+        raise ValueError("jeton de chat invalide")
+    d = clear_requests_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    (d / token).touch()
+
+
+def auto_clear_setting():
+    """Réglage `chat.auto_clear` (vrai par défaut)."""
+    try:
+        from . import settings
+        value = (settings.load_settings().get("chat") or {}).get("auto_clear", True)
+    except Exception:   # réglages illisibles : la valeur par défaut
+        return True
+    return value if isinstance(value, bool) else True
 # Événements d'un tour en cours : reçus alors que le moteur est au repos, ils disent que la CLI
 # s'est remise au travail (message envoyé pendant le tour précédent, `/compact` en file).
 QUIET_EVENTS = (proto.TurnResult, proto.LocalCommand, proto.ControlReply, proto.Status, proto.Unknown,
@@ -97,8 +141,11 @@ class ProcessExited:
 
 class ChatSession:
     def __init__(self, cwd, session_id=None, options=None, on_event=None, claude=None,
-                 environ=None, clock=time.time):
+                 environ=None, clock=time.time, auto_clear=None):
         self.cwd = str(cwd)
+        self.auto_clear = auto_clear        # None : réglage `chat.auto_clear`, lu au lancement
+        self._clear_token = secrets.token_hex(12)
+        self._auto_clearing = False         # `/clear` envoyé par le moteur, remise à zéro attendue
         self.session_id = session_id
         self.options = options or ChatOptions()
         self.on_event = on_event
@@ -145,6 +192,8 @@ class ChatSession:
                 return
             self.state = state
         self._emit(StateChanged(state))
+        if state == "idle":
+            self._maybe_auto_clear()
 
     def _next_id(self):
         with self._lock:
@@ -163,11 +212,36 @@ class ChatSession:
                 *chat_options.launch_args(self.options)]
         if self.session_id:
             argv += ["--resume", self.session_id]
-        hint = distant.hint()
-        if hint:
-            # calcul réparti disponible : Claude sait qu'il peut lancer un travail ailleurs
-            argv += ["--append-system-prompt", hint]
+        # calcul réparti disponible : Claude sait qu'il peut lancer un travail ailleurs ;
+        # effacement automatique : il sait qu'il peut vider la conversation en fin de sujet
+        hints = [h for h in (distant.hint(), CLEAR_HINT if self._auto_clear_on() else None) if h]
+        if hints:
+            argv += ["--append-system-prompt", "\n\n".join(hints)]
         return argv
+
+    def _auto_clear_on(self):
+        if self.auto_clear is None:
+            self.auto_clear = auto_clear_setting()
+        return self.auto_clear
+
+    def _clear_request(self):
+        return clear_requests_dir() / self._clear_token
+
+    def _maybe_auto_clear(self):
+        """Au repos : une demande de `ccs chat effacer` attend → `/clear`. Pas tant qu'un
+        sous-agent de fond tourne (il serait perdu) : la demande attend le repos suivant."""
+        path = self._clear_request()
+        if not path.exists():
+            return
+        if not self._auto_clear_on():
+            path.unlink(missing_ok=True)
+            return
+        if self._background:
+            return
+        path.unlink(missing_ok=True)
+        self._auto_clearing = True
+        if not self.send_if_idle(CLEAR_COMMAND):
+            self._auto_clearing = False
 
     def _env(self):
         from .terminal import SESSION_VARS
@@ -177,6 +251,9 @@ class ChatSession:
         # `claude -p` (stream-json) n'écrit les instantanés de fichiers, base du retour en
         # arrière, qu'avec cette variable ; sans effet si la version l'ignore.
         env["CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING"] = "1"
+        env.pop(CLEAR_TOKEN_VAR, None)
+        if self._auto_clear_on():
+            env[CLEAR_TOKEN_VAR] = self._clear_token     # pour `ccs chat effacer`
         return env
 
     def _spawn(self):
@@ -268,6 +345,9 @@ class ChatSession:
 
     def _handle_event(self, proc, ev):
         forward = True
+        if isinstance(ev, proto.ConversationReset) and self._auto_clearing:
+            self._auto_clearing = False
+            ev = dataclasses.replace(ev, trigger=CLEAR_TRIGGER)    # les appareils le disent
         # la CLI travaille (nouveau tour, texte, outil…). Pas les événements inconnus : les CLI
         # récentes envoient `command_lifecycle` juste APRÈS le `result`, ce qui empêchait le
         # filet de remettre au repos (« Claude travaille » pour toujours).

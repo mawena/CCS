@@ -227,6 +227,9 @@ def _cut(text, limit=RESULT_CHARS):
 
 # ---- widgets -------------------------------------------------------------------------------
 
+RESET_TEXT = "Nouvelle conversation — Claude ne voit plus les messages au-dessus"
+RESET_AUTO_TEXT = "Sujet terminé : Claude a effacé la conversation — il ne voit plus les messages au-dessus"
+
 class ToolCard(Gtk.Box):
     """Carte repliable d'une action de Claude : icône (roue tant qu'elle tourne), nom, cible,
     `+n −m` pour une modification ; le détail montre la commande et le résultat.
@@ -1593,9 +1596,10 @@ class MessageList(Gtk.ScrolledWindow):
         self._todos.update(ev.items)
         self.scroll_end_if_stuck()
 
-    def add_reset_separator(self):
+    def add_reset_separator(self, auto=False):
         """Après `/clear` : les messages d'avant restent lisibles (et sélectionnables) mais
-        grisés, sous un séparateur « Nouvelle conversation »."""
+        grisés, sous un séparateur « Nouvelle conversation ». `auto` : effacée par Claude en fin
+        de sujet (`ccs chat effacer`)."""
         child = self.box.get_first_child()
         while child is not None:
             if child not in (self.busy_row, self.older_row):
@@ -1604,7 +1608,7 @@ class MessageList(Gtk.ScrolledWindow):
             child = child.get_next_sibling()
         row = Gtk.Box(spacing=10, margin_top=6, margin_bottom=6, css_classes=["ccs-reset-separator"])
         row.append(Gtk.Separator(hexpand=True, valign=Gtk.Align.CENTER))
-        row.append(Gtk.Label(label="Nouvelle conversation — Claude ne voit plus les messages au-dessus",
+        row.append(Gtk.Label(label=RESET_AUTO_TEXT if auto else RESET_TEXT,
                              wrap=True, justify=Gtk.Justification.CENTER, css_classes=["caption", "dim-label"]))
         row.append(Gtk.Separator(hexpand=True, valign=Gtk.Align.CENTER))
         self._append(row)

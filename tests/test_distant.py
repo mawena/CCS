@@ -319,7 +319,7 @@ class TestChatHint(DistantCase):
         from ccs_app.chat_engine import ChatSession
         from ccs_app.chat_options import ChatOptions
         engine = ChatSession.__new__(ChatSession)
-        engine._claude, engine.options, engine.session_id = "claude", ChatOptions(), None
+        engine._claude, engine.options, engine.session_id, engine.auto_clear = "claude", ChatOptions(), None, False
         argv = engine._argv()
         self.assertEqual(argv[-2], "--append-system-prompt")
         self.assertIn("ccs distant lancer", argv[-1])

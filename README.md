@@ -293,7 +293,16 @@ bouton « Voir ».
   `/compact`. Avec le réglage **Compacter automatiquement** (désactivé par défaut), CCS
   l'envoie tout seul au-delà du seuil, entre deux tours, et le dit dans le fil.
 - **`/clear`** : une ligne « Nouvelle conversation » sépare les anciens messages, gardés
-  lisibles mais grisés (Claude ne les voit plus).
+  lisibles mais grisés (Claude ne les voit plus). Une commande `/…` part toujours seule : une
+  citation ou la sortie d'une commande `!` en attente restent pour le message suivant (sinon
+  Claude Code n'y verrait que du texte).
+- **Effacement automatique** (réglage `chat.auto_clear`, activé par défaut) : quand un sujet
+  est vraiment fini (travail commité et publié, mémoire et feuille de route à jour), Claude
+  lance `ccs chat effacer` ; CCS envoie `/clear` dès la fin de son tour (jamais pendant qu'un
+  sous-agent de fond tourne), et le séparateur dit « Sujet terminé : Claude a effacé la
+  conversation ». Moins de contexte, donc moins de quota par message.
+- **Nouvelle version du serveur** (web) : une page restée ouverte pendant une mise à jour
+  propose « Recharger », pour ne pas garder l'ancien code.
 - **Commande `!`** : un message qui commence par `!` lance la commande dans le dossier du
   projet (elle ne part pas chez Claude). Sa sortie s'affiche dans une carte et s'ajoute en
   tête du prochain message envoyé à Claude.
@@ -785,6 +794,21 @@ port = 22
 Ricochet ne fait que le tunnel : c'est le serveur SSH de la machine qui décide qui entre, et
 chaque tunnel est dans le journal d'audit de Ricochet.
 
+## Application Android
+
+`android-app/` contient une application Flutter (paquet `com.mawena.ccs`) qui ouvre la version
+web en plein écran : adresse du serveur modifiable (Retour sur la page d'accueil, puis
+« Serveur »), session gardée, envoi et téléchargement de fichiers, écran hors ligne. Elle se
+construit sur une machine qui a Flutter, par exemple :
+
+```
+cd android-app
+ccs distant lancer --machine pc-bureau --rapatrier build/app/outputs/flutter-apk -- flutter build apk --release
+```
+
+L'APK est signé avec la clé de débogage de la machine qui le construit : construire toujours au
+même endroit pour pouvoir installer les mises à jour par-dessus.
+
 ## Installation
 
 Ubuntu 24.04 (ou Debian/Ubuntu récent avec GTK 4, libadwaita ≥ 1.5 et, pour le
@@ -930,6 +954,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `sudo ccs totp reinitialiser <utilisateur>` | Sur le serveur : efface le code de double authentification d'un utilisateur |
 | `ccs distant machines [--vite]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--vite` : sans les interroger) |
 | `ccs distant lancer [--machine m] [--outil o] [--rapatrier chemin] [--inclure chemin] [--avec-git] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
+| `ccs chat effacer` | Dans un chat de CCS (lancé par Claude) : vide la conversation (`/clear`) à la fin du tour en cours |
 | `ccs gui` | Application graphique |
 
 Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisation.md).

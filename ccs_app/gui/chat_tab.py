@@ -83,6 +83,11 @@ class _Agent:
         self.card = None
 
 
+def is_slash_command(text):
+    """Commande de Claude Code (`/clear`, `/compact`…) : un `/` suivi d'une lettre, en tête."""
+    return re.match(r"\s*/[A-Za-z]", text or "") is not None
+
+
 class ChatTab(Gtk.Box):
     """Un chat (voir le docstring du module)."""
 
@@ -344,6 +349,14 @@ class ChatTab(Gtk.Box):
             self._run_shell(command)        # une commande `!` ne part pas chez Claude
             if quoted:
                 self.composer.set_quote(*quoted)    # la citation attend le prochain message
+            return
+        if is_slash_command(text) and not images:
+            # `/clear`, `/compact`… : la CLI ne les reconnaît qu'en tête du message, seuls ;
+            # sorties `!` et citation attendent le prochain message.
+            if not self._send(text.strip()):
+                self.composer.restore(text, images, quoted)
+            elif quoted:
+                self.composer.set_quote(*quoted)
             return
         prefix = "".join(self._shell_notes)
         if not self._send(text, images, prefix=prefix, quoted=quoted):
@@ -886,7 +899,7 @@ class ChatTab(Gtk.Box):
             proto.TurnResult: self._on_result,
             proto.LocalCommand: self._on_local,
             proto.Compacted: self._on_compacted,
-            proto.ConversationReset: lambda e: self.messages.add_reset_separator(),
+            proto.ConversationReset: lambda e: self.messages.add_reset_separator(e.trigger == chat_engine.CLEAR_TRIGGER),
             bridge_events.Notice: lambda e: self.messages.add_notice(   # note du serveur du chat
                 e.text, e.kind if e.kind in ("warning", "error") else "info"),
             proto.Retrying: lambda e: self.messages.set_busy(

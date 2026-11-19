@@ -549,3 +549,17 @@ Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde
 - [x] 2. Web et bureau : séparateur visible « Nouvelle conversation » dans le fil, les anciens messages restant lisibles (et citables) au-dessus, grisés
 - [x] 3. Relecture : le web le retrouve dans les événements gardés par le pont ; le journal de la nouvelle conversation, lui, commence après `/clear` (rien à séparer)
 - [x] 4. Tests des modules touchés, documentation, release 0.25.0 (avec les pastilles des sous-agents gardées sur le web)
+
+## Phase 24 — `/clear` fiable et effacement automatique (0.26.0)
+
+Charles (19/11/2026) : « pourquoi tu me proposes des /clear, alors que quand je le fais rien ne se passe ? » La CLI vide bien la conversation (vérifié au repos et pendant un tour) ; CCS pouvait gâcher la commande.
+
+- [x] 1. Une commande `/…` part seule : citation et sorties `!` en attente gardées pour le message suivant (web et bureau)
+- [x] 2. Web : une page restée ouverte pendant une mise à jour du serveur propose « Recharger »
+- [x] 3. `ccs chat effacer` (lancé par Claude en fin de sujet) : demande au nom du jeton du chat, `/clear` envoyé au retour au repos, jamais pendant un sous-agent de fond ; consigne ajoutée aux chats
+- [x] 4. Séparateur « Sujet terminé : Claude a effacé la conversation » (web et bureau) ; réglage `chat.auto_clear` (activé par défaut) dans les réglages du web et du bureau
+- [x] 5. Tests des modules touchés, essai réel avec la vraie CLI (le mot à retenir est bien oublié)
+- [x] 6. Application Android (`android-app/`, Flutter) : coquille de la version web (`flutter analyze` propre)
+- [ ] 6b. Construire l'APK sur `pc-bureau` (deux échecs : Gagarine plafonne le démon Gradle, mémoire pleine) puis le joindre à la release v0.26.0 et l'essayer sur le téléphone
+- [x] 7. Documentation, release mineure 0.26.0
+
