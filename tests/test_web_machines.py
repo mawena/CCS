@@ -120,5 +120,217 @@ out.cached = JSON.parse(localStorage.getItem("ccs.machines")).map((m) => m.id);
         self.assertEqual(out["cached"], ["pc-bureau", "portable"])
 
 
+PAGE = r"""
+const intervals = [];
+const realSetInterval = globalThis.setInterval;
+globalThis.setInterval = (fn, ms) => { intervals.push({ fn, ms, on: true }); return intervals.length; };
+globalThis.clearInterval = (id) => { if (intervals[id - 1]) intervals[id - 1].on = false; };
+const { mountMachines } = await import("./pages-machines.js");
+const MACHINES = { configured: true, message: "", machines: [
+  { id: "vps", name: "VPS", online: true, local: true, cores: 6, load: 1.2, mem_used: 4 * 2 ** 30, mem_total: 11 * 2 ** 30,
+    tunnel: true, tools: ["python3"], limit: 2, running: 0, waiting: 0 },
+  { id: "pc-bureau", name: "PC du bureau", online: true, local: false, cores: 14, load: 7, mem_used: 2 ** 33, mem_total: 2 ** 35,
+    tunnel: true, tools: ["flutter", "gradle"], limit: 2, running: 1, waiting: 1 },
+  { id: "portable", name: "Portable", online: false, local: false, cores: 0, load: 0, mem_used: 0, mem_total: 0,
+    tunnel: true, tools: [], limit: 3, running: 0, waiting: 0 }] };
+const now = Date.now() / 1000;
+const JOBS = { jobs: [
+  { id: "a1", text: "flutter build apk", command: ["flutter", "build", "apk"], cwd: "/home/u/App", machine: "pc-bureau",
+    state: "en cours", code: null, created: now - 100, started: now - 75, ended: null, why: "" },
+  { id: "b2", text: "make test", command: ["make", "test"], cwd: "/home/u/App", machine: null,
+    state: "attente", code: null, created: now - 30, started: null, ended: null, why: "en attente d'une place sur pc-bureau (2/2)" },
+  { id: "c3", text: "make deb", command: ["make", "deb"], cwd: "/home/u/App", machine: "pc-bureau",
+    state: "échec", code: 2, created: now - 900, started: now - 800, ended: now - 790, why: "" }] };
+const SETTINGS = { relais: "https://ricochet.exemple", jeton_defini: true, chemin: "/home/u/.config/ricochet/client.toml",
+  limite_defaut: 2, limites: { "pc-bureau": 3 } };
+function fakeApi(machine = "") {
+  const calls = [];
+  return { machine, calls, on: () => () => {}, async call(m, p = {}) {
+    calls.push([m, p]);
+    if (m === "machines.list") return MACHINES;
+    if (m === "machines.jobs") return JOBS;
+    if (m === "machines.settings") return SETTINGS;
+    if (m === "machines.log") return { text: "ligne 1\nligne 2" };
+    if (m === "files.roots") return { home: "/home/u", roots: ["/home/u"] };
+    if (m === "projects.list") return { entries: [{ cwd: "/home/u/App", exists: true }] };
+    if (m === "machines.start") return { id: "d4" };
+    return { ok: true };
+  } };
+}
+const root = document.createElement("div");
+document.body.append(root);
+const text = (sel) => root.querySelectorAll(sel).map((n) => n.textContent);
+const button = (label, scope = root) => scope.querySelectorAll("button").find((b) => b.textContent === label);
+"""
+
+
+@unittest.skipUnless(NODE, "node absent")
+class MachinesPageWebTest(unittest.TestCase):
+    def test_lists_machines_with_load_places_tools_and_jobs(self):
+        out = run(PAGE + r"""
+const api = fakeApi();
+const stop = mountMachines(root, api);
+await settle();
+out = { cards: text(".machine-card"), jobs: text(".job"), h3: text("h3"), note: text(".machines-note"),
+        stops: root.querySelectorAll(".job").map((j) => Boolean(button("Arrêter", j))),
+        targets: root.querySelectorAll('select[aria-label="Machine"] option').map((o) => o.textContent),
+        intervals: intervals.map((i) => i.ms) };
+// rechargement toutes les 5 s, seulement page visible, et plus après la sortie de la page
+api.calls.length = 0;
+document.hidden = true; intervals[0].fn(); await settle();
+out.hiddenCalls = api.calls.length;
+document.hidden = false; intervals[0].fn(); await settle();
+out.visibleCalls = api.calls.map((c) => c[0]);
+stop();
+out.stopped = !intervals[0].on;
+""")
+        self.assertEqual(len(out["cards"]), 3)
+        self.assertIn("ce serveur", out["cards"][0])
+        self.assertIn("0,50/cœur", out["cards"][1])             # 7 sur 14 cœurs
+        self.assertIn("8,0/32 Go", out["cards"][1])
+        self.assertIn("flutter", out["cards"][1])
+        self.assertIn("Places : 1/2 · 1 en attente", out["cards"][1])
+        self.assertIn("hors ligne", out["cards"][2])
+        self.assertIn("outils pas encore inventoriés", out["cards"][2])
+        self.assertEqual(out["h3"], ["En cours et à venir (2)", "Finis (1)"])
+        self.assertIn("1 min 15 s", out["jobs"][0])
+        self.assertIn("en attente d'une place sur pc-bureau (2/2)", out["jobs"][1])
+        self.assertIn("code 2", out["jobs"][2])
+        self.assertEqual(out["stops"], [True, True, False])
+        self.assertEqual(out["note"], [])
+        self.assertEqual(out["targets"], ["La moins chargée", "VPS", "PC du bureau", "Portable (hors ligne)"])
+        self.assertEqual(out["intervals"], [5000])
+        self.assertEqual(out["hiddenCalls"], 0)
+        self.assertEqual(sorted(out["visibleCalls"]), ["machines.jobs", "machines.list"])
+        self.assertTrue(out["stopped"])
+
+    def test_note_when_driving_another_machine(self):
+        out = run(PAGE + r"""
+localStorage.setItem("ccs.machine.name", "PC du bureau");
+const api = fakeApi("pc-bureau");
+mountMachines(root, api);
+await settle();
+out = { note: text(".machines-note"), folder: root.querySelector('input[aria-label="Dossier"]').value,
+        methods: [...new Set(api.calls.map((c) => c[0]))] };
+""")
+        self.assertEqual(len(out["note"]), 1)
+        self.assertIn("Machines vues depuis ce serveur", out["note"][0])
+        self.assertEqual(out["folder"], "/home/u")              # tiré du chemin du relais, pas de files.roots
+        self.assertNotIn("files.roots", out["methods"])         # relayé à la machine pilotée : pas utilisé
+        self.assertNotIn("projects.list", out["methods"])
+
+    def test_stop_asks_confirmation_then_calls_bridge(self):
+        out = run(PAGE + r"""
+const api = fakeApi();
+mountMachines(root, api);
+await settle();
+button("Arrêter", root.querySelectorAll(".job")[0]).click();
+await settle();
+let dlg = document.body.querySelectorAll("dialog").pop();
+out = { title: dlg.querySelector("h2").textContent };
+button("Garder", dlg).click(); await settle();
+out.afterCancel = api.calls.filter((c) => c[0] === "machines.stop").length;
+button("Arrêter", root.querySelectorAll(".job")[0]).click(); await settle();
+dlg = document.body.querySelectorAll("dialog").pop();
+button("Arrêter", dlg).click(); await settle();
+out.stop = api.calls.filter((c) => c[0] === "machines.stop").map((c) => c[1]);
+""")
+        self.assertEqual(out["title"], "Arrêter ce travail ?")
+        self.assertEqual(out["afterCancel"], 0)
+        self.assertEqual(out["stop"], [{"id": "a1"}])
+
+    def test_log_sheet_reloads_while_open(self):
+        out = run(PAGE + r"""
+const api = fakeApi();
+mountMachines(root, api);
+await settle();
+button("Journal", root.querySelectorAll(".job")[0]).click();
+await settle();
+const dlg = document.body.querySelectorAll("dialog").pop();
+const logTimer = intervals.find((i) => i.ms === 3000);
+out = { log: dlg.querySelector("pre").textContent };
+logTimer.fn(); await settle();
+out.calls = api.calls.filter((c) => c[0] === "machines.log").map((c) => c[1]);
+button("Fermer", dlg).click();
+out.stopped = !logTimer.on;
+""")
+        self.assertEqual(out["log"], "ligne 1\nligne 2")
+        self.assertEqual(out["calls"], [{"id": "a1", "tail": 20000}] * 2)
+        self.assertTrue(out["stopped"])
+
+    def test_launch_form_defaults_to_last_project_and_sends_contract_params(self):
+        out = run(PAGE + r"""
+localStorage.setItem("ccs.project.last", JSON.stringify({ machine: "", cwd: "/home/u/App" }));
+const api = fakeApi();
+mountMachines(root, api);
+await settle();
+const q = (l) => root.querySelector(`[aria-label="${l}"]`);
+out = { folder: q("Dossier").value };
+button("Lancer").click(); await settle();
+out.empty = root.querySelector("form .form-error").textContent;
+q("Commande").value = "flutter build apk";
+q("Quand").value = "nuit"; q("Quand").dispatchEvent(new Event("change"));
+button("Lancer").click(); await settle();
+q("Commande").value = "make";
+q("Dossier").value = "~/Autre";
+q("Machine").value = "pc-bureau";
+q("Quand").value = "heure"; q("Quand").dispatchEvent(new Event("change"));
+q("Heure").value = "22:30";
+button("Lancer").click(); await settle();
+out.starts = api.calls.filter((c) => c[0] === "machines.start").map((c) => c[1]);
+""")
+        self.assertEqual(out["folder"], "/home/u/App")
+        self.assertEqual(out["empty"], "Écris la commande à lancer.")
+        self.assertEqual(out["starts"], [
+            {"command": "flutter build apk", "cwd": "/home/u/App", "when": "nuit"},
+            {"command": "make", "cwd": "/home/u/Autre", "when": "22:30", "machine": "pc-bureau"}])
+
+    def test_folder_falls_back_to_home_and_limit_is_saved(self):
+        out = run(PAGE + r"""
+localStorage.setItem("ccs.project.last", JSON.stringify({ machine: "pc-bureau", cwd: "/ailleurs" }));
+const api = fakeApi();
+mountMachines(root, api);
+await settle();
+const sel = root.querySelectorAll(".machine-card")[1].querySelector("select");
+out = { folder: root.querySelector('[aria-label="Dossier"]').value, limit: sel.value };
+sel.value = "3"; sel.dispatchEvent(new Event("change")); await settle();
+out.calls = api.calls.filter((c) => c[0] === "machines.limit").map((c) => c[1]);
+""")
+        self.assertEqual(out["folder"], "/home/u")              # projet d'une autre machine : ignoré
+        self.assertEqual(out["limit"], "2")
+        self.assertEqual(out["calls"], [{"machine": "pc-bureau", "limite": 3}])
+
+    def test_relay_settings_never_show_the_token(self):
+        out = run(PAGE + r"""
+const api = fakeApi();
+mountMachines(root, api);
+await settle();
+const pw = root.querySelector('input[type="password"]');
+const relay = pw.closest("form");
+out = { pw: pw.value, status: relay.querySelector('[data-role="token-status"]').textContent,
+        address: relay.querySelector('input[type="url"]').value };
+pw.value = "secret-123";
+button("Enregistrer", relay).click(); await settle();
+out.calls = api.calls.filter((c) => c[0] === "machines.configure").map((c) => c[1]);
+out.after = root.querySelector('input[type="password"]').value;
+""")
+        self.assertEqual(out["pw"], "")
+        self.assertEqual(out["status"], "Jeton enregistré.")
+        self.assertEqual(out["address"], "https://ricochet.exemple")
+        self.assertEqual(out["calls"], [{"jeton": "secret-123"}])
+        self.assertEqual(out["after"], "")
+
+    def test_page_is_reachable_but_not_in_the_nav(self):
+        views = (WEB / "views.js").read_text(encoding="utf-8")
+        self.assertIn('machines: { title: "Machines"', views)
+        self.assertIn("hidden: true", views)
+        self.assertIn("if (v.hidden) continue;", (WEB / "app.js").read_text(encoding="utf-8"))
+        for name in ("settings.js", "machines.js"):
+            text = (WEB / name).read_text(encoding="utf-8")
+            self.assertIn('"#/machines"', text, name)
+            self.assertIn("Gérer les machines", text, name)
+        self.assertIn("rememberProject(api, cwd)", (WEB / "sessions.js").read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

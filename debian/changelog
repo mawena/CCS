@@ -1,3 +1,10 @@
+ccs (0.32.0) unstable; urgency=medium
+
+  * Plusieurs travaux distants à la fois avec file d'attente, travaux en
+    arrière-plan et de nuit, page « Machines » refaite (journal, lancement).
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 23:00:00 +0100
+
 ccs (0.31.0) unstable; urgency=medium
 
   * Page « Machines » du calcul réparti (web et bureau) : commandes en

@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import threading
+import time
 
 from . import __version__, core, procname
 
@@ -1004,20 +1005,69 @@ def cmd_chat(args):
     return 0
 
 
+def _job_line(job, now):
+    """Une ligne de `ccs distant travaux`."""
+    when = job.get("ended") or job.get("started") or job.get("created") or now
+    ago = max(int(now - when), 0)
+    ago = f"{ago} s" if ago < 60 else f"{ago // 60} min" if ago < 3600 else f"{ago // 3600} h"
+    state = job.get("state", "?")
+    if job.get("code") is not None and state in ("fini", "échec"):
+        state += f" ({job['code']})"
+    line = f"{job['id']}  {state:<12} {job.get('machine') or '-':<14} {job.get('text', '')}  (il y a {ago})"
+    if job.get("why"):
+        line += f"\n        {job['why']}"
+    return line
+
+
 def cmd_distant(args):
     """Calcul réparti : machines du réseau Ricochet et commandes lancées dessus."""
-    from . import distant
+    from . import distant, distant_jobs
     try:
         if args.action == "machines":
             machines = distant.fetch_machines()
             lines = distant.describe(machines, distant.load_overrides(), probe=not args.vite)
             print("\n".join(lines) if lines else "Aucune machine dans Ricochet.")
             return 0
+        if args.action == "travaux":
+            now = time.time()
+            jobs = distant_jobs.list_jobs()
+            print("\n".join(_job_line(j, now) for j in jobs) if jobs else "Aucun travail.")
+            return 0
+        if args.action == "arreter":
+            if not distant_jobs.stop(args.id):
+                print(f"Travail {args.id} introuvable ou déjà fini.", file=sys.stderr)
+                return 1
+            print(f"Travail {args.id} arrêté.")
+            return 0
+        if args.action == "journal":
+            job = distant_jobs.get(args.id)
+            if job is None:
+                print(f"Travail {args.id} introuvable.", file=sys.stderr)
+                return 1
+            text = distant_jobs.read_log(args.id)
+            if text:
+                sys.stdout.write(text if text.endswith("\n") else text + "\n")
+            else:
+                print("Pas de journal (travail lancé sans --detache)." if not job.get("detached")
+                      else "Journal vide pour l'instant.")
+            return 0
         command = list(args.commande)
         if command[:1] == ["--"]:
             command = command[1:]
+        if args.quand:
+            distant.schedule(args.quand)  # refuse tout de suite une heure invalide
+        if args.detache and not args.travail:
+            if not command:
+                raise distant.DistantError("Aucune commande : ccs distant lancer -- <commande>")
+            job_id = distant_jobs.start(command, os.getcwd(), machine=args.machine, when=args.quand,
+                                        tool=args.outil, fetch=args.rapatrier,
+                                        include=args.inclure, with_git=args.avec_git)
+            print(f"Travail {job_id} lancé en arrière-plan. Suivi : ccs distant travaux, "
+                  f"ccs distant journal {job_id} ; arrêt : ccs distant arreter {job_id}")
+            return 0
         return distant.launch(command, machine=args.machine, tool=args.outil,
-                              fetch=args.rapatrier, include=args.inclure, with_git=args.avec_git)
+                              fetch=args.rapatrier, include=args.inclure, with_git=args.avec_git,
+                              when=args.quand, job_id=args.travail, detached=args.detache)
     except distant.DistantError as e:
         print(e, file=sys.stderr)
         return 1
@@ -1203,7 +1253,17 @@ def build_parser():
     dil.add_argument("--inclure", action="append", default=[], metavar="CHEMIN",
                      help="envoyer aussi ce chemin que git ignore (répétable)")
     dil.add_argument("--avec-git", action="store_true", help="envoyer aussi le dossier .git")
+    dil.add_argument("--quand", default="", metavar="nuit|HH:MM",
+                     help="partir la nuit (plage des tâches) ou à cette heure")
+    dil.add_argument("--detache", action="store_true",
+                     help="en arrière-plan : rend la main tout de suite (journal : ccs distant journal <id>)")
+    dil.add_argument("--travail", help=argparse.SUPPRESS)
     dil.add_argument("commande", nargs=argparse.REMAINDER, help="la commande, après --")
+    di_sub.add_parser("travaux", help="commandes lancées : en attente, en cours et finies")
+    dia = di_sub.add_parser("arreter", help="arrête un travail (ou le retire de la file)")
+    dia.add_argument("id")
+    dij = di_sub.add_parser("journal", help="sortie d'un travail détaché")
+    dij.add_argument("id")
     di.set_defaults(func=cmd_distant)
     ch = sub.add_parser("chat", help="chats de CCS (commandes pour Claude)")
     ch_sub = ch.add_subparsers(dest="action", required=True)

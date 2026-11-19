@@ -492,12 +492,12 @@ Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ou
 - [x] 6. Tests, essai réel (relais et agent locaux, vrai `ssh` et `rsync`), documentation, release mineure 0.21.0
 - [x] 7. Mise en place faite (jeton des tunnels, `client.toml`, `[tunnel]` et SSH sur `pc-bureau`) ; essai réel réussi le 18/11 : APK de Portail construit sur `pc-bureau` (Gradle 3 min 35) et rapatrié sur le VPS
 
-Étape B — répartir et voir (prochaine version mineure)
-- [x] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton) — 0.31.0
-- [ ] 9. Plusieurs commandes à la fois sur plusieurs machines (tests d'un côté, build de l'autre), limite par machine, file d'attente
-- [ ] 10. Tâches de nuit et suites de tests longues envoyées à la machine la moins chargée ; le VPS garde ses services de production tranquilles
+Étape B — répartir et voir (0.31.0, puis 0.32.0)
+- [x] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton) — 0.31.0, refaite en 0.32.0 (journal, lancement, limites)
+- [x] 9. Plusieurs commandes à la fois sur plusieurs machines (tests d'un côté, build de l'autre), limite par machine, file d'attente — 0.32.0
+- [x] 10. Tâches de nuit et suites de tests longues envoyées à la machine la moins chargée ; le VPS garde ses services de production tranquilles — 0.32.0
 - [x] 11. Arrêt propre de la commande distante quand on interrompt `ccs distant lancer` (0.25.1 : garde côté distant, essai réel sur `pc-bureau`)
-- [ ] 12. Tests, documentation, release mineure
+- [x] 12. Tests, documentation, release mineure
 
 Étape C — à décider après essai
 - [ ] 13. Sessions Claude entières sur une autre machine (le pont de CCS lancé là-bas par le tunnel) : à étudier, demande Claude Code et un compte sur chaque machine

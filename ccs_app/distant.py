@@ -16,6 +16,7 @@ par machine).
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -27,9 +28,10 @@ import tomllib
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import core
+from . import core, distant_jobs
 
 # Outils cherchés d'office sur chaque machine (les autres le sont à la demande).
 TOOLS = ("flutter", "dart", "cargo", "node", "npm", "pnpm", "yarn", "bun", "go", "java",
@@ -45,7 +47,17 @@ HINT = ("Calcul réparti : d'autres machines de Charles sont joignables par Rico
         "suite de tests), lance la commande ailleurs depuis le dossier du projet : "
         "`ccs distant lancer -- <commande>` (options : `--machine <id>`, `--rapatrier <chemin>` "
         "pour rapporter les fichiers produits, `--inclure <chemin>` pour envoyer un fichier que "
-        "git ignore). `ccs distant machines` liste les machines, leur charge et leurs outils.")
+        "git ignore). Tu peux lancer plusieurs commandes en parallèle : chaque machine a un "
+        "nombre de places, et une commande attend son tour si elles sont toutes prises. Pour "
+        "garder cette machine légère, envoie les longues suites de tests la nuit : "
+        "`ccs distant lancer --quand nuit --detache -- <commande>` (ou `--quand HH:MM`), puis "
+        "`ccs distant travaux`, `ccs distant journal <id>` et `ccs distant arreter <id>`. "
+        "`ccs distant machines` liste les machines, leur charge et leurs outils.")
+DEFAULT_LIMIT = 2
+LIMIT_RANGE = (1, 8)
+MACHINE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+WHEN_RE = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+POLL = 5.0
 
 
 class DistantError(Exception):
@@ -135,99 +147,6 @@ def load_overrides():
         raise DistantError(f"{overrides_path()} illisible : {e}") from None
     machines = data.get("machines", {})
     return machines if isinstance(machines, dict) else {}
-
-
-def client_settings():
-    """Réglages du client Ricochet à montrer (le jeton n'est jamais renvoyé)."""
-    try:
-        data = tomllib.loads(client_path().read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
-        data = {}
-    return {"relais": str(data.get("relais", "")), "jeton": bool(data.get("jeton")),
-            "agent": shutil.which("ricochet-agent") is not None}
-
-
-def save_client(relais, jeton=None):
-    """Écrit `client.toml` (droits 600) ; sans jeton, l'ancien est gardé."""
-    relais = str(relais or "").strip().rstrip("/")
-    if not relais.startswith(("https://", "http://")) or any(c in relais for c in '"\\\n '):
-        raise DistantError("Adresse du relais invalide : https://…")
-    if jeton is None or jeton == "":
-        try:
-            jeton = str(tomllib.loads(client_path().read_text(encoding="utf-8")).get("jeton", ""))
-        except (OSError, tomllib.TOMLDecodeError):
-            jeton = ""
-    jeton = str(jeton).strip()
-    if not jeton:
-        raise DistantError("Il faut le jeton des tunnels du relais.")
-    if any(c in jeton for c in '"\\\n\r'):
-        raise DistantError("Jeton invalide.")
-    path = client_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(f'relais = "{relais}"\njeton = "{jeton}"\n')
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, path)
-    return client_settings()
-
-
-# ------------------------------------------------------------------ commandes en cours
-
-def _running_dir():
-    d = _cache_dir() / "distant-en-cours"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def _alive(pid):
-    """Le processus existe et c'est bien un `ccs distant` (pas un numéro réutilisé)."""
-    try:
-        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
-    except OSError:
-        return False
-    return b"distant" in cmdline
-
-
-def _register(machine, root, rel, command):
-    record = {"pid": os.getpid(), "machine": machine.id, "projet": str(root),
-              "dossier": "" if str(rel) == "." else Path(rel).as_posix(),
-              "commande": command[0] if len(command) == 1 else shlex.join(command),
-              "debut": time.time()}
-    path = _running_dir() / f"{record['pid']}.json"
-    core.atomic_write_json(path, record)
-    return path
-
-
-def running(alive=None):
-    """Commandes `ccs distant lancer` en cours sur cette machine, les plus anciennes d'abord."""
-    alive = alive or _alive
-    out = []
-    for path in _running_dir().glob("*.json"):
-        try:
-            record = json.loads(path.read_text(encoding="utf-8"))
-            pid = int(record["pid"])
-        except (OSError, ValueError, KeyError, TypeError):
-            path.unlink(missing_ok=True)
-            continue
-        if not alive(pid):
-            path.unlink(missing_ok=True)
-            continue
-        out.append(record)
-    return sorted(out, key=lambda r: r.get("debut", 0))
-
-
-def stop(pid, alive=None, kill=None):
-    """Arrête une commande en cours : la commande distante est arrêtée elle aussi."""
-    if not any(r["pid"] == pid for r in running(alive)):
-        raise DistantError("Cette commande est déjà finie.")
-    try:
-        (kill or os.kill)(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        raise DistantError("Cette commande est déjà finie.") from None
-    except PermissionError:
-        raise DistantError("Arrêt refusé : la commande appartient à un autre utilisateur.") from None
 
 
 # ------------------------------------------------------------------ machines
@@ -396,8 +315,10 @@ def wanted_tool(command):
     return first
 
 
-def choose(machines, overrides, tool=None, wanted=None, run=None, now=time.time):
-    """La machine où lancer : celle demandée, sinon la moins chargée qui a l'outil."""
+def eligible(machines, overrides, tool=None, wanted=None, run=None, now=time.time, why=None):
+    """Machines où la commande peut tourner, la moins chargée d'abord (inventaire à la demande :
+    on s'arrête dès que l'appelant a ce qu'il lui faut). `why` reçoit les raisons des refus."""
+    why = why if why is not None else []
     if wanted:
         m = next((m for m in machines if m.id == wanted), None)
         if m is None:
@@ -405,8 +326,8 @@ def choose(machines, overrides, tool=None, wanted=None, run=None, now=time.time)
             raise DistantError(f"Machine inconnue : {wanted} (connues : {known})")
         if not m.online:
             raise DistantError(f"{m.id} est éteinte ou déconnectée de Ricochet")
-        return m, inventory(m, overrides, run=run, now=now)
-    why = []
+        yield m, inventory(m, overrides, run=run, now=now)
+        return
     for m in sorted(machines, key=lambda m: m.score):
         if m.local:
             why.append(f"{m.id} : c'est cette machine")
@@ -425,9 +346,61 @@ def choose(machines, overrides, tool=None, wanted=None, run=None, now=time.time)
         except DistantError as e:
             why.append(str(e))
             continue
-        return m, inv
+        yield m, inv
+
+
+def _none_available(tool, why):
     need = f" avec {tool}" if tool else ""
-    raise DistantError(f"Aucune machine disponible{need}.\n  " + "\n  ".join(why or ["aucune machine"]))
+    return DistantError(f"Aucune machine disponible{need}.\n  " + "\n  ".join(why or ["aucune machine"]))
+
+
+def choose(machines, overrides, tool=None, wanted=None, run=None, now=time.time):
+    """La machine où lancer : celle demandée, sinon la moins chargée qui a l'outil."""
+    why = []
+    for m, inv in eligible(machines, overrides, tool, wanted, run, now, why):
+        return m, inv
+    raise _none_available(tool, why)
+
+
+def limit_for(machine_id, overrides):
+    """Nombre de commandes lancées en même temps sur la machine (`limite`, 2 par défaut)."""
+    value = (overrides.get(machine_id) or {}).get("limite")
+    if isinstance(value, int) and not isinstance(value, bool) and \
+            LIMIT_RANGE[0] <= value <= LIMIT_RANGE[1]:
+        return value
+    return DEFAULT_LIMIT
+
+
+# ------------------------------------------------------------------ heure de départ
+
+def _local_tz():
+    from .orchestrator import local_tz
+    return local_tz()
+
+
+def schedule(when, now=None):
+    """(heure de départ ou None pour tout de suite, raison) pour `--quand nuit|HH:MM`."""
+    when = (when or "").strip()
+    t = time.time() if now is None else now
+    if not when:
+        return None, ""
+    current = datetime.fromtimestamp(t, timezone.utc)
+    if when == "nuit":
+        from . import tasks
+        from .settings import load_settings
+        night = tasks.config(load_settings())["night"]
+        win = tasks.night_window(current, night["start"], night["end"], _local_tz())
+        if win is None or win[0] <= current < win[1]:
+            return None, ""
+        return win[0].timestamp(), f"programmé pour la nuit, à {night['start']}"
+    if not WHEN_RE.match(when):
+        raise DistantError(f"--quand {when} : il faut « nuit » ou une heure HH:MM")
+    h, m = (int(x) for x in when.split(":"))
+    local = current.astimezone(_local_tz())
+    at = local.replace(hour=h, minute=m, second=0, microsecond=0)
+    if at <= local:
+        at = (local + timedelta(days=1)).replace(hour=h, minute=m, second=0, microsecond=0)
+    return at.timestamp(), f"programmé à {when}"
 
 
 # ------------------------------------------------------------------ projet
@@ -539,53 +512,288 @@ def _attached(argv):
             signal.signal(signal.SIGTERM, previous)
 
 
+def _trap_term():
+    """SIGTERM (`ccs distant arreter`) devient une interruption, comme Ctrl+C."""
+    def stop(signum, frame):
+        raise KeyboardInterrupt
+    try:
+        return signal.signal(signal.SIGTERM, stop)
+    except ValueError:  # pas dans le fil principal
+        return None
+
+
 def launch(command, machine=None, tool=None, fetch=(), include=(), with_git=False, cwd=None,
-           run=None, say=None, opener=None):
-    """Envoie le projet, lance la commande ailleurs, rapporte les fichiers ; code de retour."""
+           run=None, say=None, opener=None, when="", job_id=None, detached=False,
+           now=time.time, sleep=time.sleep, poll=POLL):
+    """Envoie le projet, lance la commande ailleurs, rapporte les fichiers ; code de retour.
+
+    Chaque lancement est inscrit au registre (`distant_jobs`) : il attend l'heure demandée
+    (`when`), puis une place libre sur une machine, et son état avance jusqu'au bout."""
     say = say or (lambda text: print(f"[ccs distant] {text}", file=sys.stderr, flush=True))
     if not command:
         raise DistantError("Aucune commande : ccs distant lancer -- <commande>")
     cwd = cwd or os.getcwd()
+    if job_id:
+        job = distant_jobs.update(job_id, pid=os.getpid(), detached=bool(detached))
+        if job is None:
+            raise DistantError(f"Travail inconnu : {job_id}")
+        not_before = job.get("not_before")
+        why = job.get("why") or ""
+    else:
+        not_before, why = schedule(when, now())
+        job_id = distant_jobs.create(command, cwd, machine=machine, tool=tool, when=when,
+                                     not_before=not_before, why=why, detached=detached, now=now)
+    previous = _trap_term()
+    try:
+        code, why = _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run,
+                            say, opener, not_before, why, now, sleep, poll)
+    except KeyboardInterrupt:
+        distant_jobs.finish(job_id, "arrêté", 130, "interrompu", now=now)
+        say("interrompu")
+        return 130
+    except DistantError as e:
+        distant_jobs.finish(job_id, "échec", None, str(e).splitlines()[0], now=now)
+        raise
+    except BaseException as e:
+        distant_jobs.finish(job_id, "échec", None, f"erreur : {e}", now=now)
+        raise
+    finally:
+        if previous is not None:
+            signal.signal(signal.SIGTERM, previous)
+    state = "fini" if code == 0 else "arrêté" if code == 130 else "échec"
+    distant_jobs.finish(job_id, state, code, why, now=now)
+    return code
+
+
+def _wait(job_id, until, now, sleep, poll):
+    while now() < until:
+        if distant_jobs.stopped(job_id):
+            raise KeyboardInterrupt
+        sleep(max(min(poll, until - now()), 0))
+
+
+def _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run, say, opener,
+            not_before, why, now, sleep, poll):
     attached = run or _attached
     run = run or subprocess.run
+    if not_before and now() < not_before:
+        say(f"{why} (travail {job_id})")
+        _wait(job_id, not_before, now, sleep, max(poll, 30.0))
     overrides = load_overrides()
     machines = fetch_machines(opener=opener)
     tool = tool or (None if machine else wanted_tool(command))
-    chosen, inv = choose(machines, overrides, tool=tool, wanted=machine, run=run)
+    refused, candidates, chosen = [], [], None
+    for m, inv in eligible(machines, overrides, tool=tool, wanted=machine, run=run, why=refused):
+        candidates.append((m, inv))
+        if distant_jobs.reserve(job_id, m.id, limit_for(m.id, overrides), now=now)[0]:
+            chosen = (m, inv)
+            break
+    if not candidates:
+        raise _none_available(tool, refused)
+    told = ""
+    while chosen is None:
+        busy = []
+        for m, inv in candidates:
+            ok, n = distant_jobs.reserve(job_id, m.id, limit_for(m.id, overrides), now=now)
+            if ok:
+                chosen = (m, inv)
+                break
+            busy.append(f"{m.id} ({n}/{limit_for(m.id, overrides)})")
+        if chosen:
+            break
+        wait = "en attente d'une place sur " + ", ".join(busy)
+        if wait != told:
+            distant_jobs.update(job_id, state="attente", why=wait, machine=machine)
+            say(f"{wait} (travail {job_id})")
+            told = wait
+        _wait(job_id, now() + poll, now, sleep, poll)
+    chosen, inv = chosen
     root, rel = project_root(cwd)
-    record = _register(chosen, root, rel, command)
+    say(f"{chosen.id} ({chosen.host or '?'}, charge {chosen.load:.1f} sur {chosen.cores} cœurs) : "
+        f"envoi de {root.name}…")
+    started = time.monotonic()
+    r = _ssh(chosen, overrides, f'mkdir -p "$HOME"/{shlex.quote(remote_dir(root))}', run=run,
+             stdin=subprocess.DEVNULL)
+    if r.returncode:
+        raise DistantError(f"{chosen.id} : SSH refusé ou injoignable (code {r.returncode})")
+    r = run(send_argv(chosen, overrides, root, include, with_git, cwd))
+    if r.returncode:
+        raise DistantError(f"Envoi du projet vers {chosen.id} raté (rsync, code {r.returncode})")
+    say(f"envoyé en {time.monotonic() - started:.0f} s ; lancement de la commande")
+    distant_jobs.update(job_id, state="en cours")
     try:
-        say(f"{chosen.id} ({chosen.host or '?'}, charge {chosen.load:.1f} sur {chosen.cores} cœurs) : "
-            f"envoi de {root.name}…")
-        started = time.monotonic()
-        r = _ssh(chosen, overrides, f'mkdir -p "$HOME"/{shlex.quote(remote_dir(root))}', run=run,
-                 stdin=subprocess.DEVNULL)
-        if r.returncode:
-            raise DistantError(f"{chosen.id} : SSH refusé ou injoignable (code {r.returncode})")
-        r = run(send_argv(chosen, overrides, root, include, with_git, cwd))
-        if r.returncode:
-            raise DistantError(f"Envoi du projet vers {chosen.id} raté (rsync, code {r.returncode})")
-        say(f"envoyé en {time.monotonic() - started:.0f} s ; lancement de la commande")
+        code = _ssh(chosen, overrides, remote_command(root, rel, inv, command),
+                    run=attached).returncode
+    except KeyboardInterrupt:
+        say(f"interrompu : commande arrêtée sur {chosen.id}")
+        return 130, f"interrompu : commande arrêtée sur {chosen.id}"
+    why = ""
+    if code == 255:
+        why = f"connexion à {chosen.id} perdue (ou la commande a renvoyé 255)"
+        say(why)
+    elif code:
+        why = f"la commande a renvoyé {code}"
+    for path in fetch:
+        if code and code != 0:
+            say(f"commande en échec (code {code}) : {path} non rapatrié")
+            continue
+        r = run(fetch_argv(chosen, overrides, root, rel, path))
+        say(f"{path} rapatrié" if r.returncode == 0
+            else f"{path} : rien à rapatrier (rsync, code {r.returncode})")
+        if r.returncode and not code:
+            code, why = 1, f"{path} : rien à rapatrier"
+    return code, why
+
+
+# ------------------------------------------------------------------ page « Machines »
+
+def _public(m):
+    return {"id": m.id, "name": m.name or m.id, "online": m.online, "local": m.local,
+            "cores": m.cores, "load": m.load, "mem_used": m.mem_used, "mem_total": m.mem_total,
+            "tunnel": bool(m.ports)}
+
+
+def machines_overview(fetch=None):
+    """Machines, leurs outils connus, leurs places et leurs travaux ; ne lève jamais."""
+    out = {"configured": False, "message": "", "machines": []}
+    try:
+        out["configured"] = configured()
+        if not out["configured"]:
+            out["message"] = ("Calcul réparti non réglé sur ce serveur "
+                              "(~/.config/ricochet/client.toml).")
+            return out
+        machines = (fetch or fetch_machines)()
+        overrides = load_overrides()
+        inv = _load_inventory()
+        counts = distant_jobs.counts()
+    except (DistantError, OSError, ValueError) as e:
+        out["message"] = str(e)
+        return out
+    for m in machines:
+        item = _public(m)
+        tools = (inv.get(m.id) or {}).get("outils") or {}
+        c = counts.get(m.id) or {}
+        item.update(tools=sorted(k for k, v in tools.items() if v),
+                    limit=limit_for(m.id, overrides), running=c.get("running", 0),
+                    waiting=c.get("waiting", 0))
+        out["machines"].append(item)
+    return out
+
+
+def _toml_key(key):
+    return key if re.fullmatch(r"[A-Za-z0-9_-]+", key) else json.dumps(key, ensure_ascii=False)
+
+
+def _toml_value(v):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return repr(v)
+    if isinstance(v, (list, tuple)):
+        return "[" + ", ".join(_toml_value(x) for x in v) + "]"
+    if isinstance(v, dict):
+        return "{" + ", ".join(f"{_toml_key(k)} = {_toml_value(x)}" for k, x in v.items()) + "}"
+    return json.dumps(str(v), ensure_ascii=False)
+
+
+def toml_dump(data, prefix=()):
+    """TOML simple (valeurs, listes, tables imbriquées) : de quoi réécrire nos réglages."""
+    lines = [f"{_toml_key(k)} = {_toml_value(v)}" for k, v in data.items()
+             if not isinstance(v, dict)]
+    for k, v in data.items():
+        if isinstance(v, dict):
+            name = (*prefix, _toml_key(k))
+            body = toml_dump(v, name).splitlines()
+            if not v or any(not isinstance(x, dict) for x in v.values()):
+                if lines:
+                    lines.append("")
+                lines.append(f"[{'.'.join(name)}]")
+            elif lines and body:
+                lines.append("")
+            lines.extend(body)
+    return "\n".join(lines) + ("\n" if lines and not prefix else "")
+
+
+def _write_private(path, text):
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + f".{os.getpid()}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
         try:
-            code = _ssh(chosen, overrides, remote_command(root, rel, inv, command),
-                        run=attached).returncode
-        except KeyboardInterrupt:
-            say(f"interrompu : commande arrêtée sur {chosen.id}")
-            return 130
-        if code == 255:
-            say(f"connexion à {chosen.id} perdue (ou la commande a renvoyé 255)")
-        for path in fetch:
-            if code and code != 0:
-                say(f"commande en échec (code {code}) : {path} non rapatrié")
-                continue
-            r = run(fetch_argv(chosen, overrides, root, rel, path))
-            say(f"{path} rapatrié" if r.returncode == 0
-                else f"{path} : rien à rapatrier (rsync, code {r.returncode})")
-            if r.returncode and not code:
-                code = 1
-        return code
-    finally:
-        record.unlink(missing_ok=True)
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _read_toml(path):
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        raise DistantError(f"{path} illisible : {e}") from None
+
+
+def client_settings():
+    """Réglages du client Ricochet et places par machine ; le jeton n'est jamais renvoyé."""
+    try:
+        data = _read_toml(client_path())
+    except DistantError:
+        data = {}
+    try:
+        overrides = load_overrides()
+    except DistantError:
+        overrides = {}
+    limits = {}
+    for mid, conf in overrides.items():
+        value = conf.get("limite") if isinstance(conf, dict) else None
+        if isinstance(value, int) and not isinstance(value, bool) and \
+                LIMIT_RANGE[0] <= value <= LIMIT_RANGE[1]:
+            limits[mid] = value
+    return {"relais": str(data.get("relais", "")), "jeton_defini": bool(data.get("jeton")),
+            "chemin": str(client_path()), "limite_defaut": DEFAULT_LIMIT, "limites": limits}
+
+
+def save_client(relais=None, jeton=None):
+    """Écrit `~/.config/ricochet/client.toml` (droits 600) ; une valeur absente est gardée."""
+    path = client_path()
+    data = _read_toml(path)
+    if relais is not None:
+        relais = str(relais).strip().rstrip("/")
+        if not relais.startswith(("https://", "http://")):
+            raise DistantError("L'adresse du relais doit commencer par https:// (ou http://).")
+        data["relais"] = relais
+    if jeton is not None:
+        jeton = str(jeton).strip()
+        if not jeton:
+            raise DistantError("Le jeton est vide.")
+        data["jeton"] = jeton
+    _write_private(path, toml_dump(data))
+
+
+def set_limit(machine_id, limite):
+    """Écrit `limite` dans `[machines.<id>]` de `~/.config/ccs/distant.toml`."""
+    if not isinstance(machine_id, str) or not MACHINE_ID.match(machine_id):
+        raise DistantError("Machine invalide.")
+    if isinstance(limite, bool) or not isinstance(limite, int) or \
+            not LIMIT_RANGE[0] <= limite <= LIMIT_RANGE[1]:
+        raise DistantError(f"La limite doit être un nombre de {LIMIT_RANGE[0]} à {LIMIT_RANGE[1]}.")
+    path = overrides_path()
+    data = _read_toml(path)
+    machines = data.get("machines")
+    if not isinstance(machines, dict):
+        machines = data["machines"] = {}
+    conf = machines.get(machine_id)
+    if not isinstance(conf, dict):
+        conf = machines[machine_id] = {}
+    conf["limite"] = limite
+    _write_private(path, toml_dump(data))
 
 
 def describe(machines, overrides, probe=True, run=None):
