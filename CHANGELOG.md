@@ -3,6 +3,28 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.32.0] — 2026-11-19
+
+### Ajouté
+
+- **Plusieurs travaux à la fois** : places par machine (`limite` dans `distant.toml`, 2 par
+  défaut, réglable depuis la page), file d'attente quand toutes les machines sont pleines.
+- **Travaux en arrière-plan et de nuit** : `ccs distant lancer --detache`, `--quand nuit|HH:MM` ;
+  `ccs distant travaux`, `journal <id>`, `arreter <id>`. Claude est invité à envoyer les longues
+  suites de tests la nuit, pour garder le VPS léger.
+- Pont : `machines.jobs`, `machines.log`, `machines.start`, `machines.limit` ; `machines.list`
+  donne aussi outils, limite et places prises.
+
+### Modifié
+
+- **Page « Machines » refaite** (web : Réglages → « Gérer les machines », ou la feuille « Machine
+  pilotée » ; bureau : Réglages → Machines) : travaux en cours, en attente, programmés et finis
+  avec « Journal » et « Arrêter », formulaire « Lancer une commande » (dossier, machine,
+  maintenant / cette nuit / à une heure), places et limite par machine, réglages du relais.
+- Le registre des commandes passe de `~/.cache/ccs/distant-en-cours/` à
+  `~/.cache/ccs/distant/travaux/` (finis gardés 24 h, 30 au plus) ; `machines.running` et
+  `machines.tools` du pont sont remplacés par `machines.jobs` et l'inventaire de `machines.list`.
+
 ## [0.31.0] — 2026-11-19
 
 ### Ajouté

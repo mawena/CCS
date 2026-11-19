@@ -13,8 +13,9 @@ import asyncio
 import logging
 import re
 import shlex
+from pathlib import Path
 
-from .. import distant
+from .. import core, distant, distant_jobs
 from . import rpc
 
 log = logging.getLogger("ccs.bridge.machines")
@@ -74,9 +75,14 @@ def remote_command():
 
 
 def public(m):
-    return {"id": m.id, "name": m.name or m.id, "online": m.online, "local": m.local,
-            "cores": m.cores, "load": m.load, "mem_used": m.mem_used, "mem_total": m.mem_total,
-            "tunnel": bool(m.ports)}
+    return distant._public(m)
+
+
+def _job_id(params):
+    jid = params.get("id")
+    if not isinstance(jid, str) or not distant_jobs.ID_RE.match(jid):
+        raise rpc.RpcError("invalide", "Travail invalide.")
+    return jid
 
 
 class Link:
@@ -111,10 +117,11 @@ class MachinesApi:
         self.links = {}                       # connexion → Link
         bridge.close_hooks.append(self._forget)
         bridge.busy_checks.append(lambda: bool(self.links))
-        bridge.add_handlers({"machines.list": self.list, "machine.attach": self.attach,
-                             "machines.tools": self.tools, "machines.running": self.running,
-                             "machines.stop": self.stop, "machines.settings": self.settings,
-                             "machines.configure": self.configure})
+        bridge.add_handlers({
+            "machines.list": self.list, "machine.attach": self.attach,
+            "machines.jobs": self.jobs, "machines.stop": self.stop, "machines.log": self.log,
+            "machines.start": self.start, "machines.settings": self.settings,
+            "machines.configure": self.configure, "machines.limit": self.limit})
 
     async def _machines(self):
         if not distant.configured():
@@ -126,64 +133,81 @@ class MachinesApi:
             raise rpc.RpcError("introuvable", str(e)) from None
 
     async def list(self, _conn, _params):
-        try:
-            machines = await self._machines()
-        except rpc.RpcError as e:
-            return {"machines": [], "message": e.message}
-        known = await asyncio.to_thread(distant._load_inventory)
-        out = []
-        for m in machines:
-            item = public(m)
-            inv = known.get(m.id) or {}
-            item["tools"] = sorted(k for k, v in (inv.get("outils") or {}).items() if v)
-            item["tools_at"] = inv.get("quand") or 0
-            out.append(item)
-        return {"machines": out}
+        return await asyncio.to_thread(distant.machines_overview, self._fetch)
 
-    async def tools(self, _conn, params):
-        """Outils d'une machine, relus par SSH (une dizaine de secondes)."""
-        mid = params.get("machine")
-        if not isinstance(mid, str) or not MACHINE_ID.match(mid):
-            raise rpc.RpcError("invalide", "Machine invalide.")
-        machine = next((m for m in await self._machines() if m.id == mid), None)
-        if machine is None or not machine.online:
-            raise rpc.RpcError("introuvable", f"{mid} est hors ligne ou inconnue du relais.")
-
-        def probe():
-            overrides = distant.load_overrides()
-            return distant.inventory(machine, overrides, refresh=True)
-        try:
-            inv = await asyncio.to_thread(probe)
-        except distant.DistantError as e:
-            raise rpc.RpcError("introuvable", str(e)) from None
-        return {"tools": sorted(k for k, v in inv.get("outils", {}).items() if v),
-                "tools_at": inv.get("quand") or 0}
-
-    async def running(self, _conn, _params):
-        return {"running": await asyncio.to_thread(distant.running)}
+    async def jobs(self, _conn, _params):
+        return {"jobs": await asyncio.to_thread(distant_jobs.list_jobs)}
 
     async def stop(self, _conn, params):
-        pid = params.get("pid")
-        if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1:
-            raise rpc.RpcError("invalide", "Commande invalide.")
-        try:
-            await asyncio.to_thread(distant.stop, pid)
-        except distant.DistantError as e:
-            raise rpc.RpcError("introuvable", str(e)) from None
+        jid = _job_id(params)
+        if not await asyncio.to_thread(distant_jobs.stop, jid):
+            raise rpc.RpcError("introuvable", "Travail introuvable ou déjà fini.")
         return {"ok": True}
 
+    async def log(self, _conn, params):
+        jid = _job_id(params)
+        tail = params.get("tail", 20000)
+        if isinstance(tail, bool) or not isinstance(tail, int) or tail < 0:
+            raise rpc.RpcError("invalide", "Longueur de journal invalide.")
+        if await asyncio.to_thread(distant_jobs.get, jid) is None:
+            raise rpc.RpcError("introuvable", "Travail introuvable.")
+        return {"text": await asyncio.to_thread(distant_jobs.read_log, jid, min(tail, 1_000_000))}
+
+    async def start(self, _conn, params):
+        line = params.get("command")
+        if not isinstance(line, str) or not line.strip():
+            raise rpc.RpcError("invalide", "Commande vide.")
+        try:
+            shlex.split(line)  # vérification seulement : la ligne part entière au shell
+        except ValueError as e:
+            raise rpc.RpcError("invalide", f"Commande mal écrite : {e}.") from None
+        command = [line.strip()]
+        cwd = params.get("cwd")
+        if not isinstance(cwd, str) or not cwd:
+            raise rpc.RpcError("invalide", "Dossier manquant.")
+        home = core.paths().home.resolve()
+        folder = Path(cwd).expanduser().resolve()
+        if not folder.is_relative_to(home):
+            raise rpc.RpcError("refuse", "Le dossier doit être dans le dossier personnel.")
+        if not folder.is_dir():
+            raise rpc.RpcError("introuvable", f"Dossier introuvable : {cwd}")
+        machine = params.get("machine") or None
+        if machine is not None and (not isinstance(machine, str) or not MACHINE_ID.match(machine)):
+            raise rpc.RpcError("invalide", "Machine invalide.")
+        when = params.get("when") or ""
+        if not isinstance(when, str) or (when not in ("", "nuit") and not distant.WHEN_RE.match(when)):
+            raise rpc.RpcError("invalide", "Heure de départ invalide : « nuit » ou HH:MM.")
+        try:
+            jid = await asyncio.to_thread(distant_jobs.start, command, str(folder),
+                                          machine=machine, when=when)
+        except distant.DistantError as e:
+            raise rpc.RpcError("interne", str(e)) from None
+        return {"id": jid}
+
     async def settings(self, _conn, _params):
-        return {"settings": await asyncio.to_thread(distant.client_settings)}
+        return await asyncio.to_thread(distant.client_settings)
 
     async def configure(self, _conn, params):
         relais, jeton = params.get("relais"), params.get("jeton")
-        if not isinstance(relais, str) or (jeton is not None and not isinstance(jeton, str)):
-            raise rpc.RpcError("invalide", "Réglages invalides.")
+        for v in (relais, jeton):
+            if v is not None and not isinstance(v, str):
+                raise rpc.RpcError("invalide", "Réglage invalide.")
         try:
-            settings = await asyncio.to_thread(distant.save_client, relais, jeton)
+            await asyncio.to_thread(distant.save_client, relais=relais, jeton=jeton)
         except distant.DistantError as e:
             raise rpc.RpcError("invalide", str(e)) from None
-        return {"settings": settings}
+        except OSError as e:
+            raise rpc.RpcError("interne", f"Écriture impossible : {e.strerror or e}") from None
+        return {"ok": True}
+
+    async def limit(self, _conn, params):
+        try:
+            await asyncio.to_thread(distant.set_limit, params.get("machine"), params.get("limite"))
+        except distant.DistantError as e:
+            raise rpc.RpcError("invalide", str(e)) from None
+        except OSError as e:
+            raise rpc.RpcError("interne", f"Écriture impossible : {e.strerror or e}") from None
+        return {"ok": True}
 
     @staticmethod
     async def _ssh(machine):

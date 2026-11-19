@@ -6,6 +6,7 @@ import { clear, confirmSheet, contextMenu, el, emptyState, errorState, loading, 
 import { addProject, openTrash, removeProject, trashConversation } from "./sessions-manage.js";
 import { baseName as base, ProjectScreen } from "./project.js";
 import { convRow, copy, renameConversation } from "./sessions-conv.js";
+import { rememberProject } from "./pages-machines.js";
 import { newSession } from "./sessions-new.js";
 import { TerminalView } from "./terminal.js";
 
@@ -83,6 +84,7 @@ export function mountSessions(root, api, ctx = {}) {
     sessionStorage.removeItem("ccs-chat");
     const want = `#/sessions/${PROJECT_PREFIX}${encodeURIComponent(cwd)}`;
     if (location.hash !== want) history[push ? "pushState" : "replaceState"]({ fromList: push }, "", want);
+    rememberProject(api, cwd);          // dossier proposé par la page Machines
     if (!project || project.cwd !== cwd) {
       project?.screen.destroy();
       clear(projectHost);

@@ -88,54 +88,6 @@ class MachinesTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(ids["eteint"]["online"])
         self.assertEqual(ids["pc"]["name"], "PC")
 
-    async def test_list_adds_known_tools(self):
-        distant._save_inventory({"pc": {"path": "/usr/bin", "outils": {"flutter": "/f", "go": ""},
-                                        "quand": 123}})
-        c = await self.client()
-        ids = {m["id"]: m for m in (await c.call("machines.list"))["machines"]}
-        self.assertEqual(ids["pc"]["tools"], ["flutter"])
-        self.assertEqual(ids["pc"]["tools_at"], 123)
-        self.assertEqual(ids["eteint"]["tools"], [])
-
-    async def test_tools_probes_the_machine(self):
-        seen = []
-
-        def probe(m, overrides, refresh=False):
-            seen.append((m.id, refresh))
-            return {"path": "/usr/bin", "outils": {"cargo": "/c", "node": ""}, "quand": 9}
-        c = await self.client()
-        with mock.patch.object(distant, "inventory", probe):
-            r = await c.call("machines.tools", machine="pc")
-            self.assertEqual(r, {"tools": ["cargo"], "tools_at": 9})
-            self.assertEqual(seen, [("pc", True)])
-            for bad in ("eteint", "inconnue", "../x"):
-                with self.assertRaises(rpc.RpcError):
-                    await c.call("machines.tools", machine=bad)
-
-    async def test_running_and_stop(self):
-        records = [{"pid": 4242, "machine": "pc", "commande": "flutter build apk", "debut": 1}]
-        killed = []
-        c = await self.client()
-        with mock.patch.object(distant, "running", lambda alive=None: records), \
-                mock.patch.object(distant.os, "kill", lambda pid, sig: killed.append((pid, sig))):
-            self.assertEqual((await c.call("machines.running"))["running"], records)
-            self.assertEqual(await c.call("machines.stop", pid=4242), {"ok": True})
-            self.assertEqual(killed, [(4242, distant.signal.SIGTERM)])
-            for bad in (4243, "4242", True, 1):
-                with self.assertRaises(rpc.RpcError):
-                    await c.call("machines.stop", pid=bad)
-        self.assertEqual(len(killed), 1)
-
-    async def test_settings_never_return_the_token(self):
-        c = await self.client()
-        r = await c.call("machines.configure", relais="https://relais.test/", jeton="secret")
-        self.assertEqual(r["settings"]["relais"], "https://relais.test")
-        self.assertIs(r["settings"]["jeton"], True)
-        self.assertNotIn("secret", str(await c.call("machines.settings")))
-        for bad in ({"relais": "ftp://x"}, {"relais": 3}, {"relais": "https://x", "jeton": 5}):
-            with self.assertRaises(rpc.RpcError):
-                await c.call("machines.configure", **bad)
-
     async def test_list_without_ricochet_says_why(self):
         with mock.patch.object(distant, "configured", return_value=False):
             c = await self.client()
@@ -208,6 +160,79 @@ class MachinesTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(rpc.RpcError) as e:
             await c.call("machine.attach", machine="pc")
         self.assertEqual(e.exception.code, "refuse")
+
+    async def test_list_has_places_and_tools(self):
+        c = await self.client()
+        r = await c.call("machines.list")
+        self.assertEqual((r["configured"], r["message"]), (True, ""))
+        pc = next(m for m in r["machines"] if m["id"] == "pc")
+        self.assertEqual((pc["limit"], pc["running"], pc["waiting"], pc["tools"]), (2, 0, 0, []))
+
+    async def test_jobs_log_and_stop(self):
+        from ccs_app import distant_jobs
+        jid = distant_jobs.create(["flutter", "test"], self.tmp, pid=0, detached=True)
+        Path(distant_jobs.get(jid)["log"]).write_text("bonjour\n")
+        c = await self.client()
+        r = await c.call("machines.jobs")
+        self.assertEqual([j["id"] for j in r["jobs"]], [jid])
+        self.assertEqual(await c.call("machines.log", id=jid, tail=8), {"text": "bonjour\n"})
+        self.assertEqual(await c.call("machines.stop", id=jid), {"ok": True})
+        self.assertEqual(distant_jobs.get(jid)["state"], "arrêté")
+        for method, params, code in (("machines.stop", {"id": jid}, "introuvable"),
+                                     ("machines.stop", {"id": "../x"}, "invalide"),
+                                     ("machines.log", {"id": "abcdef"}, "introuvable")):
+            with self.assertRaises(rpc.RpcError) as e:
+                await c.call(method, **params)
+            self.assertEqual(e.exception.code, code)
+
+    async def test_start_checks_its_parameters(self):
+        from ccs_app import distant_jobs
+        home = Path(os.environ["HOME"])
+        (home / "Projet").mkdir()
+        c = await self.client()
+        with mock.patch.object(distant_jobs, "start", return_value="abc123") as start:
+            r = await c.call("machines.start", command="flutter build apk --dart-define='A=b c'",
+                             cwd=str(home / "Projet"), machine="pc", when="nuit")
+        self.assertEqual(r, {"id": "abc123"})
+        start.assert_called_once_with(["flutter build apk --dart-define='A=b c'"],
+                                      str((home / "Projet").resolve()), machine="pc", when="nuit")
+        for params, word in (({"command": "ls", "cwd": "/tmp"}, "dossier personnel"),
+                             ({"command": "ls", "cwd": str(home / "Projet/../..")}, "dossier personnel"),
+                             ({"command": "ls", "cwd": str(home / "absent")}, "introuvable"),
+                             ({"command": "", "cwd": str(home)}, "vide"),
+                             ({"command": "ls '", "cwd": str(home)}, "mal écrite"),
+                             ({"command": "ls", "cwd": str(home), "when": "midi"}, "heure"),
+                             ({"command": "ls", "cwd": str(home), "machine": "a b"}, "machine")):
+            with mock.patch.object(distant_jobs, "start") as start:
+                with self.assertRaises(rpc.RpcError) as e:
+                    await c.call("machines.start", **params)
+                start.assert_not_called()
+            self.assertIn(word, e.exception.message.lower())
+
+    async def test_settings_configure_and_limit(self):
+        c = await self.client()
+        r = await c.call("machines.configure", relais="https://r.example", jeton="tres-secret")
+        self.assertEqual(r, {"ok": True})
+        s = await c.call("machines.settings")
+        self.assertEqual((s["relais"], s["jeton_defini"], s["limite_defaut"]), ("https://r.example", True, 2))
+        self.assertNotIn("tres-secret", repr(s))
+        self.assertEqual(os.stat(distant.client_path()).st_mode & 0o777, 0o600)
+        await c.call("machines.configure", relais="https://autre.example")
+        self.assertEqual(distant.load_client()["jeton"], "tres-secret")
+        self.assertEqual(await c.call("machines.limit", machine="pc", limite=4), {"ok": True})
+        self.assertEqual((await c.call("machines.settings"))["limites"], {"pc": 4})
+        for method, params in (("machines.configure", {"relais": "ftp://x"}),
+                               ("machines.configure", {"jeton": 3}),
+                               ("machines.limit", {"machine": "pc", "limite": 9})):
+            with self.assertRaises(rpc.RpcError) as e:
+                await c.call(method, **params)
+            self.assertEqual(e.exception.code, "invalide")
+
+    async def test_job_methods_stay_local_when_attached(self):
+        c = await self.client()
+        await c.call("machine.attach", machine="pc")
+        r = await c.call("machines.jobs")
+        self.assertEqual(r, {"jobs": []})
 
     def test_remote_command_is_quoted_python(self):
         cmd = bridge_machines.remote_command()
