@@ -64,4 +64,5 @@ data class Cartes(
     val best: JsonElement? = null,
     @SerialName("auto_switch") val bascule: JsonElement? = null,
     @SerialName("updated_at") val misAJour: JsonElement? = null,
+    @SerialName("running_chats") val chatsEnCours: Int = 0,
 )

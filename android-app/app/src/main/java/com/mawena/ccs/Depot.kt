@@ -3,6 +3,7 @@ package com.mawena.ccs
 import android.content.Context
 import com.mawena.ccs.donnees.ChiffreurKeystore
 import com.mawena.ccs.donnees.Coffre
+import com.mawena.ccs.donnees.DossiersRecents
 import com.mawena.ccs.donnees.PreferencesAndroid
 import com.mawena.ccs.donnees.StockageAdresse
 import com.mawena.ccs.reseau.ApiHttp
@@ -24,6 +25,7 @@ class Depot(context: Context) {
     private val prefs = PreferencesAndroid(context.getSharedPreferences("ccs", Context.MODE_PRIVATE))
     val adresse = StockageAdresse(prefs)
     val coffre = Coffre(prefs, ChiffreurKeystore())
+    val recents = DossiersRecents(prefs)
     val api = ApiHttp(http)
     val client = CcsClient(http, portee)
 }

@@ -24,7 +24,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -56,8 +63,14 @@ fun Racine(modele: ModeleAppli) {
 fun EcranPrincipal(modele: ModeleAppli) {
     val nav = rememberNavController()
     val entree by nav.currentBackStackEntryAsState()
-    val route = entree?.destination?.route
+    val route = Routes.onglet(entree?.destination?.route)
+    val hote = remember { SnackbarHostState() }
+    val portee = rememberCoroutineScope()
+    val avis = remember(hote, portee) { Avis(hote, portee) }
+    val argument = { nom: String -> navArgument(nom) { type = NavType.StringType; defaultValue = "" } }
+    CompositionLocalProvider(LocalAvis provides avis) {
     Scaffold(
+        snackbarHost = { SnackbarHost(hote) },
         bottomBar = {
             NavigationBar {
                 Onglet.entries.forEach { o ->
@@ -80,13 +93,31 @@ fun EcranPrincipal(modele: ModeleAppli) {
         Column(Modifier.fillMaxSize().padding(marges)) {
             BandeauConnexion(modele)
             NavHost(nav, startDestination = Onglet.Accueil.route, modifier = Modifier.weight(1f)) {
-                composable(Onglet.Accueil.route) { EcranAccueil(modele) }
-                composable(Onglet.Sessions.route) { EcranProvisoire("Sessions", "Sessions et projets : phase 25, tâche 3.") }
+                composable(Onglet.Accueil.route) { EcranAccueil(modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) }) }
+                composable(Routes.ANALYSE) { EcranAnalyse(modele, retour = { nav.popBackStack() }) }
+                composable(Onglet.Sessions.route) {
+                    EcranSessions(
+                        modele,
+                        ouvrirProjet = { nav.navigate(Routes.projet(it)) },
+                        ouvrirChat = { nav.navigate(it.route()) },
+                    )
+                }
+                composable(Routes.PROJET, arguments = listOf(argument("cwd"))) { e ->
+                    EcranProjet(
+                        modele, e.arguments?.getString("cwd").orEmpty(),
+                        retour = { nav.popBackStack() },
+                        ouvrirChat = { nav.navigate(it.route()) },
+                    )
+                }
+                composable(Routes.CHAT, arguments = listOf("cwd", "sid", "chemin", "titre", "chat").map(argument)) { e ->
+                    EcranChat(modele, DestChat.de(e), retour = { nav.popBackStack() })
+                }
                 composable(Onglet.Fichiers.route) { EcranProvisoire("Fichiers", "Navigateur de fichiers : phase 25, tâche 5.") }
                 composable(Onglet.Git.route) { EcranProvisoire("Git", "État, diff et commits : phase 25, tâche 6.") }
-                composable(Onglet.Plus.route) { EcranPlus(modele) }
+                composable(Onglet.Plus.route) { EcranPlus(modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) }) }
             }
         }
+    }
     }
 }
 

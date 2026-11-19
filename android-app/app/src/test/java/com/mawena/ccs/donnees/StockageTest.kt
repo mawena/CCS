@@ -79,3 +79,17 @@ class StockageTest {
         assertNull(Coffre(prefs, ChiffreurXor()).lire())
     }
 }
+
+class RecentsTest {
+    @Test
+    fun huitDossiersAuPlusLePlusRecentDabord() {
+        val r = DossiersRecents(PrefsMemoire())
+        assertEquals(emptyList<String>(), r.lire())
+        (1..10).forEach { r.retenir("/d$it") }
+        r.retenir("/d5")
+        r.retenir("  ")
+        val l = r.lire()
+        assertEquals(8, l.size)
+        assertEquals(listOf("/d5", "/d10", "/d9"), l.take(3))
+    }
+}

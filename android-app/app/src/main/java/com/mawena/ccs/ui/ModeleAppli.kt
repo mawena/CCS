@@ -28,6 +28,10 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
 
     val etat: StateFlow<EtatConnexion> = depot.client.etat
 
+    /** Coûts des conversations déjà lus (clé : chemin + date), demandés un à la fois. */
+    val couts = java.util.concurrent.ConcurrentHashMap<String, com.mawena.ccs.reseau.Cout>()
+    val fileCouts = kotlinx.coroutines.sync.Mutex()
+
     init {
         val i = _identifiants.value
         if (i != null && depot.client.etat.value is EtatConnexion.Arrete) depot.client.demarrer(i)

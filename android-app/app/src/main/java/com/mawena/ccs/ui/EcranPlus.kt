@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
@@ -30,7 +31,7 @@ import com.mawena.ccs.BuildConfig
 
 /** Plus : serveur, compte, version, version web, déconnexion (les réglages viendront en tâche 7). */
 @Composable
-fun EcranPlus(modele: ModeleAppli) {
+fun EcranPlus(modele: ModeleAppli, ouvrirAnalyse: () -> Unit) {
     val identifiants by modele.identifiants.collectAsStateWithLifecycle()
     val contexte = LocalContext.current
     var confirmer by remember { mutableStateOf(false) }
@@ -46,6 +47,12 @@ fun EcranPlus(modele: ModeleAppli) {
                 Text(identifiants?.utilisateur.orEmpty() + if (identifiants?.portier == true) " · connexion Portier" else " · jeton d'appareil")
             },
             leadingContent = { Icon(Icons.Filled.Person, null) },
+        )
+        ListItem(
+            headlineContent = { Text("Analyse") },
+            supportingContent = { Text("Usage par projet, modèle, compte et heure") },
+            leadingContent = { Icon(Icons.Filled.BarChart, null) },
+            modifier = Modifier.clickable(onClick = ouvrirAnalyse),
         )
         ListItem(
             headlineContent = { Text("Version de l'appli") },

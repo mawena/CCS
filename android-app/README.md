@@ -5,9 +5,22 @@ Application Android native (Kotlin + Jetpack Compose, Material 3) de CCS. Elle p
 événements, routes HTTP pour la connexion. Elle remplace l'ancienne coquille Flutter (vue web),
 avec le même identifiant `com.mawena.ccs` : elle s'installe par-dessus.
 
-État : fondations (phase 25, tâche 1 de `ROADMAP.md`). Connexion, client WebSocket, navigation
-(Accueil, Sessions, Fichiers, Git, Plus) ; seul l'Accueil est rempli (version du serveur, cartes
-des comptes), les autres onglets arrivent avec les tâches suivantes.
+État : phase 25, tâches 1 à 3 de `ROADMAP.md`. Connexion, client WebSocket, navigation (Accueil,
+Sessions, Fichiers, Git, Plus).
+
+- **Accueil** : compte actif, meilleur compte et décision de la bascule automatique, cartes des
+  comptes (jauges, statut, détails repliables, « Basculer sur ce compte » avec confirmation),
+  Actualiser, pause de la bascule et de l'orchestrateur, bilan de santé (commande à copier),
+  accès à l'**Analyse** (24 h, 7, 30, 90 jours : par projet, modèle, compte, heure). Relu chaque
+  minute tant que l'écran est visible et à chaque reconnexion.
+- **Sessions** : « En cours » (chats ouverts dans le pont, état en direct par `chat.event`),
+  projets (ajouter, retirer de la liste, compte associé), conversations récentes avec coût,
+  recherche, menu (Reprendre, Aperçu, Renommer, Supprimer avec « Annuler »), corbeille et
+  restauration, **Nouvelle session** (dossier : récents, projets, dépôts git ; compte conseillé
+  pour le dossier ; modèle ; droits). Écran **Projet** : compte, « Nouveau chat », conversations.
+- **Chat** : provisoire, lecture simple de l'historique ; le vrai chat arrive avec la tâche 4.
+
+Fichiers et Git arrivent avec les tâches suivantes.
 
 ## Connexion
 
@@ -69,9 +82,16 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
     `/api/enroll`, `/api/portier`, `/api/session`) et modèles kotlinx.serialization.
   - `donnees/` : adresse du serveur, coffre chiffré des identifiants, enregistrement dans
     Téléchargements (MediaStore).
-  - `ui/` : thème CCS, navigation, écrans (connexion, Portier, accueil, plus, provisoires).
+  - `reseau/ModelesComptes.kt`, `reseau/ModelesSessions.kt` : réponses des RPC des comptes, du
+    bilan, de l'analyse, des projets, conversations, chats et corbeille.
+  - `logique/Format.kt` : textes et calculs sans Android (« il y a… », nombres courts, chemins,
+    états des chats, dossiers proposés par « Nouvelle session »).
+  - `donnees/Recents.kt` : derniers dossiers ouverts.
+  - `ui/` : thème CCS, navigation (`Destinations.kt`), composants communs (`Commun.kt`), écrans
+    (connexion, Portier, accueil, bilan, analyse, sessions, projet, chat provisoire, plus).
 - `app/src/main/res/` : icône adaptative (motif dans la zone sûre, fond uni, version monochrome).
-- `app/src/test/` : tests JVM (codec RPC, client contre un faux serveur, adresse, coffre).
+- `app/src/test/` : tests JVM (codec RPC, client contre un faux serveur, adresse, coffre, récents,
+  lecture des réponses du pont, textes et filtres).
 
 ## Licence
 
