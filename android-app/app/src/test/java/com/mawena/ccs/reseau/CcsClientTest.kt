@@ -1,6 +1,7 @@
 package com.mawena.ccs.reseau
 
 import com.mawena.ccs.donnees.Identifiants
+import com.mawena.ccs.donnees.Preferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -107,6 +108,84 @@ class CcsClientTest {
         val r = withTimeout(5_000) { client.appeler("sessions.list") }
         assertEquals("sessions.list", r.jsonObject["echo"]!!.jsonPrimitive.content)
         client.arreter()
+    }
+
+    private class PrefsMemoire : Preferences {
+        val valeurs = HashMap<String, String>()
+        override fun lire(cle: String) = valeurs[cle]
+        override fun ecrire(cle: String, valeur: String?) {
+            if (valeur == null) valeurs.remove(cle) else valeurs[cle] = valeur
+        }
+    }
+
+    @Test
+    fun machineGardeeDansLesPreferences() {
+        val prefs = PrefsMemoire()
+        val client = CcsClient(http, portee, prefs = prefs)
+        assertEquals("", client.machine.value)
+        assertEquals(CcsClient.CE_SERVEUR, client.nomMachine)
+        client.changerMachine("pc-bureau", "PC du bureau")
+        assertEquals("pc-bureau", CcsClient(http, portee, prefs = prefs).machine.value)
+        assertEquals("PC du bureau", CcsClient(http, portee, prefs = prefs).nomMachine)
+        client.changerMachine("", "")
+        assertEquals("", CcsClient(http, portee, prefs = prefs).machine.value)
+        assertTrue(prefs.valeurs.isEmpty())
+    }
+
+    @Test
+    fun changerDeMachineRejetteEtReconnecte() = runBlocking {
+        serveur.enqueue(MockResponse().withWebSocketUpgrade(Poli()))   // ne répond jamais
+        serveur.enqueue(MockResponse().withWebSocketUpgrade(faux))
+        val client = CcsClient(http, portee, prefs = PrefsMemoire())
+        client.demarrer(identifiants())
+        withTimeout(5_000) { client.etat.first { it is EtatConnexion.Connecte } }
+        assertEquals("/api/ws", serveur.takeRequest().path)
+        val enAttente = async { runCatching { client.appeler("lent") }.exceptionOrNull() }
+        kotlinx.coroutines.delay(300)     // l'appel est parti sur la première connexion
+        client.changerMachine("pc-bureau")
+        val e = withTimeout(5_000) { enAttente.await() } as RpcException
+        assertEquals("hors_ligne", e.code)
+        assertEquals("/api/ws?machine=pc-bureau", withTimeout(5_000) { serveur.takeRequest().path })
+        val r = withTimeout(5_000) { client.appeler("sessions.list") }
+        assertEquals("sessions.list", r.jsonObject["echo"]!!.jsonPrimitive.content)
+        client.arreter()
+    }
+
+    @Test
+    fun machineInjoignableRetentePlusTard() = runBlocking {
+        val ferme = object : Poli() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                webSocket.close(CcsClient.MACHINE_INJOIGNABLE, "pc-bureau est hors ligne.")
+            }
+        }
+        serveur.enqueue(MockResponse().withWebSocketUpgrade(ferme))
+        serveur.enqueue(MockResponse().withWebSocketUpgrade(faux))
+        val prefs = PrefsMemoire().apply { valeurs["machine"] = "pc-bureau" }
+        val client = CcsClient(http, portee, attenteMinMs = 300, attenteMaxMs = 600, prefs = prefs)
+        client.demarrer(identifiants())
+        val etat = withTimeout(5_000) { client.etat.first { it is EtatConnexion.HorsLigne } } as EtatConnexion.HorsLigne
+        assertTrue(etat.machineInjoignable)
+        assertEquals("pc-bureau est hors ligne.", etat.raison)
+        withTimeout(5_000) { client.etat.first { it is EtatConnexion.Connecte } }
+        assertEquals("/api/ws?machine=pc-bureau", serveur.takeRequest().path)
+        assertEquals("/api/ws?machine=pc-bureau", serveur.takeRequest().path)
+        client.arreter()
+    }
+
+    @Test
+    fun descriptionDesMachines() {
+        val l = CodecRpc.json.decodeFromString(
+            ListeMachines.serializer(),
+            """{"machines": [{"id": "vps", "name": "VPS", "online": true, "local": true},
+               {"id": "pc-bureau", "name": "PC", "online": true, "cores": 8, "load": 1.5, "tunnel": true, "mem_used": 1.5e9},
+               {"id": "portable", "online": false, "cores": null}]}""",
+        )
+        assertEquals(listOf("pc-bureau", "portable"), l.autres.map { it.id })
+        assertEquals("en ligne · charge 1.5 sur 8 cœurs", l.autres[0].description)
+        assertTrue(l.autres[0].choisissable)
+        assertEquals("hors ligne", l.autres[1].description)
+        assertEquals("portable", l.autres[1].nom)
+        assertTrue(!l.autres[1].choisissable)
     }
 
     @Test

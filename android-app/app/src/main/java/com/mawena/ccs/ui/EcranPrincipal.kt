@@ -30,6 +30,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavType
@@ -104,7 +107,22 @@ fun EcranPrincipal(modele: ModeleAppli) {
         }
     }
     val partage by modele.partage.collectAsStateWithLifecycle()
+    // Autre machine pilotée : les écrans ouverts (chat, projet…) étaient ceux de l'ancienne ; retour
+    // aux Sessions, onglets remis à zéro. Les données se rechargent à la connexion (état Connecte).
+    val machine by modele.machine.collectAsStateWithLifecycle()
+    var machineVue by rememberSaveable { mutableStateOf(machine) }
+    LaunchedEffect(machine) {
+        if (machine == machineVue) return@LaunchedEffect
+        machineVue = machine
+        Onglet.entries.forEach { runCatching { nav.clearBackStack(it.route) } }
+        nav.navigate(Onglet.Sessions.route) {
+            popUpTo(nav.graph.findStartDestination().id)
+            launchSingleTop = true
+        }
+    }
+    val choixMachine by modele.choixMachine.collectAsStateWithLifecycle()
     CompositionLocalProvider(LocalAvis provides avis) {
+    if (choixMachine) FeuilleMachines(modele, fermer = { modele.choixMachine.value = false })
     partage?.let { p ->
         FeuillePartage(modele, p, fermer = { modele.partage.value = null }) { dest ->
             modele.partage.value = null
@@ -135,6 +153,7 @@ fun EcranPrincipal(modele: ModeleAppli) {
         },
     ) { marges ->
         Column(Modifier.fillMaxSize().padding(marges).consumeWindowInsets(marges)) {
+            BandeauMachine(modele, changer = { modele.choixMachine.value = true })
             BandeauConnexion(modele)
             NavHost(nav, startDestination = Onglet.Accueil.route, modifier = Modifier.weight(1f)) {
                 composable(Onglet.Accueil.route) {
@@ -217,7 +236,8 @@ fun BandeauConnexion(modele: ModeleAppli) {
     val etat by modele.etat.collectAsStateWithLifecycle()
     val texte = when (val e = etat) {
         EtatConnexion.Connecte, EtatConnexion.Arrete, is EtatConnexion.Refuse -> return
-        is EtatConnexion.Connexion -> "Connexion au serveur…"
+        is EtatConnexion.Connexion ->
+            if (modele.depot.client.machine.value.isEmpty()) "Connexion au serveur…" else "Connexion à ${modele.depot.client.nomMachine}…"
         is EtatConnexion.HorsLigne -> "${e.raison} Nouvel essai dans ${(e.attenteMs / 1000).coerceAtLeast(1)} s."
     }
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {

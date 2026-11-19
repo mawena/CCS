@@ -1,3 +1,10 @@
+ccs (0.29.0) unstable; urgency=medium
+
+  * Piloter le PC depuis le web : choix de la machine, connexion relayée par
+    le tunnel Ricochet jusqu'au pont local du PC.
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 20:00:00 +0100
+
 ccs (0.28.0) unstable; urgency=medium
 
   * Application Android native (Kotlin + Jetpack Compose), APK joint à la

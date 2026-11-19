@@ -582,3 +582,15 @@ Charles (19/11/2026) : « je veux une application complète construite de bout e
 - [x] 9c. Web (0.27.0) : sous-agent fini retiré de la barre, historique « Terminés (n) »
 - [x] 10. Tests (122 tests JVM), documentation, release mineure 0.28.0 (APK joint)
 - [ ] 11. Essai complet sur le Pixel par Charles : connexion, chat, notifications, partage, terminal ; corrections
+
+## Phase 26 — Piloter les sessions du PC depuis le web (0.29.0)
+
+Charles (19/11/2026) : lancer et gérer depuis la version web une session sur le PC, comme le bureau gère celles du serveur. Choix : le pont du serveur relaie la connexion du web par `ssh` dans le tunnel Ricochet (déjà réglé pour le calcul réparti) jusqu'au pont local du PC, celui de l'application de bureau ; tout le web suit la machine choisie.
+
+- [x] 1. Pont : `machines.list` (relais Ricochet) et `machine.attach` (ssh + petit programme python3 de l'autre côté, pont local lancé s'il manque) ; connexion relayée sauf `hello`, `machine.attach`, `machines.*`
+- [x] 2. `ccs-web` : `/api/ws?machine=<id>`, code 4010 et raison si la machine est injoignable
+- [x] 3. Web : bouton « Machine pilotée » dans la barre du haut, fenêtre de choix, bandeau d'erreur, choix gardé
+- [x] 4. Tests (relais réel en local, ws, node) et essai réel vers `pc-bureau` par le tunnel
+- [x] 5. Appli Android : même choix de machine (puce dans Sessions, entrée dans Plus, bandeau sur tous les écrans, notifications qui suivent la machine ; 127 tests JVM)
+- [ ] 6. Documentation, release mineure 0.29.0
+- [ ] 7. Essai par Charles depuis son téléphone (PC allumé, CCS à jour sur le PC)
