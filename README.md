@@ -260,7 +260,8 @@ lu ou modifié avec son `+12 −3`, commande lancée, recherche, sous-agent) est
 **carte repliable** ; sa liste de tâches reste épinglée au-dessus de la saisie, comme
 dans l'extension VS Code. Quand Claude lance des **sous-agents**, chacun a sa pastille
 au-dessus du fil et sa propre vue (ce qu'il lit, lance et répond), sur le bureau comme
-sur le web ; sa carte dans le fil garde un bouton « Voir » une fois qu'il a fini.
+sur le web ; la pastille reste avec ✓ quand il a fini, et sa carte dans le fil garde un
+bouton « Voir ».
 
 - **Barre cliquable** sous la zone de saisie : **modèle**, **effort** (faible à
   max ; les niveaux que le modèle n'accepte pas sont grisés), **ultracode**
@@ -291,6 +292,8 @@ sur le web ; sa carte dans le fil garde un bouton « Voir » une fois qu'il a fi
 - **Compacter** : l'alerte de contexte lourd du chat a un bouton « Compacter » qui envoie
   `/compact`. Avec le réglage **Compacter automatiquement** (désactivé par défaut), CCS
   l'envoie tout seul au-delà du seuil, entre deux tours, et le dit dans le fil.
+- **`/clear`** : une ligne « Nouvelle conversation » sépare les anciens messages, gardés
+  lisibles mais grisés (Claude ne les voit plus).
 - **Commande `!`** : un message qui commence par `!` lance la commande dans le dossier du
   projet (elle ne part pas chez Claude). Sa sortie s'affiche dans une carte et s'ajoute en
   tête du prochain message envoyé à Claude.

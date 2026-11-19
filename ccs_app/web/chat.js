@@ -802,6 +802,14 @@ export class ChatView {
     return this.append(this.paintTags(userNode(text, nImages, this.msgActions, this.renderQuote, msgId)));
   }
 
+  // Après `/clear` : les messages d'avant restent lisibles (et citables) mais grisés, sous un
+  // séparateur ; Claude ne les voit plus.
+  newConversation() {
+    for (const node of this.thread.children) node.classList.add("before-reset");
+    this.append(el("div", { class: "reset-sep", role: "separator" },
+      el("span", {}, "Nouvelle conversation — Claude ne voit plus les messages au-dessus")));
+  }
+
   // `action` : { label, run } ajoute un bouton à la note (« Compacter »…).
   notice(text, kind = "info", action = null) {
     return this.append(el("div", { class: `notice ${kind}` }, el("span", {}, text),
@@ -920,16 +928,11 @@ export class ChatView {
     this.tidyPills();
   }
 
-  // Un sous-agent fini quitte la barre (sa carte garde « Voir ») ; la barre disparaît quand il
-  // ne reste que la conversation.
+  // Comme sur le bureau : chaque sous-agent garde sa pastille (✓ quand il a fini) ; la barre
+  // s'affiche dès le premier sous-agent.
   tidyPills() {
-    let left = false;
-    for (const [tid, a] of this.agents) {
-      const keep = !a.done || tid === this.shownAgent;
-      a.pill.hidden = !keep;
-      left = left || keep;
-    }
-    this.agentBar.hidden = !left;
+    for (const a of this.agents.values()) a.pill.hidden = false;
+    this.agentBar.hidden = this.agents.size === 0;
   }
 
   // Événement émis par un sous-agent : dans sa vue, pas dans le fil.
@@ -1087,6 +1090,7 @@ export class ChatView {
         this.requestContext();
         break;
       case "Compacted": this.notice("Conversation compactée."); break;
+      case "ConversationReset": this.newConversation(); break;
       case "Compacting": break;      // lu par le moteur (état du compactage), jamais envoyé
       case "Notice": this.notice(ev.text, ["warning", "error"].includes(ev.kind) ? ev.kind : "info"); break;
       case "Retrying": this.notice(`Nouvel essai (${ev.attempt}) dans ${Math.round(ev.delay_s)} s…`, "warning"); break;

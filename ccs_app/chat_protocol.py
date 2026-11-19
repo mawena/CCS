@@ -158,6 +158,14 @@ class Compacted:
 
 
 @dataclass(frozen=True)
+class ConversationReset:
+    """`/clear` : Claude Code repart d'une conversation vide (`conversation_id` : la nouvelle ;
+    un `Init` suit avec le nouvel identifiant de session)."""
+    conversation_id: str
+    trigger: str
+
+
+@dataclass(frozen=True)
 class Retrying:
     attempt: int
     delay_s: float
@@ -439,6 +447,8 @@ _HANDLERS = {
     "control_request": _control_request,
     "control_response": _control_response,
     "rate_limit_event": _rate_limit,
+    "conversation_reset": lambda ev: [ConversationReset(_str(ev.get("new_conversation_id")),
+                                                        _str(ev.get("trigger")))],
 }
 
 

@@ -490,7 +490,7 @@ Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ou
 - [x] 4. Envois suivants rapides : `rsync` ne renvoie que les fichiers changés ; les dossiers de build restent sur la machine (builds incrémentaux)
 - [x] 5. Claude prévenu dans les chats de CCS (`--append-system-prompt` quand le calcul réparti est réglé)
 - [x] 6. Tests, essai réel (relais et agent locaux, vrai `ssh` et `rsync`), documentation, release mineure 0.21.0
-- [ ] 7. Par Charles : mise en place (jeton des tunnels, `client.toml`, `[tunnel]` et SSH sur `pc-bureau`), puis essai réel : build Flutter d'un projet du VPS sur `pc-bureau`
+- [x] 7. Mise en place faite (jeton des tunnels, `client.toml`, `[tunnel]` et SSH sur `pc-bureau`) ; essai réel réussi le 18/11 : APK de Portail construit sur `pc-bureau` (Gradle 3 min 35) et rapatrié sur le VPS
 
 Étape B — répartir et voir (prochaine version mineure)
 - [ ] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton)
@@ -541,11 +541,11 @@ Connexion unique par Portier (https://portier.mawena.cloud) pour la version web,
 - [x] 2. Moteur : les événements inconnus ne comptent plus comme activité ; avis de fin lu dans le flux, transmis une seule fois
 - [x] 3. Tests (moteur, décodage), release 0.23.2
 
-## À venir — Séparateur après `/clear`
+## Séparateur après `/clear` (0.25.0)
 
 Après `/clear`, Claude Code repart d'une conversation vide, mais l'écran garde les anciens messages sans aucun signe : on croit que rien ne s'est passé.
 
-- [ ] 1. Détecter le changement de conversation (nouvel identifiant de session après `/clear`)
-- [ ] 2. Web et bureau : séparateur visible « Nouvelle conversation » dans le fil, les anciens messages restant lisibles (et citables) au-dessus, grisés
-- [ ] 3. Même séparateur à la relecture du journal
-- [ ] 4. Tests des modules touchés, documentation, release
+- [x] 1. Détecter le changement de conversation : événement `conversation_reset` de Claude Code (relevé sur la vraie CLI), suivi d'un `Init` avec le nouvel identifiant
+- [x] 2. Web et bureau : séparateur visible « Nouvelle conversation » dans le fil, les anciens messages restant lisibles (et citables) au-dessus, grisés
+- [x] 3. Relecture : le web le retrouve dans les événements gardés par le pont ; le journal de la nouvelle conversation, lui, commence après `/clear` (rien à séparer)
+- [x] 4. Tests des modules touchés, documentation, release 0.25.0 (avec les pastilles des sous-agents gardées sur le web)

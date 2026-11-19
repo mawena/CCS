@@ -1593,6 +1593,24 @@ class MessageList(Gtk.ScrolledWindow):
         self._todos.update(ev.items)
         self.scroll_end_if_stuck()
 
+    def add_reset_separator(self):
+        """Après `/clear` : les messages d'avant restent lisibles (et sélectionnables) mais
+        grisés, sous un séparateur « Nouvelle conversation »."""
+        child = self.box.get_first_child()
+        while child is not None:
+            if child not in (self.busy_row, self.older_row):
+                child.set_opacity(0.55)
+                child.add_css_class("ccs-before-reset")
+            child = child.get_next_sibling()
+        row = Gtk.Box(spacing=10, margin_top=6, margin_bottom=6, css_classes=["ccs-reset-separator"])
+        row.append(Gtk.Separator(hexpand=True, valign=Gtk.Align.CENTER))
+        row.append(Gtk.Label(label="Nouvelle conversation — Claude ne voit plus les messages au-dessus",
+                             wrap=True, justify=Gtk.Justification.CENTER, css_classes=["caption", "dim-label"]))
+        row.append(Gtk.Separator(hexpand=True, valign=Gtk.Align.CENTER))
+        self._append(row)
+        self.scroll_end_if_stuck()
+        return row
+
     def add_notice(self, text, kind="info", action=None):
         widget = self._notice_widget(text, kind, action)
         self._append(widget)

@@ -886,6 +886,7 @@ class ChatTab(Gtk.Box):
             proto.TurnResult: self._on_result,
             proto.LocalCommand: self._on_local,
             proto.Compacted: self._on_compacted,
+            proto.ConversationReset: lambda e: self.messages.add_reset_separator(),
             bridge_events.Notice: lambda e: self.messages.add_notice(   # note du serveur du chat
                 e.text, e.kind if e.kind in ("warning", "error") else "info"),
             proto.Retrying: lambda e: self.messages.set_busy(
