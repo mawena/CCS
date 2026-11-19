@@ -29,10 +29,10 @@ extension Conversation {
 @MainActor
 @Observable
 final class EtatActions {
-    var apercu: Conversation?
-    var renommer: Conversation?
+    var apercu: Conversation? = nil
+    var renommer: Conversation? = nil
     var nouveauTitre = ""
-    var supprimer: Conversation?
+    var supprimer: Conversation? = nil
 
     func demanderRenommage(_ c: Conversation) {
         nouveauTitre = c.titre

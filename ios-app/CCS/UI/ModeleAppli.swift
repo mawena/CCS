@@ -10,14 +10,14 @@ final class ModeleAppli {
     let avis = Avis()
 
     private(set) var adresse: String
-    private(set) var identifiants: Identifiants?
+    private(set) var identifiants: Identifiants? = nil
     /// Pourquoi on est revenu à l'écran de connexion (jeton révoqué…), affiché une fois.
-    var avisConnexion: String?
+    var avisConnexion: String? = nil
     private(set) var theme: Theme
 
     /// Coûts des conversations déjà lus (clé : chemin + date), demandés un à la fois.
     @ObservationIgnored var couts: [String: String] = [:]
-    @ObservationIgnored private var fileCouts: Task<Void, Never>?
+    @ObservationIgnored private var fileCouts: Task<Void, Never>? = nil
 
     init() {
         let a = Prefs.adresse

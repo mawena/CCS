@@ -53,8 +53,8 @@ final class Avis {
         let faire: (() -> Void)?
     }
 
-    private(set) var courant: Message?
-    @ObservationIgnored private var minuteur: Task<Void, Never>?
+    private(set) var courant: Message? = nil
+    @ObservationIgnored private var minuteur: Task<Void, Never>? = nil
 
     func dire(_ texte: String, action: String? = nil, long: Bool = false, faire: (() -> Void)? = nil) {
         let m = Message(texte: texte, action: action, faire: faire)

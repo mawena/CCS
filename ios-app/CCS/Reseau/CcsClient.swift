@@ -36,7 +36,7 @@ final class CcsClient {
     private(set) var etat: EtatConnexion = .arrete
 
     /// Appelé quand le serveur refuse les identifiants (l'appli revient à l'écran de connexion).
-    @ObservationIgnored var surRefus: ((String) -> Void)?
+    @ObservationIgnored var surRefus: ((String) -> Void)? = nil
 
     private let delaiAppel: Double
     private let attenteMin: Double
@@ -51,6 +51,9 @@ final class CcsClient {
     private struct Abonne {
         let nom: String
         let rappel: (JSON) -> Void
+        /// Abonné rattaché à un objet : oublié tout seul quand l'objet disparaît.
+        weak var proprietaire: AnyObject?
+        let lie: Bool
     }
 
     @ObservationIgnored private var attentes: [Int: Attente] = [:]
@@ -58,14 +61,14 @@ final class CcsClient {
     @ObservationIgnored private var abonnes: [UUID: Abonne] = [:]
     @ObservationIgnored private var abonnesReconnexion: [UUID: () -> Void] = [:]
 
-    @ObservationIgnored private var identifiants: Identifiants?
-    @ObservationIgnored private var tache: URLSessionWebSocketTask?
+    @ObservationIgnored private var identifiants: Identifiants? = nil
+    @ObservationIgnored private var tache: URLSessionWebSocketTask? = nil
     @ObservationIgnored private var ouverte = false          // la tâche courante a dit « ouvert »
     @ObservationIgnored private var dejaOuvert = false
     @ObservationIgnored private var tentative = 0
     @ObservationIgnored private var attente: Double
-    @ObservationIgnored private var attenteTache: Task<Void, Never>?
-    @ObservationIgnored private var pingTache: Task<Void, Never>?
+    @ObservationIgnored private var attenteTache: Task<Void, Never>? = nil
+    @ObservationIgnored private var pingTache: Task<Void, Never>? = nil
     @ObservationIgnored private var pingNumero = 0
     @ObservationIgnored private var pingsEnAttente: Set<Int> = []
     private let delegue: DelegueWebSocket
@@ -198,7 +201,15 @@ final class CcsClient {
     @discardableResult
     func ecouter(_ nom: String, _ rappel: @escaping (JSON) -> Void) -> UUID {
         let id = UUID()
-        abonnes[id] = Abonne(nom: nom, rappel: rappel)
+        abonnes[id] = Abonne(nom: nom, rappel: rappel, proprietaire: nil, lie: false)
+        return id
+    }
+
+    /// Abonnement qui vit tant que `proprietaire` (un modèle d'écran) existe.
+    @discardableResult
+    func ecouter(_ nom: String, pour proprietaire: AnyObject, _ rappel: @escaping (JSON) -> Void) -> UUID {
+        let id = UUID()
+        abonnes[id] = Abonne(nom: nom, rappel: rappel, proprietaire: proprietaire, lie: true)
         return id
     }
 
@@ -308,8 +319,26 @@ final class CcsClient {
         case .echec(let id, let code, let message):
             if let i = id { terminer(i, .failure(RpcErreur(code, message))) }
         case .evenement(let nom, let donnees):
-            for a in Array(abonnes.values) where a.nom == nom { a.rappel(donnees) }
+            diffuser(nom, donnees)
         }
+    }
+
+    private static let reconnexion = "__reconnexion"
+
+    private func diffuser(_ nom: String, _ donnees: JSON) {
+        for (id, a) in abonnes where a.nom == nom {
+            if a.lie && a.proprietaire == nil {
+                abonnes.removeValue(forKey: id)
+            } else {
+                a.rappel(donnees)
+            }
+        }
+    }
+
+    /// Reconnexions pour un modèle d'écran (oublié tout seul quand il disparaît).
+    @discardableResult
+    func ecouterReconnexions(pour proprietaire: AnyObject, _ rappel: @escaping () -> Void) -> UUID {
+        return ecouter(CcsClient.reconnexion, pour: proprietaire) { _ in rappel() }
     }
 
     fileprivate func ouvert(_ t: URLSessionWebSocketTask) {
@@ -321,6 +350,7 @@ final class CcsClient {
         etat = .connecte
         if dejaOuvert {
             for r in Array(abonnesReconnexion.values) { r() }
+            diffuser(CcsClient.reconnexion, .vide)
         }
         dejaOuvert = true
         pingTache?.cancel()
