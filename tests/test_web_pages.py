@@ -12,7 +12,7 @@ from ccs_app.server import web
 
 WEB = Path(web.WEB_DIR)
 MINE = ["home.js", "settings.js", "analysis.js", "git.js", "pages-util.js", "pages-health.js",
-        "pages-tasks.js", "pages-phone.js"]
+        "pages-tasks.js", "pages-phone.js", "machines-page.js", "views.js"]
 
 
 def text(name):
@@ -80,6 +80,20 @@ class PagesTest(unittest.TestCase):
         for needle in ("tasks.list", "tasks.log", "tasks.add", "tasks.cancel", "tasks.remove",
                        "chat.open", "session_id", "#/sessions/", "confirmSheet("):
             self.assertIn(needle, src)
+
+    def test_machines_page_contract(self):
+        """Page Machines : vue de la navigation, en cache hors ligne, appels du pont existants,
+        jeton jamais réaffiché, arrêt confirmé, rafraîchissement arrêté en quittant la page."""
+        self.assertIn('machines: { title: "Machines"', text("views.js"))
+        self.assertIn('"/machines-page.js"', text("sw.js"))
+        src = text("machines-page.js")
+        api = (Path(web.__file__).parent / "bridge_machines.py").read_text(encoding="utf-8")
+        for method in re.findall(r'api\.call\("([^"]+)"', src):
+            self.assertIn(f'"{method}": self.', api, method)
+        self.assertIn('type: "password", value: ""', src)
+        self.assertIn("confirmSheet", src)
+        self.assertIn("clearTimeout(timer)", src)
+        self.assertIn('role: "meter"', src)
 
     def test_every_setting_path_exists_in_defaults(self):
         for name in ("settings.js", "pages-phone.js"):

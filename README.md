@@ -795,6 +795,13 @@ tard. Le code de retour est alors 130.
 Les chats de CCS le savent : quand le calcul réparti est réglé, Claude reçoit la consigne de
 passer par `ccs distant lancer` si un outil manque ou pour un travail lourd.
 
+**Page « Machines »** (onglet Machines de la version web, Réglages → Machines sur le bureau) :
+les commandes `ccs distant lancer` en cours, avec leur machine, leur projet, leur durée et un
+bouton « Arrêter » (confirmé ; la commande distante s'arrête aussi) ; les machines du relais
+(en ligne ou non, charge, mémoire, outils relevés, « Relever les outils ») ; les réglages du
+client Ricochet (adresse du relais, jeton : écrit dans `client.toml` en droits 600, jamais
+réaffiché). La page web se relit toutes les 10 s.
+
 **Mise en place** (une fois) :
 
 - relais Ricochet : un jeton des tunnels (`ricochet-serveur jeton`, empreinte dans

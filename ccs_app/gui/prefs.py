@@ -75,7 +75,7 @@ def systemctl(*args):
 
 class PrefsPage(Adw.PreferencesPage):
     def __init__(self, window):
-        super().__init__()
+        super().__init__(title="Général", icon_name="preferences-system-symbolic")
         self.window = window
         self.s = load_settings()
         self.groups = []
