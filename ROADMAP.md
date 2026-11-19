@@ -456,7 +456,7 @@ Poser un ou plusieurs mots-clés sur un message (« important », « à revoir �
 - [x] 3. Tests (pont et web), documentation, release mineure 0.19.0, dépôt APT compris
 - [x] 3 bis. 0.19.1 : bouton « ⤓ » direct sur chaque fichier de l'arbre (le téléchargement n'était visible que dans le menu « ⋯ ») ; affichage vérifié dans Chromium sans tête
 - [x] 3 ter. 0.19.2 : seuil par défaut du contexte lourd et du compactage automatique doublé (300 000 tokens)
-- [ ] 4. Essai réel par Charles : envoyer, télécharger, renommer, supprimer depuis le téléphone
+- [x] 4. Essai réel : envoyer, télécharger, renommer, supprimer (19/11, Chromium en taille téléphone : envoi et téléchargement de 3 Mo identiques, renommer, copier, couper, coller, supprimer)
 - [ ] 5. Plus tard, si utile : télécharger un dossier entier (archive), même gestion sur le bureau
 
 ## Phase 20 — Gestionnaire de fichiers du web (0.20.0)
@@ -468,7 +468,7 @@ Un cinquième onglet « Fichiers » dans la navigation du web : parcourir les do
 - [x] 3. Web : Copier, Couper, Coller dans le menu « ⋯ » et la barre d'outils (aussi dans le volet Fichiers d'un projet)
 - [x] 4. Tests (pont et web), affichage vérifié dans Chromium sans tête en largeur téléphone
 - [x] 5. Documentation et release mineure 0.20.0, dépôt APT compris
-- [ ] 6. Essai réel par Charles depuis le téléphone
+- [x] 6. Essai réel (19/11, Chromium en taille téléphone : ouvrir un dossier, fil d'Ariane, ajouter aux projets)
 
 ## Phase 20 bis — Passage au dépôt APT unique (0.20.1)
 
@@ -521,7 +521,7 @@ Connexion unique par Portier (https://portier.mawena.cloud) pour la version web,
 - [x] 3. `ccs-auth` revérifie option, liste et groupe `ccs` avant de signer le ticket du pont
 - [x] 4. Déconnexion renvoyée vers Portier ; bouton « Se connecter via Portier » sur la page de connexion
 - [x] 5. Tests (en-tête accepté, nom absent, IP non locale, option désactivée), README, release mineure 0.23.0
-- [ ] 6. Par Charles : installer la 0.23.0, activer la clé `portier`, protéger le site par Portier dans nginx, ajouter CCS à `portier.toml`
+- [x] 6. Par Charles : installer la 0.23.0, activer la clé `portier`, protéger le site par Portier dans nginx, ajouter CCS à `portier.toml` (vérifié le 19/11 : mode facultatif actif, en-tête forgé refusé)
 
 ## Correctif 0.23.1 — Indicateur « Claude réfléchit… » bloqué
 
@@ -593,4 +593,4 @@ Charles (19/11/2026) : lancer et gérer depuis la version web une session sur le
 - [x] 4. Tests (relais réel en local, ws, node) et essai réel vers `pc-bureau` par le tunnel
 - [x] 5. Appli Android : même choix de machine (puce dans Sessions, entrée dans Plus, bandeau sur tous les écrans, notifications qui suivent la machine ; 127 tests JVM)
 - [x] 6. Documentation, release mineure 0.29.0
-- [ ] 7. Essai par Charles depuis son téléphone (PC allumé, CCS à jour sur le PC)
+- [x] 7. Essai par Charles depuis son téléphone (PC allumé, CCS à jour sur le PC) : OK
