@@ -70,7 +70,7 @@ final class Terminaux {
     }
 
     /// Nom affiché d'un terminal : le dernier dossier du chemin.
-    static func nomDossier(_ cwd: String) -> String {
+    nonisolated static func nomDossier(_ cwd: String) -> String {
         let n = cwd.split(separator: "/").last.map(String.init) ?? ""
         return n.isEmpty ? "Terminal" : n
     }
