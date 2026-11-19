@@ -1,3 +1,10 @@
+ccs (0.34.0) unstable; urgency=medium
+
+  * Version web : Ctrl+Page préc. / Ctrl+Page suiv. passent d'un onglet à
+    l'autre ; docs/interfaces.md, inventaire des interfaces avant la 1.0.0.
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 23:45:00 +0100
+
 ccs (0.33.0) unstable; urgency=medium
 
   * Application iPhone native (ios-app/, .ipa joint à la release, à installer
