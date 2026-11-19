@@ -16,7 +16,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   pendant une mise à jour.
 - **Application Android** (`android-app/`, Flutter, paquet `com.mawena.ccs`) : coquille plein
   écran de la version web (adresse du serveur modifiable, envoi et téléchargement de fichiers,
-  écran hors ligne). APK pas encore construit : la mémoire de `pc-bureau` a manqué.
+  écran hors ligne). APK `ccs-0.26.0.apk` joint à la release GitHub.
 
 ### Corrigé
 

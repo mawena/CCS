@@ -560,6 +560,7 @@ Charles (19/11/2026) : « pourquoi tu me proposes des /clear, alors que quand je
 - [x] 4. Séparateur « Sujet terminé : Claude a effacé la conversation » (web et bureau) ; réglage `chat.auto_clear` (activé par défaut) dans les réglages du web et du bureau
 - [x] 5. Tests des modules touchés, essai réel avec la vraie CLI (le mot à retenir est bien oublié)
 - [x] 6. Application Android (`android-app/`, Flutter) : coquille de la version web (`flutter analyze` propre)
-- [ ] 6b. Construire l'APK sur `pc-bureau` (deux échecs : Gagarine plafonne le démon Gradle, mémoire pleine) puis le joindre à la release v0.26.0 et l'essayer sur le téléphone
+- [x] 6b. APK construit sur `pc-bureau` (une fois la mémoire libérée) et joint à la release v0.26.0 (`ccs-0.26.0.apk`)
+- [ ] 6c. Essayer l'APK sur le téléphone : envoi et téléchargement de fichiers, changement de serveur
 - [x] 7. Documentation, release mineure 0.26.0
 
