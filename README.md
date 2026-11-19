@@ -260,8 +260,9 @@ lu ou modifié avec son `+12 −3`, commande lancée, recherche, sous-agent) est
 **carte repliable** ; sa liste de tâches reste épinglée au-dessus de la saisie, comme
 dans l'extension VS Code. Quand Claude lance des **sous-agents**, chacun a sa pastille
 au-dessus du fil et sa propre vue (ce qu'il lit, lance et répond), sur le bureau comme
-sur le web ; la pastille reste avec ✓ quand il a fini, et sa carte dans le fil garde un
-bouton « Voir ».
+sur le web. Au bureau, la pastille reste avec ✓ quand il a fini ; sur le web, elle quitte
+la barre et le bouton « Terminés (n) » garde l'historique des sous-agents finis. Sa carte
+dans le fil garde un bouton « Voir ».
 
 - **Barre cliquable** sous la zone de saisie : **modèle**, **effort** (faible à
   max ; les niveaux que le modèle n'accepte pas sont grisés), **ultracode**

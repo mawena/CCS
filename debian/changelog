@@ -1,3 +1,11 @@
+ccs (0.27.0) unstable; urgency=medium
+
+  * Web : un sous-agent fini quitte la barre, « Terminés (n) » garde leur
+    historique ; serveur : /api/app-token et jeton d'appareil accepté pour
+    la liste et la révocation des appareils.
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 16:00:00 +0100
+
 ccs (0.26.1) unstable; urgency=medium
 
   * Application Android : la connexion par Portier reste dans l'application.

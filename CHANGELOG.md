@@ -3,6 +3,18 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.27.0] — 2026-11-19
+
+### Ajouté
+
+- **Web : historique des sous-agents.** Un sous-agent fini quitte la barre au-dessus du fil ;
+  le bouton « Terminés (n) » liste ceux qui ont fini (le plus récent en tête) et rouvre leur vue.
+- **Serveur : `POST /api/app-token`**, jeton d'appareil durable pour l'application Android
+  connectée par Portier (la session de Portier finit par expirer). Un jeton d'appareil ne peut
+  pas en créer d'autre.
+- **Serveur : liste et révocation des appareils avec le jeton d'appareil** (`/api/tokens`,
+  `/api/revoke` acceptent `Authorization: Bearer`).
+
 ## [0.26.1] — 2026-11-19
 
 ### Corrigé
@@ -24,7 +36,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   pendant une mise à jour.
 - **Application Android** (`android-app/`, Flutter, paquet `com.mawena.ccs`) : coquille plein
   écran de la version web (adresse du serveur modifiable, envoi et téléchargement de fichiers,
-  écran hors ligne). APK pas encore construit : la mémoire de `pc-bureau` a manqué.
+  écran hors ligne). APK `ccs-0.26.0.apk` joint à la release GitHub.
 
 ### Corrigé
 

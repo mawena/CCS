@@ -112,6 +112,24 @@ class HeaderAcceptedTest(PortierWebTest):
         await self.client.get("/api/tokens", headers=HEADER)
         self.assertIn(("tokens", {"portier": "charles"}), self.auth.calls)
 
+    async def test_device_token_for_the_android_app(self):
+        r = await self.client.post("/api/app-token", json={"name": "Pixel 4 XL"}, headers=HEADER)
+        self.assertEqual(r.status, 200)
+        self.assertIn(("app_token", {"name": "Pixel 4 XL", "portier": "charles"}), self.auth.calls)
+
+    async def test_device_token_refused_from_another_site(self):
+        r = await self.client.post("/api/app-token", json={}, headers={**HEADER, "Origin": "https://evil.example"})
+        self.assertEqual(r.status, 403)
+
+    async def test_device_lists_and_revokes_with_its_token(self):
+        bearer = {"Authorization": "Bearer APP-1"}
+        await self.client.get("/api/tokens", headers=bearer)
+        await self.client.post("/api/revoke", json={"token_id": "abc"}, headers=bearer)
+        self.assertIn(("tokens", {"app": "APP-1"}), self.auth.calls)
+        self.assertIn(("revoke", {"token_id": "abc", "app": "APP-1"}), self.auth.calls)
+        r = await self.client.post("/api/app-token", json={}, headers={**HEADER, **bearer})
+        self.assertEqual(r.status, 403)
+
     async def test_app_token_wins_over_header(self):
         r = await self.client.get("/api/session", headers={**HEADER, "Authorization": "Bearer APP-1"})
         self.assertEqual(await r.json(), {"user": "alice"})
@@ -119,6 +137,10 @@ class HeaderAcceptedTest(PortierWebTest):
 
     async def test_without_header_usual_login(self):
         r = await self.client.get("/api/session")
+        self.assertEqual(r.status, 401)
+
+    async def test_device_token_needs_an_identity(self):
+        r = await self.client.post("/api/app-token", json={"name": "x"})
         self.assertEqual(r.status, 401)
 
 
@@ -183,6 +205,14 @@ class AuthPortierTest(unittest.IsolatedAsyncioTestCase):
         self.cfg = portier.DISABLED
         with self.assertRaises(rpc.RpcError):
             await self.svc.portier({"portier": "charles"})
+
+    async def test_device_token_lists_but_never_mints(self):
+        app = (await self.svc.app_token({"portier": "charles", "name": "Pixel"}))["token"]
+        self.assertTrue((await self.svc.tokens_list({"app": app}))["tokens"])
+        with self.assertRaises(rpc.RpcError):
+            await self.svc.app_token({"app": app, "name": "autre"})
+        with self.assertRaises(rpc.RpcError):
+            await self.svc.tokens_list({"app": "inconnu"})
 
     async def test_tokens_and_app_token_in_portier_mode(self):
         r = await self.svc.app_token({"portier": "charles", "name": "PC"})

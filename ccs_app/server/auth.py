@@ -255,6 +255,11 @@ class AuthService:
         return user
 
     def _session_user(self, params):
+        if self._str(params, "app"):
+            user = self.tokens.check_app(self._str(params, "app"))
+            if user is None:
+                raise rpc.RpcError("refuse", "Jeton inconnu ou révoqué.")
+            return user
         if self._str(params, "portier"):
             return self._portier_user(params)
         user = self.tokens.check_session(self._str(params, "session"))
@@ -285,6 +290,8 @@ class AuthService:
         return {}
 
     async def app_token(self, params):
+        if self._str(params, "app"):
+            raise rpc.RpcError("refuse", "Un jeton d'appareil ne crée pas d'autre jeton.")
         user = self._session_user(params)
         return {"token": self.tokens.new_app(user, self._str(params, "name")[:60] or "appareil")}
 
