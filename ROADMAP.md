@@ -564,3 +564,18 @@ Charles (19/11/2026) : « pourquoi tu me proposes des /clear, alors que quand je
 - [ ] 6c. Essayer l'APK sur le téléphone : envoi et téléchargement de fichiers, changement de serveur
 - [x] 7. Documentation, release mineure 0.26.0
 
+
+## Phase 25 — Application Android native (Kotlin + Jetpack Compose)
+
+Charles (19/11/2026) : « je veux une application complète construite de bout en bout avec le langage le plus adéquat ». L'appli 0.26 n'était que la page web en plein écran. Choix : Kotlin + Jetpack Compose (langage officiel d'Android, meilleure intégration : notifications, partage, fond). Tout le périmètre du web. Elle remplace la coquille Flutter dans `android-app/` ; construite sur `pc-bureau` (SDK `~/Android`, JDK 17/21), installée sur le Pixel 4 XL par adb sans fil.
+
+- [ ] 1. Fondations : projet Gradle (Kotlin, Compose, Material 3, thème CCS clair/sombre), connexion (mot de passe + TOTP, Portier, appairage → jeton gardé chiffré), client WebSocket `/api/ws` (RPC + événements, reconnexion), navigation, icône adaptative dans la zone sûre (logo coupé sur le Pixel)
+- [ ] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
+- [ ] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique des conversations, comptes par projet
+- [ ] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options (modèle, effort), `/clear` et séparateurs, étiquettes, recherche, coût
+- [ ] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
+- [ ] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
+- [ ] 7. Feuille de route, tâches de fond, travail (changements, retour arrière), réglages, page téléphone
+- [ ] 8. Terminal (term.*) avec clavier adapté
+- [ ] 9. Notifications de fin de tour et de questions (service de fond), partage Android vers un chat
+- [ ] 10. Tests (unitaires JVM), essai sur le Pixel, documentation, release mineure (APK joint)
