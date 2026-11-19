@@ -3,6 +3,19 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.31.0] — 2026-11-19
+
+### Ajouté
+
+- **Page « Machines » du calcul réparti.** Onglet Machines dans la version web, page Machines
+  dans les Réglages du bureau : commandes `ccs distant lancer` en cours (machine, projet,
+  durée) avec « Arrêter », confirmé, qui arrête aussi la commande distante ; machines du relais
+  Ricochet (en ligne ou non, charge, mémoire, outils relevés, « Relever les outils ») ;
+  réglages du client Ricochet (adresse du relais, jeton jamais réaffiché, `client.toml` en
+  droits 600).
+- `ccs distant lancer` note la commande en cours dans `~/.cache/ccs/distant-en-cours/` le temps
+  qu'elle tourne.
+
 ## [0.30.0] — 2026-11-19
 
 ### Ajouté
