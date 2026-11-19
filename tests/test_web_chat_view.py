@@ -552,7 +552,7 @@ out.asked = [view.thread.hidden, view.thread.querySelectorAll(".permission").len
         self.assertEqual(out["sent"], [False, True])
         self.assertEqual(out["asked"], [False, 1])
 
-    def test_finished_agent_leaves_the_bar_but_can_be_reopened(self):
+    def test_finished_agent_keeps_its_pill_with_a_check(self):
         out = run(AGENT + """
 await live(view, start("a1"), { type: "ToolResult", tool_id: "a1", text: "3 tests trouvés", is_error: false });
 const agent = view.agents.get("a1");
@@ -564,12 +564,12 @@ out.reopened = [view.agentBar.hidden, pills(), agent.view.hidden];
 view.mainPill.click();
 out.closed = view.agentBar.hidden;
 """)
-        self.assertTrue(out["bar"])
+        self.assertFalse(out["bar"])                 # la pastille reste, avec ✓
         self.assertEqual(out["status"], "✓ terminé")
         self.assertEqual(out["result"], "3 tests trouvés")
         self.assertTrue(out["done"])
         self.assertEqual(out["reopened"], [False, ["Conversation", "✓Chercher les tests*"], False])
-        self.assertTrue(out["closed"])
+        self.assertFalse(out["closed"])
 
     def test_background_agent_ends_with_its_notice(self):
         out = run(AGENT + """
@@ -579,7 +579,7 @@ await live(view, { type: "TaskNotice", tool_id: "a1", summary: "Sous-agent fini"
 out.late = [view.agents.get("a1").done, view.agentBar.hidden, view.thread.querySelector(".agent-status").textContent];
 """)
         self.assertEqual(out["early"], [False, ["Conversation*", "Chercher les tests"], "en arrière-plan…"])
-        self.assertEqual(out["late"], [True, True, "✓ terminé"])
+        self.assertEqual(out["late"], [True, False, "✓ terminé"])
 
     def test_interrupt_stops_agents_and_new_thread_forgets_them(self):
         out = run(AGENT + """
@@ -597,3 +597,25 @@ out.reset = [view.agents.size, view.agentBar.hidden, view.thread.hidden, view.ag
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(NODE, "node absent")
+class ClearTest(unittest.TestCase):
+    """`/clear` : séparateur « Nouvelle conversation », anciens messages grisés mais gardés."""
+
+    def test_reset_greys_old_messages_under_a_separator(self):
+        out = run("""
+const view = open();
+await settle();
+await live(view, { type: "UserSent", text: "Avant", images: 0, nonce: "x" },
+                 { type: "AssistantText", msg_id: "m1", text: "Réponse d'avant" },
+                 { type: "ConversationReset", conversation_id: "c2", trigger: "clear" },
+                 { type: "UserSent", text: "Après", images: 0, nonce: "y" });
+out = { kids: [...view.thread.children].map((n) => [n.className, n.textContent.slice(0, 22)]) };
+""")
+        k = out["kids"]
+        self.assertEqual(len(k), 4)
+        self.assertIn("before-reset", k[0][0])
+        self.assertIn("before-reset", k[1][0])
+        self.assertEqual(k[2], ["reset-sep", "Nouvelle conversation "])
+        self.assertNotIn("before-reset", k[3][0])

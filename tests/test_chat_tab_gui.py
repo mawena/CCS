@@ -862,6 +862,15 @@ class ChatTabTest(HomeTestCase):
         tab._on_context(chat_engine.ContextUsage(80, 160_000, 200_000))   # serveur sans compactage automatique
         self.assertEqual((sent, len(heavy())), ([], 1))                  # l'alerte et son bouton, comme avant
 
+    def test_clear_adds_a_separator_and_greys_old_messages(self):
+        tab, _owner = self.make(spawn=False)
+        tab.messages.add_notice("Message d'avant")
+        before = tab.messages._last
+        tab._dispatch(proto.ConversationReset("c2", "clear"))
+        self.assertIn("Nouvelle conversation — Claude ne voit plus les messages au-dessus", texts(tab))
+        self.assertLess(before.get_opacity(), 1)
+        self.assertEqual(tab.messages._last.get_opacity(), 1)
+
     def test_compacted_without_token_count(self):
         tab, _owner = self.make(spawn=False)
         tab._dispatch(proto.Compacted(None, "auto"))

@@ -155,6 +155,11 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(st(status=None), [cp.Compacting(False)])          # fin du compactage
         self.assertEqual(st(status=None, permissionMode="plan"), [cp.Compacting(False), cp.Status("plan")])
 
+    def test_conversation_reset(self):
+        self.assertEqual(cp.parse_line(j({"type": "conversation_reset", "new_conversation_id": "c2",
+                                          "uuid": "c2", "trigger": "clear"})),
+                         [cp.ConversationReset("c2", "clear")])
+
     def test_task_notification_in_the_stream(self):
         tn = lambda **d: cp.parse_line(j({"type": "system", "subtype": "task_notification", **d}))
         self.assertEqual(tn(task_id="b1", tool_use_id="toolu_1", status="completed", summary="Fini"),

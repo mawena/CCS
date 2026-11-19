@@ -189,3 +189,9 @@ dialog.saved { width: min(520px, calc(100vw - 24px)); }
 .agent-status { font-size: 0.85em; }
 .agent-detail summary { cursor: pointer; font-size: 0.85em; }
 .agent-detail pre { max-height: 40vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Après `/clear` : anciens messages grisés, séparateur « Nouvelle conversation ». */
+.before-reset { opacity: 0.55; }
+.before-reset:hover { opacity: 0.85; }
+.reset-sep { display: flex; align-items: center; gap: 10px; margin: 14px 0; color: var(--subtle); font-size: 0.85em; text-align: center; }
+.reset-sep::before, .reset-sep::after { content: ""; flex: 1; border-top: 1px solid var(--border, currentColor); opacity: 0.6; }

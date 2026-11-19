@@ -3,6 +3,21 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.25.0] — 2026-11-19
+
+### Ajouté
+
+- **Séparateur après `/clear`** (web et bureau) : une ligne « Nouvelle conversation — Claude ne
+  voit plus les messages au-dessus » ; les anciens messages restent lisibles et citables, mais
+  grisés. CCS lit l'événement `conversation_reset` de Claude Code ; le web le retrouve aussi
+  après un rechargement de la page.
+
+### Modifié
+
+- **Chat web : les pastilles des sous-agents restent affichées**, avec ✓ quand ils ont fini,
+  comme sur le bureau. Avant, la pastille disparaissait dès la fin du sous-agent, et la barre
+  avec elle.
+
 ## [0.24.0] — 2026-11-17
 
 ### Modifié
