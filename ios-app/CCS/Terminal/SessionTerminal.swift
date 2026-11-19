@@ -17,13 +17,13 @@ final class SessionTerminal: Identifiable {
     /// Titre donné par le programme (séquence OSC 0/2), sinon le nom.
     private(set) var titre: String
     /// Code de sortie quand le shell s'est arrêté (−1 : le pont ne connaît plus ce terminal).
-    private(set) var fin: Int?
+    private(set) var fin: Int? = nil
     private(set) var colonnes: Int
     private(set) var lignes: Int
 
-    @ObservationIgnored let vue: TerminalView
-    @ObservationIgnored private let relais: RelaisTerminal
-    @ObservationIgnored var surTaille: ((Int, Int) -> Void)?
+    let vue: TerminalView
+    private let relais: RelaisTerminal
+    @ObservationIgnored var surTaille: ((Int, Int) -> Void)? = nil
 
     init(id: String, nom: String, cwd: String, colonnes: Int = 80, lignes: Int = 24, envoyer: @escaping (String) -> Void) {
         self.id = id

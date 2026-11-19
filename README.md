@@ -823,6 +823,22 @@ L'APK est joint à chaque release GitHub (`ccs-<version>.apk`). Pour le construi
 sur `pc-bureau`) : voir [android-app/README.md](android-app/README.md). Il est signé avec la clé
 de débogage de `pc-bureau` : construire toujours là pour installer les mises à jour par-dessus.
 
+## Application iPhone
+
+`ios-app/` contient l'application **native** pour iPhone (Swift + SwiftUI, iOS 17, identifiant
+`com.mawena.ccs`) : le même périmètre que l'appli Android — accueil et comptes, sessions et
+projets, chat complet, fichiers, Git, feuille de route, tâches de nuit, réglages, terminal
+(émulateur SwiftTerm) — avec des notifications **locales** de fin de tour et d'attente
+(Autoriser / Refuser depuis la notification) et le partage vers un chat (« Ouvrir dans CCS »
+pour les fichiers, `ccs://partager?texte=…` pour le texte et les liens).
+
+Gratuite, sans compte développeur payant : l'`.ipa` non signé est construit sur Codemagic et
+installé avec **SideStore**, qui le signe avec ton identifiant Apple. Limites d'Apple : appli à
+rafraîchir dans SideStore tous les 7 jours, pas de notifications push (elles ne partent que
+tant que l'appli est ouverte ou vient de passer en arrière-plan). L'`.ipa` est joint à chaque
+release GitHub (`CCS-<version>.ipa`) ; installation et construction :
+[ios-app/README.md](ios-app/README.md).
+
 ## Installation
 
 Ubuntu 24.04 (ou Debian/Ubuntu récent avec GTK 4, libadwaita ≥ 1.5 et, pour le

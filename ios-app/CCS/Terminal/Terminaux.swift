@@ -9,8 +9,8 @@ import Foundation
 @MainActor
 @Observable
 final class Terminaux {
-    @ObservationIgnored private let client: CcsClient
-    @ObservationIgnored private let dire: (String) -> Void
+    private let client: CcsClient
+    private let dire: (String) -> Void
     @ObservationIgnored private var ecoute = false
     @ObservationIgnored private var dernierAvis = Date.distantPast
 

@@ -608,6 +608,6 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [x] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
 - [x] 6. Git : état, diff, indexation par morceau, commit, journal, pull/push
 - [x] 7. Feuille de route, tâches de fond, travail, réglages, page téléphone
-- [ ] 8. Terminal (term.*) avec barre de touches
-- [ ] 9. Notifications locales (appli ouverte ou juste en arrière-plan), feuille de partage iOS vers un chat
-- [ ] 10. Tests (XCTest), essai sur l'iPhone, documentation (installation SideStore), release mineure (`.ipa` joint, source SideStore pour les mises à jour)
+- [x] 8. Terminal (term.*) avec barre de touches
+- [x] 9. Notifications locales (appli ouverte ou juste en arrière-plan), feuille de partage iOS vers un chat
+- [ ] 10. Tests (XCTest), essai sur l'iPhone, documentation (installation SideStore), release mineure 0.31.0 (`.ipa` joint, source SideStore pour les mises à jour)
