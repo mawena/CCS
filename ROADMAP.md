@@ -496,7 +496,7 @@ Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ou
 - [ ] 8. Web et bureau : page « Machines » (en ligne ou non, outils, charge, commandes en cours avec arrêt) et réglages (adresse du relais, jeton)
 - [ ] 9. Plusieurs commandes à la fois sur plusieurs machines (tests d'un côté, build de l'autre), limite par machine, file d'attente
 - [ ] 10. Tâches de nuit et suites de tests longues envoyées à la machine la moins chargée ; le VPS garde ses services de production tranquilles
-- [ ] 11. Arrêt propre de la commande distante quand on interrompt `ccs distant lancer`
+- [x] 11. Arrêt propre de la commande distante quand on interrompt `ccs distant lancer` (0.25.1 : garde côté distant, essai réel sur `pc-bureau`)
 - [ ] 12. Tests, documentation, release mineure
 
 Étape C — à décider après essai

@@ -3,6 +3,16 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.25.1] — 2026-11-19
+
+### Corrigé
+
+- **`ccs distant lancer` : interrompre arrête aussi la commande distante.** Avant, Ctrl+C ou
+  l'arrêt de Claude coupait seulement `ssh`, et la commande continuait sur l'autre machine
+  (sans terminal, elle ne reçoit aucun signal). Un garde y surveille maintenant la connexion :
+  à sa fin, tout le groupe de processus reçoit TERM, puis KILL 5 s plus tard. Le lanceur
+  distant passe aussi par `bash` quel que soit le shell de connexion de la machine.
+
 ## [0.25.0] — 2026-11-19
 
 ### Ajouté

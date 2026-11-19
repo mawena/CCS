@@ -1,3 +1,10 @@
+ccs (0.25.1) unstable; urgency=medium
+
+  * ccs distant lancer : interrompre arrête aussi la commande sur l'autre
+    machine (garde distant, TERM puis KILL).
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 12:00:00 +0100
+
 ccs (0.25.0) unstable; urgency=medium
 
   * Chat : séparateur « Nouvelle conversation » après /clear (web et bureau),

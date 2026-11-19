@@ -759,6 +759,10 @@ ccs distant lancer --machine pc-bureau --rapatrier build/app/outputs -- flutter 
    la sortie s'affiche au fil de l'eau et le code de retour est celui de la commande ;
 4. rapporte ici chaque `--rapatrier <chemin>` si la commande a réussi.
 
+Interrompre `ccs distant lancer` (Ctrl+C, arrêt de Claude, connexion perdue) arrête aussi la
+commande sur l'autre machine, avec tout ce qu'elle a lancé : signal TERM, puis KILL 5 s plus
+tard. Le code de retour est alors 130.
+
 Les chats de CCS le savent : quand le calcul réparti est réglé, Claude reçoit la consigne de
 passer par `ccs distant lancer` si un outil manque ou pour un travail lourd.
 
