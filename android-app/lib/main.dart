@@ -97,13 +97,24 @@ class _EcranWebState extends State<EcranWeb> {
       ..showSnackBar(SnackBar(content: Text(texte)));
   }
 
-  /// Le serveur reste dans la vue ; tout le reste (autre domaine, mailto:, tel:…) part dehors.
+  /// Le serveur et les sites du même domaine (portier.mawena.cloud pour la connexion) restent
+  /// dans la vue, sinon la connexion finirait dans le navigateur ; tout le reste part dehors.
+  bool _memeSite(String hote) {
+    final serveur = _serveur?.host;
+    if (serveur == null || serveur.isEmpty) return false;
+    if (hote == serveur) return true;
+    final parties = serveur.split('.');
+    if (parties.length < 2 || RegExp(r'^[0-9.]+$').hasMatch(serveur)) return false;
+    final base = parties.sublist(parties.length - 2).join('.');
+    return hote == base || hote.endsWith('.$base');
+  }
+
   FutureOr<NavigationDecision> _navigation(NavigationRequest requete) async {
     final uri = Uri.tryParse(requete.url);
     if (uri == null) return NavigationDecision.prevent;
     if (const {'about', 'blob', 'data', 'javascript'}.contains(uri.scheme)) return NavigationDecision.navigate;
     final web = uri.scheme == 'http' || uri.scheme == 'https';
-    if (web && (!requete.isMainFrame || uri.host == _serveur?.host)) return NavigationDecision.navigate;
+    if (web && (!requete.isMainFrame || _memeSite(uri.host))) return NavigationDecision.navigate;
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       _annoncer('Aucune application pour ouvrir ce lien.');
     }
