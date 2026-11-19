@@ -20,10 +20,12 @@ workflows:
     scripts:
       - name: Projet Xcode (XcodeGen)
         script: |
+          set -o pipefail
           command -v xcodegen || brew install xcodegen
           cd ios-app && xcodegen generate
       - name: Tests unitaires (simulateur)
         script: |
+          set -o pipefail
           cd ios-app
           SIMU=$(xcrun simctl list devices available | grep -m1 -o 'iPhone [0-9]* (' | sed 's/ ($//')
           xcodebuild test -project CCS.xcodeproj -scheme CCS \
@@ -31,6 +33,7 @@ workflows:
             CODE_SIGNING_ALLOWED=NO | xcpretty || exit 1
       - name: .ipa non signé
         script: |
+          set -o pipefail
           cd ios-app
           xcodebuild archive -project CCS.xcodeproj -scheme CCS -configuration Release \
             -archivePath build/CCS.xcarchive -destination 'generic/platform=iOS' \
