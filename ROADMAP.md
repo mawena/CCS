@@ -625,3 +625,16 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [x] 9. Notifications locales (appli ouverte ou juste en arrière-plan), feuille de partage iOS vers un chat
 - [x] 10. Tests (XCTest), documentation (installation SideStore), release mineure 0.33.0 (`.ipa` joint, source SideStore pour les mises à jour)
 - [ ] 11. Essai par Charles sur l'iPhone 14 Pro (terminal, notifications, partage, fichiers, Git)
+
+## Phase 29 — Vers la 1.0.0
+
+Charles (19/11/2026) : passer en 1.0.0. En SemVer, la 1.0 engage à ne plus casser sans version
+majeure les interfaces publiques : commandes `ccs`, pont (`machines.*`, `chat.*`…), fichiers de
+configuration. Le reste des tâches ouvertes (dossier entier, sessions sur une autre machine,
+archive de l'ancien dépôt) vient après.
+
+- [ ] 1. Inventaire des interfaces publiques (commandes `ccs`, méthodes du pont, fichiers de config et leurs clés) dans `docs/`
+- [ ] 2. Relecture : noms incohérents, restes d'anciennes versions, options inutiles ; corrections avant le gel
+- [ ] 3. Essais réels encore ouverts : APK sur le Pixel (6c de la phase 24, 11 de la phase 25), iPhone (11 de la phase 28) ; corrections
+- [ ] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
+- [ ] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
