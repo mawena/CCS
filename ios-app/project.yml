@@ -1,0 +1,33 @@
+name: CCS
+options:
+  bundleIdPrefix: com.mawena
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+targets:
+  CCS:
+    type: application
+    platform: iOS
+    sources: [CCS]
+    info:
+      path: CCS/Info.plist
+      properties:
+        CFBundleDisplayName: CCS
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mawena.ccs
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+  CCSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [CCSTests]
+    dependencies:
+      - target: CCS

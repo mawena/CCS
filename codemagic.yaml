@@ -1,0 +1,42 @@
+# Construction de l'appli iPhone (ios-app/) sur Codemagic, sans signature :
+# l'.ipa produit est signé sur le téléphone par SideStore (identifiant Apple gratuit).
+workflows:
+  ios-natif:
+    name: CCS iPhone
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+    triggering:
+      events: [push, tag]
+      branch_patterns:
+        - pattern: 'feature/ios-*'
+        - pattern: 'develop'
+      tag_patterns:
+        - pattern: 'v*'
+    when:
+      changed:
+        includes: ['ios-app/', 'codemagic.yaml']
+    scripts:
+      - name: Projet Xcode (XcodeGen)
+        script: |
+          command -v xcodegen || brew install xcodegen
+          cd ios-app && xcodegen generate
+      - name: Tests unitaires (simulateur)
+        script: |
+          cd ios-app
+          SIMU=$(xcrun simctl list devices available | grep -m1 -o 'iPhone [0-9]* (' | sed 's/ ($//')
+          xcodebuild test -project CCS.xcodeproj -scheme CCS \
+            -destination "platform=iOS Simulator,name=$SIMU" \
+            CODE_SIGNING_ALLOWED=NO | xcpretty || exit 1
+      - name: .ipa non signé
+        script: |
+          cd ios-app
+          xcodebuild archive -project CCS.xcodeproj -scheme CCS -configuration Release \
+            -archivePath build/CCS.xcarchive -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | xcpretty
+          mkdir -p build/Payload
+          cp -R build/CCS.xcarchive/Products/Applications/CCS.app build/Payload/
+          (cd build && zip -qr CCS.ipa Payload)
+    artifacts:
+      - ios-app/build/CCS.ipa
