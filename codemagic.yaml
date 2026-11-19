@@ -15,7 +15,7 @@ workflows:
       tag_patterns:
         - pattern: 'v*'
     when:
-      changed:
+      changeset:
         includes: ['ios-app/', 'codemagic.yaml']
     scripts:
       - name: Projet Xcode (XcodeGen)
