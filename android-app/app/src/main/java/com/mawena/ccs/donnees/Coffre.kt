@@ -25,6 +25,9 @@ data class Identifiants(
     val cookies: String? = null,
 ) {
     val portier: Boolean get() = jeton == null && cookies != null
+
+    /** Connecté par Portier (avec ou sans jeton d'appareil obtenu ensuite). */
+    val viaPortier: Boolean get() = cookies != null
 }
 
 interface Chiffreur {

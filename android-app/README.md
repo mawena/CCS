@@ -5,7 +5,7 @@ Application Android native (Kotlin + Jetpack Compose, Material 3) de CCS. Elle p
 événements, routes HTTP pour la connexion. Elle remplace l'ancienne coquille Flutter (vue web),
 avec le même identifiant `com.mawena.ccs` : elle s'installe par-dessus.
 
-État : phase 25, tâches 1 à 6 de `ROADMAP.md`. Connexion, client WebSocket, navigation (Accueil,
+État : phase 25, tâches 1 à 8 de `ROADMAP.md`. Connexion, client WebSocket, navigation (Accueil,
 Sessions, Fichiers, Git, Plus).
 
 - **Accueil** : compte actif, meilleur compte et décision de la bascule automatique, cartes des
@@ -52,6 +52,40 @@ Sessions, Fichiers, Git, Plus).
   confirmé) ; historique par pages de 50 et détail d'un commit (message, diff de chaque fichier) ;
   branches locales, distantes et tags.
 
+- **Feuille de route** (comme `web/roadmap.js`) : onglet de l'écran Projet et volet du chat
+  (menu ⋮). Phases avec progression (repliables ; celles qui ont une case vide ouvertes, la phase
+  en cours à l'écran), cases à cocher (mises à jour sur place ; le pont refuse si la ligne a changé
+  ailleurs : « Recharger »), « Faire… » sur une tâche : dans ce chat, dans un nouveau chat (le
+  message part dès l'ouverture, une seule fois) ou cette nuit (tâche de fond).
+- **Tâches de nuit** (comme `web/pages-tasks.js`) sur l'Accueil : filtres À venir, Finies,
+  Échouées, Annulées ; journal d'une tâche relu toutes les 3 s tant qu'elle tourne ; Reprendre
+  (ouvre la session dans un chat), Annuler, Supprimer (confirmés) ; Nouvelle tâche (dossier,
+  message, quand : dès qu'il y a du quota, cette nuit ou à une heure ; droits ; modèle).
+- **Travail du chat** (menu ⋮ du chat) : volet **Changements de la session** (comme
+  `web/chat-changes.js`) : fichiers changés par Claude avec leur diff numéroté, « Ouvrir le
+  fichier », « Annuler ce fichier », « Revenir ici » avant un message (liste des fichiers remis,
+  confirmé ; empreintes envoyées pour que le pont refuse si un fichier a bougé). **Messages
+  enregistrés** (icône marque-page de la saisie, comme `web/chat-saved.js`) : insérer, enregistrer
+  le texte en cours (tous les projets ou ce projet), supprimer.
+- **Réglages** (Plus > Réglages, comme `web/settings.js`) : thème de l'appli (automatique, clair,
+  sombre ; propre au téléphone), serveur (changer d'adresse = se reconnecter), déconnexion ; tous
+  les réglages du serveur, mêmes groupes et bornes que le web (dont l'effacement automatique
+  `chat.auto_clear`), chacun enregistré seul (✓ ou Entrée pour les champs) ; **Téléphone (ntfy)**
+  (comme `web/pages-phone.js`) : réglages, nouveau canal (confirmé), lien d'abonnement à ouvrir
+  dans ntfy ou copier, essai ; **Appareils** (`/api/tokens`, révoquer par `/api/revoke`).
+- **Terminal** (Plus > Terminaux, menu ⋮ du chat, icône de l'écran Projet ; comme
+  `web/terminal.js`) : un shell du serveur (`term.*` de `bridge_term.py`) dans un émulateur
+  VT100/xterm complet (celui de Termux : couleurs 256 et 24 bits, curseur, effacements, régions de
+  défilement, écran alternatif, collage entre crochets, réponses au programme). Clavier du
+  téléphone sans suggestions, touches physiques ; barre de touches : Échap, Tab, Ctrl et Alt
+  collants, flèches (mode « application » respecté), `| ~ / - _ * & $`, Début, Fin, PgPréc,
+  PgSuiv ; Coller, Copier tout le texte, taille du texte (menu ou deux doigts, gardée) ; historique
+  au doigt (dans less, vim… le doigt envoie les flèches). Taille envoyée au pont (`term.resize`) à
+  chaque changement (clavier ouvert, rotation). Plusieurs terminaux à la fois ; ils restent ouverts
+  en changeant d'écran, se rattachent après une coupure (fin de la sortie réaffichée) et ceux
+  ouverts ailleurs (version web) se reprennent depuis la liste. Fond sombre dans les deux thèmes.
+  **Ajouter un compte** sur l'Accueil : `ccs add <nom>` dans un terminal, comme le web.
+
 ## Connexion
 
 - **Appairage (recommandé)** : identifiant et mot de passe Ubuntu, puis code TOTP, envoyés à
@@ -60,8 +94,11 @@ Sessions, Fichiers, Git, Plus).
   d'appareil**, envoyé ensuite en `Authorization: Bearer` ; il est gardé chiffré (AES-GCM, clé du
   Keystore d'Android, sauvegarde désactivée) et se révoque depuis la version web.
 - **Portier** (si `/api/portier` le dit actif) : la page de Portier s'ouvre dans une vue web ;
-  au retour sur le serveur, l'appli garde les cookies (chiffrés) et les envoie en `Cookie`. La
-  session dure ce que dure celle de Portier.
+  au retour sur le serveur, l'appli garde les cookies (chiffrés), puis demande un **jeton
+  d'appareil** durable (`POST /api/app-token`, nom : le modèle du téléphone, « Pixel 4 XL ») et
+  passe au Bearer ; les cookies restent envoyés à côté (ils servent à `/api/tokens` et
+  `/api/revoke`). Si le serveur ne connaît pas encore la route (404), l'appli garde les cookies
+  seuls ; une connexion Portier d'avant le jeton le demande une fois au démarrage.
 
 Jeton révoqué ou session finie (401, ou fermeture 4001) : retour à l'écran de connexion. Sinon le
 client se reconnecte seul (1 s, 2 s… 30 s ; tout de suite quand le réseau revient).
@@ -80,12 +117,13 @@ ccs distant lancer --machine pc-bureau --outil sh --rapatrier app/build/outputs/
   'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64; echo "sdk.dir=$HOME/Android" > local.properties; ./gradlew assembleRelease'
 ```
 
-L'APK arrive dans `app/build/outputs/apk/release/app-release.apk`. Gradle est bridé
+L'APK arrive dans `app/build/outputs/apk/release/app-release.apk`. L'émulateur de Termux vient de
+JitPack (`https://jitpack.io`, limité au groupe `com.github.termux.termux-app`). Gradle est bridé
 (`gradle.properties` : 2 Go, compilateur Kotlin dans le même processus) pour ne pas réveiller
 Gagarine sur pc-bureau.
 
 **Version** : `versionName` et `versionCode` dans `app/build.gradle.kts` ; le `versionCode` doit
-toujours augmenter (30 aujourd'hui pour 0.27.0 ; l'appli Flutter 0.26.1 avait 27).
+toujours augmenter (31 aujourd'hui pour 0.27.0 ; l'appli Flutter 0.26.1 avait 27).
 
 ## Signature
 
@@ -125,6 +163,18 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
     `EcransFichiers.kt` (onglet, projet), `Transferts.kt` (téléchargement, envoi, partage par
     FileProvider), `Commun.kt` (icônes, presse-papier des fichiers).
   - `ui/git/` : `PanneauGit.kt`, `EcransGit.kt` (onglet, projet, détail d'un commit).
+  - `reseau/ModelesTravail.kt` : réponses de `roadmap.*`, `tasks.*`, `work.changes`,
+    `work.rewind_*`, `work.saved.*`, `settings.*`, `phone.*`, `term.*` et de `/api/tokens`.
+  - `logique/Travail.kt` (feuille de route, tâches de fond, diff unifié, retour arrière),
+    `DefReglages.kt` (groupes, bornes et lecture des réglages du serveur), `Touches.kt` (Ctrl et
+    Alt collants, flèches, taille du terminal).
+  - `donnees/PrefsAppli.kt` : thème et taille du texte du terminal.
+  - `ui/travail/` : `PanneauFeuilleDeRoute.kt`, `SectionTaches.kt`, `PanneauChangements.kt`,
+    `FeuilleMessages.kt` ; `ui/reglages/EcranReglages.kt`.
+  - `terminal/` : `SessionTerminal.kt` (un terminal du pont dans l'émulateur), `Terminaux.kt`
+    (sessions, événements `term.output` / `term.exit`, rattachement, saisie dans l'ordre),
+    `VueTerminal.kt` (dessin, clavier, gestes) ; `ui/terminal/` : écran d'un terminal (barre de
+    touches) et liste.
   - `logique/` (chat) : `EvenementChat.kt` (événements du pont), `FilChat.kt` (fil : réception,
     sous-agents, regroupement), `Markdown.kt`, `Coloration.kt`, `Diff.kt`, `Citation.kt`,
     `Outils.kt`, `Envoi.kt` (commandes `/` et `!`, recherche, étiquettes, alerte de contexte).
@@ -135,8 +185,16 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
 - `app/src/main/res/` : icône adaptative (motif dans la zone sûre, fond uni, version monochrome).
 - `app/src/test/` : tests JVM (codec RPC, client contre un faux serveur, adresse, coffre, récents,
   lecture des réponses du pont, textes et filtres, événements et fil du chat, Markdown,
-  coloration, diff, citation, envoi, chemins et liens de fichiers, réponses de `files.*` et `git.*`).
+  coloration, diff, citation, envoi, chemins et liens de fichiers, réponses de `files.*` et `git.*`,
+  feuille de route, tâches, diff unifié, réglages, touches, émulateur du terminal sur la JVM,
+  `/api/app-token`, `/api/tokens` et `/api/revoke` contre un faux serveur).
 
 ## Licence
 
 Celle de CCS (voir `LICENSE` à la racine du dépôt).
+
+L'émulateur du terminal vient des modules `terminal-emulator` et `terminal-view` de Termux
+(<https://github.com/termux/termux-app>, version 0.118.0, par JitPack), sous **licence Apache 2.0**
+(code issu d'Android-Terminal-Emulator de Jack Palevich ; le reste de Termux est sous GPLv3 et
+n'est pas utilisé). L'appli s'en sert tel quel : `TerminalEmulator` pour l'analyse des séquences,
+`TerminalRenderer` et `KeyHandler` pour le dessin et les touches.

@@ -15,7 +15,7 @@ android {
         minSdk = 26
         targetSdk = 36
         // Toujours croissant (l'appli Flutter 0.26.1 avait le numéro 27).
-        versionCode = 30
+        versionCode = 31
         versionName = "0.27.0"
     }
 
@@ -69,6 +69,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    implementation(libs.termux.terminal.emulator)
+    implementation(libs.termux.terminal.view)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

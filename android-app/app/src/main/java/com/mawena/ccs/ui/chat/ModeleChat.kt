@@ -175,7 +175,22 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
         viewModelScope.launch {
             client.reconnexions.collect { attacher(); sonderShells() }
         }
-        viewModelScope.launch { ouvrir() }
+        viewModelScope.launch {
+            ouvrir()
+            envoyerPrevu()
+        }
+    }
+
+    /**
+     * Texte prévu à l'ouverture (« Faire… » d'une tâche de la feuille de route dans un nouveau
+     * chat) : envoyé une seule fois, même si l'écran est recréé.
+     */
+    private suspend fun envoyerPrevu() {
+        val texte = dest.aEnvoyer ?: return
+        val cle = "envoye:${dest.jeton}"
+        if (chatId == null || depot.prefs.lire(cle) != null) return
+        depot.prefs.ecrire(cle, "1")
+        livrer(texte, emptyList(), null) { envoyerTexte(texte) }
     }
 
     override fun onCleared() {

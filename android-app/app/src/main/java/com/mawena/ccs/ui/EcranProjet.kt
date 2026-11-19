@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AddComment
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,7 +50,7 @@ private const val PAS = 30
 
 /**
  * Écran Projet (`project.js`) : nom et chemin, compte associé au dossier, « Nouveau chat » et les
- * conversations du projet ; onglets Fichiers et Git (feuille de route : tâche 7).
+ * conversations du projet ; onglets Feuille de route, Fichiers et Git ; terminal dans le dossier.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +61,7 @@ fun EcranProjet(
     ouvrirChat: (DestChat) -> Unit,
     ouvrirFichier: (String) -> Unit = {},
     ouvrirCommit: (String, String) -> Unit = { _, _ -> },
+    ouvrirTerminal: (String) -> Unit = {},
 ) {
     val client = modele.depot.client
     val etat by modele.etat.collectAsStateWithLifecycle()
@@ -94,14 +96,19 @@ fun EcranProjet(
 
     val entree = liste?.projets?.firstOrNull { it.cwd == cwd }
     Column(Modifier.fillMaxSize()) {
-        BarreHaut(entree?.name ?: Format.base(cwd), cwd, retour = retour)
-        androidx.compose.material3.PrimaryTabRow(selectedTabIndex = onglet) {
-            listOf("Conversations", "Fichiers", "Git").forEachIndexed { i, t ->
+        BarreHaut(entree?.name ?: Format.base(cwd), cwd, retour = retour, actions = {
+            if (entree?.exists != false) androidx.compose.material3.IconButton(onClick = { ouvrirTerminal(cwd) }) {
+                Icon(Icons.Filled.Terminal, "Terminal dans ce projet")
+            }
+        })
+        androidx.compose.material3.PrimaryScrollableTabRow(selectedTabIndex = onglet, edgePadding = 8.dp) {
+            listOf("Conversations", "Feuille de route", "Fichiers", "Git").forEachIndexed { i, t ->
                 androidx.compose.material3.Tab(selected = onglet == i, onClick = { onglet = i }, text = { Text(t) })
             }
         }
-        if (onglet == 1) com.mawena.ccs.ui.fichiers.PanneauFichiers(modele, cwd, ouvrirFichier)
-        else if (onglet == 2) com.mawena.ccs.ui.git.PanneauGit(modele, cwd, ouvrirCommit = { ouvrirCommit(cwd, it) })
+        if (onglet == 1) com.mawena.ccs.ui.travail.PanneauFeuilleDeRoute(modele, cwd, nouveauChat = { t -> ouvrirChat(DestChat.nouveauAvec(cwd, t)) })
+        else if (onglet == 2) com.mawena.ccs.ui.fichiers.PanneauFichiers(modele, cwd, ouvrirFichier)
+        else if (onglet == 3) com.mawena.ccs.ui.git.PanneauGit(modele, cwd, ouvrirCommit = { ouvrirCommit(cwd, it) })
         else PullToRefreshBox(
             isRefreshing = charge && liste != null,
             onRefresh = { portee.launch { charger() } },

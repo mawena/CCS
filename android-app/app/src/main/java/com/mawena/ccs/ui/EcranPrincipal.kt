@@ -46,6 +46,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mawena.ccs.reseau.EtatConnexion
 import com.mawena.ccs.ui.chat.EcranChat
+import kotlinx.coroutines.launch
 import com.mawena.ccs.ui.fichiers.EcranFichier
 import com.mawena.ccs.ui.fichiers.EcranFichiersOnglet
 import com.mawena.ccs.ui.fichiers.EcranFichiersProjet
@@ -76,12 +77,20 @@ fun EcranPrincipal(modele: ModeleAppli) {
     val portee = rememberCoroutineScope()
     val avis = remember(hote, portee) { Avis(hote, portee) }
     val argument = { nom: String -> navArgument(nom) { type = NavType.StringType; defaultValue = "" } }
+    // nouveau terminal dans un dossier (chat, projet), puis son écran
+    val terminalDans: (String) -> Unit = { cwd ->
+        portee.launch {
+            try { nav.navigate(Routes.terminal(com.mawena.ccs.ui.terminal.ouvrirTerminal(modele, cwd).id)) }
+            catch (e: Exception) { avis.dire("Terminal impossible : ${e.texte()}") }
+        }
+    }
     CompositionLocalProvider(LocalAvis provides avis) {
     Scaffold(
         snackbarHost = { SnackbarHost(hote) },
         bottomBar = {
             // le chat prend tout l'écran (clavier, saisie) : pas de barre d'onglets
-            if (entree?.destination?.route?.startsWith("chat") != true) NavigationBar {
+            val plein = entree?.destination?.route?.let { it.startsWith("chat") || it.startsWith("terminal?") } == true
+            if (!plein) NavigationBar {
                 Onglet.entries.forEach { o ->
                     NavigationBarItem(
                         selected = route == o.route,
@@ -102,7 +111,13 @@ fun EcranPrincipal(modele: ModeleAppli) {
         Column(Modifier.fillMaxSize().padding(marges).consumeWindowInsets(marges)) {
             BandeauConnexion(modele)
             NavHost(nav, startDestination = Onglet.Accueil.route, modifier = Modifier.weight(1f)) {
-                composable(Onglet.Accueil.route) { EcranAccueil(modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) }) }
+                composable(Onglet.Accueil.route) {
+                    EcranAccueil(
+                        modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) },
+                        ouvrirChat = { nav.navigate(it.route()) },
+                        ouvrirTerminal = { nav.navigate(Routes.terminal(it)) },
+                    )
+                }
                 composable(Routes.ANALYSE) { EcranAnalyse(modele, retour = { nav.popBackStack() }) }
                 composable(Onglet.Sessions.route) {
                     EcranSessions(
@@ -118,14 +133,17 @@ fun EcranPrincipal(modele: ModeleAppli) {
                         ouvrirChat = { nav.navigate(it.route()) },
                         ouvrirFichier = { nav.navigate(Routes.fichier(it)) },
                         ouvrirCommit = { cwd, id -> nav.navigate(Routes.commit(cwd, id)) },
+                        ouvrirTerminal = terminalDans,
                     )
                 }
-                composable(Routes.CHAT, arguments = listOf("cwd", "sid", "chemin", "titre", "chat").map(argument)) { e ->
+                composable(Routes.CHAT, arguments = listOf("cwd", "sid", "chemin", "titre", "chat", "envoi", "jeton").map(argument)) { e ->
                     EcranChat(
                         modele, DestChat.de(e), retour = { nav.popBackStack() },
                         ouvrirFichier = { chemin, ligne -> nav.navigate(Routes.fichier(chemin, ligne)) },
                         ouvrirFichiers = { nav.navigate(Routes.fichiersProjet(it)) },
                         ouvrirGit = { nav.navigate(Routes.gitProjet(it)) },
+                        ouvrirChat = { nav.navigate(it.route()) },
+                        ouvrirTerminal = terminalDans,
                     )
                 }
                 composable(Onglet.Fichiers.route) { EcranFichiersOnglet(modele, ouvrirFichier = { nav.navigate(Routes.fichier(it)) }) }
@@ -147,7 +165,20 @@ fun EcranPrincipal(modele: ModeleAppli) {
                 composable(Routes.COMMIT, arguments = listOf(argument("cwd"), argument("id"))) { e ->
                     EcranCommit(modele, e.arguments?.getString("cwd").orEmpty(), e.arguments?.getString("id").orEmpty(), retour = { nav.popBackStack() })
                 }
-                composable(Onglet.Plus.route) { EcranPlus(modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) }) }
+                composable(Onglet.Plus.route) {
+                    EcranPlus(
+                        modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) },
+                        ouvrirReglages = { nav.navigate(Routes.REGLAGES) },
+                        ouvrirTerminaux = { nav.navigate(Routes.TERMINAUX) },
+                    )
+                }
+                composable(Routes.REGLAGES) { com.mawena.ccs.ui.reglages.EcranReglages(modele, retour = { nav.popBackStack() }) }
+                composable(Routes.TERMINAUX) {
+                    com.mawena.ccs.ui.terminal.EcranTerminaux(modele, retour = { nav.popBackStack() }, ouvrir = { nav.navigate(Routes.terminal(it)) })
+                }
+                composable(Routes.TERMINAL, arguments = listOf(argument("id"))) { e ->
+                    com.mawena.ccs.ui.terminal.EcranTerminal(modele, e.arguments?.getString("id").orEmpty(), retour = { nav.popBackStack() })
+                }
             }
         }
     }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
@@ -106,7 +107,7 @@ fun BandeauEtat(vue: VueChat) {
 
 /** Zone de saisie : citation, images, commandes `/`, texte multi-ligne, envoi ; pied : options, contexte, coût, Arrêter. */
 @Composable
-fun Saisie(modele: ModeleChat, vue: VueChat) {
+fun Saisie(modele: ModeleChat, vue: VueChat, appli: com.mawena.ccs.ui.ModeleAppli? = null) {
     val saisie by modele.saisie.collectAsStateWithLifecycle()
     val citation by modele.citation.collectAsStateWithLifecycle()
     val images by modele.images.collectAsStateWithLifecycle()
@@ -116,6 +117,7 @@ fun Saisie(modele: ModeleChat, vue: VueChat) {
     var champ by remember { mutableStateOf(TextFieldValue(saisie, TextRange(saisie.length))) }
     LaunchedEffect(saisie) { if (saisie != champ.text) champ = TextFieldValue(saisie, TextRange(saisie.length)) }
     var options by remember { mutableStateOf(false) }
+    var enregistres by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val portee = rememberCoroutineScope()
     val choisir = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(ModeleChat.MAX_IMAGES)) { uris ->
@@ -179,6 +181,9 @@ fun Saisie(modele: ModeleChat, vue: VueChat) {
                 IconButton(onClick = { choisir.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, enabled = images.size < ModeleChat.MAX_IMAGES) {
                     Icon(Icons.Filled.AttachFile, "Joindre une image")
                 }
+                if (appli != null) IconButton(onClick = { enregistres = true }) {
+                    Icon(Icons.Filled.BookmarkBorder, "Messages enregistrés")
+                }
                 OutlinedTextField(
                     champ,
                     { champ = it; modele.saisir(it.text) },
@@ -217,6 +222,12 @@ fun Saisie(modele: ModeleChat, vue: VueChat) {
         }
     }
     if (options) FeuilleOptions(reglages, fermer = { options = false }) { modele.changerOptions(it) }
+    if (enregistres && appli != null) {
+        com.mawena.ccs.ui.travail.FeuilleMessages(appli, modele.cwd, champ.text, fermer = { enregistres = false }) { t ->
+            val avant = champ.text
+            modele.saisir(if (avant.isBlank()) t else avant.trimEnd() + "\n" + t)
+        }
+    }
 }
 
 /** Options du chat : modèle, effort, droits (« Tout autoriser » demande confirmation). */

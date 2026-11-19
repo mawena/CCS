@@ -85,7 +85,12 @@ import kotlinx.serialization.json.put
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EcranAccueil(modele: ModeleAppli, ouvrirAnalyse: () -> Unit) {
+fun EcranAccueil(
+    modele: ModeleAppli,
+    ouvrirAnalyse: () -> Unit,
+    ouvrirChat: (DestChat) -> Unit = {},
+    ouvrirTerminal: (String) -> Unit = {},
+) {
     val etat by modele.etat.collectAsStateWithLifecycle()
     val identifiants by modele.identifiants.collectAsStateWithLifecycle()
     val client = modele.depot.client
@@ -200,6 +205,8 @@ fun EcranAccueil(modele: ModeleAppli, ouvrirAnalyse: () -> Unit) {
                 item { CartePause(modele, e) { portee.launch { charger() } } }
             }
             item { CarteBilan(modele) }
+            item { com.mawena.ccs.ui.travail.SectionTaches(modele, comptes?.home.orEmpty(), ouvrirChat) }
+            item { CarteAjoutCompte(modele, comptes?.home.orEmpty(), ouvrirTerminal) }
             item {
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                     ListItem(
@@ -429,6 +436,53 @@ private fun CartePause(modele: ModeleAppli, e: EtatComptes, relire: () -> Unit) 
                     ) { Text("Pause") }
                 }
             }
+        }
+    }
+}
+
+/**
+ * « Ajouter un compte Claude » (`home.js`) : `ccs add <nom>` dans un terminal ; on y ouvre le lien
+ * de connexion puis on colle le code.
+ */
+@Composable
+private fun CarteAjoutCompte(modele: ModeleAppli, home: String, ouvrirTerminal: (String) -> Unit) {
+    val avis = LocalAvis.current
+    val portee = rememberCoroutineScope()
+    var nom by remember { mutableStateOf("") }
+    var erreur by remember { mutableStateOf<String?>(null) }
+    var occupe by remember { mutableStateOf(false) }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Ajouter un compte Claude", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Lance « ccs add » dans un terminal : ouvre le lien de connexion sur ton téléphone ou ton PC, puis colle le code dans le terminal.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            androidx.compose.material3.OutlinedTextField(
+                nom, { nom = it; erreur = null }, Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text("Nom du compte (ex. perso2)") }, isError = erreur != null,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None, autoCorrectEnabled = false,
+                ),
+            )
+            erreur?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            androidx.compose.material3.OutlinedButton(
+                onClick = {
+                    if (!Regex("^[A-Za-z0-9_-]{1,32}$").matches(nom)) { erreur = "Nom : lettres, chiffres, - et _ seulement."; return@OutlinedButton }
+                    occupe = true
+                    portee.launch {
+                        try {
+                            val s = com.mawena.ccs.ui.terminal.ouvrirTerminal(modele, home.ifEmpty { "~" }, "ccs add", nom)
+                            ouvrirTerminal(s.id)
+                        } catch (e: Exception) {
+                            avis.dire("Terminal impossible : ${e.texte()}")
+                        } finally {
+                            occupe = false
+                        }
+                    }
+                },
+                enabled = !occupe,
+            ) { Text("Ouvrir le terminal") }
         }
     }
 }

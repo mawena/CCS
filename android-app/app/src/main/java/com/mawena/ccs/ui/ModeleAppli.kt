@@ -32,9 +32,28 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
     val couts = java.util.concurrent.ConcurrentHashMap<String, com.mawena.ccs.reseau.Cout>()
     val fileCouts = kotlinx.coroutines.sync.Mutex()
 
+    private val _theme = MutableStateFlow(depot.reglages.theme)
+    val theme: StateFlow<com.mawena.ccs.donnees.Theme> = _theme.asStateFlow()
+
+    fun changerTheme(t: com.mawena.ccs.donnees.Theme) {
+        depot.reglages.theme = t
+        _theme.value = t
+    }
+
     init {
         val i = _identifiants.value
-        if (i != null && depot.client.etat.value is EtatConnexion.Arrete) depot.client.demarrer(i)
+        if (i != null && depot.client.etat.value is EtatConnexion.Arrete) {
+            if (i.portier) {
+                // connexion Portier d'avant le jeton d'appareil : on le demande une fois, avant le WebSocket
+                viewModelScope.launch {
+                    val jeton = kotlinx.coroutines.withTimeoutOrNull(10_000) { depot.api.jetonAppli(i, nomModele()) }
+                    val j = if (jeton != null) i.copy(jeton = jeton).also { depot.coffre.ecrire(it); _identifiants.value = it } else i
+                    if (_identifiants.value != null && depot.client.etat.value is EtatConnexion.Arrete) depot.client.demarrer(j)
+                }
+            } else {
+                depot.client.demarrer(i)
+            }
+        }
         viewModelScope.launch {
             depot.client.etat.collect {
                 if (it is EtatConnexion.Refuse) {
@@ -53,12 +72,13 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
     }
 
     fun deconnecter() {
-        val portier = _identifiants.value?.portier == true
+        val portier = _identifiants.value?.viaPortier == true
         oublier()
         if (portier) CookieManager.getInstance().removeAllCookies(null)
     }
 
     private fun oublier() {
+        depot.terminaux.oublier()
         depot.client.arreter()
         depot.coffre.ecrire(null)
         _identifiants.value = null

@@ -117,7 +117,11 @@ fun EcranConnexion(modele: ModeleAppli) {
                     when {
                         s.isFailure -> message = "Serveur injoignable."
                         s.getOrNull() == null -> message = "Portier n'a pas ouvert CCS pour ce compte."
-                        else -> modele.connecte(i.copy(utilisateur = s.getOrNull()!!.user))
+                        else -> {
+                            // jeton d'appareil durable si le serveur sait le donner, sinon les cookies
+                            val jeton = modele.depot.api.jetonAppli(i, nomModele())
+                            modele.connecte(i.copy(utilisateur = s.getOrNull()!!.user, jeton = jeton))
+                        }
                     }
                 }
             },
@@ -293,6 +297,9 @@ fun EcranConnexion(modele: ModeleAppli) {
         )
     }
 }
+
+/** Nom du modèle du téléphone (« Pixel 4 XL »), pour le jeton demandé après Portier. */
+fun nomModele(): String = Build.MODEL.orEmpty().ifBlank { "Appli Android" }.take(60)
 
 private fun nomAppareil(): String {
     val modele = Build.MODEL.orEmpty()

@@ -19,7 +19,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -88,6 +93,8 @@ fun EcranChat(
     ouvrirFichier: (String, Int?) -> Unit = { _, _ -> },
     ouvrirFichiers: (String) -> Unit = {},
     ouvrirGit: (String) -> Unit = {},
+    ouvrirChat: (DestChat) -> Unit = {},
+    ouvrirTerminal: (String) -> Unit = {},
 ) {
     val mc: ModeleChat = viewModel(key = dest.route()) { ModeleChat(modele.depot, dest) }
     val vue by mc.vue.collectAsStateWithLifecycle()
@@ -107,6 +114,8 @@ fun EcranChat(
     var trouves by remember { mutableStateOf<List<String>>(emptyList()) }
     var position by remember { mutableIntStateOf(-1) }
     val defile = rememberLazyListState()
+    var menuChat by remember { mutableStateOf(false) }
+    var volet by remember { mutableStateOf<Volet?>(null) }
 
     val actions = remember(mc) {
         ActionsFil(
@@ -148,8 +157,19 @@ fun EcranChat(
                 IconButton(onClick = { filtreEtiquette = null; voletEtiquettes = true }) {
                     Icon(Icons.AutoMirrored.Filled.Label, "Étiquettes")
                 }
-                IconButton(onClick = { ouvrirFichiers(mc.cwd) }) { Icon(Icons.Filled.Folder, "Fichiers du projet") }
-                IconButton(onClick = { ouvrirGit(mc.cwd) }) { Icon(Icons.Filled.AccountTree, "Git du projet") }
+                IconButton(onClick = { menuChat = true }) { Icon(Icons.Filled.MoreVert, "Plus") }
+                androidx.compose.material3.DropdownMenu(menuChat, { menuChat = false }) {
+                    androidx.compose.material3.DropdownMenuItem({ Text("Fichiers du projet") }, leadingIcon = { Icon(Icons.Filled.Folder, null) },
+                        onClick = { menuChat = false; ouvrirFichiers(mc.cwd) })
+                    androidx.compose.material3.DropdownMenuItem({ Text("Git du projet") }, leadingIcon = { Icon(Icons.Filled.AccountTree, null) },
+                        onClick = { menuChat = false; ouvrirGit(mc.cwd) })
+                    androidx.compose.material3.DropdownMenuItem({ Text("Changements de la session") }, leadingIcon = { Icon(Icons.Filled.History, null) },
+                        onClick = { menuChat = false; volet = Volet.Changements })
+                    androidx.compose.material3.DropdownMenuItem({ Text("Feuille de route") }, leadingIcon = { Icon(Icons.Filled.Checklist, null) },
+                        onClick = { menuChat = false; volet = Volet.Feuille })
+                    androidx.compose.material3.DropdownMenuItem({ Text("Terminal dans ce projet") }, leadingIcon = { Icon(Icons.Filled.Terminal, null) },
+                        onClick = { menuChat = false; ouvrirTerminal(mc.cwd) })
+                }
             },
         )
         vue.ouverture?.let { err ->
@@ -228,8 +248,23 @@ fun EcranChat(
         }
         VueTaches(vue.taches)
         BandeauEtat(vue)
-        Saisie(mc, vue)
+        Saisie(mc, vue, modele)
     }
+    }
+
+    volet?.let { v ->
+        VoletChat(if (v == Volet.Changements) "Changements de la session" else "Feuille de route", fermer = { volet = null }) {
+            if (v == Volet.Changements) {
+                com.mawena.ccs.ui.travail.PanneauChangements(modele, mc.chatId, mc.cwd, ouvrirFichier = { volet = null; ouvrirFichier(it, null) },
+                    change = { mc.chargerFichiers() })
+            } else {
+                com.mawena.ccs.ui.travail.PanneauFeuilleDeRoute(
+                    modele, mc.cwd,
+                    dansCeChat = { t -> volet = null; mc.envoyerTexte(t) },
+                    nouveauChat = { t -> volet = null; ouvrirChat(DestChat.nouveauAvec(mc.cwd, t)) },
+                )
+            }
+        }
     }
 
     choisi?.let { m ->
@@ -264,6 +299,23 @@ fun EcranChat(
                 if (cle == null) avis.dire("Ce message n'est plus dans le fil (conversation compactée ou reprise ailleurs).")
                 else { trouves = listOf(cle); position = 0; allerA(cle, mc.vue.value.lignes, defile) }
             }
+        }
+    }
+}
+
+private enum class Volet { Changements, Feuille }
+
+/** Volet plein écran du chat (le tiroir de la version web). */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun VoletChat(titre: String, fermer: () -> Unit, contenu: @Composable () -> Unit) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = fermer,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(0.92f)) {
+            Text(titre, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), style = MaterialTheme.typography.titleMedium)
+            Box(Modifier.weight(1f)) { contenu() }
         }
     }
 }

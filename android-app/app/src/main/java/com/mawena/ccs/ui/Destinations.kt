@@ -7,7 +7,10 @@ import androidx.navigation.NavBackStackEntry
 object Routes {
     const val ANALYSE = "analyse"
     const val PROJET = "projet?cwd={cwd}"
-    const val CHAT = "chat?cwd={cwd}&sid={sid}&chemin={chemin}&titre={titre}&chat={chat}"
+    const val CHAT = "chat?cwd={cwd}&sid={sid}&chemin={chemin}&titre={titre}&chat={chat}&envoi={envoi}&jeton={jeton}"
+    const val REGLAGES = "reglages"
+    const val TERMINAUX = "terminaux"
+    const val TERMINAL = "terminal?id={id}"
 
     const val FICHIER = "fichier?chemin={chemin}&ligne={ligne}"
     const val FICHIERS_PROJET = "fichiers-projet?cwd={cwd}"
@@ -18,6 +21,7 @@ object Routes {
     fun fichier(chemin: String, ligne: Int? = null) = "fichier?chemin=${Uri.encode(chemin)}&ligne=${ligne ?: ""}"
     fun fichiersProjet(cwd: String) = "fichiers-projet?cwd=${Uri.encode(cwd)}"
     fun gitProjet(cwd: String) = "git-projet?cwd=${Uri.encode(cwd)}"
+    fun terminal(id: String) = "terminal?id=${Uri.encode(id)}"
     fun commit(cwd: String, id: String) = "git-commit?cwd=${Uri.encode(cwd)}&id=${Uri.encode(id)}"
 
     /** Onglet à allumer pour une route (Projet et Chat sont sous Sessions, Analyse sous Accueil). */
@@ -27,6 +31,7 @@ object Routes {
         route.startsWith("fichier") -> Onglet.Fichiers.route
         route.startsWith("git") -> Onglet.Git.route
         route == ANALYSE -> Onglet.Accueil.route
+        route == REGLAGES || route.startsWith("terminal") -> Onglet.Plus.route
         else -> route
     }
 }
@@ -38,8 +43,13 @@ data class DestChat(
     val chemin: String? = null,
     val titre: String? = null,
     val chatId: String? = null,
+    /** Texte à envoyer une fois le chat ouvert (nouveau chat pour une tâche de la feuille de route). */
+    val aEnvoyer: String? = null,
+    /** Identifie cet envoi prévu (il ne part qu'une fois). */
+    val jeton: String? = null,
 ) {
-    fun route(): String = "chat?cwd=${e(cwd)}&sid=${e(sessionId)}&chemin=${e(chemin)}&titre=${e(titre)}&chat=${e(chatId)}"
+    fun route(): String = "chat?cwd=${e(cwd)}&sid=${e(sessionId)}&chemin=${e(chemin)}&titre=${e(titre)}&chat=${e(chatId)}" +
+        "&envoi=${e(aEnvoyer)}&jeton=${e(jeton)}"
 
     private fun e(t: String?) = Uri.encode(t.orEmpty())
 
@@ -47,7 +57,12 @@ data class DestChat(
         fun de(entree: NavBackStackEntry): DestChat {
             val a = entree.arguments
             fun lire(cle: String) = a?.getString(cle)?.takeIf { it.isNotEmpty() }
-            return DestChat(lire("cwd").orEmpty(), lire("sid"), lire("chemin"), lire("titre"), lire("chat"))
+            return DestChat(lire("cwd").orEmpty(), lire("sid"), lire("chemin"), lire("titre"), lire("chat"), lire("envoi"), lire("jeton"))
+        }
+
+        /** Nouveau chat dans `cwd` qui envoie `texte` dès qu'il est ouvert. */
+        fun nouveauAvec(cwd: String, texte: String): DestChat {
+            return DestChat(cwd, titre = com.mawena.ccs.logique.Format.base(cwd), aEnvoyer = texte, jeton = java.util.UUID.randomUUID().toString())
         }
     }
 }

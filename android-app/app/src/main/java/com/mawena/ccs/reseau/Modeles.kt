@@ -11,6 +11,12 @@ data class Sante(val ok: Boolean = false, val version: String = "")
 data class InfoPortier(val actif: Boolean = false, val connexion: String = "")
 
 @Serializable
+data class JetonAppli(val token: String? = null)
+
+@Serializable
+data class ResultatRevocation(val revoked: Boolean = false)
+
+@Serializable
 data class InfoSession(val user: String = "", val portier: Boolean = false)
 
 /**

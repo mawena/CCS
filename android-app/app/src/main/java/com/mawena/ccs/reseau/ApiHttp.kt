@@ -13,12 +13,20 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
-/** Ajoute l'authentification : jeton d'appareil en Bearer, ou cookies de Portier. */
+/**
+ * Ajoute l'authentification : jeton d'appareil en Bearer, cookies de Portier, ou les deux (jeton
+ * obtenu après une connexion par Portier : le serveur prend le jeton d'abord ; les cookies servent
+ * encore à `/api/tokens` et `/api/revoke`, qui reconnaissent Portier ou une session).
+ */
 fun Request.Builder.authentifier(i: Identifiants): Request.Builder = apply {
-    when {
-        i.jeton != null -> header("Authorization", "Bearer ${i.jeton}")
-        i.cookies != null -> header("Cookie", i.cookies)
-    }
+    i.jeton?.let { header("Authorization", "Bearer $it") }
+    i.cookies?.let { header("Cookie", it) }
+}
+
+/** Réponse de `/api/revoke`. */
+sealed interface Revocation {
+    data object Faite : Revocation
+    data class Refusee(val message: String) : Revocation
 }
 
 /** Routes HTTP de `ccs-web` (hors WebSocket). */
@@ -38,6 +46,52 @@ class ApiHttp(private val http: OkHttpClient) {
                 !r.isSuccessful -> throw IOException("Erreur ${r.code}")
                 else -> CodecRpc.json.decodeFromString(InfoSession.serializer(), r.body!!.string())
             }
+        }
+    }
+
+    /**
+     * Jeton d'appareil durable pour une connexion par Portier (`POST /api/app-token`). Null si le
+     * serveur ne connaît pas encore la route (404) ou refuse : on garde alors les cookies.
+     */
+    suspend fun jetonAppli(i: Identifiants, nom: String): String? = withContext(Dispatchers.IO) {
+        val corps = buildJsonObject { put("name", nom.take(60)) }.toString().toRequestBody(typeJson)
+        val req = Request.Builder().url(Adresse.api(i.serveur, "api/app-token")).authentifier(i).post(corps).build()
+        runCatching {
+            http.newCall(req).execute().use { r ->
+                if (!r.isSuccessful) return@use null
+                CodecRpc.json.decodeFromString(JetonAppli.serializer(), r.body?.string().orEmpty()).token?.takeIf { it.isNotBlank() }
+            }
+        }.getOrNull()
+    }
+
+    /** Accès connectés au compte (`/api/tokens`) ; null si le serveur ne reconnaît pas ces identifiants (401). */
+    suspend fun acces(i: Identifiants): ListeAcces? = withContext(Dispatchers.IO) {
+        val req = Request.Builder().url(Adresse.api(i.serveur, "api/tokens")).authentifier(i).build()
+        http.newCall(req).execute().use { r ->
+            when {
+                r.code == 401 -> null
+                !r.isSuccessful -> throw IOException("Erreur ${r.code}")
+                else -> CodecRpc.json.decodeFromString(ListeAcces.serializer(), r.body?.string().orEmpty())
+            }
+        }
+    }
+
+    /** Révoque un accès (`/api/revoke`). */
+    suspend fun revoquer(i: Identifiants, id: String): Revocation = withContext(Dispatchers.IO) {
+        val corps = buildJsonObject { put("token_id", id) }.toString().toRequestBody(typeJson)
+        val req = Request.Builder().url(Adresse.api(i.serveur, "api/revoke")).authentifier(i).post(corps).build()
+        try {
+            http.newCall(req).execute().use { r ->
+                val texte = r.body?.string().orEmpty()
+                when {
+                    r.code == 401 -> Revocation.Refusee("Le serveur ne reconnaît pas cette connexion pour gérer les accès.")
+                    !r.isSuccessful -> Revocation.Refusee("Erreur ${r.code}")
+                    runCatching { CodecRpc.json.decodeFromString(ResultatRevocation.serializer(), texte).revoked }.getOrDefault(false) -> Revocation.Faite
+                    else -> Revocation.Refusee("Révocation impossible : cet accès n'existe plus.")
+                }
+            }
+        } catch (e: IOException) {
+            Revocation.Refusee("Serveur injoignable.")
         }
     }
 

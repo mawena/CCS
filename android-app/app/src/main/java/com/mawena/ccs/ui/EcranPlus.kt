@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -29,9 +31,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mawena.ccs.BuildConfig
 
-/** Plus : serveur, compte, version, version web, déconnexion (les réglages viendront en tâche 7). */
+/** Plus : réglages, terminaux, analyse, serveur, compte, version, version web, déconnexion. */
 @Composable
-fun EcranPlus(modele: ModeleAppli, ouvrirAnalyse: () -> Unit) {
+fun EcranPlus(modele: ModeleAppli, ouvrirAnalyse: () -> Unit, ouvrirReglages: () -> Unit = {}, ouvrirTerminaux: () -> Unit = {}) {
     val identifiants by modele.identifiants.collectAsStateWithLifecycle()
     val contexte = LocalContext.current
     var confirmer by remember { mutableStateOf(false) }
@@ -44,9 +46,25 @@ fun EcranPlus(modele: ModeleAppli, ouvrirAnalyse: () -> Unit) {
         ListItem(
             headlineContent = { Text("Compte") },
             supportingContent = {
-                Text(identifiants?.utilisateur.orEmpty() + if (identifiants?.portier == true) " · connexion Portier" else " · jeton d'appareil")
+                Text(identifiants?.utilisateur.orEmpty() + when {
+                    identifiants?.portier == true -> " · connexion Portier"
+                    identifiants?.viaPortier == true -> " · Portier puis jeton d'appareil"
+                    else -> " · jeton d'appareil"
+                })
             },
             leadingContent = { Icon(Icons.Filled.Person, null) },
+        )
+        ListItem(
+            headlineContent = { Text("Réglages") },
+            supportingContent = { Text("Thème, serveur, notifications du téléphone, réglages du serveur, appareils") },
+            leadingContent = { Icon(Icons.Filled.Settings, null) },
+            modifier = Modifier.clickable(onClick = ouvrirReglages),
+        )
+        ListItem(
+            headlineContent = { Text("Terminaux") },
+            supportingContent = { Text("Shell sur le serveur, clavier adapté") },
+            leadingContent = { Icon(Icons.Filled.Terminal, null) },
+            modifier = Modifier.clickable(onClick = ouvrirTerminaux),
         )
         ListItem(
             headlineContent = { Text("Analyse") },
