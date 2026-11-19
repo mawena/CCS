@@ -1,13 +1,13 @@
 // Service worker : la charpente reste disponible hors ligne (la page affiche alors
 // « reconnexion »). L'API n'est jamais mise en cache.
-const CACHE = "ccs-v20";
+const CACHE = "ccs-v21";
 const SHELL = ["/", "/style.css", "/chat.css", "/sessions.css", "/pages.css",
   "/app.js", "/api.js", "/dom.js", "/login.js", "/views.js", "/home.js", "/sessions.js", "/chat.js",
   "/files.js", "/files-manage.js", "/files-browser.js", "/roadmap.js", "/terminal.js", "/analysis.js", "/settings.js", "/git.js",
   "/chat-changes.js", "/chat-complete.js", "/chat-context.js", "/chat-diff.js", "/chat-links.js", "/chat-message.js", "/chat-quote.js", "/chat-saved.js", "/chat-tags.js",
   "/chat-search.js",
   "/project.js", "/install.js", "/machines.js", "/sessions-conv.js", "/sessions-new.js", "/sessions-manage.js",
-  "/pages-util.js", "/pages-health.js", "/pages-tasks.js", "/pages-phone.js",
+  "/pages-util.js", "/pages-health.js", "/pages-tasks.js", "/pages-phone.js", "/pages-machines.js",
   "/vendor/xterm/xterm.js", "/vendor/xterm/xterm.css", "/vendor/xterm/addon-fit.js",
   "/icons/ccs.svg", "/manifest.webmanifest"];
 
