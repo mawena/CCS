@@ -96,8 +96,9 @@ DEFAULTS = {
     "budget": {"enabled": True, "alert_pcts": [80, 100]},
     # Phase 12 : chat graphique, panneau Fichiers, page Projets, apparence.
     # idle_suspend_min : minutes d'inactivité avant de suspendre le processus claude d'un
-    # chat (0 = jamais) ; rights : mode de permission des nouveaux chats.
-    "chat": {"idle_suspend_min": 30, "rights": "manual"},
+    # chat (0 = jamais) ; rights : mode de permission des nouveaux chats ; auto_clear : Claude
+    # peut effacer la conversation en fin de sujet (`ccs chat effacer`, phase 24).
+    "chat": {"idle_suspend_min": 30, "rights": "manual", "auto_clear": True},
     "files": {"layout": "B", "show_ignored": False},
     # Phase 13 : page Git (disposition A, B ou C ; fetch automatique en minutes, 0 = jamais).
     "git": {"layout": "A", "fetch_minutes": 5, "avatars": True},

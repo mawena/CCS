@@ -1,6 +1,6 @@
 // Charpente de la version web : connexion, navigation, bandeau de reconnexion, thème.
 import { Api, post, session } from "./api.js";
-import { clear, confirmSheet, el } from "./dom.js";
+import { clear, confirmSheet, el, toast } from "./dom.js";
 import { offerInstall } from "./install.js";
 import { showLogin } from "./login.js";
 import { VIEWS } from "./views.js";
@@ -81,7 +81,7 @@ function start(user) {
   document.getElementById("shell").hidden = false;
   state.api = new Api();
   state.api.on("offline", () => banner("Connexion perdue : reconnexion…", "warning"));
-  state.api.on("online", () => banner(""));
+  state.api.on("online", () => { banner(""); checkVersion(); });
   state.api.on("logged-out", () => { state.api.close(); showLogin(start); });
   state.api.on("notice", (d) => banner(d.text, "info"));
   state.api.on("chat.event", soonRefreshWaiting);
@@ -93,8 +93,23 @@ function start(user) {
   offerInstall();
 }
 
+// Version du serveur : une page restée ouverte pendant une mise à jour garde l'ancien code en
+// mémoire (nouveautés absentes, comme le séparateur après `/clear`) ; on propose de recharger.
+let loadedVersion = null, offeredVersion = null;
+async function checkVersion() {
+  let v = null;
+  try { v = (await (await fetch("/api/health", { cache: "no-store" })).json()).version; } catch { return; }
+  if (!v) return;
+  if (loadedVersion === null) { loadedVersion = v; return; }
+  if (v === loadedVersion || v === offeredVersion) return;
+  offeredVersion = v;
+  toast(`CCS ${v} est installé sur le serveur : recharge la page pour en profiter.`,
+    { action: { label: "Recharger", run: () => location.reload() }, timeout: 24 * 3600 * 1000 });
+}
+checkVersion();
+
 setInterval(() => { if (!document.hidden) refreshWaiting(); }, 20000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshWaiting(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { refreshWaiting(); checkVersion(); } });
 
 window.addEventListener("hashchange", () => { if (state.api) render(); });
 

@@ -584,3 +584,85 @@ class AfterResultTest(unittest.TestCase):
             parent_tool_use_id=None)
         self.assertEqual(self.col.of(proto.TaskNotice), [proto.TaskNotice("toolu_a", "completed", "Recherche finie")])
         self.assertFalse(self.s._background_ids)
+
+
+class AutoClearTest(unittest.TestCase):
+    """Effacement automatique (phase 24) : `ccs chat effacer` dépose une demande, le moteur
+    envoie `/clear` au retour au repos et marque la remise à zéro qui suit."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        patcher = mock.patch.dict(os.environ, {"XDG_CACHE_HOME": tmp.name})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.col = Collector()
+
+    def session(self, auto_clear=True):
+        s = eng.ChatSession("/tmp", on_event=self.col, auto_clear=auto_clear, environ={"PATH": "/usr/bin"})
+        s._proc = proc = _Proc()
+        s._expected = 1
+        s._set_state("busy")
+        return s, proc
+
+    def finish_turn(self, s, proc):
+        s._handle_line(proc, json.dumps({"type": "result", "subtype": "success", "is_error": False,
+                                         "result": "fini", "session_id": "s1"}) + "\n")
+
+    def sent(self, proc):
+        msgs = [json.loads(line) for line in proc.stdin.lines]
+        return [m["message"]["content"][0]["text"] for m in msgs if m.get("type") == "user"]
+
+    def test_request_sends_clear_after_the_turn(self):
+        s, proc = self.session()
+        eng.request_clear(s._clear_token)
+        self.assertEqual(self.sent(proc), [])          # pas pendant le tour
+        self.finish_turn(s, proc)
+        self.assertEqual(self.sent(proc), ["/clear"])
+        self.assertFalse(s._clear_request().exists())
+        self.assertEqual(s.state, "busy")
+        s._handle_line(proc, json.dumps({"type": "conversation_reset", "new_conversation_id": "c2",
+                                         "session_id": "s1"}) + "\n")
+        reset = self.col.of(proto.ConversationReset)
+        self.assertEqual(reset[-1].trigger, eng.CLEAR_TRIGGER)
+
+    def test_no_request_no_clear_and_manual_clear_is_not_marked(self):
+        s, proc = self.session()
+        self.finish_turn(s, proc)
+        self.assertEqual(self.sent(proc), [])
+        s._handle_line(proc, json.dumps({"type": "conversation_reset", "new_conversation_id": "c2",
+                                         "session_id": "s1"}) + "\n")
+        self.assertNotEqual(self.col.of(proto.ConversationReset)[-1].trigger, eng.CLEAR_TRIGGER)
+
+    def test_waits_for_background_agents(self):
+        s, proc = self.session()
+        s._background = True
+        eng.request_clear(s._clear_token)
+        self.finish_turn(s, proc)
+        self.assertEqual(self.sent(proc), [])
+        self.assertTrue(s._clear_request().exists())   # gardée pour le repos suivant
+
+    def test_disabled_drops_the_request(self):
+        s, proc = self.session(auto_clear=False)
+        eng.request_clear(s._clear_token)
+        self.finish_turn(s, proc)
+        self.assertEqual(self.sent(proc), [])
+        self.assertFalse(s._clear_request().exists())
+        self.assertNotIn(eng.CLEAR_TOKEN_VAR, s._env())
+        self.assertNotIn(eng.CLEAR_HINT, " ".join(s._argv()))
+
+    def test_token_and_hint_given_to_claude(self):
+        s, _proc = self.session()
+        self.assertEqual(s._env()[eng.CLEAR_TOKEN_VAR], s._clear_token)
+        argv = s._argv()
+        self.assertIn(eng.CLEAR_HINT, argv[argv.index("--append-system-prompt") + 1])
+
+    def test_setting_read_when_not_given(self):
+        with mock.patch("ccs_app.settings.load_settings", return_value={"chat": {"auto_clear": False}}):
+            self.assertFalse(eng.auto_clear_setting())
+        with mock.patch("ccs_app.settings.load_settings", return_value={}):
+            self.assertTrue(eng.auto_clear_setting())
+
+    def test_bad_token_refused(self):
+        with self.assertRaises(ValueError):
+            eng.request_clear("../x")

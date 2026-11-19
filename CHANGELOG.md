@@ -3,6 +3,24 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.26.0] — 2026-11-19
+
+### Ajouté
+
+- **Effacement automatique en fin de sujet** (réglage `chat.auto_clear`, activé par défaut) :
+  Claude lance `ccs chat effacer` quand un sujet est fini ; CCS envoie `/clear` dès la fin du
+  tour (jamais pendant un sous-agent de fond). Le séparateur dit « Sujet terminé : Claude a
+  effacé la conversation ». Case dans les réglages du web et du bureau.
+- **`ccs chat effacer`** : la commande que Claude lance pour cela.
+- **Web : « Recharger » quand le serveur change de version**, pour une page restée ouverte
+  pendant une mise à jour.
+
+### Corrigé
+
+- **`/clear` (et toute commande `/…`) part seul** : après une commande `!` ou avec une
+  citation, CCS les plaçait en tête du message, et Claude Code y voyait du texte ordinaire :
+  rien n'était vidé. Citation et sorties `!` attendent maintenant le message suivant.
+
 ## [0.25.1] — 2026-11-19
 
 ### Corrigé

@@ -391,7 +391,11 @@ export class ChatView {
     const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     const uuid = newUuid();                          // identifiant du message dans le journal (étiquettes)
     (this.ownSent ||= new Set()).add(nonce);        // l'écho du pont n'est pas affiché deux fois
-    const notes = this.shellNotes.join("");
+    // `/clear`, `/compact`… : la CLI ne les reconnaît qu'en tête du message, seuls ; sorties `!`
+    // et citation attendent le prochain message.
+    const command = isSlashCommand(text) && !images.length;
+    if (command) { text = text.trim(); quote = null; }
+    const notes = command ? "" : this.shellNotes.join("");
     const shown = quote ? compose(quote.author, quote.text, text) : text;
     const sent = quote ? compose(quote.author, quote.text, notes + text) : notes + text;
     try { r = await this.api.call("chat.send", { chat_id: this.chatId, text: sent, images, shown, nonce, uuid }); } catch (e) {
@@ -400,7 +404,7 @@ export class ChatView {
       return false;
     }
     if (!r || !r.ok) { this.sendFailed("Claude n'a pas pu démarrer.", retry); return false; }
-    this.shellNotes = [];
+    if (!command) this.shellNotes = [];
     this.userBubble(shown, images.length, r.uuid || "");      // ancien pont : pas d'identifiant
     return true;
   }
@@ -425,7 +429,7 @@ export class ChatView {
       if (await this.deliver(text, images, () => this.send(), quote)) {
         this.images = [];
         clear(this.thumbs);
-        if (this.quote === quote) this.clearQuote();
+        if (this.quote === quote && !(isSlashCommand(text) && !images.length)) this.clearQuote();   // la citation attend
         if (this.input.value.trim() === text) {
           this.input.value = "";
           this.grow();
@@ -804,10 +808,12 @@ export class ChatView {
 
   // Après `/clear` : les messages d'avant restent lisibles (et citables) mais grisés, sous un
   // séparateur ; Claude ne les voit plus.
-  newConversation() {
+  // `auto` : effacée par Claude en fin de sujet (`ccs chat effacer`).
+  newConversation(auto = false) {
     for (const node of this.thread.children) node.classList.add("before-reset");
     this.append(el("div", { class: "reset-sep", role: "separator" },
-      el("span", {}, "Nouvelle conversation — Claude ne voit plus les messages au-dessus")));
+      el("span", {}, auto ? "Sujet terminé : Claude a effacé la conversation — il ne voit plus les messages au-dessus"
+        : "Nouvelle conversation — Claude ne voit plus les messages au-dessus")));
   }
 
   // `action` : { label, run } ajoute un bouton à la note (« Compacter »…).
@@ -1090,7 +1096,7 @@ export class ChatView {
         this.requestContext();
         break;
       case "Compacted": this.notice("Conversation compactée."); break;
-      case "ConversationReset": this.newConversation(); break;
+      case "ConversationReset": this.newConversation(ev.trigger === "ccs_auto"); break;
       case "Compacting": break;      // lu par le moteur (état du compactage), jamais envoyé
       case "Notice": this.notice(ev.text, ["warning", "error"].includes(ev.kind) ? ev.kind : "info"); break;
       case "Retrying": this.notice(`Nouvel essai (${ev.attempt}) dans ${Math.round(ev.delay_s)} s…`, "warning"); break;
@@ -1151,6 +1157,11 @@ export class ChatView {
 }
 
 // uuid v4 du message envoyé ; crypto.randomUUID n'existe qu'en contexte sûr (https, localhost).
+// Commande de Claude Code (`/clear`, `/compact`…) : un `/` suivi d'une lettre, en tête.
+export function isSlashCommand(text) {
+  return /^\s*\/[A-Za-z]/.test(text || "");
+}
+
 function newUuid() {
   if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
   const b = new Uint8Array(16);
