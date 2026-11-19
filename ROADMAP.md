@@ -578,4 +578,6 @@ Charles (19/11/2026) : « je veux une application complète construite de bout e
 - [ ] 7. Feuille de route, tâches de fond, travail (changements, retour arrière), réglages, page téléphone
 - [ ] 8. Terminal (term.*) avec clavier adapté
 - [ ] 9. Notifications de fin de tour et de questions (service de fond), partage Android vers un chat
-- [ ] 10. Tests (unitaires JVM), essai sur le Pixel, documentation, release mineure (APK joint)
+- [x] 9b. Serveur (0.27.0) : `/api/app-token` après Portier, jeton d'appareil accepté par `/api/tokens` et `/api/revoke`
+- [x] 9c. Web (0.27.0) : sous-agent fini retiré de la barre, historique « Terminés (n) » (à reprendre dans l'appli native)
+- [ ] 10. Tests (unitaires JVM), essai sur le Pixel, documentation, release mineure 0.28.0 (APK joint)
