@@ -1,0 +1,128 @@
+package com.mawena.ccs.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.mawena.ccs.reseau.EtatConnexion
+
+enum class Onglet(val route: String, val titre: String, val icone: ImageVector) {
+    Accueil("accueil", "Accueil", Icons.Filled.Home),
+    Sessions("sessions", "Sessions", Icons.Filled.Forum),
+    Fichiers("fichiers", "Fichiers", Icons.Filled.Folder),
+    Git("git", "Git", Icons.Filled.AccountTree),
+    Plus("plus", "Plus", Icons.Filled.MoreHoriz),
+}
+
+@Composable
+fun Racine(modele: ModeleAppli) {
+    val identifiants by modele.identifiants.collectAsStateWithLifecycle()
+    if (identifiants == null) EcranConnexion(modele) else EcranPrincipal(modele)
+}
+
+@Composable
+fun EcranPrincipal(modele: ModeleAppli) {
+    val nav = rememberNavController()
+    val entree by nav.currentBackStackEntryAsState()
+    val route = entree?.destination?.route
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                Onglet.entries.forEach { o ->
+                    NavigationBarItem(
+                        selected = route == o.route,
+                        onClick = {
+                            nav.navigate(o.route) {
+                                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(o.icone, contentDescription = null) },
+                        label = { Text(o.titre) },
+                    )
+                }
+            }
+        },
+    ) { marges ->
+        Column(Modifier.fillMaxSize().padding(marges)) {
+            BandeauConnexion(modele)
+            NavHost(nav, startDestination = Onglet.Accueil.route, modifier = Modifier.weight(1f)) {
+                composable(Onglet.Accueil.route) { EcranAccueil(modele) }
+                composable(Onglet.Sessions.route) { EcranProvisoire("Sessions", "Sessions et projets : phase 25, tâche 3.") }
+                composable(Onglet.Fichiers.route) { EcranProvisoire("Fichiers", "Navigateur de fichiers : phase 25, tâche 5.") }
+                composable(Onglet.Git.route) { EcranProvisoire("Git", "État, diff et commits : phase 25, tâche 6.") }
+                composable(Onglet.Plus.route) { EcranPlus(modele) }
+            }
+        }
+    }
+}
+
+/** Bandeau discret tant que le WebSocket n'est pas ouvert. */
+@Composable
+fun BandeauConnexion(modele: ModeleAppli) {
+    val etat by modele.etat.collectAsStateWithLifecycle()
+    val texte = when (val e = etat) {
+        EtatConnexion.Connecte, EtatConnexion.Arrete, is EtatConnexion.Refuse -> return
+        is EtatConnexion.Connexion -> "Connexion au serveur…"
+        is EtatConnexion.HorsLigne -> "${e.raison} Nouvel essai dans ${(e.attenteMs / 1000).coerceAtLeast(1)} s."
+    }
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (etat is EtatConnexion.Connexion) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            Text(texte, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            if (etat is EtatConnexion.HorsLigne) {
+                TextButton(onClick = { modele.depot.client.reessayer() }) { Text("Réessayer") }
+            }
+        }
+    }
+}
+
+@Composable
+fun EcranProvisoire(titre: String, texte: String) {
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(titre, style = MaterialTheme.typography.headlineSmall)
+            Text(
+                "À venir. $texte", textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}

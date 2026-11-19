@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo complet (ccs.svg) pour l'écran de connexion. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="128dp" android:height="128dp" android:viewportWidth="128" android:viewportHeight="128">
+    <path android:pathData="M34,8 h60 a26,26 0 0,1 26,26 v60 a26,26 0 0,1 -26,26 h-60 a26,26 0 0,1 -26,-26 v-60 a26,26 0 0,1 26,-26 z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="64" android:startY="8" android:endX="64" android:endY="120"
+                android:startColor="#3D4451" android:endColor="#262A33" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M28,82 A36,36 0 0,1 100,82" android:strokeColor="#4B5260"
+        android:strokeWidth="10" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M28,82 A36,36 0 0,1 76,48" android:strokeColor="#33D17A"
+        android:strokeWidth="10" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M76,48 A36,36 0 0,1 92,62" android:strokeColor="#F6A034"
+        android:strokeWidth="10" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M37,96 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 z" android:fillColor="#62A0EA" />
+    <path android:pathData="M73,96 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 z" android:fillColor="#E66100" />
+    <path android:pathData="M57,92 h14 l-4,-4 M71,100 h-14 l4,4" android:strokeColor="#FFFFFF"
+        android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>
