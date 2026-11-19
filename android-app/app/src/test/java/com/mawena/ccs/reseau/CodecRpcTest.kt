@@ -80,8 +80,8 @@ class CodecRpcTest {
         val texte = """{"cards": [{"name": "perso", "plan": "Max", "active": true, "color": "#62a0ea",
             "main": [{"kind": "five_hour", "label": "5 h", "percent": 42.5, "reset": "dans 2 h"}],
             "others": [], "status": {"text": "OK", "kind": "success"}, "error_raw": null,
-            "details": ["Relevé à 10:00"], "fetched_at": "2026-11-19T10:00:00Z", "has_data": true,
-            "inconnu": 1}], "best": "perso", "auto_switch": true, "updated_at": null}"""
+            "details": ["Relevé à 10:00"], "fetched_at": 1795091812.06, "has_data": true,
+            "inconnu": 1}], "best": "perso", "auto_switch": true, "updated_at": 1795091812.5}"""
         val c = CodecRpc.json.decodeFromString(Cartes.serializer(), texte)
         assertEquals(1, c.cards.size)
         assertEquals("perso", c.cards[0].name)

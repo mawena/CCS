@@ -54,7 +54,7 @@ data class Carte(
     val status: StatutCarte? = null,
     @SerialName("error_raw") val erreur: String? = null,
     val details: List<String> = emptyList(),
-    @SerialName("fetched_at") val releve: String? = null,
+    @SerialName("fetched_at") val releve: JsonElement? = null,
     @SerialName("has_data") val donnees: Boolean = false,
 )
 
@@ -63,5 +63,5 @@ data class Cartes(
     val cards: List<Carte> = emptyList(),
     val best: JsonElement? = null,
     @SerialName("auto_switch") val bascule: JsonElement? = null,
-    @SerialName("updated_at") val misAJour: String? = null,
+    @SerialName("updated_at") val misAJour: JsonElement? = null,
 )
