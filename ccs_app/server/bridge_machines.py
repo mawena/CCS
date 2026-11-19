@@ -158,9 +158,10 @@ class MachinesApi:
         if not isinstance(line, str) or not line.strip():
             raise rpc.RpcError("invalide", "Commande vide.")
         try:
-            command = shlex.split(line)
+            shlex.split(line)  # vérification seulement : la ligne part entière au shell
         except ValueError as e:
             raise rpc.RpcError("invalide", f"Commande mal écrite : {e}.") from None
+        command = [line.strip()]
         cwd = params.get("cwd")
         if not isinstance(cwd, str) or not cwd:
             raise rpc.RpcError("invalide", "Dossier manquant.")

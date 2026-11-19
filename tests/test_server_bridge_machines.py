@@ -194,7 +194,7 @@ class MachinesTest(unittest.IsolatedAsyncioTestCase):
             r = await c.call("machines.start", command="flutter build apk --dart-define='A=b c'",
                              cwd=str(home / "Projet"), machine="pc", when="nuit")
         self.assertEqual(r, {"id": "abc123"})
-        start.assert_called_once_with(["flutter", "build", "apk", "--dart-define=A=b c"],
+        start.assert_called_once_with(["flutter build apk --dart-define='A=b c'"],
                                       str((home / "Projet").resolve()), machine="pc", when="nuit")
         for params, word in (({"command": "ls", "cwd": "/tmp"}, "dossier personnel"),
                              ({"command": "ls", "cwd": str(home / "Projet/../..")}, "dossier personnel"),

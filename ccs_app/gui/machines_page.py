@@ -346,9 +346,10 @@ class MachinesPage(Adw.PreferencesPage):
         if not line:
             return self._say("Écris la commande à lancer.")
         try:
-            command = shlex.split(line)
+            shlex.split(line)  # vérification seulement : la ligne part entière au shell
         except ValueError as e:
             return self._say(f"Commande mal formée : {e}")
+        command = [line]
         if not os.path.isdir(cwd):
             return self._say("Ce dossier n'existe pas.")
         when = WHEN[self.f_when.get_selected()][0]
