@@ -1,3 +1,10 @@
+ccs (0.33.0) unstable; urgency=medium
+
+  * Application iPhone native (ios-app/, .ipa joint à la release, à installer
+    avec SideStore) ; même périmètre que l'appli Android.
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 19 Nov 2026 23:30:00 +0100
+
 ccs (0.32.0) unstable; urgency=medium
 
   * Plusieurs travaux distants à la fois avec file d'attente, travaux en
