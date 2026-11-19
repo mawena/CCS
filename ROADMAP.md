@@ -570,7 +570,7 @@ Charles (19/11/2026) : « pourquoi tu me proposes des /clear, alors que quand je
 Charles (19/11/2026) : « je veux une application complète construite de bout en bout avec le langage le plus adéquat ». L'appli 0.26 n'était que la page web en plein écran. Choix : Kotlin + Jetpack Compose (langage officiel d'Android, meilleure intégration : notifications, partage, fond). Tout le périmètre du web. Elle remplace la coquille Flutter dans `android-app/` ; construite sur `pc-bureau` (SDK `~/Android`, JDK 17/21), installée sur le Pixel 4 XL par adb sans fil.
 
 - [ ] 1. Fondations : projet Gradle (Kotlin, Compose, Material 3, thème CCS clair/sombre), connexion (mot de passe + TOTP, Portier, appairage → jeton gardé chiffré), client WebSocket `/api/ws` (RPC + événements, reconnexion), navigation, icône adaptative dans la zone sûre (logo coupé sur le Pixel)
-- [ ] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
+- [x] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
 - [ ] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique des conversations, comptes par projet
 - [ ] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options (modèle, effort), `/clear` et séparateurs, étiquettes, recherche, coût
 - [ ] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images
@@ -589,7 +589,7 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [x] 0. Squelette : `ios-app/` (XcodeGen), `codemagic.yaml` (tests sur simulateur, `.ipa` non signé)
 - [ ] 0b. Charles : compte Codemagic relié au dépôt, jeton d'API dans `~/.config/codemagic/jeton`, SideStore sur l'iPhone ; première construction installée
 - [x] 1. Fondations : connexion (mot de passe + TOTP, Portier, jeton d'appareil dans le trousseau), client WebSocket `/api/ws` (RPC + événements, reconnexion), navigation, thème clair/sombre, icône
-- [ ] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
+- [x] 2. Comptes et accueil : cartes des comptes, bascule, pause, bilan de santé, analyse
 - [ ] 3. Sessions et projets : liste, nouvelle session, renommer, corbeille, historique, comptes par projet
 - [ ] 4. Chat complet : messages en direct (markdown, code, outils, diff, sous-agents), envoi, pièces jointes, citation, questions, interruption, options, `/clear`, étiquettes, recherche, coût
 - [ ] 5. Fichiers : navigation, lecture/écriture, recherche, envoi/téléchargement, images

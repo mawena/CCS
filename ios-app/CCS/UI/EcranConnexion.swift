@@ -5,6 +5,7 @@ import SwiftUI
  * première connexion, secret à ajouter dans l'appli d'authentification), ou connexion par Portier
  * si le serveur l'a activée. L'appairage rend un jeton d'appareil, gardé dans le trousseau.
  */
+@MainActor
 struct EcranConnexion: View {
     @Environment(ModeleAppli.self) private var modele
     @Environment(\.openURL) private var ouvrirLien

@@ -60,6 +60,7 @@ enum Destination: Hashable {
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
+@MainActor
 struct EcranPrincipal: View {
     @Environment(ModeleAppli.self) private var modele
     @State private var onglet: Onglet = .accueil
@@ -110,6 +111,7 @@ struct EcranPrincipal: View {
 }
 
 /// Bandeau discret tant que le WebSocket n'est pas ouvert.
+@MainActor
 struct BandeauConnexion: View {
     @Environment(ModeleAppli.self) private var modele
 
@@ -140,6 +142,7 @@ struct BandeauConnexion: View {
 }
 
 /// Écran d'un onglet pas encore porté.
+@MainActor
 struct EcranProvisoire: View {
     let titre: String
     let texte: String
@@ -151,6 +154,7 @@ struct EcranProvisoire: View {
 }
 
 /// Onglet « Plus » : thème, compte connecté, déconnexion (le reste arrive avec les phases suivantes).
+@MainActor
 struct EcranPlus: View {
     @Environment(ModeleAppli.self) private var modele
     @State private var confirmer = false

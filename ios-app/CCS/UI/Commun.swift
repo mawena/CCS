@@ -81,6 +81,7 @@ final class Avis {
 }
 
 /// Bandeau de l'avis courant, posé en bas de l'écran.
+@MainActor
 struct VueAvis: View {
     let avis: Avis
 
@@ -122,6 +123,7 @@ struct VueAvis: View {
 
 // MARK: petites vues communes
 
+@MainActor
 struct Chargement: View {
     var texte: String? = nil
 
@@ -135,6 +137,7 @@ struct Chargement: View {
     }
 }
 
+@MainActor
 struct EtatErreur: View {
     let message: String
     var reessayer: (() -> Void)? = nil
@@ -151,6 +154,7 @@ struct EtatErreur: View {
     }
 }
 
+@MainActor
 struct EtatVide<Action: View>: View {
     let message: String
     let action: Action
@@ -177,6 +181,7 @@ extension EtatVide where Action == EmptyView {
     }
 }
 
+@MainActor
 struct Pastille: View {
     let couleur: Color
     var taille: CGFloat = 10
@@ -187,6 +192,7 @@ struct Pastille: View {
 }
 
 /// Petite étiquette arrondie (« ouverte », compte, origine).
+@MainActor
 struct Etiquette: View {
     let texte: String
     var fond: Color = Color.accentCcs.opacity(0.15)
@@ -204,6 +210,7 @@ struct Etiquette: View {
 }
 
 /// Carte arrondie sur fond groupé (les `Card` de l'appli Android).
+@MainActor
 struct CarteFond<Contenu: View>: View {
     let contenu: Contenu
 
@@ -220,6 +227,7 @@ struct CarteFond<Contenu: View>: View {
 }
 
 /// Barre de progression d'une jauge (0…100).
+@MainActor
 struct BarreJauge: View {
     let pourcent: Double
     let couleur: Color

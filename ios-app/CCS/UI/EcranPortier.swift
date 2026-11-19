@@ -6,6 +6,7 @@ import WebKit
  * connexion faite. À ce moment, on arrête la vue et on rend les cookies valables pour le serveur
  * (ceux de Portier, sur le domaine commun), que l'appli enverra elle-même au WebSocket.
  */
+@MainActor
 struct EcranPortier: View {
     let adresse: String
     let connexion: String
