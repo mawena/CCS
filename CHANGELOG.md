@@ -3,6 +3,14 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.26.1] — 2026-11-19
+
+### Corrigé
+
+- **Application Android : la connexion par Portier reste dans l'application.** Les sites du même
+  domaine que le serveur (`portier.mawena.cloud`) s'ouvrent dans la vue au lieu du navigateur,
+  d'où la connexion ne revenait pas.
+
 ## [0.26.0] — 2026-11-19
 
 ### Ajouté

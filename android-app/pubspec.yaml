@@ -3,7 +3,7 @@ description: "CCS sur Android : la version web de CCS dans une application."
 publish_to: 'none'
 
 # versionName+versionCode : suit la version de CCS.
-version: 0.26.0+26
+version: 0.26.1+27
 
 environment:
   sdk: ^3.11.1
