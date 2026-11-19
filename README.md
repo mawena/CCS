@@ -790,6 +790,29 @@ tard. Le code de retour est alors 130.
 Les chats de CCS le savent : quand le calcul réparti est réglé, Claude reçoit la consigne de
 passer par `ccs distant lancer` si un outil manque ou pour un travail lourd.
 
+**Plusieurs travaux, file d'attente et nuit.** Chaque machine a un nombre de places (`limite`,
+2 par défaut) : le choix saute les machines pleines, et quand toutes sont pleines le travail
+attend qu'une place se libère. On peut lancer plusieurs commandes à la fois (tests d'un côté,
+build de l'autre).
+
+```sh
+ccs distant lancer --detache -- npm test          # en arrière-plan, journal gardé
+ccs distant lancer --quand nuit -- make test-long # au début de la plage de nuit des tâches
+ccs distant lancer --quand 02:30 -- cargo bench   # à une heure donnée
+ccs distant travaux                               # en cours, en attente, programmés, finis
+ccs distant journal <id>                          # fin du journal d'un travail
+ccs distant arreter <id>                          # arrêt (la commande distante s'arrête aussi)
+```
+
+Le registre des travaux est dans `~/.cache/ccs/distant/travaux/` (les 30 derniers finis et ceux
+de moins de 24 h sont gardés).
+
+**Page « Machines ».** Dans le web (Réglages → « Gérer les machines », ou la feuille « Machine
+pilotée ») et dans l'appli du PC (Réglages → Machines) : machines en ligne, charge, mémoire,
+outils, places et limite ; travaux avec « Journal » et « Arrêter » ; lancer une commande (dossier,
+machine, maintenant / cette nuit / à une heure) ; adresse et jeton du relais (le jeton n'est
+jamais réaffiché). La page se recharge toutes les 5 s tant qu'elle est visible.
+
 **Mise en place** (une fois) :
 
 - relais Ricochet : un jeton des tunnels (`ricochet-serveur jeton`, empreinte dans
@@ -804,6 +827,7 @@ passer par `ccs distant lancer` si un outil manque ou pour un travail lourd.
 [machines.pc-bureau]
 utilisateur = "charles"
 port = 22
+limite = 3        # travaux à la fois sur cette machine (1 à 8, 2 par défaut)
 ```
 
 Ricochet ne fait que le tunnel : c'est le serveur SSH de la machine qui décide qui entre, et

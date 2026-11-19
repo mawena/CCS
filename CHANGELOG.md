@@ -3,6 +3,23 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.30.0] — 2026-11-19
+
+### Ajouté
+
+- **Page « Machines »** dans le web (`#/machines`, depuis Réglages et la feuille « Machine
+  pilotée ») et dans l'appli du PC (Réglages → Machines) : machines, charge, mémoire, outils,
+  places ; travaux en cours, en attente, programmés et finis, avec journal et arrêt ; lancer une
+  commande ; adresse et jeton du relais Ricochet.
+- **Plusieurs travaux à la fois** : places par machine (`limite`, 2 par défaut), file d'attente
+  quand toutes les machines sont pleines.
+- **Travaux en arrière-plan et de nuit** : `ccs distant lancer --detache`, `--quand nuit|HH:MM` ;
+  `ccs distant travaux`, `journal <id>`, `arreter <id>`. Claude est invité à envoyer les longues
+  suites de tests la nuit, pour garder le VPS léger.
+- Pont : `machines.jobs`, `machines.stop`, `machines.log`, `machines.start`,
+  `machines.settings`, `machines.configure`, `machines.limit` ; `machines.list` donne aussi
+  outils, limite et places prises.
+
 ## [0.29.0] — 2026-11-19
 
 ### Ajouté
