@@ -118,3 +118,26 @@ details.details > div { display: grid; gap: 8px; padding-bottom: 6px; }
 .theme-choice button { flex: 1; }
 .theme-choice button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
 .form-error:empty { display: none; }
+
+/* ---- machines (#/machines) ---- */
+.machines-note { margin: 0; text-align: center; font-size: 0.9em; }
+.machines-page h3 { margin: 6px 0 0; font-size: 0.95em; color: var(--subtle); }
+.machine-card { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); min-width: 0; }
+.machine-card:first-child { border-top: 0; padding-top: 0; }
+.machine-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.machine-head strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.machine-bar { grid-template-columns: 72px 1fr 92px; }
+.bar-fill.hot { background: var(--warning); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { padding: 2px 8px; border-radius: 6px; background: var(--soft); font-size: 0.85em; font-family: var(--mono); }
+.machine-places { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.machine-limit { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+.machine-limit select { width: auto; min-width: 64px; }
+.jobs { display: grid; gap: 0; }
+.job { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }
+.job:first-child { border-top: 0; }
+.job-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.job-cmd { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+h2.job-cmd { font-size: 1em; white-space: normal; overflow-wrap: anywhere; }
+.job-why { font-size: 0.9em; color: var(--warning); }
+.job-actions { display: flex; gap: 8px; flex-wrap: wrap; }

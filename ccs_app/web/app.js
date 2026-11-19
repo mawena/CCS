@@ -29,9 +29,10 @@ function updateTitle() {
 function render() {
   const { name, sub } = route();
   if (name === state.view && state.route) { state.route(sub); return; }
+  const tab = VIEWS[name].parent || name;
   for (const a of document.querySelectorAll("#nav a")) {
-    a.classList.toggle("active", a.dataset.view === name);
-    if (a.dataset.view === name) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    a.classList.toggle("active", a.dataset.view === tab);
+    if (a.dataset.view === tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   }
   if (state.cleanup) { try { state.cleanup(); } catch (e) { console.error(e); } }
   const view = clear(document.getElementById("view"));
@@ -101,6 +102,7 @@ function switchMachine(id, name) {
 function buildNav() {
   const nav = clear(document.getElementById("nav"));
   for (const [name, v] of Object.entries(VIEWS)) {
+    if (v.hidden) continue;
     nav.append(el("a", { href: `#/${name}`, dataset: { view: name } },
       el("span", { class: "nav-icon", "aria-hidden": "true" }, v.icon), el("span", { class: "nav-label" }, v.title)));
   }
