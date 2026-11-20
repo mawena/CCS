@@ -642,3 +642,14 @@ archive de l'ancien dépôt) vient après.
 - [ ] 3. Essais réels encore ouverts : APK sur le Pixel (6c de la phase 24, 11 de la phase 25), iPhone (11 de la phase 28) ; corrections
 - [ ] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [ ] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
+
+## Phase 30 — iPhone : machine pilotée, travaux distants, liens de fichiers (0.35.0)
+
+Charles (20/11/2026) : piloter le PC depuis l'appli iPhone comme depuis Android et le web, et
+combler ce qui manque encore à l'appli iPhone.
+
+- [x] 1. Machine pilotée : `machines.list`, `?machine=<id>` sur le WebSocket, fermeture 4010, bouton dans Sessions, entrée dans Plus, bandeau sur tous les écrans, écrans, terminaux et notifications qui suivent la machine
+- [x] 2. Page « Machines » (Plus) : machines du relais (charge, outils, places, limite), travaux distants (en cours, à venir, finis), journal relu en direct, « Arrêter », « Lancer une commande » (maintenant, cette nuit, à une heure), réglages du relais Ricochet
+- [x] 3. Chat : chemins de fichiers cités par Claude cliquables (`work.files`), fichiers des diffs ouverts d'un toucher
+- [x] 4. Tests XCTest (machines, travaux, liens), construction Codemagic, release mineure 0.35.0
+- [ ] 5. Essai par Charles sur l'iPhone (PC allumé, CCS à jour sur le PC)

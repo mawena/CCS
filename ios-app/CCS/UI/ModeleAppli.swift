@@ -16,6 +16,10 @@ final class ModeleAppli {
     var partage: Partage? = nil
     /// Chat à ouvrir (toucher sur une notification, partage livré).
     var aOuvrir: DestChat? = nil
+    /// Autres machines connues (dernière liste reçue, gardée si la connexion est coupée).
+    private(set) var machines: [Machine] = ModeleAppli.lireMachines()
+    /// Feuille « Machine pilotée » ouverte (bandeau, Sessions, Plus).
+    var choixMachine = false
 
     private(set) var adresse: String
     private(set) var identifiants: Identifiants? = nil
@@ -86,6 +90,34 @@ final class ModeleAppli {
             let magasin = WKWebsiteDataStore.default()
             magasin.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: Date.distantPast) {}
         }
+    }
+
+    nonisolated private static let cleMachines = "machines"
+
+    nonisolated private static func lireMachines() -> [Machine] {
+        guard let t = Prefs.lire(cleMachines), let d = t.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([Machine].self, from: d)) ?? []
+    }
+
+    /// Le choix de machine n'a de sens que s'il existe une autre machine (ou qu'on en pilote une).
+    var choixMachinePossible: Bool { return !client.machine.isEmpty || !machines.isEmpty }
+
+    /// Relit `machines.list` ; rend le message du serveur (ou nil). Garde l'ancienne liste en cas d'échec.
+    @discardableResult
+    func rafraichirMachines() async -> String? {
+        guard let r = try? await client.appeler("machines.list", delai: 15, en: ListeMachines.self) else { return nil }
+        let autres = r.autres
+        if autres != machines { machines = autres }
+        if let d = try? JSONEncoder().encode(autres) { Prefs.ecrire(ModeleAppli.cleMachines, String(decoding: d, as: UTF8.self)) }
+        return r.message
+    }
+
+    /// Pilote `id` (vide : ce serveur) : terminaux et notifications de l'ancienne machine sont oubliés.
+    func choisirMachine(_ id: String, nom: String) {
+        if id == client.machine { return }
+        terminaux.oublier()
+        veille.oublierChats()
+        client.changerMachine(id, nom: nom)
     }
 
     private func oublier() {

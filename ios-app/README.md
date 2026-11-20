@@ -19,6 +19,14 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws` pour la RPC
   (couleurs, écran alternatif, curseur application), barre de touches (Échap, Tab, Ctrl et Alt
   collants, flèches, symboles, Début/Fin, pages), coller, copier tout, taille du texte ; les
   terminaux du serveur (ouverts depuis le web) se reprennent, et se rattachent après une coupure.
+- **Machine pilotée** (bouton des Sessions, Plus, bandeau « Machine pilotée : … ») : le PC
+  ou toute machine du relais Ricochet joignable par le tunnel ; toute l'appli la suit (sessions,
+  fichiers, Git, terminal, notifications). Retour à « Ce serveur » d'un toucher.
+- **Machines et travaux distants** (Plus) : machines du relais (charge, outils, places, limite),
+  travaux `ccs distant` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
+  commande » (maintenant, cette nuit ou à une heure), réglages du relais.
+- **Liens de fichiers** : dans le chat, les chemins cités par Claude (`chemin:ligne`) et les
+  fichiers des diffs s'ouvrent d'un toucher.
 - **Notifications locales** : fin de tour, autorisation ou question en attente, rappel d'une
   attente longue (réglage `alerts.waiting_reminder` du serveur) ; « Autoriser » / « Refuser »
   depuis la notification, toucher pour ouvrir le chat. Aucune pour le chat affiché.
