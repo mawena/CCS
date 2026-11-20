@@ -64,6 +64,7 @@ enum Destination: Hashable {
     case reglages
     case terminaux
     case terminal(String)
+    case machines
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
@@ -76,6 +77,7 @@ struct EcranPrincipal: View {
     var body: some View {
         VStack(spacing: 0) {
             BandeauConnexion()
+            BandeauMachine()
             TabView(selection: $onglet) {
                 ForEach(Onglet.allCases, id: \.self) { o in
                     NavigationStack(path: pile(o)) {
@@ -87,12 +89,26 @@ struct EcranPrincipal: View {
                     .tag(o)
                 }
             }
+            // écrans recréés (état, dossier courant…) quand la machine pilotée change
+            .id(modele.client.machine)
         }
         .sheet(item: Binding<Partage?>(get: { modele.partage }, set: { modele.partage = $0 })) { p in
             FeuillePartage(partage: p) { dest in
                 modele.partage = nil
                 modele.aOuvrir = dest
             }
+        }
+        .sheet(isPresented: Binding<Bool>(get: { modele.choixMachine }, set: { modele.choixMachine = $0 })) {
+            FeuilleMachines()
+        }
+        // Autre machine pilotée : les écrans ouverts (chat, projet…) étaient ceux de l'ancienne ;
+        // retour aux Sessions, piles remises à zéro. Les données se rechargent à la connexion.
+        .onChange(of: modele.client.machine) { _, _ in
+            piles = [:]
+            onglet = .sessions
+        }
+        .task(id: modele.client.etat.estConnecte) {
+            if modele.client.etat.estConnecte { await modele.rafraichirMachines() }
         }
         .onChange(of: modele.aOuvrir) { _, d in
             guard let d = d else { return }
@@ -139,6 +155,7 @@ struct EcranPrincipal: View {
         case .reglages: EcranReglages()
         case .terminaux: EcranTerminaux()
         case .terminal(let id): EcranTerminal(id: id)
+        case .machines: EcranMachines()
         }
     }
 }
@@ -154,7 +171,8 @@ struct BandeauConnexion: View {
         case .connecte, .arrete, .refuse:
             EmptyView()
         case .connexion:
-            ligne(texte: "Connexion au serveur…", attente: true, reessai: false)
+            ligne(texte: modele.client.machine.isEmpty ? "Connexion au serveur…" : "Connexion à \(modele.client.nomMachine)…",
+                  attente: true, reessai: false)
         case .horsLigne(let raison, let attente):
             ligne(texte: "\(raison) Nouvel essai dans \(max(1, Int(attente))) s.", attente: false, reessai: true)
         }
@@ -199,12 +217,30 @@ struct EcranPlus: View {
                     ForEach(Theme.allCases, id: \.self) { t in Text(t.libelle).tag(t) }
                 }
             }
+            if modele.choixMachinePossible {
+                Section {
+                    Button {
+                        modele.choixMachine = true
+                    } label: {
+                        HStack {
+                            Label("Machine pilotée", systemImage: modele.client.machine.isEmpty ? "cloud" : "desktopcomputer")
+                            Spacer()
+                            Text(modele.client.nomMachine).foregroundStyle(.secondary)
+                        }
+                    }
+                } footer: {
+                    Text("Piloter le PC (sessions, fichiers, terminal…) depuis l'iPhone, par le relais Ricochet.")
+                }
+            }
             Section {
                 NavigationLink(value: Destination.reglages) {
                     Label("Réglages", systemImage: "gearshape")
                 }
                 NavigationLink(value: Destination.terminaux) {
                     Label("Terminaux", systemImage: "terminal")
+                }
+                NavigationLink(value: Destination.machines) {
+                    Label("Machines et travaux distants", systemImage: "server.rack")
                 }
                 NavigationLink(value: Destination.analyse) {
                     Label("Analyse", systemImage: "chart.bar")
@@ -215,7 +251,7 @@ struct EcranPlus: View {
                     }
                 }
             } footer: {
-                Text("Réglages : notifications, serveur, téléphone (ntfy), appareils. Terminaux : un shell sur le serveur. Analyse : usage par projet, modèle, compte et heure.")
+                Text("Réglages : notifications, serveur, téléphone (ntfy), appareils. Terminaux : un shell sur la machine pilotée. Machines : travaux lancés sur les autres machines (ccs distant). Analyse : usage par projet, modèle, compte et heure.")
             }
             Section("Connexion") {
                 LabeledContent("Serveur", value: modele.adresse.replacingOccurrences(of: "https://", with: ""))

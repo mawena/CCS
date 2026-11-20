@@ -71,6 +71,23 @@ final class ModeleChat {
     }
 
     private(set) var vue = VueChat()
+    /// Fichiers du projet (`work.files`, chemins relatifs) : liens des chemins cités par Claude.
+    private(set) var fichiers: Set<String> = []
+    @ObservationIgnored private var chargeFichiers = false
+
+    /// Relit la liste des fichiers du projet (après un tour : Claude a pu en créer).
+    func chargerFichiers() {
+        guard let id = chatId, !chargeFichiers else { return }
+        chargeFichiers = true
+        Task { @MainActor [weak self] in
+            guard let s = self else { return }
+            if let r = try? await s.client.appeler("work.files", ["chat_id": .chaine(id)], delai: 20, en: IndexFichiers.self) {
+                let f = Set(r.files)
+                if f != s.fichiers { s.fichiers = f }
+            }
+            s.chargeFichiers = false
+        }
+    }
     private(set) var reglages = ReglagesChat()
     private(set) var citation: Citation.Cite? = nil
     private(set) var images: [PieceJointe] = []

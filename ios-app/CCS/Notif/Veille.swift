@@ -73,6 +73,22 @@ final class Veille: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
     }
 
+    /**
+     * Autre machine pilotée : la veille partage le client de l'appli, donc suit la machine (comme
+     * le web) ; ce qu'elle savait des chats de l'ancienne est oublié avant la reconnexion.
+     */
+    func oublierChats() {
+        mettre { [weak self] in self?.viderChats() }
+    }
+
+    private func viderChats() {
+        derniers = [:]
+        infos = [:]
+        titres = [:]
+        _ = veilleur.garderSeulement([])
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+    }
+
     // MARK: écran
 
     /// Chat affiché à l'écran (nil quand on le quitte).

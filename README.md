@@ -857,7 +857,8 @@ de débogage de `pc-bureau` : construire toujours là pour installer les mises �
 `ios-app/` contient l'application **native** pour iPhone (Swift + SwiftUI, iOS 17, identifiant
 `com.mawena.ccs`) : le même périmètre que l'appli Android — accueil et comptes, sessions et
 projets, chat complet, fichiers, Git, feuille de route, tâches de nuit, réglages, terminal
-(émulateur SwiftTerm) — avec des notifications **locales** de fin de tour et d'attente
+(émulateur SwiftTerm), choix de la **machine pilotée** (le PC par le relais Ricochet, comme
+sur le web et Android) et page des **travaux distants** — avec des notifications **locales** de fin de tour et d'attente
 (Autoriser / Refuser depuis la notification) et le partage vers un chat (« Ouvrir dans CCS »
 pour les fichiers, `ccs://partager?texte=…` pour le texte et les liens).
 
