@@ -77,6 +77,11 @@ private struct FilChatVue: View {
     @State private var effacer = false
     @State private var viser: String? = nil
 
+    /// Liens des chemins de fichiers cités (connus de `work.files`), ouverts dans l'appli.
+    private var liens: LiensFichiers? {
+        return mc.fichiers.isEmpty ? nil : LiensFichiers(cwd: mc.cwd, fichiers: mc.fichiers)
+    }
+
     var body: some View {
         let vue = mc.vue
         let lignes = vue.agentVu == nil ? vue.lignes : vue.lignesAgent
@@ -264,6 +269,16 @@ private struct FilChatVue: View {
         }
         .sheet(isPresented: $voletEtiquettes) {
             FeuilleEtiquettes(etiquettes: mc.etiquettes, filtre: filtreEtiquette) { id in montrerMessage(id) }
+        }
+        .environment(\.liensFichiers, liens)
+        .environment(\.openURL, OpenURLAction { u in
+            guard let f = LiensFichiers.lire(u) else { return .systemAction }
+            naviguer(.fichier(chemin: f.chemin, ligne: f.ligne))
+            return .handled
+        })
+        // fichiers du projet relus quand le chat est prêt et après chaque tour
+        .task(id: "\(mc.vue.pret)|\(mc.vue.etat)") {
+            if mc.vue.pret && mc.vue.etat != "busy" { mc.chargerFichiers() }
         }
     }
 

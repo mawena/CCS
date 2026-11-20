@@ -31,9 +31,27 @@ enum EtatConnexion: Equatable {
 @Observable
 final class CcsClient {
     static let fermeParAuth = 4001
+    /// La machine pilotée est injoignable (hors ligne, tunnel coupé) : on retente plus tard.
+    static let machineInjoignable = 4010
+    static let ceServeur = "Ce serveur"
+    nonisolated private static let cleMachine = "machine"
+    nonisolated private static let cleNomMachine = "machine-nom"
     private static let maxAttentes = 100
 
     private(set) var etat: EtatConnexion = .arrete
+
+    /**
+     * Machine pilotée (vide : ce serveur), gardée dans les préférences ; la connexion passe alors
+     * par le pont du serveur jusqu'à celui de l'autre machine (`?machine=<id>`), comme le web.
+     */
+    private(set) var machine: String = Prefs.lire(CcsClient.cleMachine) ?? ""
+
+    /// Nom affiché de la machine pilotée : « Ce serveur », ou son nom gardé au choix.
+    var nomMachine: String {
+        if machine.isEmpty { return CcsClient.ceServeur }
+        let n = Prefs.lire(CcsClient.cleNomMachine) ?? ""
+        return n.trimmingCharacters(in: .whitespaces).isEmpty ? machine : n
+    }
 
     /// Appelé quand le serveur refuse les identifiants (l'appli revient à l'écran de connexion).
     @ObservationIgnored var surRefus: ((String) -> Void)? = nil
@@ -107,6 +125,27 @@ final class CcsClient {
         fermerTache()
         echouerTout("hors_ligne", "Déconnecté.")
         etat = .arrete
+    }
+
+    /**
+     * Pilote une autre machine (`id` vide : ce serveur). Les appels en cours appartiennent à
+     * l'ancienne : ils sont rejetés (`hors_ligne`) et la connexion repart tout de suite.
+     */
+    func changerMachine(_ id: String, nom: String = "") {
+        Prefs.ecrire(CcsClient.cleNomMachine, id.isEmpty || nom.isEmpty ? nil : nom)
+        if id == machine { return }
+        Prefs.ecrire(CcsClient.cleMachine, id.isEmpty ? nil : id)
+        machine = id
+        // arrêté ou refusé : le choix sert à la prochaine connexion
+        guard identifiants != nil else { return }
+        if case .refuse = etat { return }
+        attenteTache?.cancel()
+        attenteTache = nil
+        fermerTache()
+        echouerTout("hors_ligne", "Machine changée.")
+        tentative = 0
+        attente = attenteMin
+        connecter()
     }
 
     /// Nouvel essai tout de suite si la connexion attend (réseau revenu, appli au premier plan).
@@ -251,7 +290,7 @@ final class CcsClient {
     // MARK: connexion
 
     private func connecter() {
-        guard let i = identifiants, let url = Adresse.ws(i.serveur, "api/ws") else {
+        guard let i = identifiants, let url = Adresse.ws(i.serveur, "api/ws", machine: machine) else {
             etat = .refuse(raison: "Adresse du serveur invalide.")
             return
         }
@@ -404,6 +443,8 @@ final class CcsClient {
     private static func fermeture(_ code: Int, _ raison: String) -> (refus: Bool, raison: String) {
         switch code {
         case fermeParAuth: return (true, "Session terminée.")
+        case machineInjoignable:
+            return (false, raison.trimmingCharacters(in: .whitespaces).isEmpty ? "La machine pilotée est injoignable." : raison)
         case 1011: return (false, "Pont injoignable sur le serveur.")
         case 1012: return (false, "Connexion au pont perdue.")
         default: return (false, raison.trimmingCharacters(in: .whitespaces).isEmpty ? "Connexion fermée." : raison)

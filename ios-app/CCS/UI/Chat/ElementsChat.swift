@@ -299,11 +299,22 @@ struct TexteMono: View {
 
 @MainActor
 struct VueDiff: View {
+    @Environment(\.liensFichiers) private var liens
+    @Environment(\.naviguer) private var naviguer
     let d: Diff.Fichier
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(d.chemin).font(.caption2).foregroundStyle(.secondary).lineLimit(2).truncationMode(.head)
+            if liens != nil && d.chemin.hasPrefix("/") {
+                // dans un chat : le fichier modifié s'ouvre d'un toucher
+                Button { naviguer(.fichier(chemin: d.chemin, ligne: nil)) } label: {
+                    Text(d.chemin).font(.caption2).underline().foregroundStyle(Color.accentCcs)
+                        .lineLimit(2).truncationMode(.head)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(d.chemin).font(.caption2).foregroundStyle(.secondary).lineLimit(2).truncationMode(.head)
+            }
             CorpsDiff(lignesDiff: d.lignes)
         }
     }

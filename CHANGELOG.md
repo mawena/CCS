@@ -3,6 +3,20 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.35.0] — 2026-11-20
+
+### Ajouté
+
+- **iPhone : machine pilotée**, comme sur Android : bouton dans Sessions et Plus, bandeau sur
+  tous les écrans ; sessions, chats, fichiers, Git, terminal et notifications suivent la machine
+  choisie (le PC du bureau par exemple, via le relais Ricochet).
+- **iPhone : page « Machines et travaux distants »** (Plus) : machines, leurs outils et leurs
+  places (limite réglable), travaux en cours, à venir et finis, journal en direct, arrêt, lancement
+  d'une commande (maintenant, cette nuit ou à une heure), réglages du relais Ricochet.
+- **iPhone : liens de fichiers dans le chat** : les chemins cités par Claude et les fichiers des
+  diffs s'ouvrent d'un toucher.
+- `.ipa` joint à la release (`CCS-0.35.0.ipa`) et ajouté à la source SideStore.
+
 ## [0.34.0] — 2026-11-19
 
 ### Ajouté

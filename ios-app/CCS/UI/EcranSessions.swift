@@ -53,6 +53,9 @@ struct EcranSessions: View {
             await charger()
         }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                BoutonMachine()
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     nouvelleDans = ""
