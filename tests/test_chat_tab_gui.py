@@ -101,6 +101,7 @@ class ChatTabTest(HomeTestCase):
         from ccs_app import settings   # seuil des tests : 150 000 (le défaut aussi)
         s = settings.load_settings()
         s["context_alert"]["threshold_tokens"] = 150_000
+        s["context_alert"]["auto_compact"] = False      # activé par défaut ; voir auto_on()
         settings.save_settings(s)
         self.cwd = Path(self.tmp) / "projet"
         self.cwd.mkdir()
@@ -276,6 +277,26 @@ class ChatTabTest(HomeTestCase):
         tab, _owner = self.make()
         tab._dispatch(chat_engine.OptionRefused("set_permission_mode", "Cannot set permission mode"))
         self.assertTrue(any("refusé" in t for t in texts(tab)))
+
+    def test_cache_expired_note_and_confirmation(self):
+        tab, _owner = self.make()
+        opened = []
+        tab.owner.open_chat = lambda cwd: opened.append(cwd)
+        tab._dispatch(chat_engine.CacheExpired(120_000, 3600, 1.6, "Cache expiré : rien depuis 1 h"))
+        self.assertTrue(any("Cache expiré" in t for t in texts(tab)))
+        buttons = [w for w in descendants(tab.messages) if isinstance(w, Gtk.Button)
+                   and w.get_label() in ("Compacter", "Nouvelle session")]
+        self.assertEqual([b.get_label() for b in buttons], ["Compacter", "Nouvelle session"])
+        buttons[1].emit("clicked")
+        self.assertEqual(opened, [str(self.cwd)])
+        asked = []
+        tab._confirm_expired = lambda text, images, quoted: asked.append(text)
+        tab._on_send(None, "suite", [])
+        self.assertEqual(asked, ["suite"])                # confirmation avant d'envoyer
+        tab._on_send(None, "/compact", [])
+        self.assertEqual(asked, ["suite"])                # une commande part sans question
+        tab._dispatch(proto.TurnResult(True, "success", usage={"context": 5000}))
+        self.assertIsNone(tab._cache_expired)
 
     def test_unknown_question_is_shown(self):
         tab, _owner = self.make()
@@ -758,7 +779,7 @@ class ChatTabTest(HomeTestCase):
         self.auto_on()
         tab, _owner = self.make(env={"FAKE_CLAUDE_SCENARIO": "", "FAKE_CLAUDE_CONTEXT": "160000"})
         self.say(tab, "bonjour")
-        self.assertTrue(pump_until(lambda: tab.bar.context_label.get_label() == "Contexte 15 %"), texts(tab))
+        self.assertTrue(pump_until(lambda: tab.bar.context_label.get_label().startswith("Contexte 15 %")), texts(tab))
         got = texts(tab)
         self.assertIn("Compactage automatique : contexte de 160\u202f000 jetons.", got)
         self.assertIn("Conversation compactée (160\u202f000 jetons avant).", got)

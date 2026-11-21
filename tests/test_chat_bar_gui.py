@@ -62,14 +62,17 @@ class ChatBarTest(unittest.TestCase):
 
     def test_context_color_over_threshold(self):
         bar = self.make()
-        bar.set_context(30, 60)
+        bar.set_context(20, 60)
         self.assertEqual(bar.context_level, "ok")
         self.assertTrue(bar.gauge.has_css_class("ccs-gauge-ok"))
-        bar.set_context(65, 60)
+        bar.set_context(35, 60, 70_000)                   # moitié du seuil : orange
         self.assertEqual(bar.context_level, "warn")
         self.assertTrue(bar.gauge.has_css_class("ccs-gauge-warn"))
         self.assertFalse(bar.gauge.has_css_class("ccs-gauge-ok"))
-        bar.set_context(95, 60)
+        self.assertEqual(bar.context_label.get_label(), "Contexte 35 % · 70 k")
+        bar.set_context(65, 60)                           # au-delà du seuil : rouge
+        self.assertEqual(bar.context_level, "crit")
+        bar.set_context(95, None)
         self.assertEqual(bar.context_level, "crit")
 
     def test_account_is_shown_with_its_color(self):
