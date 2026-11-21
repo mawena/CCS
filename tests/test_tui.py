@@ -70,6 +70,17 @@ class TuiTest(unittest.TestCase):
         self.app.on_event("chat.event", {"chat_id": "autre", "seq": 3, "event": {"type": "AssistantText", "msg_id": "x", "text": "ailleurs"}})
         self.assertNotIn("ailleurs", texts(self.app.root))
 
+    def test_chat_shows_usage_and_cache_expired(self):
+        self.open_chat()
+        usage = {"cache_read": 36_000, "cache_write": 2000, "input": 4, "output": 850, "cost_usd": 0.5}
+        self.app.on_event("chat.event", {"chat_id": "c1", "seq": 1, "event": {"type": "TurnResult", "ok": True, "usage": usage}})
+        self.app.on_event("chat.event", {"chat_id": "c1", "seq": 2, "event": {"type": "CacheExpired", "context": 90000,
+                                                                              "ttl_s": 3600, "text": "Cache expiré : rien depuis 1 h."}})
+        out = texts(self.app.root)
+        self.assertIn("36 k lus · 2 k écrits · 850 produits · 0,50 $", out)
+        self.assertIn("Cache expiré : rien depuis 1 h.", out)
+        self.assertIn("/compact", out)
+
     def test_send_message(self):
         chat = self.open_chat()
         chat.edit.set_edit_text("fais ceci")

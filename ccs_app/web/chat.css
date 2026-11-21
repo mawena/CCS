@@ -200,3 +200,9 @@ dialog.saved { width: min(520px, calc(100vw - 24px)); }
 .before-reset:hover { opacity: 0.85; }
 .reset-sep { display: flex; align-items: center; gap: 10px; margin: 14px 0; color: var(--subtle); font-size: 0.85em; text-align: center; }
 .reset-sep::before, .reset-sep::after { content: ""; flex: 1; border-top: 1px solid var(--border, currentColor); opacity: 0.6; }
+
+/* Consommation de tokens : ligne sous chaque tour, indicateur de contexte coloré */
+.turn-usage { font-size: 0.8em; margin: -4px 0 6px 2px; }
+.composer-foot .context.ctx-ok { color: #2e9d5b; }
+.composer-foot .context.ctx-warn { color: #d08a12; }
+.composer-foot .context.ctx-crit { color: #d0383e; font-weight: 600; }
