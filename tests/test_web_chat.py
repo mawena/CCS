@@ -167,6 +167,25 @@ class ContextAlertTest(unittest.TestCase):
         self.assertEqual(node("chat-context.js", "m.COMPACT_KEEP"), context_alert.COMPACT_KEEP)
         self.assertEqual(self.alert("{total: 150001}")["gain"], context_alert.compact_gain(150001))
 
+    def test_usage_summary_like_python(self):
+        from ccs_app import token_use
+        for u in ({"cache_read": 35952, "cache_write": 15423, "input": 4, "output": 403, "cost_usd": 0.0365},
+                  {"cache_read": 0, "cache_write": 0, "input": 2500, "output": 1_234_567, "cost_usd": 0},
+                  {"output": 12}):
+            self.assertEqual(node("chat-context.js", f"m.usageSummary({json.dumps(u)})"), token_use.summary(u))
+        self.assertEqual(node("chat-context.js", "m.usageSummary({})"), "")
+
+    def test_context_level(self):
+        self.assertEqual(node("chat-context.js", "[m.contextLevel(10000), m.contextLevel(80000), m.contextLevel(150000),"
+                                                 " m.contextLevel(60000, 100000)]"), ["ok", "warn", "crit", "warn"])
+
+    def test_cache_expired_wiring(self):
+        chat = (WEB / "chat.js").read_text()
+        self.assertIn('case "CacheExpired":', chat)
+        self.assertIn('"ccs:new-chat"', chat)
+        self.assertIn("this.cacheExpired && !(isSlashCommand(text)", chat)
+        self.assertIn("this.cacheExpired = null;", chat[chat.index('case "TurnResult":'):])
+
     def test_chat_wiring(self):
         chat = (WEB / "chat.js").read_text()
         self.assertIn("contextAlert(ev, (await this.workInfo()).context, this.heavy)", chat)

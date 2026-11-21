@@ -122,7 +122,7 @@ final class Veilleur {
             }
         case .texte(_, let texte, let parent):
             if parent == nil && !texte.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { s.dernierTexte = texte }
-        case .tour(_, _, _, let texte, _, let interrompu):
+        case .tour(_, _, _, let texte, _, let interrompu, _):
             if interrompu { s.interrompu = true }
             if !texte.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { s.dernierTexte = texte }
         case .autorisation(let requestId, let outil, let affiche, let entree, _, _):

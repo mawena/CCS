@@ -78,18 +78,19 @@ class CostTest(unittest.TestCase):
         self.assertNotIn("coûte", ca.advice_text(ca.Context(182_400, "?")))
 
     def test_config_with_fallbacks(self):
-        default = {"enabled": True, "threshold_tokens": 300_000, "auto_compact": False}
+        default = {"enabled": True, "threshold_tokens": 150_000, "auto_compact": True}
         self.assertEqual(ca.config(None), default)
         self.assertEqual(ca.config({"context_alert": {"enabled": False, "threshold_tokens": 90000}}),
-                         {"enabled": False, "threshold_tokens": 90000, "auto_compact": False})
-        self.assertEqual(ca.config({"context_alert": {"auto_compact": True}}), {**default, "auto_compact": True})
+                         {"enabled": False, "threshold_tokens": 90000, "auto_compact": True})
+        self.assertEqual(ca.config({"context_alert": {"auto_compact": False}}), {**default, "auto_compact": False})
         for bad in ({"context_alert": {"threshold_tokens": "x", "enabled": 3, "auto_compact": "oui"}},
                     {"context_alert": {"threshold_tokens": -5}}, {"context_alert": []}):
             self.assertEqual(ca.config(bad), default)
 
     def test_auto_compact_follows_the_alert(self):
         self.assertFalse(ca.auto_on(None))
-        self.assertFalse(ca.auto_on(ca.config(None)))                    # désactivé par défaut
+        self.assertTrue(ca.auto_on(ca.config(None)))                     # activé par défaut (0.37.0)
+        self.assertFalse(ca.auto_on(ca.config({"context_alert": {"auto_compact": False}})))
         self.assertTrue(ca.auto_on(ca.config({"context_alert": {"auto_compact": True}})))
         self.assertFalse(ca.auto_on(ca.config({"context_alert": {"auto_compact": True, "enabled": False}})))
 

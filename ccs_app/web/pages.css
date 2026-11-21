@@ -141,3 +141,10 @@ details.details > div { display: grid; gap: 8px; padding-bottom: 6px; }
 h2.job-cmd { font-size: 1em; white-space: normal; overflow-wrap: anywhere; }
 .job-why { font-size: 0.9em; color: var(--warning); }
 .job-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Analyse : gros consommateurs */
+.top-consumers .top-row { padding: 6px 0; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
+.top-consumers .top-row:first-of-type { border-top: 0; }
+.top-consumers .top-head { display: flex; gap: 8px; align-items: baseline; }
+.top-consumers .top-head .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top-consumers .top-cause { font-size: 0.85em; margin-left: 4px; }

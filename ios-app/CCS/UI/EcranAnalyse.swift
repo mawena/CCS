@@ -35,6 +35,7 @@ struct EcranAnalyse: View {
                                 .foregroundStyle(Color.accentCcs)
                             Text("jetons pondérés · \(r.responses) réponses").foregroundStyle(.secondary)
                         }
+                        GrosConsommateurs(liste: r.top)
                         Barres(titre: "Par projet", donnees: r.parProjet, total: r.total)
                         Barres(titre: "Par modèle", donnees: r.parModele, total: r.total)
                         Barres(titre: "Par compte", donnees: r.parCompte, total: r.total)
@@ -80,6 +81,40 @@ private struct Barres: View {
                             Text(String(format: "%.1f %%", l.part)).font(.subheadline.weight(.semibold))
                         }
                         BarreJauge(pourcent: l.part, couleur: .accentCcs)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Conversations qui pèsent le plus : titre, projet, part de l'usage, causes probables.
+@MainActor
+private struct GrosConsommateurs: View {
+    let liste: [GrosConsommateur]
+
+    var body: some View {
+        if !liste.isEmpty {
+            CarteFond {
+                Text("Gros consommateurs").font(.headline)
+                ForEach(liste) { c in
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(c.titre.isEmpty ? "Sans titre" : c.titre).font(.subheadline).lineLimit(2)
+                                if !c.projet.isEmpty {
+                                    Text(c.projet).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                                }
+                            }
+                            Spacer()
+                            Text(String(format: "%.1f %%", c.part).replacingOccurrences(of: ".", with: ","))
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        BarreJauge(pourcent: c.part, couleur: .accentCcs)
+                        ForEach(Array(c.causes.enumerated()), id: \.offset) { _, cause in
+                            Text("• " + cause).font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
             }

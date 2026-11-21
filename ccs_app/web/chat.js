@@ -2,10 +2,10 @@
 // sous-agents), autorisations et questions de Claude, liste de tâches épinglée, barre modèle /
 // effort / droits, saisie avec images. Les événements arrivent numérotés : après une coupure, le
 // chat redemande ce qu'il a manqué (`chat.attach` depuis son dernier numéro).
-import { clear, el, resizable, setHtml, toast } from "./dom.js";
+import { choiceSheet, clear, el, resizable, setHtml, toast } from "./dom.js";
 import { ChangesPanel } from "./chat-changes.js";
 import { Completer } from "./chat-complete.js";
-import { contextAlert } from "./chat-context.js";
+import { contextAlert, contextLevel, fmtTokens, usageSummary } from "./chat-context.js";
 import { diffCard, editDiffs } from "./chat-diff.js";
 import { linkify } from "./chat-links.js";
 import { claudeNode, icon, quoteOf, REPLY_ICON, selectionIn, userNode } from "./chat-message.js";
@@ -428,6 +428,15 @@ export class ChatView {
       this.runShell(text.slice(1).trim());
       return;
     }
+    if (this.cacheExpired && !(isSlashCommand(text) && !this.images.length)) {
+      // cache expiré : ce message relira tout le contexte au prix fort
+      const choice = await choiceSheet({ title: "Cache expiré",
+        body: `Ce message relira ${fmtTokens(this.cacheExpired.context)} tokens au prix fort.`,
+        choices: [{ value: "compact", label: "Compacter d'abord", primary: true }, { value: "send", label: "Envoyer quand même" }] });
+      if (choice === "compact") { this.sendText("/compact"); return; }   // le message reste dans la saisie
+      if (choice !== "send") return;
+      this.cacheExpired = null;
+    }
     this.sending = true;
     try {
       const images = [...this.images];
@@ -717,6 +726,8 @@ export class ChatView {
     this.setTodos([]);
     this.heavy = false;
     this.context.textContent = "";
+    this.contextPct = undefined;
+    this.cacheExpired = null;
     if (newSession) this.history = null;
     else if (this.history) this.history = { path: this.history.path, loaded: 0, full: false };   // relu après chat.attach
   }
@@ -824,10 +835,22 @@ export class ChatView {
         : "Nouvelle conversation — Claude ne voit plus les messages au-dessus")));
   }
 
-  // `action` : { label, run } ajoute un bouton à la note (« Compacter »…).
+  // `action` : { label, run } (ou une liste) ajoute des boutons à la note (« Compacter »…).
   notice(text, kind = "info", action = null) {
+    const actions = Array.isArray(action) ? action : action ? [action] : [];
     return this.append(el("div", { class: `notice ${kind}` }, el("span", {}, text),
-      action ? el("button", { type: "button", class: "small", onclick: action.run }, action.label) : null));
+      ...actions.map((a) => el("button", { type: "button", class: "small", onclick: a.run }, a.label))));
+  }
+
+  // « Contexte N % · 120 k », coloré selon le seuil du contexte lourd (réglage du pont).
+  async showContext(percentage, total) {
+    if (percentage !== null && percentage !== undefined) this.contextPct = percentage;
+    const tokens = total ? fmtTokens(total) : "";
+    this.context.textContent = this.contextPct !== undefined
+      ? `Contexte ${this.contextPct} %${tokens ? ` · ${tokens}` : ""}` : `Contexte ${tokens}`;
+    const cfg = (await this.workInfo().catch(() => ({})))?.context || {};
+    this.context.classList.remove("ctx-ok", "ctx-warn", "ctx-crit");
+    if (total) this.context.classList.add(`ctx-${contextLevel(total, cfg.threshold_tokens)}`);
   }
 
   async render(node, markdown) {
@@ -1120,6 +1143,9 @@ export class ChatView {
       case "PermissionSettled": { const c = this.perms.get(ev.request_id); if (c) { c.remove(); this.perms.delete(ev.request_id); } break; }
       case "ControlReply": break;
       case "TurnResult":
+        this.cacheExpired = null;
+        if (ev.ok && !ev.interrupted && usageSummary(ev.usage)) this.append(el("div", { class: "turn-usage subtle" }, usageSummary(ev.usage)));
+        if (ev.usage?.context) this.showContext(null, ev.usage.context);
         if (ev.interrupted) { this.notice("Arrêté."); this.stopAgents(); }
         else if (ev.is_limit) this.notice(`Limite d'usage atteinte : ${ev.text || "attends la fin de la période ou change de compte."}`, "warning");
         else if (!ev.ok) this.notice(ev.text || "Claude n'a pas pu finir sa réponse.", "error");
@@ -1135,7 +1161,12 @@ export class ChatView {
       case "Retrying": this.notice(`Nouvel essai (${ev.attempt}) dans ${Math.round(ev.delay_s)} s…`, "warning"); break;
       case "Unknown": break;
       case "StateChanged": this.setState(ev.state); break;
-      case "ContextUsage": this.context.textContent = `Contexte ${ev.percentage} %`; this.checkContext(ev); break;
+      case "ContextUsage": this.showContext(ev.percentage, ev.total); this.checkContext(ev); break;
+      case "CacheExpired":
+        this.cacheExpired = ev;
+        this.notice(ev.text, "warning", [{ label: "Compacter", run: () => this.sendText("/compact") },
+          { label: "Nouvelle session", run: () => document.dispatchEvent(new CustomEvent("ccs:new-chat", { detail: { cwd: this.cwd } })) }]);
+        break;
       case "OptionRefused": this.notice(`Réglage refusé (${ev.what}) : ${ev.error}`, "warning"); break;
       case "UnhandledRequest": this.notice(`Demande non prise en charge : ${ev.subtype}`, "warning"); break;
       case "ProcessExited": this.stopAgents(); if (!ev.requested && ev.code) this.notice(`Claude s'est arrêté (code ${ev.code}).`, "error"); break;

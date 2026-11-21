@@ -82,6 +82,20 @@ class MarkdownViewTest(unittest.TestCase):
         self.assertFalse(boxes[0].get_sensitive())
         self.assertEqual(len([w for w in walk(v) if isinstance(w, Gtk.Grid)]), 1)
 
+    def test_table_has_no_blank_space_below(self):
+        """Une cellule qui passait à la ligne faisait mesurer au tableau la hauteur d'un mot par
+        ligne : un grand vide apparaissait sous le tableau (749 px pour 5 lignes)."""
+        v = self.view("| | Avant | Après |\n|---|---|---|\n| RAM utilisée | 11 Go (74 %) | 8,1 Go |\n"
+                      "| Contenu de la zram | 10,8 Go (dans 2,6 Go de RAM) | 5,2 Go (dans 1,5 Go) |\n"
+                      "| Long | " + "mot " * 30 + "| x |\n")
+        scroller = next(w for w in walk(v) if isinstance(w, Gtk.ScrolledWindow))
+        _min, natural, _b, _b2 = scroller.measure(Gtk.Orientation.VERTICAL, 900)
+        self.assertLess(natural, 200)
+        cells = [w for w in walk(v) if isinstance(w, Gtk.Label) and w.get_parent().__class__ is Gtk.Grid]
+        self.assertFalse(cells[1].get_wrap())                     # « Avant » : courte
+        self.assertTrue(cells[-2].get_wrap())                     # longue : passe à la ligne
+        self.assertEqual(cells[-2].get_width_chars(), 40)
+
     def test_remote_image_not_loaded(self):
         v = self.view("![chat](https://exemple.org/c.png)")
         self.assertFalse([w for w in walk(v) if isinstance(w, Gtk.Picture)])

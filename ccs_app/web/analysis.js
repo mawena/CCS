@@ -58,9 +58,20 @@ export function mountAnalysis(root, api) {
     clear(body).append(
       el("section", { class: "card" }, el("div", { class: "big-number" }, fmt(r.total)),
         el("div", { class: "subtle" }, `jetons pondérés · ${r.responses} réponses`)),
+      topConsumers(r.top),
       bars("Par projet", r.by_project, r.total), bars("Par modèle", r.by_model, r.total),
       bars("Par compte", r.by_account, r.total),
       el("section", { class: "card flat" }, el("h2", {}, "Par heure"), hours));
   }
   load();
+}
+
+// « Gros consommateurs » : les conversations qui pèsent le plus, avec la cause probable.
+function topConsumers(top) {
+  if (!Array.isArray(top) || !top.length) return "";     // append(null) écrirait « null »
+  return el("section", { class: "card flat top-consumers" }, el("h2", {}, "Gros consommateurs"),
+    ...top.map((c) => el("div", { class: "top-row" },
+      el("div", { class: "top-head" }, el("strong", { class: "grow" }, c.title),
+        el("span", { class: "subtle" }, `${c.project} · ${String(Math.round(c.share))} %`)),
+      ...(c.causes || []).map((t) => el("div", { class: "subtle top-cause" }, `• ${t}`)))));
 }

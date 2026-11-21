@@ -3,6 +3,34 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.37.0] — 2026-11-21
+
+### Ajouté
+
+- **Ordre des sessions dans la version web** : menu de tri de « En cours » (ordre manuel,
+  activité récente, nom, projet, état), glisser-déposer des lignes et des onglets, « Monter » /
+  « Descendre » au menu (appui long au téléphone). L'ordre manuel est gardé dans le navigateur
+  et la barre d'onglets suit le même ordre.
+- **Tokens de chaque réponse** : sous chaque tour d'un chat, tokens lus et écrits dans le cache,
+  produits, et coût (bureau, web, Android, iPhone, TUI). L'indicateur de contexte donne aussi
+  les tokens et se colore (vert, orange à partir de la moitié du seuil, rouge au-delà).
+- **Cache expiré** : quand le cache d'une conversation expire (5 min ou 1 h sans message) et
+  que son contexte dépasse 20 000 tokens, une note le dit avec le coût de la relecture, et les
+  boutons « Compacter » et « Nouvelle session » ; le prochain envoi demande confirmation.
+- **Gros consommateurs** dans l'Analyse : conversations qui pèsent le plus, avec la cause
+  probable (contexte long, cache souvent perdu, conversation très longue) et le conseil.
+- Pont : `TurnResult.usage`, événement `CacheExpired`, `analysis.report` → `top`.
+
+### Modifié
+
+- Contexte lourd : seuil par défaut abaissé à **150 000 tokens**, et **compactage automatique
+  activé par défaut** (un réglage déjà enregistré est gardé).
+
+### Corrigé
+
+- Bureau : un grand vide apparaissait sous les tableaux des réponses de Claude (la suite de la
+  réponse semblait manquer) ; les cellules courtes ne passent plus à la ligne.
+
 ## [0.36.0] — 2026-11-21
 
 ### Ajouté

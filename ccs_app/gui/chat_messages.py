@@ -17,7 +17,7 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, GLib, Graphene, Gtk, Pango  # noqa: E402
 
-from .. import chat_protocol as proto, chat_quote, message_tags, preview  # noqa: E402
+from .. import chat_protocol as proto, chat_quote, message_tags, preview, token_use  # noqa: E402
 from ..conversations import fold  # noqa: E402
 from .markdown_view import MarkdownView  # noqa: E402
 
@@ -1312,9 +1312,13 @@ class MessageList(Gtk.ScrolledWindow):
 
     # -- fin de tour, activité --
 
-    def add_turn_footer(self, seconds, cost_usd=None):
-        """« ✓ Terminé en 42 s · 0,12 $ éq. » sous la réponse : durée du tour et coût de ce tour."""
+    def add_turn_footer(self, seconds, cost_usd=None, usage=None):
+        """« ✓ Terminé en 42 s · 36 k lus · 2 k écrits · 850 produits · 0,12 $ éq. » sous la
+        réponse : durée du tour, tokens (`token_use.summary`) et coût de ce tour."""
         parts = [f"✓ Terminé en {_duration(seconds)}"]
+        tokens = token_use.summary({**(usage or {}), "cost_usd": 0}) if usage else ""
+        if tokens:
+            parts.append(tokens)
         if cost_usd:
             parts.append(f"{cost_usd:.2f}".replace(".", ",") + " $ éq.")
         label = Gtk.Label(label=" · ".join(parts), xalign=0, css_classes=["ccs-subtle", "caption"],
@@ -1342,10 +1346,11 @@ class MessageList(Gtk.ScrolledWindow):
         row.append(Gtk.Image(icon_name=icon, valign=Gtk.Align.START))
         row.append(Gtk.Label(label=text, xalign=0, hexpand=True, wrap=True, selectable=True,
                              wrap_mode=Pango.WrapMode.WORD_CHAR))
-        if action:
-            label, callback = action
-            button = Gtk.Button(label=label, valign=Gtk.Align.CENTER, css_classes=["suggested-action"])
-            button.connect("clicked", lambda b: callback())
+        actions = action if isinstance(action, list) else [action] if action else []
+        for n, (label, callback) in enumerate(actions):
+            button = Gtk.Button(label=label, valign=Gtk.Align.CENTER,
+                                css_classes=["suggested-action"] if n == 0 else [])
+            button.connect("clicked", lambda b, cb=callback: cb())
             row.append(button)
         return row
 

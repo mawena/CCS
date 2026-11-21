@@ -2,7 +2,7 @@
 
 import time
 
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, Gtk, Pango
 
 from .. import core, transcripts
 from .advisor_cards import AdvisorCard, MonthlyReportCard, WeeklyReportCard
@@ -95,6 +95,22 @@ class AnalysisPage(Gtk.ScrolledWindow):
             card.append(row)
         return card
 
+    def top_section(self, top):
+        """« Gros consommateurs » : les conversations qui pèsent le plus, avec la cause probable."""
+        card = card_box(8)
+        card.append(Gtk.Label(label="Gros consommateurs", xalign=0, css_classes=["heading"]))
+        for c in top:
+            row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            head = Gtk.Box(spacing=8)
+            head.append(Gtk.Label(label=c["title"], xalign=0, hexpand=True, ellipsize=Pango.EllipsizeMode.END))
+            head.append(Gtk.Label(label=f"{c['project']} · {c['share']:.0f} %".replace(".", ","),
+                                  css_classes=["dim-label"]))
+            row.append(head)
+            for cause in c["causes"]:
+                row.append(Gtk.Label(label=f"• {cause}", xalign=0, wrap=True, css_classes=["dim-label", "caption"]))
+            card.append(row)
+        return card
+
     def show(self, result):
         report, count = result
         clear(self.body)
@@ -116,6 +132,8 @@ class AnalysisPage(Gtk.ScrolledWindow):
             for t in tips:
                 card.append(Gtk.Label(label=f"• {t}", xalign=0, wrap=True))
             self.body.append(card)
+        if report.top:
+            self.body.append(self.top_section(report.top))
         self.body.append(self.section("Par projet", report.by_project, report.total))
         self.body.append(self.section("Par modèle", report.by_model, report.total))
         hours = card_box(8)

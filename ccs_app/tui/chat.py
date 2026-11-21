@@ -3,6 +3,8 @@
 
 import urwid
 
+from .. import token_use
+
 LABELS = {"Read": "Lecture", "Edit": "Modification", "MultiEdit": "Modification", "Write": "Écriture",
           "Bash": "Commande", "Grep": "Recherche", "Glob": "Fichiers", "WebFetch": "Page web",
           "WebSearch": "Recherche web", "Task": "Sous-agent", "Agent": "Sous-agent", "TodoWrite": "Tâches"}
@@ -86,6 +88,12 @@ class ChatScreen(urwid.WidgetWrap):
                 self.add(("alerte", "Limite d'usage atteinte : " + (ev.get("text") or "change de compte.")))
             elif not ev.get("ok"):
                 self.add(("erreur", ev.get("text") or "Claude n'a pas pu finir sa réponse."))
+            else:
+                line = token_use.summary(ev.get("usage") if isinstance(ev.get("usage"), dict) else {})
+                if line:
+                    self.add(("discret", f"  {line}"))
+        elif t == "CacheExpired" and ev.get("text"):    # le prochain message relira tout le contexte
+            self.add(("alerte", ev["text"] + " Tape /compact pour compacter, ou ouvre une nouvelle session."))
         elif t == "StateChanged":
             self.status.set_text(("alerte" if ev.get("state") == "permission" else "discret",
                                   STATES.get(ev.get("state"), "")))

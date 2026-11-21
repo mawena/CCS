@@ -25,7 +25,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 from .. import chat_engine, chat_options, chat_protocol as proto, context_alert, file_history, preview  # noqa: E402
 from .. import chat_quote, message_tags, roadmap, saved_messages, sessions, settings, shell_command  # noqa: E402
-from .. import terminal  # noqa: E402
+from .. import terminal, token_use  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from ..server import events as bridge_events  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
@@ -150,6 +150,7 @@ class ChatTab(Gtk.Box):
         self._shells = []                     # commandes `!` en cours (ShellRun)
         self._shell_notes = []                # sorties à joindre au prochain message
         self._context_heavy = False           # contexte au-dessus du seuil (alerte déjà montrée)
+        self._cache_expired = None            # CacheExpired pas encore suivi d'un tour : confirmer l'envoi
         self._auto_compact = context_alert.AutoCompact()   # compactage automatique (chat local)
         self.task_banner = Gtk.Box(spacing=8, visible=False, margin_start=12, margin_end=12,
                                    margin_top=4, margin_bottom=4)
@@ -339,11 +340,16 @@ class ChatTab(Gtk.Box):
     def _engine_busy(self):
         return self.engine.state in ("busy", "permission", "starting")
 
-    def _on_send(self, _composer, text, images):
+    def _on_send(self, _composer, text, images, quoted=None, confirmed=False):
         """Entrée dans la zone de saisie : envoi tout de suite, même pendant que Claude travaille
         (la CLI le lit en cours de route ou juste après ; la page n'a rien à mettre en file)."""
         self.state.typed_at = time.time()
-        quoted = self.composer.sent_quote   # message cité par « Répondre » : (auteur, texte)
+        if not confirmed:
+            quoted = self.composer.sent_quote   # message cité par « Répondre » : (auteur, texte)
+        if (self._cache_expired is not None and not confirmed and not is_slash_command(text)
+                and not text.lstrip().startswith("!")):
+            self._confirm_expired(text, images, quoted)
+            return
         command = text.strip()[1:].strip() if text.lstrip().startswith("!") and not images else ""
         if command:
             self._run_shell(command)        # une commande `!` ne part pas chez Claude
@@ -880,6 +886,7 @@ class ChatTab(Gtk.Box):
             chat_engine.TagsChanged: self._on_tags_changed,
             chat_engine.ProcessExited: self._on_exited,
             chat_engine.ContextUsage: self._on_context,
+            chat_engine.CacheExpired: self._on_cache_expired,
             chat_engine.OptionRefused: self._on_option_refused,
             chat_engine.UnhandledRequest: lambda e: self.messages.add_notice(
                 f"Claude Code a posé une question que CCS ne sait pas encore afficher ({e.subtype}"
@@ -1181,8 +1188,52 @@ class ChatTab(Gtk.Box):
                     self._agent_done(n.tool_id, notice=True)
         in_thread(read, apply)
 
+    def _on_cache_expired(self, ev):
+        """Le cache de la conversation a expiré : le prochain message relira tout le contexte au
+        prix fort. Note avec « Compacter » et « Nouvelle session » ; l'envoi suivant demande
+        confirmation (`_confirm_expired`)."""
+        self._cache_expired = ev
+        self.messages.add_notice(ev.text, "warning", action=[
+            ("Compacter", lambda: self.send_auto("/compact")),
+            ("Nouvelle session", self._new_session_here)])
+
+    def _new_session_here(self):
+        if self.remote:
+            opener = getattr(self.owner, "open_remote_chat", None)
+            if opener is not None:
+                opener(self.remote, self.launch.cwd)
+            return
+        opener = getattr(self.owner, "open_chat", None)
+        if opener is not None:
+            opener(self.launch.cwd)
+
+    def _confirm_expired(self, text, images, quoted):
+        """Message tapé après l'expiration du cache : envoyer quand même, compacter d'abord (le
+        message revient dans la saisie), ou annuler."""
+        ev = self._cache_expired
+        self.composer.restore(text, images, quoted)
+        dialog = Adw.AlertDialog(heading="Cache expiré",
+                                 body=f"Ce message relira {token_use.fmt_tokens(ev.context)} tokens au prix fort.")
+        dialog.add_response("cancel", "Annuler")
+        dialog.add_response("compact", "Compacter d'abord")
+        dialog.add_response("send", "Envoyer quand même")
+        dialog.set_response_appearance("compact", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("compact")
+        dialog.set_close_response("cancel")
+
+        def answered(_d, response):
+            if response == "compact":
+                self.send_auto("/compact")
+            elif response == "send":
+                self._cache_expired = None
+                self.composer.clear()
+                self._on_send(None, text, images, quoted, confirmed=True)
+        dialog.connect("response", answered)
+        dialog.present(self)
+
     def _on_result(self, ev):
         self._turn_done = True
+        self._cache_expired = None
         self._auto_compact.on_turn(ev.ok and not ev.interrupted and not getattr(ev, "is_limit", False))
         self._check_background()
         self._pending = None
@@ -1192,7 +1243,7 @@ class ChatTab(Gtk.Box):
         if total is not None:
             self._cost_seen = total
         if ev.ok and not ev.interrupted and self._turn_started is not None:
-            self.messages.add_turn_footer(time.time() - self._turn_started, turn_cost)
+            self.messages.add_turn_footer(time.time() - self._turn_started, turn_cost, getattr(ev, "usage", None))
         self._turn_started = None
         if ev.interrupted:
             self.messages.add_notice("Arrêté.")
@@ -1215,7 +1266,7 @@ class ChatTab(Gtk.Box):
         cfg = context_alert.config(settings.load_settings())
         threshold = cfg["threshold_tokens"]
         pct = threshold * 100 / ev.maximum if ev.maximum else None
-        self.bar.set_context(ev.percentage, pct)
+        self.bar.set_context(ev.percentage, pct, ev.total)
         if self.remote:                 # chat d'un serveur : son pont compacte et l'écrit dans le fil
             auto = ev.auto_compact
         else:

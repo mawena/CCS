@@ -16,7 +16,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 
-from . import task_runner
+from . import task_runner, token_use
 
 log = logging.getLogger(__name__)
 
@@ -149,6 +149,7 @@ class TurnResult:
     text: str = ""
     is_limit: bool = False
     interrupted: bool = False
+    usage: dict = field(default_factory=dict)   # token_use.turn_usage : tokens, coût, contexte
 
 
 @dataclass(frozen=True)
@@ -430,7 +431,8 @@ def _result(ev):
         context_window=_context_window(ev),
         text=text,
         is_limit=bool(task_runner.is_limit_event(ev)),
-        interrupted=ev.get("terminal_reason") == "aborted_streaming")]
+        interrupted=ev.get("terminal_reason") == "aborted_streaming",
+        usage=token_use.turn_usage(ev))]
 
 
 def _rate_limit(ev):

@@ -53,6 +53,21 @@ data class Rapport(
     @SerialName("by_hour") val parHeure: List<Double> = emptyList(),
     val days: Int = 7,
     val responses: Int = 0,
+    /** Gros consommateurs (`transcripts.top_consumers`), les plus lourds d'abord. */
+    val top: List<GrosConsommateur> = emptyList(),
+)
+
+/** Conversation qui pèse lourd : part de l'usage (%), contexte moyen relu, part réécrite (%), causes probables. */
+@Serializable
+data class GrosConsommateur(
+    val title: String = "",
+    val project: String = "",
+    val file: String = "",
+    val share: Double = 0.0,
+    val answers: Int = 0,
+    @SerialName("avg_context") val contexteMoyen: Long = 0,
+    @SerialName("rewrite_share") val partReecrite: Double = 0.0,
+    val causes: List<String> = emptyList(),
 )
 
 /** Réponse de `accounts.switch` (`ok` faux si `ccs switch` a échoué). */

@@ -19,6 +19,7 @@ class UsageRow:
     output: int
     cache_write: int
     cache_read: int
+    file: str = ""          # journal de la conversation (gros consommateurs)
 
     @property
     def weighted(self):
@@ -94,7 +95,7 @@ def _read_file(f, since, projects_dir, rows):
                     ts, _project(d.get("cwd"), f, projects_dir), model_family(msg.get("model")),
                     int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0),
                     int(u.get("cache_creation_input_tokens") or 0),
-                    int(u.get("cache_read_input_tokens") or 0))
+                    int(u.get("cache_read_input_tokens") or 0), str(f))
             except (ValueError, KeyError, TypeError, AttributeError):
                 continue
             if d.get("type") != "assistant" or ts < since:
@@ -113,6 +114,9 @@ class Report:
     cache_read: int = 0
     fresh_input: int = 0
     days: int = 7
+    # gros consommateurs : journal → {"project", "weighted", "answers", "context", "cache_write"}
+    by_conversation: dict = field(default_factory=dict)
+    top: list = field(default_factory=list)       # `top_consumers`, rempli par `aggregate`
 
 
 def aggregate(rows, periods, days):
@@ -127,7 +131,51 @@ def aggregate(rows, periods, days):
         r.by_account[account] = r.by_account.get(account, 0) + w
         r.cache_read += row.cache_read
         r.fresh_input += row.input + row.cache_write
+        if row.file:
+            c = r.by_conversation.setdefault(row.file, {"project": row.project, "weighted": 0.0, "answers": 0,
+                                                         "context": 0, "cache_write": 0, "output": 0})
+            c["weighted"] += w
+            c["answers"] += 1
+            c["context"] += row.input + row.cache_read + row.cache_write
+            c["cache_write"] += row.input + row.cache_write
+            c["output"] += row.output
+    r.top = top_consumers(r)
+    r.by_conversation = {}      # détail interne : seul le classement part vers les appareils
     return r
+
+
+TOP_N = 8
+BIG_CONTEXT = 100_000         # tokens relus en moyenne à chaque réponse : contexte long
+REWRITE_SHARE = 0.25          # part du contexte réécrite dans le cache : cache souvent perdu
+MANY_ANSWERS = 300
+
+
+def top_consumers(report, n=TOP_N):
+    """Les conversations qui pèsent le plus, avec la cause probable et le conseil. Liste de
+    dicts : `title`, `project`, `file`, `share` (% de l'usage), `answers`, `avg_context`,
+    `rewrite_share` (% du contexte réécrit dans le cache), `causes` (phrases)."""
+    from . import sessions
+    out = []
+    ranked = sorted(report.by_conversation.items(), key=lambda kv: -kv[1]["weighted"])[:n]
+    for path, c in ranked:
+        if report.total <= 0 or c["answers"] <= 0:
+            break
+        avg = c["context"] / c["answers"]
+        rewrite = c["cache_write"] / c["context"] if c["context"] else 0.0
+        causes = []
+        if avg >= BIG_CONTEXT:
+            causes.append(f"contexte long ({fmt_tokens(avg)} tokens relus à chaque réponse) : "
+                          "/compact, ou une nouvelle session par sujet")
+        if rewrite >= REWRITE_SHARE:
+            causes.append(f"cache souvent perdu ({100 * rewrite:.0f} % du contexte réécrit) : "
+                          "pauses de plus d'une heure, ou conversation reprise le lendemain")
+        if c["answers"] >= MANY_ANSWERS:
+            causes.append(f"très longue conversation ({c['answers']} réponses) : la découper en sujets")
+        out.append({"title": sessions.journal_title(path) or Path(path).stem[:8], "project": c["project"],
+                    "file": path, "share": round(100 * c["weighted"] / report.total, 1),
+                    "answers": c["answers"], "avg_context": int(avg), "rewrite_share": round(100 * rewrite, 1),
+                    "causes": causes})
+    return out
 
 
 def advice(report):
