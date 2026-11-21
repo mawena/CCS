@@ -28,6 +28,7 @@ object DefReglages {
     private val H = Genre.Heure
     private fun n(min: Number, max: Number, entier: Boolean = false) = Genre.Nombre(min.toDouble(), max.toDouble(), entier)
 
+    val DEHORS = listOf("notify" to "Notification", "resume" to "Relance en arrière-plan")
     val DROITS = listOf(
         "manual" to "Manuel", "acceptEdits" to "Accepter les modifications", "plan" to "Plan",
         "auto" to "Auto", "dontAsk" to "Sans question", "bypassPermissions" to "Aucune vérification",
@@ -82,6 +83,8 @@ object DefReglages {
         )),
         Groupe("Chat et sessions", listOf(
             Def("chat.rights", "Droits des nouveaux chats", Genre.Choix(DROITS)),
+            Def("limit_resume.enabled", "Relancer les conversations bloquées quand la limite est levée", B),
+            Def("limit_resume.outside", "Conversation fermée hors de CCS, à la levée", Genre.Choix(DEHORS)),
             Def("chat.auto_clear", "Effacement automatique : Claude vide la conversation (/clear) en fin de sujet", B),
             Def("chat.idle_suspend_min", "Mise en veille d'un chat inactif (minutes, 0 = jamais)", n(0, 1440, true)),
             Def("sessions.idle_hours", "Session inactive après (heures)", n(0.01, 720)),

@@ -24,6 +24,8 @@ applyTheme(storedTheme());           // au chargement de la page, avant le premi
 const RIGHTS = [["manual", "Manuel"], ["acceptEdits", "Accepter les modifications"], ["plan", "Plan"],
   ["auto", "Auto"], ["dontAsk", "Sans question"], ["bypassPermissions", "Aucune vérification"]];
 
+const OUTSIDE = [["notify", "Notification"], ["resume", "Relance en arrière-plan"]];
+
 const GROUPS = [
   ["Bascule automatique", [
     { path: "auto_switch.enabled", label: "Basculer avant la limite", type: "bool" },
@@ -56,6 +58,8 @@ const GROUPS = [
   ]],
   ["Chat et sessions", [
     { path: "chat.rights", label: "Droits des nouveaux chats", type: RIGHTS },
+    { path: "limit_resume.enabled", label: "Relancer les conversations bloquées quand la limite est levée", type: "bool" },
+    { path: "limit_resume.outside", label: "Conversation fermée hors de CCS, à la levée", type: OUTSIDE },
     { path: "chat.auto_clear", label: "Effacement automatique : Claude vide la conversation (/clear) en fin de sujet", type: "bool" },
     { path: "chat.idle_suspend_min", label: "Mise en veille d'un chat inactif (minutes, 0 = jamais)", type: "number", min: 0, max: 1440 },
     { path: "sessions.idle_hours", label: "Session inactive après (heures)", type: "number", min: 0.01, max: 720 },
