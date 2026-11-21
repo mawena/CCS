@@ -21,7 +21,7 @@ import subprocess
 import termios
 import time
 
-from .. import core
+from .. import core, limit_events, limit_resume, sessions, settings
 from . import rpc
 from .bridge_data import safe_path
 
@@ -64,6 +64,8 @@ class TermHub:
         self._ids = itertools.count(1)
         bridge.close_hooks.append(self._forget)
         bridge.tick_hooks.append(self.sweep)
+        bridge.tick_hooks.append(self.limits_pass)
+        self._resumes = {}           # session_id → instants des relances après une limite
         bridge.add_handlers({
             "term.open": self.open, "term.input": self.input, "term.resize": self.resize,
             "term.attach": self.attach, "term.list": self.list, "term.close": self.close,
@@ -207,6 +209,30 @@ class TermHub:
         for term in list(self.terms.values()):
             if not term.conns and term.detached_at is not None and now - term.detached_at > ABANDON:
                 await self._kill(term)
+
+    async def limits_pass(self):
+        """Claude lancé à la main dans un de ces terminaux et bloqué par une limite : « continue »
+        quand le compte a changé ou que la limite est levée (`limit_resume`)."""
+        terms = {t.term_id: t for t in self.terms.values() if not t.closed}
+        if not terms:
+            return
+
+        def work():
+            marks = limit_events.load_all()
+            if not any(e.outcome in limit_events.RESUMABLE for e in marks.values()):
+                return []
+            try:
+                enabled = limit_resume.config(settings.load_settings())["enabled"]
+            except Exception:
+                enabled = True
+            return limit_resume.terminal_resumes(marks, sessions.list_sessions(),
+                                                 {k: t.proc.pid for k, t in terms.items()},
+                                                 time.time(), self._resumes, enabled)
+        for key, _sid in await asyncio.to_thread(work):
+            try:
+                os.write(terms[key].master, (limit_resume.TEXT + "\r").encode())
+            except OSError:
+                pass
 
     async def close_all(self):
         for term in list(self.terms.values()):

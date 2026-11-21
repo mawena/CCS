@@ -16,7 +16,8 @@ class RecordTest(HomeTestCase):
         path = self.store / "limits" / f"{SID}.json"
         data = json.loads(path.read_text())
         self.assertEqual(data, {"session_id": SID, "ts": 1000.0, "from": "perso", "to": "pro",
-                                "switched": True, "outcome": "switched"})
+                                "switched": True, "outcome": "switched", "cwd": None,
+                                "resume_at": None, "lifted_at": None})
         self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
         self.assertEqual(os.stat(path.parent).st_mode & 0o777, 0o700)
 

@@ -643,6 +643,22 @@ archive de l'ancien dépôt) vient après.
 - [ ] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [ ] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
+## Phase 31 — Relance après une limite, sur toutes les interfaces (0.36.0)
+
+Charles (21/11/2026) : une session arrêtée par une limite de Claude Code doit repartir seule
+quand la limite est levée, sur le bureau, la TUI, le web, Android et l'iPhone.
+
+- [x] 1. `limit_resume` : heure de levée (fenêtre de 5 h, semaine, autre compte libéré), marqueurs « planned » / « lifted », verrou du hook, une bascule et une notification pour toutes les sessions bloquées
+- [x] 2. Hook StopFailure : relance prévue dès la limite (aucun compte libre, bascule impossible, pause), heure dans la notification, dossier de la conversation gardé
+- [x] 3. Service, application et pont font avancer les marqueurs (le premier qui a le verrou agit)
+- [x] 4. Onglets du terminal et chats du bureau : bandeau « relance prévue à HH:MM », « continue » à la levée
+- [x] 5. Chats du pont (web, Android, iPhone, TUI) : note dans le fil, « continue » à la levée ; marqueur de secours si le hook n'a rien écrit ; notes du pont affichées dans la TUI
+- [x] 6. Terminaux de la version web : `claude` lancé à la main relancé aussi
+- [x] 7. Hors de CCS : notification, ou `claude --resume … -p continue` en arrière-plan (réglage)
+- [x] 8. Réglage `limit_resume` (bureau, web, Android, iPhone), tests, docs, release 0.36.0
+- [ ] 9. Essai réel par Charles lors d'une vraie limite (bureau, téléphone)
+- [ ] 10. Plus tard : onglets shell du bureau où `claude` est lancé à la main (aujourd'hui : notification)
+
 ## Phase 30 — iPhone : machine pilotée, travaux distants, liens de fichiers (0.35.0)
 
 Charles (20/11/2026) : piloter le PC depuis l'appli iPhone comme depuis Android et le web, et

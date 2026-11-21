@@ -9,7 +9,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import (alerts, autoswitch, core, notify, orchestrator, pause, phone, quiet,
+from . import (alerts, autoswitch, core, limit_resume, notify, orchestrator, pause, phone, quiet,
                switch_log, updates)
 from .forecast import (AccountState, best_account, capacity, effective_percent,
                        session_forecast, weekly_forecast, weekly_pace)
@@ -511,6 +511,12 @@ class Daemon:
         self.previous_sessions = {s.name: s.session for s in states}
         self.write_state(states, profiles, forecasts, paces, best, decision, settings, now,
                          reserve, weeklies, paused)
+        if self.background_jobs:
+            # Conversations bloquées par une limite : relance à la levée (`limit_resume`).
+            rwake = limit_resume.advance(now.timestamp(), states, active, settings, reserve,
+                                         self.notifier)
+            if rwake is not None:
+                delay = max(5.0, min(delay, rwake - now.timestamp() + 1))
         if self.last_prune is None or now - self.last_prune > timedelta(days=1):
             self.store.prune(now.timestamp() - RETENTION_S)
             self.last_prune = now

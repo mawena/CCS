@@ -285,6 +285,7 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `archive` | `enabled`, `idle_days`, `max_age_days` |
 | `sessions` | `idle_hours` |
 | `context_alert` | `enabled`, `threshold_tokens`, `auto_compact` |
+| `limit_resume` | `enabled`, `outside` (`notify` ou `resume`) |
 | `budget` | `enabled`, `alert_pcts` |
 | `chat` | `idle_suspend_min`, `rights` (`manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`), `auto_clear` |
 | `files` | `layout` (`A`\|`B`), `show_ignored` |
@@ -301,7 +302,7 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `$STORE/switch-origin.json`, `updates.json`, `context-alerts.json` | origine de bascule, mises à jour, alertes de contexte |
 | `$STORE/tasks.json`, `tasks/` | file de tâches et journaux |
 | `$STORE/terminals.json`, `messages.json`, `conversations-cache.json`, `conversations-moves.json` | terminaux, messages enregistrés, caches |
-| `$STORE/etiquettes/`, `limits/`, `avatars/` | étiquettes, limites atteintes, avatars |
+| `$STORE/etiquettes/`, `limits/`, `avatars/` | étiquettes, limites atteintes (`outcome`, `cwd`, `resume_at`, `lifted_at`), avatars |
 | `$STORE/.lock`, `.tasks.lock`, `.pause.lock`, … | verrous |
 | `<projet>/.ccs/messages.json` | messages enregistrés du projet |
 | `${XDG_DATA_HOME:-~/.local/share}/ccs/` | `projects.json`, `archive/` (+ `index.json`), `trash/` |

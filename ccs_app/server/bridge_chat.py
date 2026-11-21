@@ -6,7 +6,11 @@ pont, un identifiant d'avant un redémarrage ne désigne donc jamais un autre ch
 
 Compactage automatique (réglage `context_alert.auto_compact`) : quand Claude revient au repos, le
 pont mesure le contexte ; au-delà du seuil il envoie `/compact` lui-même, même sans appareil
-attaché, et l'écrit dans le fil (`events.Notice`)."""
+attaché, et l'écrit dans le fil (`events.Notice`).
+
+Relance après une limite (`limit_resume`) : toutes les CHECK_S secondes, le pont fait avancer les
+marqueurs de limite et, pour chaque chat bloqué, écrit « relance prévue à HH:MM » dans le fil puis
+envoie « continue » quand la limite est levée (web, Android, iPhone et TUI passent tous par ici)."""
 
 import asyncio
 import base64
@@ -21,8 +25,8 @@ import time
 import uuid as uuidlib
 from pathlib import Path
 
-from .. import chat_engine, chat_options, conversations, chat_protocol as proto, context_alert, markdown_render, \
-    message_tags, sessions, settings
+from .. import chat_engine, chat_options, conversations, chat_protocol as proto, context_alert, limit_events, \
+    limit_resume, markdown_render, message_tags, notify, sessions, settings
 from ..chat_engine import ChatSession
 from . import events, rpc
 from .bridge_data import safe_path
@@ -42,6 +46,7 @@ class _Chat:
         self.opened_at = time.time()
         self.conns = set()
         self.auto = context_alert.AutoCompact()
+        self.follower = limit_resume.Follower()     # relance après une limite
 
 
 def transcript_of(cwd, session_id):
@@ -110,7 +115,9 @@ class ChatHub:
         self.boot = secrets.token_hex(3)
         self._ids = itertools.count(1)
         self._loop = None
+        self._limited = False        # un chat attend la levée d'une limite : le pont reste ouvert
         bridge.busy_checks.append(self.busy)
+        bridge.tick_hooks.append(self.limits_pass)
         bridge.close_hooks.append(self._forget)
         bridge.add_handlers({
             "chat.open": self.open, "chat.list": self.list, "chat.attach": self.attach,
@@ -123,7 +130,8 @@ class ChatHub:
     # ---- état ------------------------------------------------------------------------
 
     def busy(self):
-        return any(c.engine is not None and c.engine.state in BUSY for c in self.chats.values())
+        return self._limited or any(c.engine is not None and c.engine.state in BUSY
+                                    for c in self.chats.values())
 
     def _forget(self, conn):
         for chat in self.chats.values():
@@ -143,6 +151,8 @@ class ChatHub:
         auto = context_alert.auto_on(cfg)
         if auto and isinstance(ev, chat_engine.ContextUsage):
             ev = dataclasses.replace(ev, auto_compact=True)     # les appareils ne proposent rien
+        if isinstance(ev, proto.TurnResult) and ev.is_limit:
+            chat.follower.limit_hit()
         chat.seq += 1
         item = {"seq": chat.seq, "ts": time.time(), "event": events.to_json(ev)}
         chat.buf.append(item)
@@ -249,6 +259,7 @@ class ChatHub:
             except (KeyError, TypeError, binascii.Error):
                 raise rpc.RpcError("invalide", "Image illisible.") from None
         uid = _uuid(params.get("uuid"))
+        chat.follower.typed()
         ok = await asyncio.to_thread(chat.engine.send, text, images, uid)
         if ok:
             shown, nonce = params.get("shown"), params.get("nonce")
@@ -296,6 +307,53 @@ class ChatHub:
         chats, self.chats = list(self.chats.values()), {}
         for chat in chats:
             await asyncio.to_thread(chat.engine.stop)
+
+    # ---- relance après une limite -------------------------------------------------------
+
+    @staticmethod
+    def _send_continue(engine):
+        """« continue » si Claude attend un message : au repos (processus en vie) ou suspendu
+        (relancé par l'envoi)."""
+        uid = str(uuidlib.uuid4())
+        if engine.state == "idle":
+            return uid if engine.send_if_idle(limit_resume.TEXT) else None
+        if engine.state == "suspended":
+            return uid if engine.send(limit_resume.TEXT, (), uid) else None
+        return None
+
+    async def limits_pass(self, now=None):
+        """Un passage (chaque minute) : avance les marqueurs, puis notes et relances de chaque chat."""
+        if not self.chats:
+            self._limited = False
+            return
+        cfg = limit_resume.config(await asyncio.to_thread(self._settings))
+        await asyncio.to_thread(limit_resume.advance, None, notifier=notify.send)
+        marks = await asyncio.to_thread(limit_events.load_all)
+        self._limited = any(c.engine.session_id in marks for c in self.chats.values())
+        for chat in list(self.chats.values()):
+            engine = chat.engine
+            sid = engine.session_id
+            ev = marks.get(sid) if sid else None
+            can = engine.state in ("idle", "suspended")
+            actions = await asyncio.to_thread(chat.follower.step, ev, time.time() if now is None else now,
+                                              can, cfg["enabled"], sid, chat.cwd)
+            for act in actions:
+                if act[0] == "send":
+                    uid = await asyncio.to_thread(self._send_continue, engine)
+                    if uid is None:
+                        self._record(chat, events.Notice(
+                            "Limite levée, mais la relance a échoué : tape « continue ».", "warning"))
+                        break
+                    self._record(chat, chat_engine.UserSent(limit_resume.TEXT, 0, "", uid))
+                else:
+                    self._record(chat, events.Notice(act[1], act[2]))
+
+    @staticmethod
+    def _settings():
+        try:
+            return settings.load_settings()
+        except Exception:
+            return {}
 
     # ---- étiquettes ----------------------------------------------------------------------
 

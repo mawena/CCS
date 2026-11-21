@@ -15,7 +15,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from . import autoswitch, core, daemon, limit_events, notify, pause
+from . import autoswitch, core, daemon, limit_events, limit_resume, notify, pause
 from .alerts import Alert
 from .settings import load_settings
 from .store import Store
@@ -271,11 +271,29 @@ def stop_failure(payload, notifier=notify.send):
         return "ignoré : pas une limite d'usage"
     session_id = payload.get("session_id")
 
-    def mark(outcome, source=None, target=None, switched=False):
-        limit_events.record(session_id, time.time(), source, target, switched, outcome)
+    cwd = str(payload.get("cwd") or "")
+    started = time.time()
+
+    def mark(outcome, source=None, target=None, switched=False, resume_at=None):
+        limit_events.record(session_id, started, source, target, switched, outcome, cwd or None,
+                            resume_at)
+
+    def planned(states=None, active=None, paused=None):
+        """Heure de relance après la levée de la limite (None : pas de relance prévue)."""
+        cfg = limit_resume.config(load_settings())
+        if not cfg["enabled"]:
+            return None
+        if states is None:
+            states = daemon.states_from_state(core.load_json(daemon.state_path()))
+        try:
+            return limit_resume.plan(states, active, datetime.now(timezone.utc), paused=paused)
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    def later(at):
+        return f" Relance prévue à {limit_resume.hhmm(at)}." if at else ""
 
     mark("pending")
-    cwd = str(payload.get("cwd") or "")
     project = os.path.basename(cwd.rstrip("/")) or "une session"
     title = f"Limite atteinte dans {project}"
     with _hook_lock():
@@ -286,11 +304,13 @@ def stop_failure(payload, notifier=notify.send):
         if paused is not None:
             # Pause : ni bascule ni reprise automatique ; une notification pour toutes les
             # sessions bloquées en même temps.
-            mark("paused", before)
+            at = planned(active=before, paused=paused.until if paused.until else False)
+            mark("planned" if at else "paused", before, resume_at=at)
             if not store.events(now.timestamp() - RECENT_SWITCH_S, type="alert", profile="blocage"):
                 store.add_event(now.timestamp(), "alert", "blocage", {"key": "pause"})
                 notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
-                               f"CCS est en pause {pause.label(paused, now)} : pas de bascule automatique.", 2))
+                               f"CCS est en pause {pause.label(paused, now)} : pas de bascule automatique."
+                               + later(at), 2))
             return "en pause"
         recent = [e for e in store.events(now.timestamp() - RECENT_SWITCH_S, type="switch")]
         if recent:
@@ -320,14 +340,16 @@ def stop_failure(payload, notifier=notify.send):
                 notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                                f"Basculé sur {decision.target}. Tape « continue » dans la session pour reprendre.", 2))
                 return f"basculé sur {decision.target}"
-            mark("failed", after, decision.target)
+            at = planned(states, after)
+            mark("planned" if at else "failed", after, decision.target, resume_at=at)
             notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                            f"Bascule vers {decision.target} impossible : ouvre « CCS » "
-                           "pour voir l'erreur.", 2))
+                           "pour voir l'erreur." + later(at), 2))
             return "bascule impossible"
-        mark("exhausted", after)
+        at = planned(states, after)
+        mark("planned" if at else "exhausted", after, resume_at=at)
         notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
-                       f"Aucun autre compte disponible — {decision.reason}.", 2))
+                       f"Aucun autre compte disponible — {decision.reason}." + later(at), 2))
         return decision.reason
 
 
