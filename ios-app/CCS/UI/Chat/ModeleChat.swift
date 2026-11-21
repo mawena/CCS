@@ -22,6 +22,8 @@ struct VueChat {
     var etat = "starting"
     var reflechit = false
     var contexte = ""
+    /// Couleur de « Contexte … » : vert, orange, rouge selon le seuil du contexte lourd.
+    var niveauContexte: Jetons.Niveau? = nil
     var cout = ""
     var historiqueComplet = true
     /// Erreur d'ouverture (`chat.open` refusé).
@@ -93,6 +95,8 @@ final class ModeleChat {
     private(set) var images: [PieceJointe] = []
     private(set) var saisie: String
     private(set) var envoiEnCours = false
+    /// Message retenu : le cache a expiré, il relirait ce nombre de tokens au prix fort (confirmation).
+    private(set) var confirmationCache: Int? = nil
     private(set) var etiquettes: [String: EntreeEtiquettes] = [:]
     private(set) var connues: [String] = []
     private(set) var commandes: [CommandeSlash] = []
@@ -367,7 +371,17 @@ final class ModeleChat {
         v.taches = fil.taches
         v.etat = fil.etat
         v.reflechit = fil.reflechit
-        v.contexte = fil.contexte.map { "Contexte \($0.pourcentage) %" } ?? ""
+        let seuil = reglagesContexte?.seuil ?? 0          // 0 : seuil par défaut (150 000)
+        if let c = fil.contexte, c.total > 0 {
+            v.contexte = "Contexte \(c.pourcentage) %"
+            v.niveauContexte = Jetons.niveau(c.total, seuil: seuil)
+        } else if let u = fil.dernierUsage, u.contexte > 0 {
+            v.contexte = "Contexte \(Jetons.court(u.contexte))"
+            v.niveauContexte = Jetons.niveau(u.contexte, seuil: seuil)
+        } else {
+            v.contexte = fil.contexte.map { "Contexte \($0.pourcentage) %" } ?? ""
+            v.niveauContexte = nil
+        }
         v.historiqueComplet = historique?.complet ?? true
         vue = v
     }
@@ -500,7 +514,8 @@ final class ModeleChat {
 
     // MARK: envoi
 
-    /// Bouton Envoyer : commande `!`, sinon message (avec images et citation).
+    /// Bouton Envoyer : commande `!`, sinon message (avec images et citation). Cache expiré
+    /// depuis le dernier tour : confirmation d'abord (le message relirait tout le contexte).
     func envoyer() {
         let texte = saisie.trimmingCharacters(in: .whitespacesAndNewlines)
         let imgs = images
@@ -510,10 +525,35 @@ final class ModeleChat {
             lancerShell(cmd)
             return
         }
+        if let n = fil.cacheExpire, !(Envoi.estCommandeSlash(texte) && imgs.isEmpty) {
+            confirmationCache = n
+            return
+        }
+        envoyerMaintenant()
+    }
+
+    /// « Envoyer quand même » : le message part malgré le cache expiré.
+    func envoyerQuandMeme() {
+        confirmationCache = nil
+        envoyerMaintenant()
+    }
+
+    /// « Compacter d'abord » : `/compact`, le message reste dans la saisie.
+    func compacterDabord() {
+        confirmationCache = nil
+        envoyerTexte("/compact")
+    }
+
+    func annulerEnvoi() { confirmationCache = nil }
+
+    private func envoyerMaintenant() {
+        let texte = saisie.trimmingCharacters(in: .whitespacesAndNewlines)
+        let imgs = images
+        if (texte.isEmpty && imgs.isEmpty) || envoiEnCours { return }
         envoiEnCours = true
         Task { @MainActor in
             let cite = citation
-            let ok = await livrer(texte, imgs, cite) { [weak self] in self?.envoyer() }
+            let ok = await livrer(texte, imgs, cite) { [weak self] in self?.envoyerMaintenant() }
             if ok {
                 let envoyees = Set(imgs.map { $0.id })
                 images.removeAll { envoyees.contains($0.id) }
@@ -666,6 +706,7 @@ final class ModeleChat {
     private func lireReglagesContexte(_ r: JSON) {
         guard let c = r["context"], case .objet = c else { return }
         reglagesContexte = (actif: c.bool("enabled"), seuil: c.entier("threshold_tokens"))
+        publier()
     }
 
     private func verifierContexte(_ ev: MesureContexte) {

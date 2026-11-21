@@ -1,3 +1,13 @@
+ccs (0.37.0) unstable; urgency=medium
+
+  * Version web : ordre des sessions ouvertes (tri au choix ou à la main).
+  * Tokens de chaque réponse, cache expiré, contexte coloré et gros
+    consommateurs (bureau, web, Android, iPhone, TUI) ; contexte lourd à
+    150 000 tokens et compactage automatique par défaut.
+  * Bureau : plus de grand vide sous les tableaux des réponses.
+
+ -- mawena <gamligocharles@gmail.com>  Sat, 21 Nov 2026 20:30:00 +0100
+
 ccs (0.36.0) unstable; urgency=medium
 
   * Relance des sessions bloquées par une limite quand elle est levée :

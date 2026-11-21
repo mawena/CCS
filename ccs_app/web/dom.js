@@ -114,6 +114,22 @@ export function confirmSheet({ title, body = "", confirm = "Confirmer", cancel =
   });
 }
 
+// Feuille à plusieurs choix : `choices` = [{ value, label, primary }] ; renvoie la valeur choisie,
+// ou null (Annuler, Échap).
+export function choiceSheet({ title, body = "", choices = [], cancel = "Annuler" }) {
+  return new Promise((resolve) => {
+    const dlg = el("dialog", { class: "sheet", "aria-label": title });
+    const done = (v) => { if (dlg.open) dlg.close(); dlg.remove(); resolve(v); };
+    dlg.append(el("h2", {}, title), body ? el("p", { class: "subtle" }, body) : null,
+      el("div", { class: "sheet-actions" },
+        el("button", { type: "button", onclick: () => done(null) }, cancel),
+        ...choices.map((c) => el("button", { type: "button", class: c.primary ? "primary" : "", onclick: () => done(c.value) }, c.label))));
+    dlg.addEventListener("cancel", (e) => { e.preventDefault(); done(null); });
+    document.body.append(dlg);
+    dlg.showModal();
+  });
+}
+
 export function loading(text = "Chargement…") {
   return el("div", { class: "state loading", role: "status" }, el("span", { class: "spinner", "aria-hidden": "true" }), text);
 }

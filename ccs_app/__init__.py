@@ -1,3 +1,3 @@
 """CCS — gestion et assistant d'usage multi-comptes Claude Code."""
 
-__version__ = "0.36.0"
+__version__ = "0.37.0"

@@ -2,7 +2,8 @@ import Foundation
 
 enum StatutAgent: Equatable { case travaille, fini, arrete }
 
-enum ActionNote: Equatable { case compacter }
+/// Boutons d'une note : « Compacter » (contexte lourd) ; « Compacter » et « Nouvelle session » (cache expiré).
+enum ActionNote: Equatable { case compacter, cacheExpire }
 
 struct OptionQuestion: Equatable {
     var libelle: String
@@ -66,6 +67,12 @@ enum ElementFil: Equatable, Identifiable {
         var auto: Bool
     }
 
+    /// Ligne discrète sous une fin de tour : « 36 k lus · 15 k écrits · 403 produits · 0,04 $ ».
+    struct Usage: Equatable {
+        var cle: String
+        var texte: String
+    }
+
     struct Demande: Equatable {
         var cle: String
         var outil: String
@@ -105,6 +112,7 @@ enum ElementFil: Equatable, Identifiable {
     case questions(Questions)
     case commande(Commande)
     case arrete(Arrete)
+    case usage(Usage)
 
     var cle: String {
         switch self {
@@ -118,6 +126,7 @@ enum ElementFil: Equatable, Identifiable {
         case .questions(let e): return e.cle
         case .commande(let e): return e.cle
         case .arrete(let e): return e.cle
+        case .usage(let e): return e.cle
         }
     }
 
@@ -236,6 +245,10 @@ final class FilChat {
     private(set) var droitsAnnonces: String?
     /// Coût cumulé des tours (dollars).
     private(set) var coutTours = 0.0
+    /// Usage du dernier tour (`TurnResult.usage`) ; son `contexte` sert d'indicateur faute de `ContextUsage`.
+    private(set) var dernierUsage: UsageTour?
+    /// Cache expiré (`CacheExpired`) sans tour depuis : tokens que relira le prochain message.
+    private(set) var cacheExpire: Int?
 
     var vuesAgents: [VueAgent] {
         return ordreAgents.compactMap { id in
@@ -270,6 +283,8 @@ final class FilChat {
         demandes.removeAll()
         taches = []
         contexte = nil
+        dernierUsage = nil
+        cacheExpire = nil
         reflechit = false
     }
 
@@ -378,7 +393,13 @@ final class FilChat {
             }
         case .reglee(let requestId, _):
             retirerDemande(requestId)
-        case .tour(let ok, _, let coutUsd, let texte, let limite, let interrompu):
+        case .tour(let ok, _, let coutUsd, let texte, let limite, let interrompu, let usage):
+            cacheExpire = nil
+            if let u = usage {
+                dernierUsage = u
+                let ligne = Jetons.resume(u)
+                if !ligne.isEmpty { fil.ajouter(.usage(ElementFil.Usage(cle: cle("t"), texte: ligne))) }
+            }
             if interrompu {
                 note("Arrêté.")
                 arreterAgents()
@@ -392,6 +413,9 @@ final class FilChat {
             demandes.removeAll()
             effets.insert(.tourFini)
             effets.insert(.demanderContexte)
+        case .cacheExpire(let contexte, _, _, let texte):
+            cacheExpire = contexte
+            note(texte.isEmpty ? Jetons.avertissementCache(contexte) : texte, genre: "warning", action: .cacheExpire)
         case .compacte:
             note("Conversation compactée.")
         case .reinitialise(let declencheur):
@@ -656,7 +680,7 @@ enum LigneFil: Equatable, Identifiable {
         case .demande(let d): return d.outil + " " + d.cible
         case .questions(let q): return q.questions.map { $0.question }.joined(separator: " ")
         case .commande(let c): return c.commande + " " + (c.sortie ?? "")
-        case .separateur, .arrete: return ""
+        case .separateur, .arrete, .usage: return ""
         }
     }
 }

@@ -88,6 +88,20 @@ class AggregateTest(unittest.TestCase):
         r = aggregate(self.rows(), periods, days=7)
         self.assertEqual(r.by_account, {"perso": 2010, "pro": 2010, "inconnu": 170})
 
+    def test_top_consumers_with_causes(self):
+        rows = [UsageRow(T0 + i, "App", "opus", 0, 100, 60_000, 90_000, "/x/gros.jsonl") for i in range(3)]
+        rows += [UsageRow(T0, "Blog", "sonnet", 10, 10, 100, 10_000, "/x/petit.jsonl"), UsageRow(T0, "Sans", "opus", 1, 1, 1, 1)]
+        r = aggregate(rows, [], days=7)
+        self.assertEqual([c["file"] for c in r.top], ["/x/gros.jsonl", "/x/petit.jsonl"])
+        big = r.top[0]
+        self.assertEqual((big["project"], big["answers"], big["avg_context"], big["rewrite_share"]),
+                         ("App", 3, 150_000, 40.0))
+        self.assertEqual(big["title"], "gros")                      # pas de titre dans le journal
+        self.assertTrue(any("contexte long" in c for c in big["causes"]))
+        self.assertTrue(any("cache souvent perdu" in c for c in big["causes"]))
+        self.assertEqual(r.top[1]["causes"], [])
+        self.assertEqual(r.by_conversation, {})                     # seul le classement est gardé
+
     def test_advice_project_share_and_opus(self):
         tips = advice(aggregate(self.rows(), [], days=7))
         self.assertLessEqual(len(tips), 5)

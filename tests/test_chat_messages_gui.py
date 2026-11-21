@@ -202,6 +202,8 @@ class MessageListBehaviourTest(unittest.TestCase):
         self.assertTrue(ml._last_footer.get_label().endswith("0,12 $ éq."))
         ml.add_turn_footer(125, None)
         self.assertIn("2 min 05 s", ml._last_footer.get_label())
+        ml.add_turn_footer(3, 0.5, {"cache_read": 36_000, "cache_write": 2000, "input": 4, "output": 850})
+        self.assertEqual(ml._last_footer.get_label(), "✓ Terminé en 3 s · 36 k lus · 2 k écrits · 850 produits · 0,50 $ éq.")
 
     def test_copy_answer(self):
         ml = MessageList()

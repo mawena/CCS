@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import chat_options, chat_protocol as proto, distant, sessions, task_runner
+from . import chat_options, chat_protocol as proto, distant, sessions, task_runner, token_use
 from .chat_options import ChatOptions
 
 log = logging.getLogger(__name__)
@@ -117,6 +117,16 @@ class ContextUsage:
 
 
 @dataclass(frozen=True)
+class CacheExpired:
+    """Le cache de la conversation a expiré (rien depuis sa durée de vie, 5 min ou 1 h) : le
+    prochain message relira tout le contexte au prix fort (`token_use.cache_expiry`)."""
+    context: int
+    ttl_s: int
+    rewrite_usd: float | None
+    text: str
+
+
+@dataclass(frozen=True)
 class OptionRefused:
     """La CLI a refusé un changement en direct (`set_model`, `set_permission_mode`) : il sera
     appliqué en relançant le processus (`--resume`) avant le prochain message."""
@@ -156,6 +166,8 @@ class ChatSession:
         self.pid = None
         self.started_at = None
         self.last_activity = clock()
+        self._cache_turn = 0                # numéro du dernier tour terminé (cache expiré)
+        self._cache_timer = None
         self.effort = self.options.effort  # la CLI ne l'annonce jamais : retenu ici
         self._proc = None
         self._lock = threading.RLock()      # état, processus, compteurs
@@ -409,6 +421,42 @@ class ChatSession:
             self._emit(ev)
         if isinstance(ev, (proto.TurnResult, proto.LocalCommand)):
             self._finish_one(proc, ev)
+        if isinstance(ev, proto.TurnResult) and not getattr(ev, "parent_id", None):
+            self._arm_cache_timer(ev.usage)
+
+    # ---------------------------------------------------------------- cache expiré
+
+    def _arm_cache_timer(self, usage):
+        """Après un tour : prévient quand le cache aura expiré (`CacheExpired`), si le contexte
+        est assez gros pour que ça compte et qu'aucun message n'est parti entre-temps."""
+        info = token_use.cache_expiry(usage)
+        with self._lock:
+            self._cache_turn += 1
+            turn = self._cache_turn
+            if self._cache_timer is not None:
+                self._cache_timer.cancel()
+                self._cache_timer = None
+            if info is None:
+                return
+            timer = threading.Timer(info["ttl_s"], self._cache_expired, args=(turn, info))
+            timer.daemon = True
+            self._cache_timer = timer
+        timer.start()
+
+    def _cache_expired(self, turn, info):
+        with self._lock:
+            if turn != self._cache_turn or self.state not in ("idle", "suspended"):
+                return
+            self._cache_timer = None
+        self._emit(CacheExpired(info["context"], info["ttl_s"], info["rewrite_usd"], info["text"]))
+
+    def _forget_cache_timer(self):
+        """Un message part (ou le chat s'arrête) : le cache est relu ou n'a plus d'importance."""
+        with self._lock:
+            self._cache_turn += 1
+            if self._cache_timer is not None:
+                self._cache_timer.cancel()
+                self._cache_timer = None
 
     def _working_again(self, proc):
         """La CLI travaille alors qu'on la croyait au repos : un message envoyé pendant un tour a
@@ -472,6 +520,7 @@ class ChatSession:
         """Envoie un message (lance ou relance le processus), même pendant un tour. Faux si le
         processus ne peut pas démarrer ou que l'écriture échoue. `uuid` : identifiant de sa ligne
         du journal (voir `proto.user_message`)."""
+        self._forget_cache_timer()
         if (self._relaunch_needed and self._proc is not None and not self._background
                 and self.state not in ("busy", "permission")):
             self._relaunch_needed = False
@@ -512,6 +561,7 @@ class ChatSession:
         with self._lock:
             if self.state != "idle" or self._proc is None or self._perms:
                 return False
+            self._forget_cache_timer()
             self._expected += 1
             self._set_state("busy")  # avant l'écriture : le fil de lecture peut conclure aussitôt
             ok = self._write(proto.user_message(text))

@@ -56,7 +56,9 @@ enum EvChat: Equatable {
     case envoye(texte: String, images: Int, nonce: String, uuid: String)
     case etiquettesChangees(sessionId: String, msgId: String, entree: EntreeEtiquettes?)
     case reglee(requestId: String, decision: String)
-    case tour(ok: Bool, sousType: String, coutUsd: Double, texte: String, limite: Bool, interrompu: Bool)
+    case tour(ok: Bool, sousType: String, coutUsd: Double, texte: String, limite: Bool, interrompu: Bool, usage: UsageTour? = nil)
+    /// Le cache a expiré : le prochain message relira `contexte` tokens au prix fort.
+    case cacheExpire(contexte: Int, ttlS: Int, reecritureUsd: Double?, texte: String)
     case compacte
     /// `auto` : effacée par Claude en fin de sujet (`ccs chat effacer`), pas par `/clear`.
     case reinitialise(declencheur: String)
@@ -119,7 +121,12 @@ enum EvChat: Equatable {
         case "TurnResult":
             return .tour(
                 ok: o.bool("ok"), sousType: o.texte("subtype"), coutUsd: o.double("cost_usd"),
-                texte: o.texte("text"), limite: o.bool("is_limit"), interrompu: o.bool("interrupted")
+                texte: o.texte("text"), limite: o.bool("is_limit"), interrompu: o.bool("interrupted"),
+                usage: UsageTour.lire(o["usage"])
+            )
+        case "CacheExpired":
+            return .cacheExpire(
+                contexte: o.entier("context"), ttlS: o.entier("ttl_s"), reecritureUsd: o.doubleOuNul("rewrite_usd"), texte: o.texte("text")
             )
         case "Compacted":
             return .compacte

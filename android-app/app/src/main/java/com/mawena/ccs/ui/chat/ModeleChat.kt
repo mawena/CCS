@@ -8,6 +8,7 @@ import com.mawena.ccs.logique.ActionNote
 import com.mawena.ccs.logique.AlerteContexte
 import com.mawena.ccs.logique.Citation
 import com.mawena.ccs.logique.CommandeSlash
+import com.mawena.ccs.logique.Consommation
 import com.mawena.ccs.logique.Effet
 import com.mawena.ccs.logique.ElementFil
 import com.mawena.ccs.logique.EntreeEtiquettes
@@ -16,6 +17,7 @@ import com.mawena.ccs.logique.EvChat
 import com.mawena.ccs.logique.FilChat
 import com.mawena.ccs.logique.LigneFil
 import com.mawena.ccs.logique.ModeleIa
+import com.mawena.ccs.logique.NiveauContexte
 import com.mawena.ccs.logique.Tache
 import com.mawena.ccs.logique.VueAgent
 import com.mawena.ccs.reseau.ChatOuvert
@@ -64,6 +66,7 @@ data class VueChat(
     val etat: String = "starting",
     val reflechit: Boolean = false,
     val contexte: String = "",
+    val niveauContexte: NiveauContexte? = null,  // couleur de « Contexte … » (seuil de l'alerte)
     val cout: String = "",
     val historiqueComplet: Boolean = true,
     val ouverture: String? = null,              // erreur d'ouverture (chat.open refusé)
@@ -104,6 +107,10 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
         var charges = 0
         var complet = false
     }
+
+    /** Cache expiré : tokens que relirait le message en attente de confirmation (null : rien à confirmer). */
+    private val _confirmationCache = MutableStateFlow<Long?>(null)
+    val confirmationCache: StateFlow<Long?> = _confirmationCache.asStateFlow()
 
     private val _vue = MutableStateFlow(VueChat())
     val vue: StateFlow<VueChat> = _vue.asStateFlow()
@@ -359,6 +366,8 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
 
     private fun calculer() {
         val c = fil.contexte
+        val usage = fil.dernierUsage?.takeIf { it.contexte > 0 }
+        val tokens = c?.total ?: usage?.contexte
         _vue.value = _vue.value.copy(
             lignes = LigneFil.de(fil.fil.elements),
             agents = fil.vuesAgents,
@@ -367,7 +376,12 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
             taches = fil.taches,
             etat = fil.etat,
             reflechit = fil.reflechit,
-            contexte = if (c != null) "Contexte ${c.pourcentage} %" else "",
+            contexte = when {
+                c != null -> "Contexte ${c.pourcentage} %"
+                usage != null -> "Contexte ${Consommation.jetons(usage.contexte)}"
+                else -> ""
+            },
+            niveauContexte = tokens?.let { Consommation.niveau(it, Consommation.seuil(reglagesContexte?.second)) },
             historiqueComplet = historique?.complet ?: true,
         )
     }
@@ -492,7 +506,8 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
     // ---- envoi -----------------------------------------------------------------------------------
 
     /** Bouton Envoyer : commande `!`, sinon message (avec images et citation). */
-    fun envoyer() {
+    fun envoyer(forcer: Boolean = false) {
+        _confirmationCache.value = null
         val texte = _saisie.value.trim()
         val imgs = _images.value
         if ((texte.isEmpty() && imgs.isEmpty()) || _envoi.value) return
@@ -501,6 +516,7 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
             lancerShell(cmd)
             return
         }
+        if (!forcer) Consommation.confirmationCache(texte, fil.cacheExpire)?.let { _confirmationCache.value = it; return }
         _envoi.value = true
         viewModelScope.launch {
             try {
@@ -515,6 +531,14 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
             }
         }
     }
+
+    /** Confirmation du cache expiré : « Compacter d'abord » (le message reste dans la saisie). */
+    fun compacterDabord() {
+        _confirmationCache.value = null
+        envoyerTexte("/compact")
+    }
+
+    fun annulerConfirmation() { _confirmationCache.value = null }
 
     /** Texte préparé ailleurs (bouton « Compacter ») : envoyé sans toucher à la saisie. */
     fun envoyerTexte(texte: String) { viewModelScope.launch { livrer(texte, emptyList(), null) { envoyerTexte(texte) } } }

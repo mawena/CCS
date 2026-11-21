@@ -220,7 +220,12 @@ Types de `chat.event.event.type` (`ccs_app/server/events.py`) : `Init`, `Hello`,
 `ToolResult`, `TaskNotice`, `Todos`, `PermissionRequest`, `ControlReply`, `TurnResult`,
 `Compacted`, `ConversationReset`, `Retrying`, `Unknown` (`chat_protocol.py`) ;
 `StateChanged`, `UserSent`, `TagsChanged`, `ContextUsage`, `OptionRefused`,
-`UnhandledRequest`, `ProcessExited` (`chat_engine.py`) ; `PermissionSettled`, `Notice`.
+`UnhandledRequest`, `ProcessExited`, `CacheExpired` (`chat_engine.py`) ; `PermissionSettled`, `Notice`.
+
+Depuis la 0.37.0 : `TurnResult.usage` = `{input, cache_read, cache_write, output, cost_usd,
+context, cache_ttl_s, model}` (`token_use.turn_usage`, `{}` sans usage) ; `CacheExpired` =
+`{context, ttl_s, rewrite_usd, text}` ; `analysis.report` renvoie aussi `top` (gros
+consommateurs : `title, project, file, share, answers, avg_context, rewrite_share, causes`).
 
 ---
 

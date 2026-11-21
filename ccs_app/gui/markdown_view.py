@@ -13,6 +13,8 @@ from .. import markdown_render as md  # noqa: E402
 IMAGE_MAX_WIDTH = 600
 LIST_INDENT = 22        # px : du début de la puce au début du texte (liste courte en un label)
 SHORT_ITEM = 60         # caractères : un élément plus court tient sur une ligne dans le chat
+CELL_WRAP = 40          # caractères : une cellule de tableau plus longue passe à la ligne, à cette largeur
+CELL_MAX = 60           # caractères : largeur au plus d'une cellule longue
 _HEADING_CLASS = {1: "title-1", 2: "title-2", 3: "title-3"}
 _ALIGN = {"left": 0.0, "center": 0.5, "right": 1.0, None: 0.0}
 
@@ -226,15 +228,30 @@ class MarkdownView(Gtk.Box):
             align = block.align[c] if c < len(block.align) else None
             bold = [md.Span(s.text, bold=True, italic=s.italic, code=s.code, strike=s.strike, link=s.link)
                     for s in spans]
-            grid.attach(self._label(bold, xalign=_ALIGN.get(align, 0.0)), c, 0, 1, 1)
+            grid.attach(self._cell(bold, align), c, 0, 1, 1)
         for r, row in enumerate(block.rows, start=1):
             for c, spans in enumerate(row):
                 align = block.align[c] if c < len(block.align) else None
-                grid.attach(self._label(spans, xalign=_ALIGN.get(align, 0.0)), c, r, 1, 1)
+                grid.attach(self._cell(spans, align), c, r, 1, 1)
         scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
                                       vscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True)
         scroller.set_child(grid)
         return scroller
+
+    def _cell(self, spans, align):
+        """Cellule de tableau. Le tableau est dans un défilement horizontal : GTK y mesure sa
+        hauteur pour sa largeur minimale. Une cellule qui passe librement à la ligne a pour
+        minimum un seul mot, et sa hauteur à cette largeur (un mot par ligne) laissait un grand
+        vide sous le tableau. Une cellule courte ne passe donc jamais à la ligne ; une longue
+        garde une largeur minimale de CELL_WRAP caractères."""
+        label = self._label(spans, xalign=_ALIGN.get(align, 0.0))
+        label.set_hexpand(False)
+        if sum(len(s.text) for s in spans) <= CELL_WRAP:
+            label.set_wrap(False)
+        else:
+            label.set_width_chars(CELL_WRAP)
+            label.set_max_width_chars(CELL_MAX)
+        return label
 
     def _quote(self, block):
         row = Gtk.Box(spacing=8)

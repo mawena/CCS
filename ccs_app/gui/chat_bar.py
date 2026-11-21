@@ -9,7 +9,7 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, GObject, Gtk  # noqa: E402
 
-from .. import chat_options  # noqa: E402
+from .. import chat_options, token_use  # noqa: E402
 from ..chat_options import ChatOptions  # noqa: E402
 from .chat_messages import install_css  # noqa: E402
 
@@ -226,21 +226,22 @@ class ChatBar(Gtk.Box):
 
     # ---- informations --------------------------------------------------------------------
 
-    def set_context(self, percent, threshold_pct=None):
-        """Contexte utilisé : vert, orange au-delà du seuil de l'alerte de contexte lourd,
-        rouge à partir de 90 %."""
+    def set_context(self, percent, threshold_pct=None, total=None):
+        """Contexte utilisé : vert, orange à partir de la moitié du seuil de l'alerte de contexte
+        lourd, rouge au-delà du seuil (et à partir de 90 % de la fenêtre). `total` : tokens."""
         percent = max(0, min(100, int(percent)))
         level = "ok"
-        if percent >= CONTEXT_CRIT:
+        if percent >= CONTEXT_CRIT or (threshold_pct is not None and percent >= threshold_pct):
             level = "crit"
-        elif threshold_pct is not None and percent >= threshold_pct:
+        elif threshold_pct is not None and percent >= threshold_pct / 2:
             level = "warn"
         self.context_level = level
         for name in ("ok", "warn", "crit"):
             self.gauge.remove_css_class(f"ccs-gauge-{name}")
         self.gauge.add_css_class(f"ccs-gauge-{level}")
         self.gauge.set_fraction(percent / 100)
-        self.context_label.set_label(f"Contexte {percent} %")
+        tokens = f" · {token_use.fmt_tokens(total)}" if total else ""
+        self.context_label.set_label(f"Contexte {percent} %{tokens}")
         self.context_box.set_visible(True)
 
     def set_account(self, name, color, usage=None):

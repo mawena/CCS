@@ -144,6 +144,9 @@ fun EcranChat(
             reprendre = { mc.reprendre() },
             compacter = { mc.envoyerTexte("/compact") },
             voirEtiquette = { filtreEtiquette = it; voletEtiquettes = true },
+            nouvelleSession = {
+                ouvrirChat(DestChat(mc.cwd, titre = Format.base(mc.cwd), jeton = java.util.UUID.randomUUID().toString()))
+            },
         )
     }
 
@@ -293,6 +296,21 @@ fun EcranChat(
                 choisi = null
                 if (mc.sessionId == null || m.msgId.isEmpty()) avis.dire("Ce message ne peut pas encore être étiqueté : attends que Claude ait commencé la conversation.")
                 else aEtiqueter = m
+            },
+        )
+    }
+    val confirmation by mc.confirmationCache.collectAsStateWithLifecycle()
+    confirmation?.let { tokens ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { mc.annulerConfirmation() },
+            title = { Text("Cache expiré") },
+            text = { Text(com.mawena.ccs.logique.Consommation.texteConfirmation(tokens)) },
+            confirmButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    androidx.compose.material3.TextButton(onClick = { mc.envoyer(forcer = true) }) { Text("Envoyer quand même") }
+                    androidx.compose.material3.TextButton(onClick = { mc.compacterDabord() }) { Text("Compacter d'abord") }
+                    androidx.compose.material3.TextButton(onClick = { mc.annulerConfirmation() }) { Text("Annuler") }
+                }
             },
         )
     }

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mawena.ccs.logique.Format
 import com.mawena.ccs.logique.PERIODES
+import com.mawena.ccs.reseau.GrosConsommateur
 import com.mawena.ccs.reseau.Rapport
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -102,6 +103,7 @@ fun EcranAnalyse(modele: ModeleAppli, retour: () -> Unit) {
                             Text("jetons pondérés · ${r.responses} réponses", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
+                    if (r.top.isNotEmpty()) item { GrosConsommateurs(r.top) }
                     item { Barres("Par projet", r.parProjet, r.total) }
                     item { Barres("Par modèle", r.parModele, r.total) }
                     item { Barres("Par compte", r.parCompte, r.total) }
@@ -133,6 +135,33 @@ private fun Barres(titre: String, donnees: Map<String, Double>, total: Double) {
                 }
                 Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
                     Box(Modifier.fillMaxHeight().fillMaxWidth((part / 100).toFloat().coerceIn(0f, 1f)).background(MaterialTheme.colorScheme.primary))
+                }
+            }
+        }
+    }
+}
+
+/** Conversations qui pèsent le plus : titre, projet, part de l'usage, causes probables et conseils. */
+@Composable
+private fun GrosConsommateurs(top: List<GrosConsommateur>) {
+    CarteAnalyse {
+        Text("Gros consommateurs", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        top.forEach { c ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(c.title.ifEmpty { "Sans titre" }, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(String.format(Locale.FRANCE, "%.1f %%", c.share), style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                }
+                Text(
+                    listOf(c.project, "${c.answers} réponses", "${com.mawena.ccs.logique.Consommation.jetons(c.contexteMoyen)} relus en moyenne")
+                        .filter(String::isNotEmpty).joinToString(" · "),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                c.causes.forEach { cause ->
+                    Text("• $cause", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

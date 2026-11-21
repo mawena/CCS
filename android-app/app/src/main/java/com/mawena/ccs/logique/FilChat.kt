@@ -34,6 +34,8 @@ sealed interface ElementFil {
     ) : ElementFil
     data class Note(override val cle: String, val texte: String, val genre: String = "info", val action: ActionNote? = null) : ElementFil
     data class Separateur(override val cle: String, val auto: Boolean) : ElementFil
+    /** Ligne discrète sous une fin de tour : « 36 k lus · 15 k écrits · 403 produits · 0,04 $ ». */
+    data class Usage(override val cle: String, val texte: String) : ElementFil
     data class Demande(
         override val cle: String, val outil: String, val cible: String, val details: String, val description: String,
     ) : ElementFil
@@ -51,7 +53,8 @@ sealed interface ElementFil {
 
 enum class StatutAgent { Travaille, Fini, Arrete }
 
-enum class ActionNote { Compacter }
+/** Boutons d'une note : « Compacter » (contexte lourd) ; « Compacter » et « Nouvelle session » (cache expiré). */
+enum class ActionNote { Compacter, CacheExpire }
 
 data class OptionQuestion(val libelle: String, val description: String)
 data class QuestionClaude(val question: String, val entete: String, val plusieurs: Boolean, val options: List<OptionQuestion>)
@@ -144,6 +147,10 @@ class FilChat {
     var modeles: List<ModeleIa> = emptyList(); private set
     /** Droits annoncés par Claude (Status, Maj+Tab au bureau) ; null : pas d'annonce. */
     var droitsAnnonces: String? = null; private set
+    /** Usage du dernier tour (`TurnResult.usage`), pour l'indicateur de contexte. */
+    var dernierUsage: UsageTour? = null; private set
+    /** Cache expiré sans tour depuis : le prochain message relira tout le contexte au prix fort. */
+    var cacheExpire: EvChat.CacheExpire? = null; private set
     /** Dernier coût de tour connu (dollars). */
     var coutTours = 0.0; private set
 
@@ -163,6 +170,7 @@ class FilChat {
         seq = 0
         fil.vider(); agents.clear(); outilDans.clear(); textes.clear(); demandes.clear()
         taches = emptyList(); contexte = null; reflechit = false
+        dernierUsage = null; cacheExpire = null
     }
 
     // ---- envois et notes de l'écran ---------------------------------------------------------
@@ -251,12 +259,24 @@ class FilChat {
                     !ev.ok -> note(ev.texte.ifEmpty { "Claude n'a pas pu finir sa réponse." }, "error")
                 }
                 coutTours += ev.coutUsd
+                cacheExpire = null
+                ev.usage?.let { u ->
+                    dernierUsage = u
+                    Consommation.resume(u).takeIf(String::isNotEmpty)?.let { fil.ajouter(ElementFil.Usage(cle("t"), it)) }
+                }
                 demandes.toList().forEach { fil.retirer(it) }
                 demandes.clear()
                 effets.add(Effet.TourFini); effets.add(Effet.DemanderContexte)
             }
-            is EvChat.Compacte -> note("Conversation compactée.")
-            is EvChat.Reinitialise -> fil.ajouter(ElementFil.Separateur(cle("r"), ev.auto))
+            is EvChat.Compacte -> { cacheExpire = null; note("Conversation compactée.") }
+            is EvChat.Reinitialise -> {
+                cacheExpire = null; dernierUsage = null
+                fil.ajouter(ElementFil.Separateur(cle("r"), ev.auto))
+            }
+            is EvChat.CacheExpire -> {
+                cacheExpire = ev
+                note(ev.texte.ifEmpty { "Cache expiré : le prochain message relira tout le contexte au prix fort." }, "warning", ActionNote.CacheExpire)
+            }
             is EvChat.Note -> note(ev.texte, if (ev.genre == "warning" || ev.genre == "error") ev.genre else "info")
             is EvChat.NouvelEssai -> note("Nouvel essai (${ev.tentative}) dans ${Math.round(ev.delaiS)} s…", "warning")
             is EvChat.Etat -> changerEtat(ev.etat)
@@ -441,7 +461,7 @@ sealed interface LigneFil {
             is ElementFil.Demande -> e.outil + " " + e.cible
             is ElementFil.Questions -> e.questions.joinToString(" ") { it.question }
             is ElementFil.Commande -> e.commande + " " + e.sortie.orEmpty()
-            is ElementFil.Separateur, is ElementFil.Arrete -> ""
+            is ElementFil.Separateur, is ElementFil.Arrete, is ElementFil.Usage -> ""
         }
     }
 }

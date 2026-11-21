@@ -11,6 +11,8 @@ struct ActionsFil {
     var arreterShell: (String) -> Void
     var reprendre: () -> Void
     var compacter: () -> Void
+    /// Nouveau chat dans le même dossier (cache expiré, sujet changé).
+    var nouvelleSession: () -> Void
     var voirEtiquette: (String) -> Void
 }
 
@@ -53,6 +55,7 @@ struct LigneVue: View {
                 case .questions(let q): CarteQuestions(e: q, actions: actions)
                 case .commande(let c): CarteCommande(e: c, actions: actions)
                 case .arrete(let a): CarteArret(e: a, actions: actions)
+                case .usage(let u): LigneUsage(e: u)
                 }
             }
         }
@@ -476,18 +479,36 @@ private struct NoteVue: View {
     let actions: ActionsFil
 
     var body: some View {
-        HStack {
-            Text(e.texte)
-                .font(.footnote)
-                .foregroundStyle(e.genre == "error" ? Color.red : (e.genre == "warning" ? Color.primary : Color.secondary))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if e.action == .compacter {
-                Button("Compacter", action: actions.compacter).buttonStyle(.bordered).controlSize(.small)
+        Group {
+            if e.action == .cacheExpire {
+                VStack(alignment: .leading, spacing: 6) {
+                    texte
+                    HStack(spacing: 8) {
+                        Button("Compacter", action: actions.compacter)
+                        Button("Nouvelle session", action: actions.nouvelleSession)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            } else {
+                HStack {
+                    texte
+                    if e.action == .compacter {
+                        Button("Compacter", action: actions.compacter).buttonStyle(.bordered).controlSize(.small)
+                    }
+                }
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 8).fill(fond))
+    }
+
+    private var texte: some View {
+        Text(e.texte)
+            .font(.footnote)
+            .foregroundStyle(e.genre == "error" ? Color.red : (e.genre == "warning" ? Color.primary : Color.secondary))
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var fond: Color {
@@ -496,6 +517,22 @@ private struct NoteVue: View {
         case "warning": return Color.avertissement.opacity(0.15)
         default: return Color.secondary.opacity(0.1)
         }
+    }
+}
+
+/// Usage d'un tour, discret, sous la réponse.
+@MainActor
+private struct LigneUsage: View {
+    let e: ElementFil.Usage
+
+    var body: some View {
+        Text(e.texte)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.horizontal, 6)
+            .accessibilityLabel("Usage du tour : " + e.texte)
     }
 }
 

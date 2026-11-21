@@ -164,8 +164,8 @@ class PrefsPageTest(HomeTestCase):
         self.assertEqual(rows["Archiver après (jours d'inactivité)"].get_value(), 1)
         self.assertEqual(rows["Supprimer l'archive après (jours)"].get_value(), 0)
         self.assertEqual(rows["Sessions inactives après (h)"].get_value(), 2)
-        self.assertEqual(rows["Seuil du contexte lourd (tokens)"].get_value(), 300000)
-        self.assertFalse(rows["Compacter automatiquement"].get_active())      # désactivé par défaut
+        self.assertEqual(rows["Seuil du contexte lourd (tokens)"].get_value(), 150000)
+        self.assertTrue(rows["Compacter automatiquement"].get_active())       # activé par défaut (0.37.0)
         self.assertEqual(rows["Tentatives par tâche"].get_value(), 3)
         self.assertTrue(rows["Exécuter les tâches"].get_active())
         self.assertTrue(rows["Alertes de budget"].get_active())
