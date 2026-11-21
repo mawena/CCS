@@ -103,6 +103,10 @@ DEFAULTS = {
     # Phase 13 : page Git (disposition A, B ou C ; fetch automatique en minutes, 0 = jamais).
     "git": {"layout": "A", "fetch_minutes": 5, "avatars": True},
     "appearance": {"color_scheme": "auto", "account_colors": {}},
+    # Relance après une limite (`limit_resume`) : quand la limite se lève, CCS envoie « continue »
+    # aux conversations bloquées ; outside : conversation fermée hors de CCS, « notify »
+    # (notification) ou « resume » (claude --resume en arrière-plan).
+    "limit_resume": {"enabled": True, "outside": "notify"},
 }
 
 
@@ -163,6 +167,7 @@ CHOICES = {
     "chat.rights": launch_options.PERMISSION_MODE_VALUES,
     "files.layout": ("A", "B"),
     "git.layout": ("A", "B", "C"),
+    "limit_resume.outside": ("notify", "resume"),
     "appearance.color_scheme": ("auto", "clair", "sombre"),
 }
 _COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")

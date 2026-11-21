@@ -22,6 +22,9 @@ def target(name, inp):
     return next((first(v) for v in inp.values() if isinstance(v, str) and v.strip()), "")
 
 
+NOTICE_STYLES = {"warning": "alerte", "error": "erreur", "info": "discret"}
+
+
 class ChatScreen(urwid.WidgetWrap):
     def __init__(self, app, chat_id, title):
         self.app = app
@@ -86,6 +89,10 @@ class ChatScreen(urwid.WidgetWrap):
         elif t == "StateChanged":
             self.status.set_text(("alerte" if ev.get("state") == "permission" else "discret",
                                   STATES.get(ev.get("state"), "")))
+        elif t == "Notice" and ev.get("text"):          # note du pont (relance après une limite…)
+            self.add((NOTICE_STYLES.get(ev.get("kind"), "discret"), ev["text"]))
+        elif t == "UserSent" and ev.get("text") and not ev.get("nonce"):   # envoyé par CCS ou un autre appareil
+            self.add(("discret", f"» {ev['text']}"))
         elif t in ("LocalCommand",) and ev.get("text"):
             self.add(("discret", ev["text"]))
         elif t == "ProcessExited" and not ev.get("requested") and ev.get("code"):
@@ -115,7 +122,8 @@ class ChatScreen(urwid.WidgetWrap):
             return
         self.edit.set_edit_text("")
         self.add(("titre", f"Toi : {text}"))
-        self.app.client.call("chat.send", callback=self.app.report, chat_id=self.chat_id, text=text)
+        self.app.client.call("chat.send", callback=self.app.report, chat_id=self.chat_id, text=text,
+                             nonce="tui")     # son écho (UserSent) n'est pas affiché deux fois
 
     def answer(self, decision):
         p = self.pending.pop(0)

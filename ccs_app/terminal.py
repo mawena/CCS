@@ -13,7 +13,7 @@ import shutil
 import time
 from dataclasses import dataclass, field
 
-from . import core, sessions
+from . import core, limit_resume, sessions
 
 VTE_PACKAGE = "gir1.2-vte-3.91"
 VTE_HINT = (f"Terminal intégré indisponible : les sessions s'ouvrent dans un terminal externe. "
@@ -314,43 +314,63 @@ def _limit_text(event, tail):
 
 
 def resume_decision(tab, event, now, enabled=True, max_per_hour=RESUME_MAX_PER_HOUR,
-                    min_gap=RESUME_MIN_GAP_S, max_age=RESUME_MAX_AGE_S):
+                    min_gap=RESUME_MIN_GAP_S, max_age=RESUME_MAX_AGE_S, planned_enabled=True):
     """Que faire du marqueur de limite `event` (limit_events.LimitEvent) pour l'onglet `tab` ?
 
-    None si le marqueur ne concerne pas cet onglet. On ne relance que si le compte a changé,
-    que claude attend une nouvelle demande, que personne n'a écrit dans l'onglet depuis la
-    limite, et au plus `max_per_hour` fois par heure (espacées d'au moins `min_gap` s)."""
+    None si le marqueur ne concerne pas cet onglet. On ne relance que si le compte a changé ou
+    que la limite est levée (`limit_resume`), que claude attend une nouvelle demande, que personne
+    n'a écrit dans l'onglet depuis la limite, et au plus `max_per_hour` fois par heure (espacées
+    d'au moins `min_gap` s). Relance prévue plus tard : « plan » (bandeau, marqueur gardé)."""
     if event is None or tab.kind != "claude" or not tab.session_id or event.session_id != tab.session_id:
         return None
-    if not tab.running or now - event.ts > max_age:
+    waiting = event.outcome in ("planned", "paused", "failed", "exhausted") and planned_enabled
+    if not tab.running or (now - (event.lifted_at or event.ts) > max_age and not waiting):
         return ResumeDecision("drop")
     if tab.started_at is not None and event.ts < tab.started_at:
         return ResumeDecision("drop")  # limite d'un processus précédent de la conversation
     if event.outcome == "pending":
         return ResumeDecision("wait")  # le hook choisit encore le compte
+    if tab.typed_at is not None and tab.typed_at > event.ts and event.outcome != "switched" \
+            and event.outcome != "already":
+        return ResumeDecision("drop", f"{_limit_head(event)} : pas de relance automatique, "
+                                      "tu as écrit dans la session.")
+    if event.outcome == "planned" and planned_enabled:
+        return ResumeDecision("plan", limit_resume.planned_text(event, now))
+    if event.outcome in ("paused", "failed", "exhausted") and planned_enabled:
+        # Le service (ou l'application) prévoit la relance au prochain passage.
+        text = (f"{_limit_head(event)} : CCS est en pause, la relance attendra la reprise."
+                if event.outcome == "paused" else None)
+        return ResumeDecision("plan", text)
     if event.outcome == "paused":
         return ResumeDecision("drop", f"{_limit_head(event)} : CCS est en pause, "
                                       "pas de bascule ni de reprise automatique.")
-    if not event.switched:
+    if not event.switched and event.outcome != "lifted":
         why = (f"bascule vers {event.target} impossible" if event.target
                else "aucun autre compte disponible")
         return ResumeDecision("drop", f"{_limit_head(event)} : {why}, pas de reprise automatique.")
+    lifted = event.outcome == "lifted"
     manual = "tape « continue » pour reprendre."
-    if not enabled:
-        return ResumeDecision("drop", _limit_text(event, manual.capitalize()))
+
+    def text(tail):
+        if lifted:
+            return f"Limite levée : {tail}"
+        return _limit_text(event, tail)
+    if not enabled or (lifted and not planned_enabled):
+        return ResumeDecision("drop", text(manual.capitalize() if not lifted else manual))
     if tab.typed_at is not None and tab.typed_at > event.ts:
-        return ResumeDecision("drop", _limit_text(
-            event, "Pas de reprise automatique : tu as écrit dans la session."))
+        return ResumeDecision("drop", text("Pas de reprise automatique : tu as écrit dans la session."))
     if not free_for_input(tab):
         return ResumeDecision("wait")
     recent = [t for t in tab.resumes if now - t < 3600]
     if len(recent) >= max_per_hour:
-        return ResumeDecision("drop", _limit_text(
-            event, f"Reprise automatique suspendue ({len(recent)} reprises en une heure) : {manual}"))
+        return ResumeDecision("drop", text(
+            f"Reprise automatique suspendue ({len(recent)} reprises en une heure) : {manual}"))
     if recent and now - max(recent) < min_gap:
-        return ResumeDecision("drop", _limit_text(
-            event, f"Reprise automatique suspendue (la précédente date de moins de "
-                   f"{min_gap // 60} min) : {manual}"))
+        return ResumeDecision("drop", text(
+            f"Reprise automatique suspendue (la précédente date de moins de "
+            f"{min_gap // 60} min) : {manual}"))
+    if lifted:
+        return ResumeDecision("resume", limit_resume.lifted_text(event))
     return ResumeDecision("resume", f"{_limit_head(event)} : bascule sur "
                                     f"{event.target or 'un autre compte'}, conversation relancée.")
 

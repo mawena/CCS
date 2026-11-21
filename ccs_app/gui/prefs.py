@@ -102,6 +102,7 @@ class PrefsPage(Adw.PreferencesPage):
         self.add_group(self.integration_group())
         if self.window.terminals.available:
             self.add_group(self.terminal_group())
+            self.add_group(self.limit_resume_group())
         # Recréé à chaque rendu : l'ancien groupe, retiré, cesse seul de suivre GSettings.
         self.add_group(ShortcutsGroup(toast=self.window.toast))
         self.add_group(PhoneGroup(self.s, self.save, toast=self.window.toast))
@@ -609,6 +610,27 @@ class PrefsPage(Adw.PreferencesPage):
             row.connect("notify::active", lambda r, _p, a=action: terms.page_actions.change_action_state(
                 a, GLib.Variant.new_boolean(r.get_active())))
             g.add(row)
+        return g
+
+    OUTSIDE = (("Notification", "notify"), ("Relance en arrière-plan", "resume"))
+
+    def limit_resume_group(self):
+        """Relance après une limite (`limit_resume`) : réglage commun à toutes les interfaces."""
+        lr = self.s["limit_resume"] = (self.s.get("limit_resume")
+                                       if isinstance(self.s.get("limit_resume"), dict) else {})
+        lr.setdefault("enabled", True)
+        lr.setdefault("outside", "notify")
+        g = Adw.PreferencesGroup(
+            title="Relance après une limite",
+            description="Quand aucun autre compte n'est libre, CCS relance les conversations "
+                        "bloquées à la levée de la limite (bureau, web, téléphone, TUI).")
+        g.add(self.switch_row("Relancer quand la limite est levée",
+                              "« continue » envoyé à la réinitialisation de la fenêtre de 5 h ou de la "
+                              "semaine, ou quand un autre compte se libère", "limit_resume", "enabled"))
+        g.add(self.combo_row("Conversation fermée hors de CCS",
+                             "Ouverte ailleurs, elle reçoit une notification",
+                             list(self.OUTSIDE), lr["outside"],
+                             lambda value, _r: self._set("limit_resume", "outside", value)))
         return g
 
     def archive_group(self):

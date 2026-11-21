@@ -252,7 +252,23 @@ class LimitMarkerTest(HookBase):
             self.assertEqual(integration.stop_failure(self.payload(), notifier=self.sent.append),
                              "bascule impossible")
         e = self.event()
-        self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", "boulot", False, "failed"))
+        # Relance prévue à la levée de la limite (`limit_resume`), heure dans la notification.
+        self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", "boulot", False, "planned"))
+        self.assertGreater(e.resume_at, time.time())
+        self.assertEqual(e.cwd, "/w/GiGit")
+        self.assertIn("Relance prévue à", self.sent[-1].body)
+
+    def test_failed_switch_without_planned_resume(self):
+        from ccs_app import settings
+        s = settings.load_settings()
+        s["limit_resume"]["enabled"] = False
+        settings.save_settings(s)
+        ko = subprocess.CompletedProcess([], 1, "", "ccs: erreur")
+        with mock.patch.object(core, "run_ccs", return_value=ko):
+            integration.stop_failure(self.payload(), notifier=self.sent.append)
+        e = self.event()
+        self.assertEqual((e.outcome, e.resume_at), ("failed", None))
+        self.assertNotIn("Relance prévue", self.sent[-1].body)
 
     def test_no_other_account_is_recorded(self):
         st = json.loads((self.store / "state.json").read_text())
@@ -262,7 +278,8 @@ class LimitMarkerTest(HookBase):
             integration.stop_failure(self.payload(), notifier=self.sent.append)
         run.assert_not_called()
         e = self.event()
-        self.assertEqual((e.target, e.switched, e.outcome), (None, False, "exhausted"))
+        self.assertEqual((e.target, e.switched, e.outcome), (None, False, "planned"))
+        self.assertIsNotNone(e.resume_at)
 
     def test_second_blocked_session_is_recorded_as_already_switched(self):
         other = "6c2e1d4f-bbbb-4ccc-8ddd-0123456789ab"
@@ -341,10 +358,12 @@ class PauseHookTest(HookBase):
         self.assertEqual(msg, "en pause")
         self.assertEqual(len(self.sent), 1)
         self.assertIn("GiGit", self.sent[0].title)
-        self.assertEqual(self.sent[0].body, f"CCS est en pause jusqu'à {pause._when(until, now)} : "
-                                            "pas de bascule automatique.")
+        self.assertTrue(self.sent[0].body.startswith(
+            f"CCS est en pause jusqu'à {pause._when(until, now)} : pas de bascule automatique."))
         e = self.event()
-        self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", None, False, "paused"))
+        # Relance prévue, au plus tôt à la fin de la pause.
+        self.assertEqual((e.source, e.target, e.switched, e.outcome), ("perso", None, False, "planned"))
+        self.assertGreaterEqual(e.resume_at, until.timestamp())
 
     def test_pause_until_manual_resume(self):
         from ccs_app import pause

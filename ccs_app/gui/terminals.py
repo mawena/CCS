@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 import gi
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
-from .. import alerts, chat_options as chat_options_module, conversations, limit_events, notify, phone, sessions, settings, terminal, terminal_store
+from .. import alerts, chat_options as chat_options_module, conversations, limit_events, limit_resume, notify, phone, sessions, settings, terminal, terminal_store
 from .common import in_thread
 
 
@@ -1391,11 +1391,24 @@ class TerminalsPage(Gtk.Box):
             self.polling = False
             return False
 
-        in_thread(lambda: (sessions.list_sessions(), limit_events.load_all()), self.synced)
+        in_thread(self._read_sessions, self.synced)
         return True
 
+    def _read_sessions(self):
+        """Hors du fil de GTK : sessions vivantes, marqueurs de limite (avancés au plus toutes les
+        CHECK_S secondes, si le service ne l'a pas fait) et réglage de la relance."""
+        now = time.time()
+        if now - getattr(self, "_limits_advanced", 0) >= limit_resume.CHECK_S:
+            self._limits_advanced = now
+            limit_resume.advance(notifier=notify.send)
+        try:
+            cfg = limit_resume.config(settings.load_settings())
+        except Exception:
+            cfg = limit_resume.config({})
+        return sessions.list_sessions(), limit_events.load_all(), cfg
+
     def synced(self, found):
-        live, limits = found
+        live, limits, self.limit_cfg = found
         tabs = self.tabs()
         before = {id(t.state): (t.state.session_id, t.state.state) for t in tabs}
         done = terminal.sync_tabs([t.state for t in tabs], live)
@@ -1425,15 +1438,27 @@ class TerminalsPage(Gtk.Box):
 
     def handle_limits(self, tabs, limits):
         """Reprise automatique : « continue » dans l'onglet dont la conversation a été bloquée
-        par une limite, une fois le compte changé par le hook StopFailure."""
+        par une limite, une fois le compte changé par le hook StopFailure, ou la limite levée
+        (`limit_resume`). Relance prévue : bandeau « relance prévue à HH:MM »."""
         now, blocked = time.time(), set()
+        planned_on = getattr(self, "limit_cfg", {}).get("enabled", True)
         for tab in tabs:
+            if getattr(tab, "remote", None):
+                continue  # chat d'un serveur CCS : son pont le relance et l'écrit dans le fil
             event = limits.get(tab.state.session_id) if tab.state.session_id else None
-            decision = terminal.resume_decision(tab.state, event, now, enabled=self.options["auto_resume"])
+            decision = terminal.resume_decision(tab.state, event, now, enabled=self.options["auto_resume"],
+                                                planned_enabled=planned_on)
             if decision is None:
                 continue
             if decision.action == "wait":
                 blocked.add(tab)  # limite en cours de traitement : la file attend aussi
+                continue
+            if decision.action == "plan":
+                blocked.add(tab)  # relance prévue : la file attend la levée de la limite
+                key = (event.session_id, event.ts, event.resume_at, event.outcome)
+                if decision.text and key not in tab.limits_done:
+                    tab.limits_done.add(key)
+                    tab.show_notice(decision.text)
                 continue
             key = (event.session_id, event.ts)
             if key not in tab.limits_done:  # une seule fois par événement
