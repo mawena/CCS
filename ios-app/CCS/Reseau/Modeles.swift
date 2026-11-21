@@ -210,7 +210,32 @@ struct Bilan: LisibleJSON {
     }
 }
 
-/// `analysis.report` : jetons pondérés par projet, modèle, compte et heure.
+/// Conversation qui pèse le plus (`analysis.report` → `top`, `transcripts.top_consumers`).
+struct GrosConsommateur: LisibleJSON, Equatable, Identifiable {
+    var titre = ""
+    var projet = ""
+    var fichier = ""
+    var part = 0.0              // % de l'usage
+    var reponses = 0
+    var contexteMoyen = 0
+    var partReecrite = 0.0      // % du contexte réécrit dans le cache
+    var causes: [String] = []
+
+    var id: String { return fichier.isEmpty ? titre + "|" + projet : fichier }
+
+    init(json j: JSON) {
+        titre = j.texte("title")
+        projet = j.texte("project")
+        fichier = j.texte("file")
+        part = j.double("share")
+        reponses = j.entier("answers")
+        contexteMoyen = j.entier("avg_context")
+        partReecrite = j.double("rewrite_share")
+        causes = j.listeTextes("causes").filter { !$0.isEmpty }
+    }
+}
+
+/// `analysis.report` : jetons pondérés par projet, modèle, compte et heure ; gros consommateurs.
 struct Rapport: LisibleJSON {
     var total = 0.0
     var parProjet: [String: Double] = [:]
@@ -219,6 +244,7 @@ struct Rapport: LisibleJSON {
     var parHeure: [Double] = []
     var days = 7
     var responses = 0
+    var top: [GrosConsommateur] = []
 
     init(json j: JSON) {
         func table(_ cle: String) -> [String: Double] {
@@ -233,6 +259,10 @@ struct Rapport: LisibleJSON {
         parHeure = j.liste("by_hour").map { $0.nombre ?? 0 }
         days = j.entier("days", 7)
         responses = j.entier("responses")
+        top = j.liste("top").compactMap { t in
+            guard case .objet = t else { return nil }
+            return GrosConsommateur(json: t)
+        }
     }
 }
 

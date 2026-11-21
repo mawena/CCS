@@ -163,7 +163,19 @@ struct Saisie: View {
                 .buttonStyle(.borderless)
                 .disabled(!mc.reglages.pretes)
                 Spacer(minLength: 4)
-                Text(pied).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                HStack(spacing: 0) {
+                    if !mc.vue.contexte.isEmpty {
+                        Text(mc.vue.contexte).foregroundStyle(couleurContexte)
+                    }
+                    if !mc.vue.contexte.isEmpty && !mc.vue.cout.isEmpty {
+                        Text(" · ").foregroundStyle(.secondary)
+                    }
+                    if !mc.vue.cout.isEmpty {
+                        Text(mc.vue.cout).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption2)
+                .lineLimit(1)
                 if occupe {
                     Button {
                         mc.interrompre()
@@ -185,14 +197,29 @@ struct Saisie: View {
             choix = []
             charger(nouveaux)
         }
+        .confirmationDialog(
+            mc.confirmationCache.map { Jetons.avertissementCache($0) } ?? "",
+            isPresented: Binding<Bool>(get: { mc.confirmationCache != nil }, set: { if !$0 { mc.annulerEnvoi() } }),
+            titleVisibility: .visible
+        ) {
+            Button("Envoyer quand même") { mc.envoyerQuandMeme() }
+            Button("Compacter d'abord") { mc.compacterDabord() }
+            Button("Annuler", role: .cancel) { mc.annulerEnvoi() }
+        }
         .sheet(isPresented: $options) {
             FeuilleOptions(r: mc.reglages) { o in mc.changerOptions(o) }
                 .presentationDetents([.medium, .large])
         }
     }
 
-    private var pied: String {
-        return [mc.vue.contexte, mc.vue.cout].filter { !$0.isEmpty }.joined(separator: " · ")
+    /// Vert sous la moitié du seuil du contexte lourd, orange jusqu'au seuil, rouge au-delà.
+    private var couleurContexte: Color {
+        switch mc.vue.niveauContexte {
+        case .vert?: return vertDiff
+        case .orange?: return Color.avertissement
+        case .rouge?: return rougeDiff
+        case nil: return Color.secondary
+        }
     }
 
     private func charger(_ items: [PhotosPickerItem]) {

@@ -336,6 +336,10 @@ private struct FilChatVue: View {
             arreterShell: { m.arreterShell($0) },
             reprendre: { m.reprendre() },
             compacter: { m.envoyerTexte("/compact") },
+            nouvelleSession: {
+                // nouveau chat dans le même dossier (jeton : destination distincte à chaque fois)
+                naviguer(.chat(DestChat(cwd: m.cwd, titre: Format.base(m.cwd), jeton: UUID().uuidString)))
+            },
             voirEtiquette: { e in
                 filtreEtiquette = e
                 voletEtiquettes = true
