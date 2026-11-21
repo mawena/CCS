@@ -3,6 +3,43 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [0.36.0] — 2026-11-21
+
+### Ajouté
+
+- **Relance après une limite, partout** : quand aucun autre compte n'est libre (ou pendant une
+  pause), CCS calcule l'heure de levée de la limite (fin de la fenêtre de 5 h ou de la semaine, ou
+  retour d'un autre compte sous les seuils), affiche « relance prévue à HH:MM », puis envoie
+  « continue » à la levée, après avoir changé de compte si c'est un autre qui s'est libéré. Onglets
+  du terminal et chats du bureau, chats du web, d'Android, de l'iPhone et de la TUI, `claude` lancé
+  dans un terminal de la version web.
+- Une seule bascule et une seule notification pour toutes les sessions bloquées en même temps ;
+  un seul « continue » par session (au plus 3 par heure), aucun si tu as écrit entre-temps.
+- Sessions hors de CCS : notification à la levée, ou relance en arrière-plan
+  (`claude --resume … -p continue`) d'une conversation fermée.
+- Réglage `limit_resume` (`enabled`, `outside`) dans les préférences du bureau, du web, d'Android
+  et de l'iPhone. La notification de limite donne l'heure de relance prévue.
+- TUI : notes du pont (relance, compactage) et messages envoyés par CCS affichés dans le fil.
+
+### Modifié
+
+- Les marqueurs de limite gardent le dossier de la conversation et l'heure de relance ; un marqueur
+  dont la relance est prévue plus tard n'est plus effacé au bout de 24 h.
+
+## [0.35.0] — 2026-11-20
+
+### Ajouté
+
+- **iPhone : machine pilotée**, comme sur Android : bouton dans Sessions et Plus, bandeau sur
+  tous les écrans ; sessions, chats, fichiers, Git, terminal et notifications suivent la machine
+  choisie (le PC du bureau par exemple, via le relais Ricochet).
+- **iPhone : page « Machines et travaux distants »** (Plus) : machines, leurs outils et leurs
+  places (limite réglable), travaux en cours, à venir et finis, journal en direct, arrêt, lancement
+  d'une commande (maintenant, cette nuit ou à une heure), réglages du relais Ricochet.
+- **iPhone : liens de fichiers dans le chat** : les chemins cités par Claude et les fichiers des
+  diffs s'ouvrent d'un toucher.
+- `.ipa` joint à la release (`CCS-0.35.0.ipa`) et ajouté à la source SideStore.
+
 ## [0.34.0] — 2026-11-19
 
 ### Ajouté

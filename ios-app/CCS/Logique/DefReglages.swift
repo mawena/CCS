@@ -35,6 +35,9 @@ enum DefReglages {
     private static let h = Genre.heure
     private static func n(_ min: Double, _ max: Double, entier: Bool = false) -> Genre { return .nombre(min: min, max: max, entier: entier) }
 
+    static let dehors: [Option] = [
+        Option(valeur: "notify", libelle: "Notification"), Option(valeur: "resume", libelle: "Relance en arrière-plan"),
+    ]
     static let droits: [Option] = [
         Option(valeur: "manual", libelle: "Manuel"), Option(valeur: "acceptEdits", libelle: "Accepter les modifications"),
         Option(valeur: "plan", libelle: "Plan"), Option(valeur: "auto", libelle: "Auto"),
@@ -91,6 +94,8 @@ enum DefReglages {
         ]),
         Groupe(titre: "Chat et sessions", reglages: [
             Def(chemin: "chat.rights", libelle: "Droits des nouveaux chats", genre: .choix(droits)),
+            Def(chemin: "limit_resume.enabled", libelle: "Relancer les conversations bloquées quand la limite est levée", genre: b),
+            Def(chemin: "limit_resume.outside", libelle: "Conversation fermée hors de CCS, à la levée", genre: .choix(dehors)),
             Def(chemin: "chat.auto_clear", libelle: "Effacement automatique : Claude vide la conversation (/clear) en fin de sujet", genre: b),
             Def(chemin: "chat.idle_suspend_min", libelle: "Mise en veille d'un chat inactif (minutes, 0 = jamais)", genre: n(0, 1440, entier: true)),
             Def(chemin: "sessions.idle_hours", libelle: "Session inactive après (heures)", genre: n(0.01, 720)),

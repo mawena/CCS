@@ -336,7 +336,7 @@ class SessionsPageTest(HomeTestCase):
         self.page.send_queue(tab)
         self.assertEqual(tab.queue_reason, "Conversation ouverte ailleurs : rien n'est envoyé.")
         self.live = []                                  # l'autre processus a disparu
-        self.page.synced(([], {}))
+        self.page.synced(([], {}, {"enabled": True}))
         self.assertIsNone(tab.elsewhere_pid)
         self.assertFalse(tab.read_only)
         self.assertFalse(tab.panel.banner.get_revealed())

@@ -1,3 +1,4 @@
+import dataclasses
 import os
 import signal
 from unittest import mock
@@ -318,22 +319,49 @@ class ResumeDecisionTest(HomeTestCase):
         tab = self.tab(state="waiting", waiting_for="input needed")
         self.assertEqual(self.decide(tab=tab).action, "resume")
 
+    def test_failed_or_impossible_switch_waits_for_the_planned_resume(self):
+        for outcome in ("failed", "exhausted"):
+            d = terminal.resume_decision(self.tab(), self.event(switched=False, outcome=outcome), self.NOW)
+            self.assertEqual((d.action, d.text), ("plan", None))
+        ev = self.event(switched=False, outcome="planned")
+        ev = dataclasses.replace(ev, resume_at=self.NOW + 3600)
+        d = terminal.resume_decision(self.tab(), ev, self.NOW)
+        self.assertEqual(d.action, "plan")
+        self.assertTrue(d.text.startswith("Limite atteinte sur perso : relance prévue à "))
+        # Bien plus tard que RESUME_MAX_AGE_S : toujours gardé (limite de la semaine).
+        d = terminal.resume_decision(self.tab(), ev, self.NOW + 3 * 24 * 3600)
+        self.assertEqual(d.action, "plan")
+
+    def test_lifted_limit_resumes(self):
+        ev = dataclasses.replace(self.event(switched=False, target="perso", outcome="lifted"),
+                                 lifted_at=self.NOW)
+        d = terminal.resume_decision(self.tab(), ev, self.NOW + 10)
+        self.assertEqual(d.action, "resume")
+        self.assertEqual(d.text, "Limite levée (compte perso) : conversation relancée.")
+        d = terminal.resume_decision(self.tab(), ev, self.NOW + 10, planned_enabled=False)
+        self.assertEqual(d.action, "drop")
+
     def test_failed_or_impossible_switch_only_explains(self):
-        d = self.decide(event=self.event(switched=False, outcome="failed"))
+        d = self.decide(event=self.event(switched=False, outcome="failed"), planned_enabled=False)
         self.assertEqual(d.action, "drop")
         self.assertEqual(d.text, "Limite atteinte sur perso : bascule vers pro impossible, "
                                  "pas de reprise automatique.")
-        d = self.decide(event=self.event(switched=False, target=None, outcome="exhausted"))
+        d = self.decide(event=self.event(switched=False, target=None, outcome="exhausted"),
+                        planned_enabled=False)
         self.assertEqual(d.text, "Limite atteinte sur perso : aucun autre compte disponible, "
                                  "pas de reprise automatique.")
 
     def test_pause_never_resumes(self):
         d = self.decide(event=self.event(switched=False, target=None, outcome="paused"))
+        self.assertEqual((d.action, d.text), ("plan", "Limite atteinte sur perso : CCS est en pause, "
+                                                      "la relance attendra la reprise."))
+        d = self.decide(event=self.event(switched=False, target=None, outcome="paused"),
+                        planned_enabled=False)
         self.assertEqual(d.action, "drop")
         self.assertEqual(d.text, "Limite atteinte sur perso : CCS est en pause, "
                                  "pas de bascule ni de reprise automatique.")
-        d = self.decide(event=self.event(switched=True, outcome="paused"))  # marqueur incohérent
-        self.assertEqual(d.action, "drop")
+        d = self.decide(event=self.event(switched=True, outcome="paused"), planned_enabled=False)
+        self.assertEqual(d.action, "drop")  # marqueur incohérent
 
     def test_user_typed_since_the_limit(self):
         d = self.decide(tab=self.tab(typed_at=self.NOW - 5))

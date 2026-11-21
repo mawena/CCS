@@ -49,6 +49,7 @@ class DefReglagesTest {
         val chemins = (DefReglages.GROUPES + DefReglages.TELEPHONE).flatMap { g -> g.reglages.map { it.chemin } }
         assertEquals(chemins.size, chemins.toSet().size)
         assertTrue("chat.auto_clear" in chemins)
-        assertEquals(44, chemins.size)
+        assertTrue("limit_resume.enabled" in chemins)
+        assertEquals(46, chemins.size)
     }
 }

@@ -74,7 +74,7 @@ class TuiTest(unittest.TestCase):
         chat = self.open_chat()
         chat.edit.set_edit_text("fais ceci")
         chat.keypress(SIZE, "enter")
-        self.assertIn(("chat.send", {"chat_id": "c1", "text": "fais ceci"}), self.client.calls)
+        self.assertIn(("chat.send", {"chat_id": "c1", "text": "fais ceci", "nonce": "tui"}), self.client.calls)
         self.assertEqual(chat.edit.edit_text, "")
 
     def test_chat_permission_keys(self):

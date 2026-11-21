@@ -34,10 +34,12 @@ enum Adresse {
         return URL(string: b + "/" + c)
     }
 
-    /// Même adresse en `ws://` ou `wss://` (WebSocket).
-    static func ws(_ base: String, _ chemin: String) -> URL? {
+    /// Même adresse en `ws://` ou `wss://` (WebSocket), relayée vers une autre machine avec
+    /// `?machine=<id>` (vide : ce serveur).
+    static func ws(_ base: String, _ chemin: String, machine: String = "") -> URL? {
         guard let u = api(base, chemin), var c = URLComponents(url: u, resolvingAgainstBaseURL: false) else { return nil }
         c.scheme = c.scheme == "http" ? "ws" : "wss"
+        if !machine.isEmpty { c.queryItems = [URLQueryItem(name: "machine", value: machine)] }
         return c.url
     }
 

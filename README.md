@@ -197,6 +197,23 @@ avec une sauvegarde ; une ligne d'état que tu aurais déjà n'est jamais rempla
   CCS bascule aussitôt sur le meilleur autre compte et te prévient — tape
   « continue » et la session repart (dans le terminal intégré, CCS peut
   l'envoyer pour toi). En pause, la notification le dit et rien ne bascule.
+- **la relance quand la limite est levée** : si aucun autre compte n'est libre
+  (ou pendant une pause), CCS calcule quand la limite se lève (fin de la fenêtre
+  de 5 h ou de la semaine, ou retour d'un autre compte sous les seuils) et
+  affiche « relance prévue à HH:MM » dans l'onglet ou le chat. À l'heure dite,
+  il vérifie, change de compte si c'est un autre qui s'est libéré, et envoie
+  « continue » : onglets du terminal et chats du bureau, chats du web,
+  d'Android, de l'iPhone et de la TUI, et `claude` lancé à la main dans un
+  terminal de la version web. Une seule bascule et une seule notification pour
+  toutes les sessions bloquées ensemble, un seul « continue » par session (au
+  plus 3 par heure), rien si tu as écrit dans la session entre-temps. Une
+  session ouverte ailleurs reçoit une notification ; une conversation fermée
+  peut être relancée en arrière-plan (`claude --resume … -p continue`, sortie
+  dans `~/.claude-accounts/limits/<id>.log`). Réglages : « Relance après une
+  limite » (bureau) ou « Chat et sessions » (web, téléphone), clé
+  `limit_resume` de `settings.json` :
+  `{"enabled": true, "outside": "notify"}` (`"resume"` pour la relance en
+  arrière-plan).
 
 `ccs integrate off` retire tout ce que CCS a ajouté, et seulement cela.
 
@@ -857,7 +874,8 @@ de débogage de `pc-bureau` : construire toujours là pour installer les mises �
 `ios-app/` contient l'application **native** pour iPhone (Swift + SwiftUI, iOS 17, identifiant
 `com.mawena.ccs`) : le même périmètre que l'appli Android — accueil et comptes, sessions et
 projets, chat complet, fichiers, Git, feuille de route, tâches de nuit, réglages, terminal
-(émulateur SwiftTerm) — avec des notifications **locales** de fin de tour et d'attente
+(émulateur SwiftTerm), choix de la **machine pilotée** (le PC par le relais Ricochet, comme
+sur le web et Android) et page des **travaux distants** — avec des notifications **locales** de fin de tour et d'attente
 (Autoriser / Refuser depuis la notification) et le partage vers un chat (« Ouvrir dans CCS »
 pour les fichiers, `ccs://partager?texte=…` pour le texte et les liens).
 

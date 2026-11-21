@@ -119,6 +119,7 @@ final class TravailTests: XCTestCase {
         let chemins = (DefReglages.groupes + [DefReglages.telephone]).flatMap { g in g.reglages.map { $0.chemin } }
         XCTAssertEqual(chemins.count, Set(chemins).count)
         XCTAssertTrue(chemins.contains("chat.auto_clear"))
-        XCTAssertEqual(chemins.count, 44)
+        XCTAssertTrue(chemins.contains("limit_resume.enabled"))
+        XCTAssertEqual(chemins.count, 46)
     }
 }

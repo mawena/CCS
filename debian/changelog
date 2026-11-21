@@ -1,3 +1,18 @@
+ccs (0.36.0) unstable; urgency=medium
+
+  * Relance des sessions bloquées par une limite quand elle est levée :
+    terminal et chats du bureau, web, Android, iPhone, TUI ; réglage
+    limit_resume.
+
+ -- mawena <gamligocharles@gmail.com>  Sat, 21 Nov 2026 10:30:00 +0100
+
+ccs (0.35.0) unstable; urgency=medium
+
+  * Appli iPhone : machine pilotée, page Machines et travaux distants,
+    liens des fichiers cités dans le chat.
+
+ -- mawena <gamligocharles@gmail.com>  Fri, 20 Nov 2026 10:30:00 +0100
+
 ccs (0.34.0) unstable; urgency=medium
 
   * Version web : Ctrl+Page préc. / Ctrl+Page suiv. passent d'un onglet à

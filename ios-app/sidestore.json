@@ -14,6 +14,24 @@
       "category": "developer",
       "versions": [
         {
+          "version": "0.36.0",
+          "buildVersion": "36",
+          "date": "2026-11-21",
+          "localizedDescription": "Relance automatique des sessions arrêtées par une limite, dès sa levée (réglable).",
+          "downloadURL": "https://github.com/mawena/CCS/releases/download/v0.36.0/CCS-0.36.0.ipa",
+          "size": 2072770,
+          "minOSVersion": "17.0"
+        },
+        {
+          "version": "0.35.0",
+          "buildVersion": "35",
+          "date": "2026-11-20",
+          "localizedDescription": "Machine pilotée (PC du bureau…), page Machines et travaux distants, liens de fichiers dans le chat.",
+          "downloadURL": "https://github.com/mawena/CCS/releases/download/v0.35.0/CCS-0.35.0.ipa",
+          "size": 2072119,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "0.33.0",
           "buildVersion": "33",
           "date": "2026-11-19",
@@ -23,7 +41,10 @@
           "minOSVersion": "17.0"
         }
       ],
-      "appPermissions": { "entitlements": [], "privacy": {} }
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {}
+      }
     }
   ],
   "news": []

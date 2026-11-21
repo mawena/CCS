@@ -4,25 +4,72 @@ import UIKit
 /// Taille du texte du fil (un peu plus petit que le corps d'iOS, comme `bodyMedium` d'Android).
 let tailleTexteChat: CGFloat = 16
 
-/// Segments en ligne (gras, italique, code, barré, liens touchables) en texte attribué.
-func annoter(_ segments: [Markdown.Segment], taille: CGFloat = tailleTexteChat, gras: Bool = false) -> AttributedString {
+/**
+ * Segments en ligne (gras, italique, code, barré, liens touchables) en texte attribué. Avec
+ * `liens`, les chemins de fichiers du projet (en code ou dans le texte) deviennent des liens
+ * `ccs-fichier:` que l'écran du chat ouvre.
+ */
+func annoter(_ segments: [Markdown.Segment], taille: CGFloat = tailleTexteChat, gras: Bool = false, liens: LiensFichiers? = nil) -> AttributedString {
     var r = AttributedString()
     for s in segments {
-        var a = AttributedString(s.texte)
-        var police: Font = s.code ? Font.system(size: taille - 1, design: .monospaced) : Font.system(size: taille)
-        if s.gras || gras { police = police.bold() }
-        if s.italique { police = police.italic() }
-        a.font = police
-        if s.barre { a.strikethroughStyle = Text.LineStyle.single }
-        if s.code { a.backgroundColor = Color.fondCode }
-        if let l = s.lien, let u = URL(string: l), let schema = u.scheme?.lowercased(), ["http", "https", "mailto"].contains(schema) {
-            a.link = u
-            a.foregroundColor = Color.accentCcs
-            a.underlineStyle = Text.LineStyle.single
+        func morceau(_ t: String) -> AttributedString {
+            var a = AttributedString(t)
+            var police: Font = s.code ? Font.system(size: taille - 1, design: .monospaced) : Font.system(size: taille)
+            if s.gras || gras { police = police.bold() }
+            if s.italique { police = police.italic() }
+            a.font = police
+            if s.barre { a.strikethroughStyle = Text.LineStyle.single }
+            if s.code { a.backgroundColor = Color.fondCode }
+            return a
         }
-        r.append(a)
+        func lie(_ a: AttributedString, _ u: URL?) -> AttributedString {
+            guard let u = u else { return a }
+            var b = a
+            b.link = u
+            b.foregroundColor = Color.accentCcs
+            b.underlineStyle = Text.LineStyle.single
+            return b
+        }
+        if let l = s.lien, let u = URL(string: l), let schema = u.scheme?.lowercased(), ["http", "https", "mailto"].contains(schema) {
+            r.append(lie(morceau(s.texte), u))
+            continue
+        }
+        if let lf = liens, s.lien == nil {
+            if s.code {
+                if let ref = lf.ref(s.texte) {
+                    r.append(lie(morceau(s.texte), lf.lien(ref)))
+                    continue
+                }
+            } else {
+                let refs = lf.trouver(s.texte)
+                if !refs.isEmpty {
+                    let n = s.texte as NSString
+                    var pos = 0
+                    for ref in refs where ref.debut >= pos {
+                        if ref.debut > pos { r.append(morceau(n.substring(with: NSRange(location: pos, length: ref.debut - pos)))) }
+                        r.append(lie(morceau(ref.texte), lf.lien(ref)))
+                        pos = ref.debut + (ref.texte as NSString).length
+                    }
+                    if pos < n.length { r.append(morceau(n.substring(from: pos))) }
+                    continue
+                }
+            }
+        }
+        r.append(morceau(s.texte))
     }
     return r
+}
+
+/// Fichiers du projet du chat affiché, pour les liens des chemins cités (nil : pas de liens).
+private struct CleLiensFichiers: EnvironmentKey {
+    static let defaultValue: LiensFichiers? = nil
+}
+
+extension EnvironmentValues {
+    var liensFichiers: LiensFichiers? {
+        get { return self[CleLiensFichiers.self] }
+        set { self[CleLiensFichiers.self] = newValue }
+    }
 }
 
 /// Réponse de Claude rendue en blocs Markdown.
@@ -42,14 +89,15 @@ struct MarkdownVue: View {
 
 @MainActor
 private struct BlocVue: View {
+    @Environment(\.liensFichiers) private var liens
     let bloc: Markdown.Bloc
 
     var body: some View {
         switch bloc {
         case .paragraphe(let contenu):
-            Text(annoter(contenu)).fixedSize(horizontal: false, vertical: true)
+            Text(annoter(contenu, liens: liens)).fixedSize(horizontal: false, vertical: true)
         case .titre(let niveau, let contenu):
-            Text(annoter(contenu, taille: niveau == 1 ? 21 : (niveau == 2 ? 19 : 17), gras: true))
+            Text(annoter(contenu, taille: niveau == 1 ? 21 : (niveau == 2 ? 19 : 17), gras: true, liens: liens))
                 .padding(.top, 4)
                 .fixedSize(horizontal: false, vertical: true)
         case .liste(let elements):
@@ -60,7 +108,7 @@ private struct BlocVue: View {
                             .font(.system(size: tailleTexteChat))
                             .foregroundStyle(.secondary)
                             .frame(minWidth: e.marque.count > 2 ? 26 : 16, alignment: .leading)
-                        Text(annoter(e.contenu)).fixedSize(horizontal: false, vertical: true)
+                        Text(annoter(e.contenu, liens: liens)).fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.leading, CGFloat(e.niveau * 16))
                 }
@@ -132,6 +180,7 @@ struct BlocCode: View {
 
 @MainActor
 private struct VueTableau: View {
+    @Environment(\.liensFichiers) private var liens
     let entetes: [[Markdown.Segment]]
     let lignes: [[[Markdown.Segment]]]
 
@@ -141,14 +190,14 @@ private struct VueTableau: View {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
                 GridRow {
                     ForEach(0..<n, id: \.self) { k in
-                        Text(annoter(k < entetes.count ? entetes[k] : [], taille: 14, gras: true))
+                        Text(annoter(k < entetes.count ? entetes[k] : [], taille: 14, gras: true, liens: liens))
                     }
                 }
                 Divider()
                 ForEach(Array(lignes.enumerated()), id: \.offset) { _, rang in
                     GridRow {
                         ForEach(0..<n, id: \.self) { k in
-                            Text(annoter(k < rang.count ? rang[k] : [], taille: 14))
+                            Text(annoter(k < rang.count ? rang[k] : [], taille: 14, liens: liens))
                                 .frame(maxWidth: 260, alignment: .leading)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
