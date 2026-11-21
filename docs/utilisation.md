@@ -69,7 +69,10 @@ continuent sur le serveur si on ferme la page.
   qui le corrige et un bouton Copier) et les **Tâches de nuit** : nouvelle tâche, liste par
   état, journal, reprise dans un chat, annulation, suppression.
 - **Sessions.** La section **En cours** donne l'état de chaque chat (« Claude travaille »,
-  « attend ta réponse », « prêt »). Un projet s'ouvre sur l'écran **Projet** : onglets
+  « attend ta réponse », « prêt »). Son menu de tri range les sessions ouvertes (et les
+  onglets) : **ordre manuel**, activité récente, nom, projet ou état. En ordre manuel, glisse
+  une ligne ou un onglet à sa place, ou utilise **Monter** / **Descendre** de son menu (appui
+  long au téléphone) ; l'ordre est gardé dans le navigateur. Un projet s'ouvre sur l'écran **Projet** : onglets
   Conversations, Fichiers, Feuille de route et Git, boutons « Nouveau chat » et « Terminal ».
   **Nouvelle session** propose les dossiers récents, les dépôts git du disque ou un chemin
   tapé, puis le compte, le modèle et les droits. Choisir un autre compte bascule le compte
@@ -461,6 +464,11 @@ Code (`~/.claude/projects`). Les volumes sont exprimés en **tokens pondérés**
 entrée + écriture de cache + sortie × 5 + lecture de cache × 0,1, une
 approximation du poids de chaque réponse dans les limites. La répartition par
 compte commence avec le service de collecte (« inconnu » avant).
+
+**Gros consommateurs** : les conversations qui pèsent le plus sur la période, avec leur part
+de l'usage et la cause probable (contexte long relu à chaque réponse, cache souvent perdu après
+des pauses, conversation très longue) et le conseil qui va avec. Au bureau, sur le web,
+Android et l'iPhone.
 
 En haut de l'onglet, deux cartes calculées à la première ouverture, l'une
 après l'autre et sans figer la fenêtre (bouton « Recalculer » de chaque
@@ -1711,6 +1719,21 @@ le conseil : `/compact` pour résumer, ou une nouvelle session.
 Un badge apparaît aussi sur la session dans l'onglet Sessions et dans la ligne
 d'état de Claude Code. Interrupteur et seuil : Réglages → Alerte de contexte lourd.
 La notification respecte [Ne pas déranger](#ne-pas-déranger).
+
+### Tokens de chaque réponse et cache expiré
+
+Sous chaque réponse d'un chat (bureau, web, Android, iPhone, TUI), une ligne donne ce que le
+tour a consommé : « 36 k lus · 15 k écrits · 403 produits · 0,04 $ » (lus dans le cache, écrits
+dans le cache, produits par Claude ; coût en équivalent du tarif de l'API). L'indicateur
+**Contexte** est vert sous la moitié du seuil du contexte lourd, orange jusqu'au seuil, rouge
+au-delà.
+
+Le cache d'une conversation dure 5 min ou 1 h après le dernier message. Passé ce délai, le
+message suivant relit **tout** le contexte au prix fort. Quand ce contexte dépasse 20 000
+tokens, CCS l'écrit dans le fil à l'expiration (« Cache expiré… », avec le coût estimé) avec
+deux boutons, **Compacter** et **Nouvelle session**, et demande confirmation au prochain envoi :
+**Envoyer quand même**, **Compacter d'abord** (le message reste dans la saisie) ou **Annuler**.
+Les commandes `/…` partent sans question.
 
 ### Compactage automatique
 

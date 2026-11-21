@@ -652,11 +652,12 @@ web, Android, iPhone, TUI).
 - [x] 1. Bureau : les cellules de tableau ne font plus mesurer au tableau la hauteur d'un mot par ligne (grand vide sous le tableau)
 - [x] 2. Web : tri des sessions ouvertes (manuel, activité récente, nom, projet, état), glisser-déposer des lignes et des onglets, « Monter » / « Descendre »
 - [x] 3. Cœur : `token_use` (usage de chaque tour dans `TurnResult.usage`, coût de réécriture du cache), événement `CacheExpired` du moteur à l'expiration du cache (5 min ou 1 h), seuil du contexte lourd à 150 000 et compactage automatique activé par défaut, gros consommateurs (`analysis.report` → `top`)
-- [ ] 4. Bureau : ligne d'usage sous chaque tour, note « cache expiré » (Compacter, Nouvelle session) et confirmation à l'envoi, jauge de contexte colorée, gros consommateurs dans Analyse
-- [ ] 5. Web et TUI : la même chose
-- [ ] 6. Android : la même chose (tests JVM)
-- [ ] 7. iPhone : la même chose (tests XCTest, construction Codemagic)
-- [ ] 8. Documentation, suite de tests complète, release 0.37.0
+- [x] 4. Bureau : ligne d'usage sous chaque tour, note « cache expiré » (Compacter, Nouvelle session) et confirmation à l'envoi, jauge de contexte colorée, gros consommateurs dans Analyse
+- [x] 5. Web et TUI : la même chose
+- [x] 6. Android : la même chose (tests JVM)
+- [x] 7. iPhone : la même chose (tests XCTest, construction Codemagic)
+- [x] 8. Documentation, suite de tests complète, release 0.37.0
+- [ ] 9. Essai par Charles : tableaux au bureau, tri sur le web, cache expiré sur le téléphone
 
 ## Phase 31 — Relance après une limite, sur toutes les interfaces (0.36.0)
 

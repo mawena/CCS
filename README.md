@@ -589,7 +589,8 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Conversations** | Historique de toutes les conversations du PC (onglet Sessions), recherche, aperçu, export Markdown, coût, reprise dans l'application, VS Code ou un terminal externe, renommage, projets déplacés. |
 | **Journal des bascules** | Chaque changement de compte avec sa raison en clair, groupé par jour (partie Historique de l'onglet Analyse, `ccs journal`). |
 | **Raccourcis clavier** | Raccourcis globaux GNOME, même application fermée : ouvrir, sessions, nouvelle session, compte suivant ou meilleur, pause. |
-| **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets ; bilan de la semaine et conseiller de formule. |
+| **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets ; gros consommateurs (conversations et cause probable) ; bilan de la semaine et conseiller de formule. |
+| **Tokens de chaque réponse** | Sous chaque réponse d'un chat : tokens lus, écrits, produits et coût du tour ; indicateur de contexte coloré ; à l'expiration du cache (5 min ou 1 h), note « Cache expiré » avec Compacter / Nouvelle session et confirmation avant d'envoyer. Bureau, web, Android, iPhone, TUI. |
 | **File de tâches** | Des tâches pour Claude quand tu n'es pas là : « dès qu'il y a du quota », « cette nuit » ou à une heure. Exécutées sans fenêtre, une à la fois, par la file de Gagarine quand elle existe ; reprise après une limite ; notification à la fin (section Planning de l'Accueil, `ccs tache`). |
 | **Notifications sur le téléphone** | Optionnel, désactivé par défaut : via ntfy, le nom du projet et l'état (session qui attend, tâche finie, bascule, comptes épuisés), jamais le contenu ; lien et QR code dans les Réglages, `ccs telephone`. Une demande d'autorisation du chat porte les boutons **Autoriser** et **Refuser** (réponse signée, à usage unique, valable 10 min). |
 | **Archive des conversations** | Claude Code efface les conversations de plus de 30 jours : CCS en garde une copie compressée, cherchable, avec aperçu, export et reprise comme les autres. |
@@ -646,7 +647,9 @@ mêmes fonctions que le bureau :
   de route** avec « Faire une tâche » (dans ce chat, un nouveau chat ou la file de nuit).
 - **Git** : état, diff, indexation par fichier et par bloc, commit (amend), derniers commits,
   fetch, pull et push (le push forcé demande confirmation).
-- **Analyse** sur 24 heures, 7, 30 ou 90 jours.
+- **Analyse** sur 24 heures, 7, 30 ou 90 jours, avec les **gros consommateurs**.
+- **Ordre des sessions** : tri de « En cours » et des onglets (ordre manuel, activité récente,
+  nom, projet, état), glisser-déposer, « Monter » / « Descendre ».
 - **Réglages** : les réglages du bureau, le **téléphone** (ntfy, QR code, essai, « Montrer la
   commande »), le thème et les appareils connectés.
 - **Installer comme une application** : un bandeau le propose (bouton Installer sur Chrome ;
