@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -208,7 +209,7 @@ fun Saisie(modele: ModeleChat, vue: VueChat, appli: com.mawena.ccs.ui.ModeleAppl
                     Text(" " + resumeOptions(reglages), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
                 }
                 Text(
-                    listOf(vue.contexte, vue.cout).filter(String::isNotEmpty).joinToString(" · "),
+                    texteContexte(vue, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.error),
                     Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -311,3 +312,21 @@ suspend fun lireImage(ctx: Context, uri: Uri): PieceJointe? = withContext(Dispat
         PieceJointe(type, Base64.encodeToString(octets, Base64.NO_WRAP), apercu, nom)
     }.getOrNull()
 }
+
+/** « Contexte … » coloré selon le seuil de l'alerte (vert, orange, rouge), puis le coût. */
+private fun texteContexte(vue: VueChat, neutre: androidx.compose.ui.graphics.Color, rouge: androidx.compose.ui.graphics.Color) =
+    androidx.compose.ui.text.buildAnnotatedString {
+        if (vue.contexte.isNotEmpty()) {
+            val couleur = when (vue.niveauContexte) {
+                com.mawena.ccs.logique.NiveauContexte.Vert -> com.mawena.ccs.ui.Reussite
+                com.mawena.ccs.logique.NiveauContexte.Orange -> com.mawena.ccs.ui.Avertissement
+                com.mawena.ccs.logique.NiveauContexte.Rouge -> rouge
+                null -> neutre
+            }
+            withStyle(androidx.compose.ui.text.SpanStyle(color = couleur, fontWeight = FontWeight.SemiBold)) { append(vue.contexte) }
+        }
+        if (vue.cout.isNotEmpty()) {
+            if (vue.contexte.isNotEmpty()) append(" · ")
+            append(vue.cout)
+        }
+    }

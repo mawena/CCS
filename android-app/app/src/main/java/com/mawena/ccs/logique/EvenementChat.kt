@@ -47,8 +47,10 @@ sealed interface EvChat {
     data class Reglee(val requestId: String, val decision: String) : EvChat
     data class Tour(
         val ok: Boolean, val sousType: String, val coutUsd: Double, val texte: String,
-        val limite: Boolean, val interrompu: Boolean,
+        val limite: Boolean, val interrompu: Boolean, val usage: UsageTour? = null,
     ) : EvChat
+    /** Le cache de la conversation a expiré : le prochain message relira `contexte` tokens au prix fort. */
+    data class CacheExpire(val contexte: Long, val ttlS: Long, val reecritureUsd: Double?, val texte: String) : EvChat
     data object Compacte : EvChat
     data class Reinitialise(val declencheur: String) : EvChat {
         /** Effacée par Claude en fin de sujet (`ccs chat effacer`), pas par `/clear`. */
@@ -97,7 +99,11 @@ sealed interface EvChat {
                 "PermissionSettled" -> Reglee(o.texte("request_id"), o.texte("decision"))
                 "TurnResult" -> Tour(
                     o.bool("ok"), o.texte("subtype"), (o["cost_usd"] as? JsonPrimitive)?.doubleOrNull ?: 0.0,
-                    o.texte("text"), o.bool("is_limit"), o.bool("interrupted"),
+                    o.texte("text"), o.bool("is_limit"), o.bool("interrupted"), UsageTour.lire(o["usage"]),
+                )
+                "CacheExpired" -> CacheExpire(
+                    o.long("context"), o.long("ttl_s"), (o["rewrite_usd"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.doubleOrNull,
+                    o.texte("text"),
                 )
                 "Compacted" -> Compacte
                 "ConversationReset" -> Reinitialise(o.texte("trigger"))

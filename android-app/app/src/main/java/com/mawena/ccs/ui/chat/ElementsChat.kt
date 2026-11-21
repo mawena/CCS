@@ -86,6 +86,7 @@ class ActionsFil(
     val reprendre: () -> Unit,
     val compacter: () -> Unit,
     val voirEtiquette: (String) -> Unit,
+    val nouvelleSession: () -> Unit = {},
 )
 
 /** Une ligne du fil. `etiquettes` : celles du message montré (s'il en a). */
@@ -101,6 +102,7 @@ fun LigneVue(l: LigneFil, etiquettes: List<String>?, surligne: Boolean, actions:
                 is ElementFil.Agent -> CarteAgent(e, surligne, actions)
                 is ElementFil.Note -> NoteVue(e, actions)
                 is ElementFil.Separateur -> SeparateurVue(e)
+                is ElementFil.Usage -> LigneUsage(e)
                 is ElementFil.Demande -> CarteDemande(e, actions)
                 is ElementFil.Questions -> CarteQuestions(e, actions)
                 is ElementFil.Commande -> CarteCommande(e, surligne, actions)
@@ -387,11 +389,30 @@ private fun NoteVue(e: ElementFil.Note, actions: ActionsFil) {
         else -> MaterialTheme.colorScheme.surfaceContainerHigh to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Surface(color = fond, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
+        if (e.action == ActionNote.CacheExpire) {
+            Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Text(e.texte, style = MaterialTheme.typography.bodySmall, color = encre)
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                    OutlinedButton(onClick = actions.compacter) { Text("Compacter") }
+                    OutlinedButton(onClick = actions.nouvelleSession) { Text("Nouvelle session") }
+                }
+            }
+            return@Surface
+        }
         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(e.texte, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = encre)
             if (e.action == ActionNote.Compacter) OutlinedButton(onClick = actions.compacter) { Text("Compacter") }
         }
     }
+}
+
+/** Usage d'un tour, discret, aligné à droite sous la réponse. */
+@Composable
+private fun LigneUsage(e: ElementFil.Usage) {
+    Text(
+        e.texte, Modifier.fillMaxWidth().padding(horizontal = 4.dp), textAlign = TextAlign.End,
+        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+    )
 }
 
 @Composable

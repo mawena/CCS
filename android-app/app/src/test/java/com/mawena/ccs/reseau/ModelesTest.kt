@@ -70,6 +70,19 @@ class ModelesTest {
         assertEquals(24, r.parHeure.size)
         assertEquals(1000.0, r.parProjet["ccs"]!!, 0.0)
         assertEquals(12, r.responses)
+        assertTrue(r.top.isEmpty())
+        val t = lire(
+            Rapport.serializer(),
+            """{"total":10.0,"responses":3,"top":[{"title":"Refonte du pont","project":"ccs","file":"/h/c/.claude/projects/x/a.jsonl",
+               "share":62.5,"answers":140,"avg_context":180000,"rewrite_share":35.2,
+               "causes":["contexte long (180 k tokens relus à chaque réponse) : /compact, ou une nouvelle session par sujet"]}]}""",
+        )
+        val g = t.top.single()
+        assertEquals("Refonte du pont", g.title)
+        assertEquals(62.5, g.share, 0.0)
+        assertEquals(180_000L, g.contexteMoyen)
+        assertEquals(35.2, g.partReecrite, 0.0)
+        assertEquals(1, g.causes.size)
     }
 
     @Test
