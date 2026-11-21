@@ -1704,7 +1704,7 @@ attente de ta réponse comptent comme inactives : vérifie avant de fermer.
 ## Alerte de contexte lourd
 
 Plus le contexte d'une conversation grossit, plus chaque message coûte cher en quota.
-Au-delà de **300 000 tokens** (`context_alert.threshold_tokens`), CCS envoie **une seule
+Au-delà de **150 000 tokens** (`context_alert.threshold_tokens`), CCS envoie **une seule
 notification par session**. Elle donne le coût d'un message en équivalent dollars et
 le conseil : `/compact` pour résumer, ou une nouvelle session.
 
@@ -1714,7 +1714,7 @@ La notification respecte [Ne pas déranger](#ne-pas-déranger).
 
 ### Compactage automatique
 
-Réglage **Compacter automatiquement** (`context_alert.auto_compact`), désactivé par défaut.
+Réglage **Compacter automatiquement** (`context_alert.auto_compact`), activé par défaut depuis la 0.37.0.
 Il se trouve sous l'alerte de contexte lourd, au bureau comme dans la version web, et ne
 fait rien si l'alerte est coupée.
 
