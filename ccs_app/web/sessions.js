@@ -8,6 +8,7 @@ import { baseName as base, ProjectScreen } from "./project.js";
 import { convRow, copy, renameConversation } from "./sessions-conv.js";
 import { rememberProject } from "./pages-machines.js";
 import { newSession } from "./sessions-new.js";
+import { getMode, MODES, move, setMode, sortEntries } from "./sessions-order.js";
 import { TerminalView } from "./terminal.js";
 
 const STATES = {
@@ -17,6 +18,7 @@ const STATES = {
 const PROJECTS_STEP = 40;
 const CONVS_STEP = 60;
 const PROJECT_PREFIX = "projet/";
+const ACTIVE = new Set(["busy", "permission"]);   // états qui comptent comme activité (tri « Activité récente »)
 
 export function mountSessions(root, api, ctx = {}) {
   const tabs = new Map();         // chat_id (ou term-<n>) → { tab, view, holder, term, cwd, title, state, sessionId }
@@ -165,8 +167,13 @@ export function mountSessions(root, api, ctx = {}) {
     const t = tabs.get(id);
     if (!t) return;
     const ok = Boolean(t.cwd);
+    const order = ordered();
+    const at = order.findIndex(([k]) => k === id);
     contextMenu(e, [
       { label: "Renommer…", run: () => renameTab(id) },
+      null,
+      { label: "Monter", disabled: at <= 0, run: () => { move(order, id, { delta: -1 }); renderRunning(); } },
+      { label: "Descendre", disabled: at < 0 || at >= order.length - 1, run: () => { move(order, id, { delta: 1 }); renderRunning(); } },
       null,
       { label: "Nouveau chat dans ce projet", disabled: !ok, run: () => open(t.cwd) },
       { label: "Terminal dans ce projet", disabled: !ok, run: () => openTerm(t.cwd) },
@@ -191,9 +198,9 @@ export function mountSessions(root, api, ctx = {}) {
     const closeBtn = el("button", { class: "flat tab-close", "aria-label": `Fermer ${title || base(cwd)}`, onclick: (e) => { e.stopPropagation(); closeTab(chatId); } }, "×");
     const label = el("span", {}, (isTerm ? "▸ " : "") + (title || base(cwd)));
     const tab = el("div", { class: `tab${isTerm ? " term-tab" : ""}`, role: "tab", tabindex: "0", onclick: () => { show(chatId); if (isTerm) view.resize(); },
-      oncontextmenu: (e) => tabMenu(e, chatId) }, label, closeBtn);
+      oncontextmenu: (e) => tabMenu(e, chatId), ...dragProps(chatId, "x") }, label, closeBtn);
     tabBar.append(tab);
-    const rec = { tab, label, closeBtn, view, holder, term: isTerm, cwd, title: title || base(cwd), state: isTerm ? "term" : (meta.state || "starting"),
+    const rec = { tab, label, closeBtn, view, holder, term: isTerm, cwd, title: title || base(cwd), state: isTerm ? "term" : (meta.state || "starting"), activeAt: Date.now(),
       sessionId: meta.session_id || null, path: typeof history === "string" ? history : null };
     tabs.set(chatId, rec);
     renderRunning();
@@ -239,17 +246,57 @@ export function mountSessions(root, api, ctx = {}) {
     const t = tabs.get(chatId);
     if (!t || t.term || t.state === state) return;
     t.state = state;
+    if (ACTIVE.has(state)) t.activeAt = Date.now();
     renderRunning();
+  }
+
+  // Sessions ouvertes dans l'ordre choisi (tri ou ordre manuel, voir sessions-order.js).
+  const ordered = () => sortEntries([...tabs]);
+
+  // Glisser-déposer d'un onglet (axe "x") ou d'une ligne de « En cours » (axe "y") sur un autre.
+  let dragId = null;
+  const dropMarks = () => document.querySelectorAll(".drop-before, .drop-after")
+    .forEach((n) => n.classList.remove("drop-before", "drop-after"));
+  const afterHalf = (e, axis) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return axis === "x" ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+  };
+  function dragProps(id, axis) {
+    return {
+      draggable: "true",
+      ondragstart: (e) => { dragId = id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); e.currentTarget.classList.add("dragging"); },
+      ondragend: (e) => { dragId = null; e.currentTarget.classList.remove("dragging"); dropMarks(); },
+      ondragover: (e) => {
+        if (!dragId || dragId === id) return;
+        e.preventDefault();
+        dropMarks();
+        e.currentTarget.classList.add(afterHalf(e, axis) ? "drop-after" : "drop-before");
+      },
+      ondrop: (e) => {
+        if (!dragId || dragId === id) return;
+        e.preventDefault();
+        move(ordered(), dragId, { target: id, after: afterHalf(e, axis) });
+        dropMarks();
+        renderRunning();
+      },
+    };
   }
 
   function renderRunning() {
     clear(running);
     running.hidden = !tabs.size;
     if (!tabs.size) return;
-    running.append(el("h3", {}, "En cours"));
-    for (const [id, t] of tabs) {
+    const mode = getMode();
+    const sort = el("select", { class: "run-sort", "aria-label": "Trier les sessions", title: "Trier les sessions",
+      onchange: (e) => { setMode(e.target.value); renderRunning(); } },
+      ...MODES.map(([k, label]) => el("option", { value: k, selected: k === mode }, label)));
+    running.append(el("div", { class: "list-head" }, el("h3", {}, "En cours"), sort));
+    const order = ordered();
+    // la barre d'onglets suit le même ordre (et Ctrl+Page préc./suiv. aussi)
+    if (order.some(([, t], i) => tabBar.children[i] !== t.tab)) for (const [, t] of order) tabBar.append(t.tab);
+    for (const [id, t] of order) {
       const [label, tone] = t.term ? ["terminal", "term"] : STATES[t.state] || ["", "stopped"];
-      running.append(el("div", { class: `item run${id === current ? " active" : ""}`, oncontextmenu: (e) => tabMenu(e, id) },
+      running.append(el("div", { class: `item run${id === current ? " active" : ""}`, oncontextmenu: (e) => tabMenu(e, id), ...dragProps(id, "y") },
         el("button", { class: "run-main", onclick: () => { show(id, { push: true }); if (t.term) t.view.resize(); } },
           el("span", { class: `dot ${tone}`, "aria-hidden": "true" }),
           el("span", { class: "grow run-text" }, el("strong", {}, (t.term ? "▸ " : "") + t.title),
@@ -333,7 +380,7 @@ export function mountSessions(root, api, ctx = {}) {
       }
       for (const c of r.chats || []) {
         const t = tabs.get(c.chat_id);
-        if (t) { t.state = c.state || t.state; t.sessionId = c.session_id || t.sessionId; t.path = c.path || t.path; setTitle(c.chat_id, c.title); continue; }
+        if (t) { if (ACTIVE.has(c.state) && c.state !== t.state) t.activeAt = Date.now(); t.state = c.state || t.state; t.sessionId = c.session_id || t.sessionId; t.path = c.path || t.path; setTitle(c.chat_id, c.title); continue; }
         addTab(c.chat_id, c.cwd, c.title || base(c.cwd), c.path || null, null, { state: c.state, session_id: c.session_id, options: c.options, silent: true });
       }
     }

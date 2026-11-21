@@ -102,3 +102,12 @@ button.on, button[aria-pressed="true"] { background: color-mix(in srgb, var(--ac
 .trash-item { gap: 10px; }
 .trash-text { display: grid; gap: 2px; min-width: 0; }
 .trash-text strong, .trash-text .subtle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Ordre des sessions ouvertes : tri au choix et glisser-déposer */
+.run-sort { font-size: 0.85em; padding: 2px 6px; max-width: 60%; }
+.item.run[draggable], .tabs .tab[draggable] { cursor: grab; }
+.item.run.dragging, .tabs .tab.dragging { opacity: 0.45; }
+.item.run.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.item.run.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.tabs .tab.drop-before { box-shadow: inset 2px 0 0 var(--accent); }
+.tabs .tab.drop-after { box-shadow: inset -2px 0 0 var(--accent); }

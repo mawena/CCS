@@ -12,7 +12,7 @@ from ccs_app.server import web
 
 WEB = Path(web.WEB_DIR)
 SERVER = WEB.parent / "server"
-MINE = ["sessions.js", "files.js", "files-manage.js", "roadmap.js", "terminal.js", "project.js", "sessions-conv.js", "sessions-new.js"]
+MINE = ["sessions.js", "files.js", "files-manage.js", "roadmap.js", "terminal.js", "project.js", "sessions-conv.js", "sessions-new.js", "sessions-order.js"]
 NODE = shutil.which("node")
 
 
@@ -84,7 +84,7 @@ class SessionsWebTest(unittest.TestCase):
     def run_js(self, code):
         """Exécute `code` (module) à côté d'une copie des modules, déclarée « module » pour node."""
         with tempfile.TemporaryDirectory() as tmp:
-            for name in ("terminal.js", "dom.js"):
+            for name in ("terminal.js", "dom.js", "sessions-order.js"):
                 shutil.copy(WEB / name, Path(tmp) / name)
             (Path(tmp) / "package.json").write_text('{"type": "module"}')
             r = subprocess.run([NODE, "--input-type=module", "-e", code], capture_output=True, text=True,
@@ -96,6 +96,36 @@ class SessionsWebTest(unittest.TestCase):
         out = self.run_js('import { controlChar as c } from "./terminal.js";'
                           'console.log(JSON.stringify([c("c"), c("C"), c("["), c("?"), c("1"), c("ab"), c("\\x1b[A")]));')
         self.assertEqual(out, '["\\u0003","\\u0003","\\u001b","\x7f","1","ab","\\u001b[A"]')
+
+    ORDER_JS = ('const store = {}; globalThis.localStorage = { getItem: (k) => store[k] ?? null,'
+                ' setItem: (k, v) => { store[k] = String(v); } };'
+                'const o = await import("./sessions-order.js");'
+                'const e = [["c1", { title: "Zeta", cwd: "/a/proj-b", state: "idle", sessionId: "s1", activeAt: 1 }],'
+                ' ["c2", { title: "alpha", cwd: "/a/proj-a", state: "permission", sessionId: "s2", activeAt: 3 }],'
+                ' ["term-1", { title: "Terminal", cwd: "/a/proj-a", term: true, activeAt: 2 }]];'
+                'const ids = (l) => l.map(([k]) => k).join(",");')
+
+    def test_session_sort_modes(self):
+        out = self.run_js(self.ORDER_JS + 'console.log([o.getMode(), ...["manuel", "recent", "nom", "projet", "etat"]'
+                          '.map((m) => ids(o.sortEntries(e, m)))].join(" "));')
+        self.assertEqual(out, "manuel c1,c2,term-1 c2,term-1,c1 c2,term-1,c1 c2,term-1,c1 c2,c1,term-1")
+
+    def test_session_manual_order_kept_and_switches_mode(self):
+        """Déplacer une session passe en ordre manuel et garde l'ordre ; une session rouverte
+        (nouvel identifiant de chat, même conversation) retrouve sa place ; une nouvelle va à la fin."""
+        out = self.run_js(self.ORDER_JS + 'o.setMode("nom");'
+                          'const a = o.move(e, "term-1", { target: "c1" });'
+                          'const b = o.move(a, "c1", { delta: 1 });'
+                          'const reopened = [["c9", { ...e[1][1] }], ["c8", { title: "new" }], ...e.filter(([k]) => k !== "c2")];'
+                          'console.log(ids(a), ids(b), o.getMode(), ids(o.sortEntries(reopened)));')
+        self.assertEqual(out, "term-1,c1,c2 term-1,c2,c1 manuel term-1,c9,c1,c8")
+
+    def test_sessions_page_uses_order(self):
+        text = source("sessions.js")
+        self.assertIn("sortEntries([...tabs])", text)
+        self.assertIn('dragProps(chatId, "x")', text)
+        self.assertIn('dragProps(id, "y")', text)
+        self.assertIn('"/sessions-order.js"', source("sw.js"))
 
 
 if __name__ == "__main__":
