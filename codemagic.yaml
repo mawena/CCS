@@ -62,13 +62,21 @@ workflows:
     scripts:
       - name: Clé de signature
         script: |
-          mkdir -p "$HOME/.android"
-          echo "$CCS_DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+          # Même clé que l'appli installée, sinon la mise à jour est refusée par Android.
+          printf '%s' "$CCS_DEBUG_KEYSTORE" | base64 --decode > "$CM_BUILD_DIR/ccs.keystore"
+          echo "CCS_KEYSTORE=$CM_BUILD_DIR/ccs.keystore" >> "$CM_ENV"
+          keytool -list -v -keystore "$CM_BUILD_DIR/ccs.keystore" -storepass android \
+            | grep -q '4F:DC:76:04:E6:46:96:96:A8:D3:C6:20:A6:F2:E6:A6:A6:F4:A7:D1:FA:B9:D0:52:3C:7D:74:7E:B7:9C:81:F5' \
+            || { echo "Clé de signature inattendue"; exit 1; }
       - name: Tests unitaires
         script: |
           cd android-app && ./gradlew --no-daemon testDebugUnitTest
       - name: APK de release
         script: |
           cd android-app && ./gradlew --no-daemon assembleRelease
+          APKSIGNER=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/ | tail -1)apksigner
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk \
+            | grep -q 4fdc7604e6469696a8d3c620a6f2e6a6a6f4a7d1fab9d0523c7d747eb79c81f5 \
+            || { echo "APK signé avec une autre clé"; exit 1; }
     artifacts:
       - android-app/app/build/outputs/apk/release/app-release.apk
