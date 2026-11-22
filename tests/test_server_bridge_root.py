@@ -116,6 +116,8 @@ class RootBridgeTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await c.call("root.answer", id=ask["id"], password=GOOD), {"ok": True})
             self.assertEqual((await self.wait_for(c, "root.resolved"))[0], {"id": ask["id"], "ok": True})
             (await fetch).wipe()
+            # toucher l'avis de demande ouvre la popup de l'appli sur cette machine
+            self.assertEqual(self.sent[0].headers["Click"], "ccs://root?machine=vps")
             st = await c.call("root.status")
             self.assertTrue(st["kept"])
             self.assertGreater(st["remaining"], 3500)

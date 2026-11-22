@@ -25,6 +25,7 @@ import json
 import logging
 import secrets
 import threading
+import urllib.parse
 
 from .. import phone, phone_reply, root_keeper, settings
 from . import rpc
@@ -168,9 +169,9 @@ class RootApi:
             return None, None
         return s, phone.config(s)
 
-    def _send(self, cfg, msg, actions=None):
+    def _send(self, cfg, msg, actions=None, click=None):
         def work():
-            phone.deliver(cfg, msg, self._urlopen, actions=actions)
+            phone.deliver(cfg, msg, self._urlopen, actions=actions, click=click)
         if self._run is not None:
             self._run(work)
         else:
@@ -180,8 +181,11 @@ class RootApi:
         s, cfg = self._phone()
         if cfg is None:
             return
+        # Toucher l'avis ouvre la popup de l'appli CCS (Android, iPhone) sur cette machine.
+        machine = urllib.parse.quote(str(data.get("machine") or ""), safe="")
         self._send(cfg, phone_reply.root_ask_message(data.get("machine"), data.get("command"),
-                                                     cfg["show_content"]))
+                                                     cfg["show_content"]),
+                   click=f"ccs://root?machine={machine}")
 
     def _phone_used(self, data):
         s, cfg = self._phone()

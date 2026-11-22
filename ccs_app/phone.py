@@ -190,9 +190,10 @@ def _header(text):
         return "=?UTF-8?B?" + base64.b64encode(text.encode("utf-8")).decode("ascii") + "?="
 
 
-def build_request(cfg, msg, actions=None):
+def build_request(cfg, msg, actions=None, click=None):
     """Requête POST de `msg`, ou None si le serveur ou le canal est invalide. `actions` : valeur
-    de l'en-tête `Actions` de ntfy (boutons de la notification)."""
+    de l'en-tête `Actions` de ntfy (boutons de la notification) ; `click` : lien ouvert quand on
+    touche la notification (`ccs://…` ouvre l'appli CCS)."""
     url = subscribe_url(cfg)
     if url is None:
         return None
@@ -202,14 +203,16 @@ def build_request(cfg, msg, actions=None):
         headers["Tags"] = ",".join(msg.tags)
     if actions:
         headers["Actions"] = actions
+    if click:
+        headers["Click"] = click
     return urllib.request.Request(url, data=msg.body.encode("utf-8"), headers=headers, method="POST")
 
 
-def deliver(cfg, msg, urlopen=None, actions=None):
+def deliver(cfg, msg, urlopen=None, actions=None, click=None):
     """Envoie `msg` tout de suite (appel bloquant, délai `TIMEOUT_S`). (réussi, raison).
     Ne lève jamais ; le canal n'est jamais écrit dans le journal."""
     try:
-        req = build_request(cfg, msg, actions)
+        req = build_request(cfg, msg, actions, click)
         if req is None:
             return False, "serveur ou canal invalide"
         with (urlopen or urllib.request.urlopen)(req, timeout=TIMEOUT_S) as resp:
