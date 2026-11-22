@@ -37,6 +37,7 @@ import stat
 import struct
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -140,6 +141,17 @@ def machine_name():
     return socket.gethostname().split(".")[0] or "machine"
 
 
+def ricochet_id(fetch=None):
+    """Identifiant Ricochet de cette machine (`mawena-cloud`, `pc-bureau`…), celui que les
+    applis connaissent par `machines.list` ; None sans Ricochet ou relais injoignable."""
+    try:
+        from . import distant
+        machines = (fetch or distant.fetch_machines)()
+    except Exception:  # noqa: BLE001 — pas de Ricochet : on garde le nom d'hôte
+        return None
+    return next((m.id for m in machines if m.local), None)
+
+
 # --------------------------------------------------------------------------
 # Vérification par sudo
 # --------------------------------------------------------------------------
@@ -195,6 +207,13 @@ class Keeper:
     def __init__(self, machine=None, clock=time.time, verify=verify_password, keep_s=KEEP_S,
                  ask_timeout=ASK_TIMEOUT_S, max_tries=MAX_TRIES):
         self.machine = machine or machine_name()
+        if machine is None:
+            # Le nom Ricochet est cherché à part (appel réseau) ; le nom d'hôte sert en attendant.
+            def resolve():
+                rid = ricochet_id()
+                if rid:
+                    self.machine = rid
+            threading.Thread(target=resolve, name="ccs-root-nom", daemon=True).start()
         self.clock = clock
         self.verify = verify
         self.keep_s = keep_s

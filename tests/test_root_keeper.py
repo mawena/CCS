@@ -421,3 +421,19 @@ class AskpassPathTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RicochetIdTest(unittest.TestCase):
+    def test_local_machine_id(self):
+        from ccs_app import root_keeper as rk
+        class M:
+            def __init__(self, id, local):
+                self.id, self.local = id, local
+        self.assertEqual(rk.ricochet_id(lambda: [M("pc-bureau", False), M("mawena-cloud", True)]),
+                         "mawena-cloud")
+
+    def test_no_ricochet(self):
+        from ccs_app import root_keeper as rk
+        def boom():
+            raise OSError("relais injoignable")
+        self.assertIsNone(rk.ricochet_id(boom))
