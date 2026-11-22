@@ -7,6 +7,9 @@ ccs (1.0.0) unstable; urgency=medium
   * Bureau : chats locaux par le pont local, visibles en direct partout ;
     pont relancé après une mise à jour.
   * Applis Android et iPhone au protocole 1.
+  * ccs root : mot de passe root demandé sur les appareils (web, bureau,
+    TUI, Android, iPhone), gardé une heure en mémoire seulement ;
+    commandes root signalées avec un bouton « Révoquer ».
 
  -- mawena <gamligocharles@gmail.com>  Sun, 22 Nov 2026 12:00:00 +0100
 
