@@ -302,19 +302,31 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 
 ## 4. Fichiers de configuration et d'état
 
-`$STORE` = `${CCS_HOME:-~/.claude-accounts}` ; `$CLAUDE` = `${CLAUDE_CONFIG_DIR:-~/.claude}`.
+`$STORE` = `${CCS_HOME:-~/.claude-accounts}` ; `$CLAUDE` = `${CLAUDE_CONFIG_DIR:-~/.claude}` ;
+`$CONFIG`, `$CACHE`, `$DATA` = `${XDG_CONFIG_HOME:-~/.config}`, `${XDG_CACHE_HOME:-~/.cache}`,
+`${XDG_DATA_HOME:-~/.local/share}` (variable prise si c'est un chemin absolu ; calcul unique :
+`core.xdg_home`, `core.ccs_dir`).
+
+Noms en anglais, mots séparés par `-`. **Compatibilité 1.x** (`ccs_app/migrate.py`, à retirer
+en 2.0) : un fichier renommé l'est tout seul au premier usage, si le nouveau nom n'existe pas
+encore (sinon le nouveau est gardé et l'ancien laissé tel quel) ; les anciennes clés et valeurs
+sont lues et converties. Anciens noms : `projects.json` → `project-accounts.json`,
+`quiet_held.json` → `quiet-held.json`, `etiquettes/` → `labels/`, `~/.config/ccs/distant.toml`
+→ `$CONFIG/ccs/machines.toml`, `~/.cache/ccs/distant.json` → `$CACHE/ccs/machines.json`,
+`~/.cache/ccs/distant/travaux/` → `$CACHE/ccs/machines/jobs/`, `~/.cache/ccs/effacer/` →
+`$CACHE/ccs/clear/`.
 
 ### 4.1 Configuration (modifiable par l'utilisateur)
 
 | Fichier | Clés |
 |---|---|
 | `$STORE/settings.json` | voir 4.2 |
-| `$STORE/projects.json` | compte par dossier (`ccs projet`) |
+| `$STORE/project-accounts.json` | compte par dossier (`ccs projet`) |
 | `$STORE/budgets.json` | budget hebdomadaire par dossier |
-| `$STORE/serveurs.json` (0600) | liste de `{name, url, user, token}` |
-| `~/.config/ccs/distant.toml` | `[machines.<id>]` : `utilisateur`, `port`, `limite` |
-| `~/.config/ricochet/client.toml` (0600, partagé avec Ricochet) | `relais`, `jeton` |
-| `/etc/ccs/web.json` (serveur) | `listen`, `origin`, `portier {actif, utilisateurs, url, deconnexion}` |
+| `$STORE/serveurs.json` (0600) | liste de `{name, url, user, token}` ; deviendra `servers.json` (voir § 6) |
+| `$CONFIG/ccs/machines.toml` | `[machines.<id>]` : `user`, `port`, `limit` (anciennes clés `utilisateur`, `limite` lues) |
+| `$CONFIG/ricochet/client.toml` (0600, partagé avec Ricochet) | `relais`, `jeton` (clés de Ricochet, gardées) |
+| `/etc/ccs/web.json` (serveur) | `listen`, `origin`, `portier {enabled, users, url, logout}` (anciennes clés `actif`, `utilisateurs`, `deconnexion` lues) |
 
 ### 4.2 Clés de `settings.json` (`ccs_app/settings.py`)
 
@@ -325,7 +337,7 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `poll` | `normal_s`, `fast_s` |
 | `advisor` | `weeks`, `margin_pct`, `plan_prices`, `profile_plans`, `max_accounts` |
 | `updates` | `enabled` |
-| `warmup` | libre (par profil) |
+| `warmup` | par profil, liste de créneaux `{time: "HH:MM", days: [0…6]}` (`days` facultatif, 0 = lundi) ; créneau invalide ignoré |
 | `orchestrator` | `enabled`, `active_hours {start, end, days}`, `stagger`, `expiring_switch`, `expiring_within_min`, `expiring_min_left`, `expiring_cooldown_min`, `reserve_points`, `max_weekly_start` |
 | `tasks` | `enabled`, `night {start, end}`, `max_attempts` |
 | `phone` | `enabled`, `server`, `topic`, `events {waiting, task, switch, exhausted}`, `show_content`, `reply_topic` |
@@ -337,7 +349,7 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `chat` | `idle_suspend_min`, `rights` (`manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`), `auto_clear` |
 | `files` | `layout` (`A`\|`B`), `show_ignored` |
 | `git` | `layout` (`A`\|`B`\|`C`), `fetch_minutes`, `avatars` |
-| `appearance` | `color_scheme` (`auto`\|`clair`\|`sombre`), `account_colors` |
+| `appearance` | `color_scheme` (`auto`\|`light`\|`dark` ; `clair`, `sombre` lus et convertis), `account_colors` |
 
 ### 4.3 État (écrit par CCS)
 
@@ -345,16 +357,15 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 |---|---|
 | `$STORE/<profil>/oauth.json`, `account.json`, `usage.json` | jeton OAuth, compte, dernier usage |
 | `$STORE/state.json`, `daemon.pid`, `history.db` | état du service, historique d'usage |
-| `$STORE/pause.json`, `quiet.json`, `quiet_held.json` | pause, ne pas déranger, notifications retenues |
+| `$STORE/pause.json`, `quiet.json`, `quiet-held.json` | pause, ne pas déranger, notifications retenues |
 | `$STORE/switch-origin.json`, `updates.json`, `context-alerts.json` | origine de bascule, mises à jour, alertes de contexte |
 | `$STORE/tasks.json`, `tasks/` | file de tâches et journaux |
 | `$STORE/terminals.json`, `messages.json`, `conversations-cache.json`, `conversations-moves.json` | terminaux, messages enregistrés, caches |
-| `$STORE/etiquettes/`, `limits/`, `avatars/` | étiquettes, limites atteintes (`outcome`, `cwd`, `resume_at`, `lifted_at`), avatars |
+| `$STORE/labels/`, `limits/`, `avatars/` | étiquettes, limites atteintes (`outcome`, `cwd`, `resume_at`, `lifted_at`), avatars |
 | `$STORE/.lock`, `.tasks.lock`, `.pause.lock`, … | verrous |
 | `<projet>/.ccs/messages.json` | messages enregistrés du projet |
-| `${XDG_DATA_HOME:-~/.local/share}/ccs/` | `projects.json`, `archive/` (+ `index.json`), `trash/` |
-| `~/.cache/ccs/` | `distant.json` (inventaire), `distant/travaux/<id>.json` et `.log`, `icons-*` |
-| `${XDG_CACHE_HOME:-~/.cache}/ccs/effacer/` | demandes `ccs chat effacer` |
+| `$DATA/ccs/` | `projects.json` (projets ajoutés ou retirés à la main), `archive/` (+ `index.json`), `trash/` |
+| `$CACHE/ccs/` | `machines.json` (inventaire), `machines/jobs/<id>.json` et `.log`, `icons-*`, `clear/` (demandes `ccs chat effacer`) |
 | `~/.cache/ccs-distant/` (machine distante) | copies des projets |
 | `${XDG_RUNTIME_DIR:-/tmp/ccs-UID}/ccs/bridge.sock` | pont local du bureau |
 | `/run/ccs/auth.sock`, `/run/ccs/bridge/<user>/{bridge.sock,key}` | serveur |
@@ -371,13 +382,13 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `CLAUDE_CONFIG_DIR` | dossier de Claude Code (comme Claude Code) |
 | `CCS_VIA` | origine d'une bascule pour le journal (`bin/ccs`) |
 | `CCS_BIN` | chemin de `claude-accounts` à relancer |
-| `CCS_CHAT_JETON` | jeton du chat, posé par CCS pour `ccs chat effacer` |
+| `CCS_CHAT_TOKEN` | jeton du chat, posé par CCS pour `ccs chat effacer` (l'ancienne `CCS_CHAT_JETON` est encore lue, plus posée) |
 | `CCS_SERVER_ROOT` | racine des chemins du serveur (tests) |
 | `CCS_APP_ID` | identifiant d'application distinct (essais) |
 | `CCS_NO_VTE` | force le terminal externe (essais) |
-| `CCS_PATH`, `CCS_OUTIL` | posées sur la machine distante par `distant lancer` |
+| `CCS_PATH`, `CCS_TOOL` | lignes de l'inventaire d'une machine distante (`CCS_TOOL=<outil>=<chemin>` ; l'ancienne `CCS_OUTIL` est encore lue) |
 | `HOME`, `PATH`, `SHELL`, `TZ`, `USER`, `PYTHONPATH`, `GNUPGHOME`, `NO_COLOR`, `GIT_SSH`, `GIT_SSH_COMMAND` | usage habituel |
-| `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_RUNTIME_DIR`, `XDG_CURRENT_DESKTOP` | dossiers et bureau |
+| `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_RUNTIME_DIR`, `XDG_CURRENT_DESKTOP` | dossiers et bureau |
 | `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING` | posée pour les chats |
 
 ---
@@ -473,30 +484,24 @@ numéros de ligne sont ceux de la 0.37.0.*
 
 ### Fichiers et variables
 
-- Configuration dispersée sous trois racines :
-  - `~/.claude-accounts/` (nom historique, `core.py:75`) ;
-  - `~/.config/ccs/distant.toml` (`distant.py:101`) ;
-  - `~/.local/share/ccs/` (`project_list.py:23`).
-  Et deux fichiers `projects.json` de sens différent (`project_accounts.py:40` /
-  `project_list.py:24`).
-- XDG appliqué à moitié :
-  - `XDG_CACHE_HOME` est respecté pour `effacer/` (`chat_engine.py:56`), mais pas pour
-    `~/.cache/ccs` (`distant.py:105`, `distant_jobs.py:39`, `tray.py:328`) ;
-  - `XDG_CONFIG_HOME` est ignoré (`distant.py:93`) ;
-  - `chat_engine.py:56` lit `Path.home()` au lieu de `core.paths().home`.
-- Noms de fichiers mêlés :
-  - français : `serveurs.json`, `etiquettes/`, `raccourcis.json` ;
-  - anglais : `budgets.json`, `limits/`, `pause.json` ;
-  - `quiet_held.json` avec `_`, `switch-origin.json` et `context-alerts.json` avec `-`.
-- `settings.json` :
-  - clés anglaises mais valeurs françaises pour `appearance.color_scheme` (`clair|sombre`,
-    `settings.py:166`) ;
-  - la section `warmup` est libre, sans schéma (`settings.py:67`) ;
-  - le commentaire « phase 11/12/13 » se trouve dans les défauts.
-- `/etc/ccs/web.json` mêle `listen`/`origin` (anglais) et `portier.actif`/`utilisateurs`/
-  `deconnexion` (français) (`server/web.py:21`, `portier.py:24`).
-- Variables d'environnement : `CCS_CHAT_JETON`, `CCS_OUTIL` (français) à côté de
-  `CCS_NO_VTE`, `CCS_APP_ID`, `CCS_HOME` (anglais) (`chat_engine.py:42`, `distant.py:251`).
-- Compatibilités anciennes à trancher :
-  - `LEGACY_KINDS`, ancien format de l'API d'usage (`core.py:38`, externe, à garder) ;
-  - état sans `fetched_at` (`cli.py:507`).
+*Réglé par la phase 33, tâche 3 (voir § 4 et § 5).* Décisions :
+
+- noms anglais, séparateur `-` (`quiet-held.json`) ; `$STORE/projects.json` devient
+  `project-accounts.json` (l'autre `projects.json`, sous `$DATA/ccs/`, garde son nom) ;
+  `~/.claude-accounts/` garde le sien ;
+- XDG respecté partout (`core.xdg_home`), y compris `XDG_CONFIG_HOME` ;
+- la sauvegarde (`ccs sauvegarde`) passe au format 2 : `profiles/`, `settings/`,
+  `shortcuts.json`, manifeste `created` ; le format 1 reste lisible ;
+- `LEGACY_KINDS` (ancien format de l'API d'usage, `core.py`) : gardé, c'est un format externe ;
+- état sans `fetched_at` (`cli.py`, `_usable_best`) : gardé pendant la 1.x (un service d'avant
+  la 1.0.0 peut encore tourner pendant la mise à jour), à retirer en 2.0.
+
+Reste à faire :
+
+- `$STORE/serveurs.json` → `servers.json` : `ccs_app/remote/servers.py`, ligne `path()`, doit
+  renvoyer `migrate.store_file("servers.json", "serveurs.json")` (fichier tenu par la tâche 4) ;
+- l'ancien dossier `~/.cache/ccs/distant-en-cours/` est nettoyé par `server/bridge.py` sous
+  `~/.cache` en dur : à faire passer par `core.ccs_dir("cache")` ;
+- valeurs encore françaises dans des états : rôle `utilisateur` des étiquettes
+  (`message_tags.ROLES`, lu par le web et le bureau), genres du journal des bascules
+  (`switch_log.KINDS`), `mode` `creneau` des réveils, clé `quand` de l'inventaire des machines.

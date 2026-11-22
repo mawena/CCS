@@ -29,8 +29,7 @@ class TrashError(Exception):
 
 
 def trash_dir():
-    base = os.environ.get("XDG_DATA_HOME") or str(core.paths().home / ".local" / "share")
-    return Path(base) / "ccs" / "trash"
+    return core.ccs_dir("data") / "trash"
 
 
 def _mkdir(p):

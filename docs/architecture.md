@@ -5,9 +5,9 @@
             │ <profil>/oauth.json  account.json  usage.json        │
             │ history.db  settings.json  state.json  .lock         │
             │ pause.json  updates.json  terminals.json  limits/    │
-            │ quiet.json  quiet_held.json                          │
+            │ quiet.json  quiet-held.json                          │
             │ conversations-cache.json  conversations-moves.json   │
-            │ projects.json  switch-origin.json                    │
+            │ project-accounts.json  switch-origin.json            │
             └───────▲───────────────▲──────────────▲───────────────┘
                     │               │              │
   ccs (bash) ───────┤        ccs-daemon (systemd)  │      CCS (GTK 4)
@@ -35,13 +35,13 @@ raccourcis clavier.
 | `autoswitch` | Décision de bascule (pure) et exécution via `ccs use` ; `Decision.detail` (pourcentage, seuil, projection, quota qui expire) gardé dans l'événement pour le journal |
 | `alerts` / `notify` | Quoi notifier (pur, anti-doublon par fenêtre ; fin de semaine prévue une fois par semaine, prioritaire sur l'avance hebdomadaire ; conseil de modèle et bilan de la semaine, qui ne font jamais échouer un relevé ; `Alert.default` : action d'un clic sur la notification) / envoi D-Bus (`actions_for`, `send(…, transient=)` ; `message(titre, texte)` : notification passagère de `claude-accounts notify`) |
 | `switch_log` | Journal des bascules : entrées lisibles d'après les événements (`build`, pur), groupes par jour, texte de `ccs journal` ; note d'origine d'une bascule manuelle (`note_origin`, `take_origin`), échec d'une bascule lancée par l'application (`record_failure`) |
-| `project_accounts` | Compte par projet : `projects.json` (sous verrou), héritage par dossier parent (`resolve`), décisions pures (`proposal`, `preferred_profile`, `origin_for`), textes, `command()` de `ccs projet` |
+| `project_accounts` | Compte par projet : `project-accounts.json` (sous verrou), héritage par dossier parent (`resolve`), décisions pures (`proposal`, `preferred_profile`, `origin_for`), textes, `command()` de `ccs projet` |
 | `advisor` | Conseiller de formule : formules et tarifs datés, formule de chaque compte, besoin mesuré en unités Pro (fenêtres hebdomadaires et de 5 h), combinaison la moins chère, raisonnement, équivalent API (`compute`, `analyze` pur, `format_text`) |
 | `model_advice` | Conseil de modèle près des limites : usage des 30 dernières minutes (fin des journaux, cache), famille moins chère, gain « ×N », notification une fois par fenêtre, indice de la ligne d'état |
 | `weekly_report` | Bilan de la semaine : début de semaine (majorité des comptes ou jour fixe), agrégats (`aggregate`, pur), textes, notification hebdomadaire calculée dans un fil |
 | `monthly_report` | Rapport mensuel : mois civil en heure locale (`month_start`, `month_choices`), agrégats par période (`build_report`, mois en cours comparé au même nombre de jours du précédent), tendance (`TREND_MONTHS`, affichée à partir de `TREND_MIN`), textes, notification mensuelle (`pending_alert`, clé `monthly_report:<mois>`), `command()` de `ccs mois` |
 | `best_time` | Meilleur moment pour une grosse tâche (pur) : départs candidats (`candidates`), fenêtres de 5 h par compte et plafond hebdomadaire (`WEEK_WINDOWS`), créneaux et alternatives (`compute`), `command()` de `ccs moment` |
-| `quiet` | Ne pas déranger : plage `alerts.quiet` et silence temporaire (`quiet.json`), décision de retenir (`should_hold`), notifications retenues et comptées (`quiet_held.json`), résumé de fin (`flush`), `command()` de `ccs silence` |
+| `quiet` | Ne pas déranger : plage `alerts.quiet` et silence temporaire (`quiet.json`), décision de retenir (`should_hold`), notifications retenues et comptées (`quiet-held.json`), résumé de fin (`flush`), `command()` de `ccs silence` |
 | `installer` | Mise à jour en un clic : plan d'après la release GitHub, liste blanche d'URL, téléchargement borné, SHA-256, contrôle du paquet, installation par `pkexec apt-get`, `command()` de `ccs mise-a-jour` |
 | `shortcuts` | Raccourcis clavier globaux GNOME : actions, lecture et validation des raccourcis, moteurs `GioBackend` / `MemoryBackend`, installation sous les seuls chemins de CCS, conflits, `command()` de `ccs raccourcis` ; `NOTIFIER` (`--notifier` des commandes de bascule et de pause) |
 | `tasks` | File de tâches : `~/.claude-accounts/tasks.json` (600, écriture atomique sous verrou), états (`queued`, `running`, `waiting`, `done`, `failed`, `cancelled`), moments (`quota`, `nuit`, `HH:MM`), décision pure (`due`, `decide`), `tick(now, settings, state, paused)` appelé par le service (renvoie les alertes `task:<id>:…`), `command()` de `ccs tache` |
@@ -83,10 +83,10 @@ raccourcis clavier.
 | `avatars` | Avatars des auteurs : GitHub pour les adresses `noreply`, Gravatar sinon, cache disque (un avatar absent est redemandé après 7 jours), réseau seulement si `git.avatars` est vrai |
 | `file_history` | Copies de Claude Code (`file-history-snapshot` du journal de la conversation) : `read`, changements d'une session, points de reprise (`user_messages`), `rewind_plan` / `apply` ; renvoie `None` si le format change (`check` alimente `ccs doctor`) |
 | `chat_quote` | Répondre en citant un message : `compose` (citation en bloc Markdown `> **Claude :**` ou `> **Moi :**`, puis la réponse), `split` (la retrouver à la relecture), `excerpt` (début d'un long message), `reply_text` (la réponse sans sa citation) ; sans entrée-sortie, même code que `web/chat-quote.js` |
-| `message_tags` | Étiquettes sur les messages : `etiquettes/<session_id>.json` dans le dossier de CCS, `{identifiant: {tags, role, excerpt, ts}}` ; `set_tags` (liste vide : retire), `clean_tags` / `parse` (même nettoyage que `web/chat-tags.js`), `by_tag`, `known_tags` (suggestions) ; fichier illisible = aucune étiquette |
+| `message_tags` | Étiquettes sur les messages : `labels/<session_id>.json` dans le dossier de CCS, `{identifiant: {tags, role, excerpt, ts}}` ; `set_tags` (liste vide : retire), `clean_tags` / `parse` (même nettoyage que `web/chat-tags.js`), `by_tag`, `known_tags` (suggestions) ; fichier illisible = aucune étiquette |
 | `saved_messages` | Messages enregistrés du chat : `messages.json` commun, `.ccs/messages.json` par projet (le nom du projet l'emporte) ; fichier illisible = liste vide |
-| `distant` | Calcul réparti (`ccs distant`) : machines du relais Ricochet (API, jeton des tunnels), choix de la machine (outil puis charge), options SSH par `ricochet-agent tunnel` (ProxyCommand, connexion partagée), inventaire des outils gardé une heure (`~/.cache/ccs/distant.json`), envoi et rapatriement par `rsync`, consigne ajoutée aux chats (`hint`) |
-| `distant_jobs` | Registre des travaux distants (`~/.cache/ccs/distant/travaux/<id>.json`, verrou fcntl) : états attente / programmé / envoi / en cours / fini / échec / arrêté, places par machine, travaux détachés et leur journal, arrêt par SIGTERM |
+| `distant` | Calcul réparti (`ccs distant`) : machines du relais Ricochet (API, jeton des tunnels), choix de la machine (outil puis charge), options SSH par `ricochet-agent tunnel` (ProxyCommand, connexion partagée), inventaire des outils gardé une heure (`~/.cache/ccs/machines.json`), envoi et rapatriement par `rsync`, consigne ajoutée aux chats (`hint`) |
+| `distant_jobs` | Registre des travaux distants (`~/.cache/ccs/machines/jobs/<id>.json`, verrou fcntl) : états `waiting` / `scheduled` / `sending` / `running` / `done` / `failed` / `stopped`, places par machine, travaux détachés et leur journal, arrêt par SIGTERM |
 | `shell_command` | Commande `!` du chat : `bash -lc` dans son propre groupe de processus, sortie bornée (`MAX_OUTPUT` = 20 000 caractères), arrêt de la commande et de ses enfants |
 | `phone_reply` | Autoriser ou Refuser depuis le téléphone : `Replies` (jetons à usage unique, `TOKEN_TTL` = 600 s), `Listener` (écoute du canal `phone.reply_topic`), en-tête d'actions ntfy, message de la demande |
 | `account_colors` | Couleur de chaque compte : palette attribuée dans l'ordre alphabétique des profils, remplacée par le choix de `appearance.account_colors` |
@@ -522,7 +522,7 @@ jamais exigé) :
 
 ```
  ccs projet, « Compte de ce projet… » ──► project_accounts.set(dossier, compte) / set_ask(dossier, …)
-                                           ~/.claude-accounts/projects.json (600, verrou .projects.lock)
+                                           ~/.claude-accounts/project-accounts.json (600, verrou .projects.lock)
  ouverture ou reprise depuis l'application ──► confirm_switch(window, cwd, ouvrir)
      proposal(cwd, actif, profils, en pause ?) : None ──► ouvrir()
                                                  association ──► Adw.AlertDialog
@@ -639,7 +639,7 @@ jamais exigé) :
 ## Ne pas déranger
 
 - `notify.send` interroge `quiet.should_hold` pour chaque alerte : retenue, elle
-  est comptée par genre dans `quiet_held.json` (verrou partagé par le service
+  est comptée par genre dans `quiet-held.json` (verrou partagé par le service
   et les hooks) et n'est pas envoyée. Jamais retenus : « attend ta réponse »
   et son rappel si `allow_waiting`, `blocage:*` (hook StopFailure), le résumé
   et les notifications passagères des raccourcis. La clé d'une attente est

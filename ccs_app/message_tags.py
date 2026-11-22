@@ -1,7 +1,8 @@
 """Étiquettes sur les messages d'un chat : un ou plusieurs mots-clés (« important », « à revoir »…)
 posés sur un message pour le retrouver ensuite.
 
-Un fichier par conversation, `etiquettes/<session_id>.json` dans le dossier de CCS :
+Un fichier par conversation, `labels/<session_id>.json` dans le dossier de CCS (`etiquettes/`
+avant la 1.0.0, renommé tout seul) :
 
     {"messages": {"<identifiant>": {"tags": ["important"], "role": "assistant",
                                     "excerpt": "début du message…", "ts": 1763300000.0}}}
@@ -19,7 +20,7 @@ import tempfile
 import threading
 import time
 
-from . import core
+from . import core, migrate
 
 MAX_TAGS = 10            # par message
 MAX_TAG_CHARS = 40
@@ -32,7 +33,7 @@ _lock = threading.Lock()
 
 
 def folder():
-    return core.paths().store / "etiquettes"
+    return migrate.store_file("labels", "etiquettes")
 
 
 def valid_session(session_id):

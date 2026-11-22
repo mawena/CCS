@@ -389,7 +389,7 @@ class TestClientSettings(JobsCase):
         distant.set_limit("pc-bureau", 3)
         distant.set_limit("portable", 1)
         over = distant.load_overrides()
-        self.assertEqual(over["pc-bureau"], {"utilisateur": "charles", "port": 2244, "limite": 3})
+        self.assertEqual(over["pc-bureau"], {"user": "charles", "port": 2244, "limit": 3})
         self.assertEqual(distant.limit_for("portable", over), 1)
         self.assertEqual(distant.limit_for("autre", over), 2)
         for bad in (0, 9, "3", True):

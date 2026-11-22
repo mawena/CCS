@@ -64,6 +64,9 @@ DEFAULTS = {
         "max_accounts": 3,
     },
     "updates": {"enabled": True},
+    # Réveil des comptes (`warmup`) : par profil, une liste de créneaux
+    # {"time": "HH:MM", "days": [0…6] (facultatif, 0 = lundi ; absent = tous les jours)},
+    # par ex. {"perso": [{"time": "07:00", "days": [0, 1, 2, 3, 4]}]}. Vide : aucun réveil.
     "warmup": {},
     "orchestrator": {
         "enabled": False,
@@ -76,32 +79,32 @@ DEFAULTS = {
         "reserve_points": 10,
         "max_weekly_start": 95,
     },
-    # Phase 11 : file de tâches, téléphone (ntfy), archive, mémoire des sessions,
-    # contexte lourd, budget par projet (mêmes valeurs que les DEFAULTS des modules).
+    # File de tâches, téléphone (ntfy), archive, sessions, contexte lourd, budget par projet :
+    # mêmes valeurs que les DEFAULTS des modules.
     "tasks": {"enabled": True, "night": {"start": "23:00", "end": "07:00"}, "max_attempts": 3},
     "phone": {
         "enabled": False,
         "server": "https://ntfy.sh",
         "topic": "",
         "events": {"waiting": True, "task": True, "switch": True, "exhausted": True},
-        # Phase 13 : la notification d'autorisation montre la commande exacte (sinon le type
-        # et le projet seulement) ; sujet secret où le téléphone publie ses réponses.
+        # show_content : la notification d'autorisation montre la commande exacte (sinon le
+        # type et le projet seulement) ; reply_topic : sujet secret où le téléphone répond.
         "show_content": False,
         "reply_topic": "",
     },
     "archive": {"enabled": True, "idle_days": 1, "max_age_days": 0},
     "sessions": {"idle_hours": 2},
-    # auto_compact : dans les chats, CCS envoie `/compact` tout seul au-delà du seuil (phase 16).
+    # auto_compact : dans les chats, CCS envoie `/compact` tout seul au-delà du seuil.
     "context_alert": {"enabled": True, "threshold_tokens": 150000, "auto_compact": True},
     "budget": {"enabled": True, "alert_pcts": [80, 100]},
-    # Phase 12 : chat graphique, panneau Fichiers, page Projets, apparence.
-    # idle_suspend_min : minutes d'inactivité avant de suspendre le processus claude d'un
+    # Chats : idle_suspend_min : minutes d'inactivité avant de suspendre le processus claude d'un
     # chat (0 = jamais) ; rights : mode de permission des nouveaux chats ; auto_clear : Claude
-    # peut effacer la conversation en fin de sujet (`ccs chat effacer`, phase 24).
+    # peut effacer la conversation en fin de sujet (`ccs chat effacer`).
     "chat": {"idle_suspend_min": 30, "rights": "manual", "auto_clear": True},
     "files": {"layout": "B", "show_ignored": False},
-    # Phase 13 : page Git (disposition A, B ou C ; fetch automatique en minutes, 0 = jamais).
+    # Page Git : disposition A, B ou C ; fetch automatique en minutes (0 = jamais).
     "git": {"layout": "A", "fetch_minutes": 5, "avatars": True},
+    # color_scheme : auto (suit le système), light ou dark.
     "appearance": {"color_scheme": "auto", "account_colors": {}},
     # Relance après une limite (`limit_resume`) : quand la limite se lève, CCS envoie « continue »
     # aux conversations bloquées ; outside : conversation fermée hors de CCS, « notify »
@@ -169,8 +172,10 @@ CHOICES = {
     "files.layout": ("A", "B"),
     "git.layout": ("A", "B", "C"),
     "limit_resume.outside": ("notify", "resume"),
-    "appearance.color_scheme": ("auto", "clair", "sombre"),
+    "appearance.color_scheme": ("auto", "light", "dark"),
 }
+# Anciennes valeurs (avant la 1.0.0), converties à la lecture : à retirer en 2.0.
+OLD_VALUES = {"appearance.color_scheme": {"clair": "light", "sombre": "dark"}}
 _COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 _HHMM = re.compile(r"^(\d{1,2}):(\d{2})$")
 
@@ -308,6 +313,8 @@ def _clean(value, default, path, bad):
             if key not in default:
                 out[key] = copy.deepcopy(v)
         return out
+    if isinstance(value, str) and value in OLD_VALUES.get(path, {}):
+        value = OLD_VALUES[path][value]
     if _valid(path, value, default):
         return copy.deepcopy(value)
     bad.append(path)

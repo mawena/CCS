@@ -1,8 +1,9 @@
 """Registre des commandes lancées par `ccs distant lancer` (calcul réparti).
 
-Un fichier JSON par travail dans `~/.cache/ccs/distant/travaux/<id>.json`, écrit de façon
+Un fichier JSON par travail dans `~/.cache/ccs/machines/jobs/<id>.json` (`~/.cache` suit
+`XDG_CACHE_HOME` ; `distant/travaux/` avant la 1.0.0, renommé tout seul), écrit de façon
 atomique ; le journal d'un travail détaché est `<id>.log` à côté. Toute lecture-écriture passe
-par un verrou (`fcntl.flock` sur `.verrou`) : plusieurs `ccs distant lancer` simultanés comptent
+par un verrou (`fcntl.flock` sur `.lock`) : plusieurs `ccs distant lancer` simultanés comptent
 ainsi les places des machines sans se marcher dessus.
 
 États (en anglais, comme ceux des tâches) : `waiting` (pas de place libre), `scheduled`
@@ -26,7 +27,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import core
+from . import core, migrate
 
 ACTIVE = ("waiting", "scheduled", "sending", "running")
 WAITING = ("waiting", "scheduled")
@@ -42,7 +43,8 @@ ID_RE = re.compile(r"^[0-9a-f]{6,16}$")
 
 
 def jobs_dir():
-    d = core.paths().home / ".cache" / "ccs" / "distant" / "travaux"
+    cache = core.ccs_dir("cache")
+    d = migrate.renamed(cache / "machines" / "jobs", cache / "distant" / "travaux")
     d.mkdir(mode=0o700, parents=True, exist_ok=True)
     return d
 
@@ -58,7 +60,7 @@ def log_path(job_id):
 @contextmanager
 def locked():
     """Verrou exclusif sur le registre, partagé entre processus."""
-    with open(jobs_dir() / ".verrou", "a") as f:
+    with open(jobs_dir() / ".lock", "a") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
         try:
             yield
