@@ -138,7 +138,8 @@ class Bridge:
     async def start(self, socket_path):
         self._server = rpc.RpcServer(self.handlers(), on_connect=self._on_connect,
                                      on_close=self._on_close, keep_local=self.keeps_local,
-                                     normalize=protocol.normalize)
+                                     normalize=protocol.normalize,
+                                     downgrade=protocol.downgrade_result)
         await self._server.start_unix(socket_path, 0o600 if self.local else 0o660)
 
     async def prepare(self):
@@ -223,7 +224,8 @@ class Bridge:
     async def broadcast(self, event, data):
         for conn in list(self.clients):
             if conn.peer.get("ok"):
-                await conn.push(event, data)
+                # anciennes valeurs pour un ancien client : compatibilité 1.x, à retirer en 2.0
+                await conn.push(event, protocol.event_data(conn, event, data))
 
     # ---- comptes et réglages ---------------------------------------------------------
 

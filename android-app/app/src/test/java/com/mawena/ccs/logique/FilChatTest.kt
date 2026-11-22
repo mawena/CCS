@@ -181,6 +181,18 @@ class FilChatTest {
     }
 
     @Test
+    fun historiqueAuxRolesAnglais() {
+        // pont 1.0 : « user » et « tool » (les anciens « utilisateur » et « outil » restent lus)
+        val f = FilChat()
+        f.prefixerHistorique(listOf(
+            MessageHistorique("user", "q", uuid = "u1"),
+            MessageHistorique("tool", "", tool = OutilHistorique("Bash", "ls", "a b", "t1")),
+        ))
+        assertTrue(f.fil.elements[0] is ElementFil.MsgToi)
+        assertTrue(f.fil.elements[1] is ElementFil.Outil)
+    }
+
+    @Test
     fun finDeTourEtEffets() {
         val f = FilChat()
         val e = f.recu(1, """{"type":"TurnResult","ok":false,"subtype":"error","text":"Panne","interrupted":false,"is_limit":false}""")

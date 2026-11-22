@@ -13,8 +13,9 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .autoswitch import MANUAL_RESPECT_S, STALE_S, Decision
+from .autoswitch import EARLY, MANUAL_RESPECT_S, STALE_S, Decision, switch_mode
 from .forecast import SESSION_WINDOW, effective_percent, window_open
+from .warmup import ORCHESTRATOR, mode_of as warmup_mode
 
 RETRY = timedelta(minutes=15)
 FAILURE_WINDOW = timedelta(hours=3)
@@ -165,7 +166,7 @@ def starts_due(accounts, now, cfg, store):
         history = store.events((now - SESSION_WINDOW).timestamp(), type="warmup", profile=name)
         if any(e.ts >= (now - RETRY).timestamp() for e in history):
             continue  # tentative récente (quel que soit le mode), l'API ne la reflète pas encore
-        mine = [e for e in history if e.detail.get("mode") == "orchestrateur"]
+        mine = [e for e in history if warmup_mode(e.detail) == ORCHESTRATOR]
         if any(e.detail.get("ok") is True for e in mine):
             continue  # fenêtre démarrée il y a moins de 5 h : on attend sa fin
         failures = [e for e in mine if e.detail.get("ok") is False
@@ -197,7 +198,7 @@ def expiring_decision(accounts, active, now, cfg, events, reserve=frozenset()):
         return None
     ts = now.timestamp()
     switches = [e for e in events if e.type == "switch"]
-    automatic = [e for e in switches if e.detail.get("mode") in ("auto", "anticipee")]
+    automatic = [e for e in switches if switch_mode(e.detail) in ("auto", EARLY)]
     if automatic and ts - automatic[-1].ts < cfg["expiring_cooldown_min"] * 60:
         return None
     last = switches[-1] if switches else None

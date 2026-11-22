@@ -598,7 +598,7 @@ class ChatTab(Gtk.Box):
             self.tags_list.append(Gtk.Label(label=f"{tag} ({len(items)})", xalign=0, margin_top=4,
                                             css_classes=["heading"]))
             for msg_id, entry in items:
-                who = "Vous" if entry.get("role") == "utilisateur" else "Claude"
+                who = "Vous" if message_tags.clean_role(entry.get("role")) == message_tags.USER else "Claude"
                 line = Gtk.Label(label=f"{who} : {entry.get('excerpt') or '…'}", xalign=0,
                                  ellipsize=Pango.EllipsizeMode.END)
                 button = Gtk.Button(child=line, css_classes=["flat"], tooltip_text="Aller au message")

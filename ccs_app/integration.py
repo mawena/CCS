@@ -335,7 +335,7 @@ def stop_failure(payload, notifier=notify.send):
         decision = autoswitch.rescue(states, after, load_settings(), now, reserve)
         store.add_event(now.timestamp(), "alert", "blocage", {"key": f"blocage:{now.timestamp():.0f}"})
         if decision.action == "switch":
-            if autoswitch.execute(decision, store, now, mode="blocage"):
+            if autoswitch.execute(decision, store, now, mode=autoswitch.BLOCKED):
                 mark("switched", after, decision.target, True)
                 notifier(Alert(f"blocage:{now.timestamp():.0f}", title,
                                f"Basculé sur {decision.target}. Tape « continue » dans la session pour reprendre.", 2))

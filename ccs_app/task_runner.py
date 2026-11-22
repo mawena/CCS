@@ -360,7 +360,7 @@ def prepare(task, state, settings, now, switch=None, active=None):
         from .store import Store
         store = Store()
         try:
-            done = autoswitch.execute(decision, store, now, mode="blocage" if resuming else "auto")
+            done = autoswitch.execute(decision, store, now, mode=autoswitch.BLOCKED if resuming else "auto")
         finally:
             store.close()
     else:

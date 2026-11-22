@@ -164,7 +164,7 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `projects.remove` | `cwd` | retire de la liste |
 | `projects.folders` | — | dépôts git du disque |
 | `projects.account` | `cwd` | comptes et compte présélectionné |
-| `conversations.messages` | `path`, `before`, `limit` | messages d'une conversation |
+| `conversations.messages` | `path`, `before`, `limit` | messages d'une conversation ; `role` : `user`, `assistant`, `tool`, `note` |
 | `conversations.rename` | `session_id`, `path`, `title` | renomme |
 | `conversations.cost` | `path` | coût |
 | `conversations.trash` | `path`, `session_id`, `title`, `cwd` | corbeille (30 jours) (→ `trash_id`) |
@@ -203,8 +203,8 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `chat.close` | `chat_id`, `keep_if_shared` | ferme (→ `closed`) ; avec `keep_if_shared`, détache seulement l'appareil si un autre suit le chat (→ `closed: false`, `devices`) |
 | `chat.options` | `chat_id`, `options` | change modèle, effort, droits |
 | `chat.render` | `markdown` | rend du Markdown en HTML |
-| `chat.tags` | `session_id` | messages étiquetés |
-| `chat.tag` | `session_id`, `msg_id`, `tags`, `text`, `role` | pose ou retire des étiquettes |
+| `chat.tags` | `session_id` | messages étiquetés ; `role` de chaque entrée : `user`, `assistant` ou `""` |
+| `chat.tag` | `session_id`, `msg_id`, `tags`, `text`, `role` (`user` ou `assistant` ; l'ancien `utilisateur` est accepté) | pose ou retire des étiquettes |
 | `work.commands` / `work.files` / `work.changes` | `chat_id` | commandes `/`, fichiers, changements du chat |
 | `saved.list` | `cwd`, `scope` | messages enregistrés |
 | `saved.save` | `cwd`, `scope`, `name`, `text` | enregistre un message |
@@ -285,12 +285,28 @@ Le pont accepte encore les anciens noms, ramenés aux nouveaux avant tout traite
 
 Un **ancien client** (aucun `protocol` déclaré) reçoit en plus les anciennes valeurs là où elles
 ont changé : événements `machine.ready` et `work.shell`, états des travaux en français dans
-`machines.jobs` (`attente`, `programmé`, `envoi`, `en cours`, `fini`, `échec`, `arrêté`). Les
+`machines.jobs` (`attente`, `programmé`, `envoi`, `en cours`, `fini`, `échec`, `arrêté`), rôles
+`utilisateur` et `outil` dans `conversations.messages`, `utilisateur` dans `chat.tags`, `chat.tag`
+et l'événement `chat.tags` (`downgrade_result`, `event_data`). Les
 réponses gardent aussi les anciennes clés à côté des nouvelles : `tid` (et `id` dans
 `trash.list`), et `relais, jeton_defini, chemin, limite_defaut, limites` dans
 `machines.settings`. Les travaux enregistrés sur disque avec un état français sont lus avec
 l'état anglais. Vers le pont d'une autre machine plus ancien (son `hello` ne renvoie pas
-`protocol`), `machines.attach` relaie avec les anciens noms. Tout cela sera retiré en 2.0.
+`protocol`), `machines.attach` relaie avec les anciens noms et l'ancien rôle `utilisateur` de
+`chat.tag`, et ramène ses réponses et événements aux nouvelles valeurs (rôles des messages et des
+étiquettes). Tout cela sera retiré en 2.0.
+
+Valeurs d'état relues sous leur nouveau nom (fichiers et historique écrits avant la 1.0.0) :
+
+| Où | Ancienne valeur (lue) | Nouvelle valeur |
+|---|---|---|
+| `$STORE/labels/<session>.json`, `role` | `utilisateur` | `user` |
+| `history.db`, `detail.mode` des bascules (`switch`, `error`) | `anticipee`, `blocage` | `early`, `blocked` |
+| `history.db`, `detail.mode` des démarrages de fenêtre (`warmup`) | `creneau`, `orchestrateur` | `slot`, `orchestrator` |
+| `$CACHE/ccs/machines.json` (inventaire, cache) | `outils`, `quand` | `tools`, `checked_at` (entrée ancienne : périmée, relevée à nouveau) |
+
+Les genres du journal des bascules (`switch_log.KINDS`, en mémoire seulement, lus par le bureau)
+sont `auto`, `early`, `blocked`, `manual`, `initial`, `failed`, `limit`, `window`.
 
 ---
 
@@ -389,7 +405,7 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | `$STORE/.lock`, `.tasks.lock`, `.pause.lock`, … | verrous |
 | `<projet>/.ccs/messages.json` | messages enregistrés du projet |
 | `$DATA/ccs/` | `projects.json` (projets ajoutés ou retirés à la main), `archive/` (+ `index.json`), `trash/` |
-| `$CACHE/ccs/` | `machines.json` (inventaire), `machines/jobs/<id>.json` et `.log`, `icons-*`, `clear/` (demandes `ccs chat effacer`) |
+| `$CACHE/ccs/` | `machines.json` (inventaire : `{<machine>: {path, tools, checked_at}}`), `machines/jobs/<id>.json` et `.log`, `icons-*`, `clear/` (demandes `ccs chat effacer`) |
 | `~/.cache/ccs-distant/` (machine distante) | copies des projets |
 | `${XDG_RUNTIME_DIR:-/tmp/ccs-UID}/ccs/bridge.sock` | pont local du bureau |
 | `${XDG_RUNTIME_DIR:-/run/user/UID ou /tmp/ccs-UID}/ccs/root.sock` | gardien du mot de passe root (dossier 0700, socket 0600, même uid seulement) ; le mot de passe n'est jamais écrit sur disque |
@@ -530,6 +546,10 @@ Reste à faire :
   renvoyer `migrate.store_file("servers.json", "serveurs.json")` (fichier tenu par la tâche 4) ;
 - l'ancien dossier `~/.cache/ccs/distant-en-cours/` est nettoyé par `server/bridge.py` sous
   `~/.cache` en dur : à faire passer par `core.ccs_dir("cache")` ;
-- valeurs encore françaises dans des états : rôle `utilisateur` des étiquettes
-  (`message_tags.ROLES`, lu par le web et le bureau), genres du journal des bascules
-  (`switch_log.KINDS`), `mode` `creneau` des réveils, clé `quand` de l'inventaire des machines.
+- ~~valeurs encore françaises dans des états~~ : faites (rôles des messages et des étiquettes,
+  modes des bascules et des démarrages de fenêtre, genres du journal, inventaire des machines ;
+  voir § 2.3). Restent en français, stockées dans `history.db` ou `switch-origin.json` : le
+  pseudo-profil `blocage` des alertes du hook et ses clés (`blocage:<ts>`, `pause`, `deja`), et
+  les origines `via` des bascules manuelles (`icone`, `projet`, `raccourci`, `nouvelle-session`) ;
+  renvoyés par le pont : les choix de pause `demain` et `manuel` (`pause_choices`, `pause.set
+  {choice}`, mêmes mots que `ccs pause`), et les codes d'erreur (voir plus haut).

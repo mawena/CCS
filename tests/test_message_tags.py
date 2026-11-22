@@ -36,8 +36,19 @@ class MessageTagsTest(unittest.TestCase):
         self.assertEqual(mt.load("s1"), {})
         self.assertFalse(mt.path_of("s1").exists())
 
+    def test_old_role_is_read_and_accepted(self):
+        """« utilisateur » (avant la 1.0.0) : relu dans le fichier, accepté en paramètre."""
+        mt.path_of("s1").parent.mkdir(parents=True, exist_ok=True)
+        mt.path_of("s1").write_text('{"messages": {"u-1": {"tags": ["a"], "role": "utilisateur", '
+                                    '"excerpt": "x", "ts": 1}}}')
+        self.assertEqual(mt.load("s1")["u-1"]["role"], "user")
+        self.assertEqual(mt.set_tags("s1", "u-2", ["b"], "y", "utilisateur")["role"], "user")
+        self.assertEqual(mt.set_tags("s1", "u-3", ["b"], "y", "n'importe quoi")["role"], "")
+        self.assertEqual(mt.legacy_entry(mt.load("s1")["u-2"])["role"], "utilisateur")
+        self.assertEqual(mt.legacy_entry({"role": "assistant"}), {"role": "assistant"})
+
     def test_long_excerpt_is_shortened(self):
-        e = mt.set_tags("s1", "u-1", ["x"], "mot " * 200, "utilisateur")
+        e = mt.set_tags("s1", "u-1", ["x"], "mot " * 200, "user")
         self.assertLessEqual(len(e["excerpt"]), mt.EXCERPT_CHARS)
         self.assertTrue(e["excerpt"].endswith("…"))
 

@@ -1147,7 +1147,7 @@ class ChatTabTest(HomeTestCase):
         pop.tag_ok.emit("clicked")
         self.assertTrue(pump_until(lambda: tab.messages.tags_of(uid) == ["important"]))
         entry = message_tags.load("sess-1")[uid]
-        self.assertEqual((entry["tags"], entry["role"], entry["excerpt"]), (["important"], "utilisateur",
+        self.assertEqual((entry["tags"], entry["role"], entry["excerpt"]), (["important"], "user",
                                                                             "Ajoute un bouton"))
         self.assertIn("important", [w.get_label() for w in descendants(row.tags_box)])
 
@@ -1174,7 +1174,7 @@ class ChatTabTest(HomeTestCase):
     def test_tags_reload_when_the_session_becomes_known(self):
         from types import SimpleNamespace
         from ccs_app import message_tags
-        message_tags.set_tags("sess-3", "u-1", ["idée"], "Une idée", "utilisateur")
+        message_tags.set_tags("sess-3", "u-1", ["idée"], "Une idée", "user")
         tab, _owner = self.make(spawn=False)
         tab.messages.add_user("Une idée", (), msg_id="u-1")
         tab.engine.session_id = "sess-3"
