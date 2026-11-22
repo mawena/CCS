@@ -666,10 +666,10 @@ Conception :
 - Chaque commande root lancée avec le mot de passe gardé : avis `root.used` + ntfy avec
   « Révoquer » (bouton signé à usage unique, comme `phone_reply`).
 
-- [ ] 1. Gardien en mémoire, socket Unix, `ccs-askpass`, `ccs root -- …` / `ccs root etat|oublier` ; tests
-- [ ] 2. Pont : `root.ask`, `root.answer`, `root.resolved`, `root.used`, `root.forget` ; vérification `sudo -S -v`, délai, limite d'essais ; avis ntfy sans secret et bouton « Révoquer »
+- [x] 1. Gardien en mémoire, socket Unix, `ccs-askpass`, `ccs root -- …` / `ccs root etat|oublier` ; tests
+- [x] 2. Pont : `root.ask`, `root.answer`, `root.resolved`, `root.used`, `root.forget` ; vérification `sudo -S -v`, délai, limite d'essais ; avis ntfy sans secret et bouton « Révoquer »
 - [ ] 3. `SUDO_ASKPASS` dans l'environnement des chats ; consignes de Claude (`~/.claude/CLAUDE.md`) : `ccs root -- …` au lieu de donner la commande à Charles
-- [ ] 4. Clients : popup de mot de passe dans le web, le bureau, la TUI, Android et iPhone
+- [ ] 4. Clients : popup de mot de passe d'abord sur Android et iPhone (Charles répond surtout du Pixel et de l'iPhone 14 Pro ; toucher l'avis ntfy ouvre la popup), puis web, bureau, TUI
 - [ ] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG
 
 ## Phase 33 — Harmonisation des interfaces avant le gel (1.0.0)
