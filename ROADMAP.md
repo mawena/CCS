@@ -643,6 +643,24 @@ archive de l'ancien dépôt) vient après.
 - [x] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [x] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
+## Phase 36 — Oreilles de Jarvis
+
+Charles (22/11/2026) : CCS devient le transport des « oreilles » de Jarvis (assistant vocal,
+projet voisin `~/Work/perso/Jarvis`, plan `docs/oreilles-ccs.md` de Jarvis) : parler à Jarvis
+avec un bouton depuis la version web, puis depuis les applis, même hors de la maison. Le cerveau
+tourne sur `laptop-maison` (port 7341, WebSocket sur TLS épinglé) ; le pont du serveur l'atteint
+par le tunnel Ricochet. CCS ne fait que relayer : le cerveau garde l'appairage, le jeton et la
+vérification de la voix.
+
+- [x] 1. Pont : `jarvis_link` (tunnel `ricochet-agent tunnel`, TLS 1.3 épinglé sur l'empreinte SHA-256 du certificat, client WebSocket) et `bridge_jarvis` (`jarvis.open`, `send`, `close`, `settings`, `configure` ; événements `jarvis.message`, `jarvis.closed`), réglages `jarvis.machine`, `jarvis.port`, `jarvis.fingerprint`
+- [x] 2. ccs-web : `/api/jarvis/oreille` (mêmes contrôles que `/api/ws` : origine, session, jeton d'application ou Portier, revérification, déconnexion), relais texte et binaire, limites de taille, erreur claire (`relay_error`, code 4011)
+- [x] 3. Web : page « Jarvis » (appairage par l'adresse `jarvis://pair?…` ou code + empreinte, jeton gardé dans le navigateur ; bouton maintenir / toucher pour parler, micro rééchantillonné en 16 kHz, texte et voix de la réponse)
+- [x] 4. Tests (faux cerveau TLS local, faux `ricochet-agent`, ccs-web de bout en bout, page dans node), README, CHANGELOG
+- [ ] 5. Essai réel par Charles : port 7341 autorisé dans le `[tunnel]` de l'agent Ricochet de laptop-maison (aujourd'hui refusé : « port non autorisé »), `jarvis pair`, une phrase depuis le téléphone hors du Wi-Fi
+- [ ] 6. Bureau (GTK) : il ne réutilise pas la version web ; bouton Jarvis à faire (ou ouvrir la page web)
+- [ ] 7. Applis Android et iPhone : bouton Jarvis sur le même relais (voir README, « Parler à Jarvis »)
+- [ ] 8. Release (version mineure) après l'essai réel
+
 ## Phase 35 — Vocal : dictée et lecture des réponses (1.1.0)
 
 Charles (22/11/2026) : chatter à la voix sur toutes les plateformes. Choix : **dictée** (bouton

@@ -946,7 +946,8 @@ navigateur / téléphone / bureau GTK / ccs tui distant
   utilisateur ou par IP en 15 min : refus pendant 15 min ; jamais de mot de passe au journal.
 - **ccs-web** (`web.py`) : écoute `127.0.0.1:8420` (réglable dans `/etc/ccs/web.json`, clés
   `listen` et `origin`), sert l'interface (`/usr/share/ccs/web/`), `/api/login`,
-  `/api/logout`, `/api/totp`, `/api/health` et un WebSocket par client (`/api/ws`).
+  `/api/logout`, `/api/totp`, `/api/health` et un WebSocket par client (`/api/ws`), plus
+  `/api/jarvis/oreille` pour une oreille de Jarvis (voir `bridge_jarvis`).
   **Mode Portier** (`portier.py`, clé `portier` de `web.json`, désactivé par défaut) : depuis
   `127.0.0.1`/`::1`, l'en-tête `X-Portier-Utilisateur` d'un nom de la liste remplace la
   session ; `ccs-web` demande alors à `ccs-auth` (méthode `portier`, qui relit `web.json` et
@@ -973,6 +974,7 @@ navigateur / téléphone / bureau GTK / ccs tui distant
 | `bridge_files` | Gestion des fichiers depuis le web : `files.download` et `files.upload` (par morceaux de 1 Mo, 200 Mo au plus ; un envoi s'écrit dans « .nom.ccs-envoi » puis prend son nom à la fin), `files.mkdir`, `files.create`, `files.rename`, `files.delete`, `files.info`, `files.paste` (copier ou déplacer, copie de 2 Go au plus), `files.roots` (dossiers de départ du gestionnaire de fichiers du web, `files-browser.js`). Le dossier personnel, les racines permises et le projet ouvert ne se renomment ni ne se suppriment ; un lien symbolique est traité lui-même, jamais sa cible |
 | `bridge_git` | `git.status`, `git.log`, `git.diff`, `git.stage`, `git.unstage`, `git.hunk`, `git.commit`, `git.fetch`, `git.pull`, `git.push` |
 | `bridge_machines` | Autres machines : `machines.list` (relais Ricochet, par `distant`), travaux (`machines.jobs`, `stop`, `log`, `start`), réglages du relais (`machines.settings`, `configure`, `limit`) et `machine.attach` : `ssh` par le tunnel, un petit programme python3 branche son entrée et sa sortie sur le pont local de la machine (`$XDG_RUNTIME_DIR/ccs/bridge.sock`, `ccs bridge --local` lancé s'il manque). La connexion est ensuite relayée (`peer["forward"]` dans `rpc.RpcServer`), sauf `hello`, `machine.attach` et `machines.*` ; le lien tombé ferme la connexion. `ccs-web` l'ouvre pour `/api/ws?machine=<id>` (code 4010 et raison si la machine est injoignable) |
+| `bridge_jarvis` | Oreilles de Jarvis (assistant vocal, projet voisin) : `jarvis.open` ouvre `ricochet-agent tunnel <machine> --port <port>` sur une paire de sockets (`jarvis_link`), fait le TLS 1.3 sur l'autre bout et compare l'empreinte SHA-256 du certificat avant tout envoi, puis la poignée de main WebSocket (client écrit à la main, RFC 6455) et envoie le premier message de l'oreille (le cerveau l'exige moins de 3 s après l'ouverture). Les messages sont ensuite relayés sans être lus (`jarvis.send`, événements `jarvis.message` / `jarvis.closed`), avec des limites de taille (64 Kio de texte et une trame de son vers le cerveau, 6 Mo vers l'oreille). La connexion fermée ferme le lien et arrête le tunnel. `ccs-web` (`/api/jarvis/oreille`) ouvre une connexion au pont par oreille, avec les mêmes contrôles que `/api/ws` ; c'est le pont, sous l'utilisateur, qui lit la configuration Ricochet |
 
 Chaque chemin venu du client passe par `bridge_data.safe_path`. `bridge_work` n'écrit rien
 que le client n'ait demandé après sa carte de confirmation. `bridge_git` lance `git_repo` dans

@@ -3,6 +3,20 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Ajouté
+
+- Oreilles de Jarvis (assistant vocal, projet voisin) : page « Jarvis » de la version web, pour
+  appairer le navigateur (adresse `jarvis://pair?…` de `jarvis pair`, ou code et empreinte) puis
+  parler à Jarvis avec un bouton (maintenir, ou toucher puis se taire) ; le texte de la réponse
+  s'affiche et la voix de Jarvis est jouée, même hors de la maison.
+- ccs-web : point d'entrée `/api/jarvis/oreille` (session CCS exigée) qui relaie l'oreille vers
+  le cerveau par le pont de l'utilisateur : tunnel Ricochet, TLS épinglé sur l'empreinte du
+  cerveau, limites de taille, erreur immédiate si Jarvis est injoignable.
+- Pont : méthodes `jarvis.*` et réglages `jarvis.machine`, `jarvis.port` (par défaut
+  `laptop-maison:7341`) et `jarvis.fingerprint`.
+
 ## [1.1.0] — 2026-11-22
 
 ### Ajouté

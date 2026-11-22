@@ -823,6 +823,31 @@ pont CCS local du PC (celui de l'application de bureau, lancé s'il ne tourne pa
 sont donc les mêmes qu'au bureau. Il faut le PC allumé, CCS installé dessus et le tunnel SSH
 du calcul réparti. Si le PC ne répond pas, un bandeau donne la raison et le web réessaie seul.
 
+### Parler à Jarvis
+
+La page **Jarvis** (🎙) de la version web parle à [Jarvis](https://github.com/mawena/Jarvis),
+l'assistant vocal de la maison, d'où qu'on soit : le pont du serveur ouvre le tunnel Ricochet
+vers la machine du cerveau (`laptop-maison`, port 7341 par défaut) et relaie le son.
+
+1. Sur la machine de Jarvis : le port 7341 autorisé dans le `[tunnel]` de l'agent Ricochet,
+   puis `jarvis pair`.
+2. Dans la page Jarvis : colle l'adresse `jarvis://pair?…` affichée (ou le code et l'empreinte),
+   puis **Appairer**. Le jeton reste dans ce navigateur ; l'empreinte est gardée sur le serveur.
+3. **Parler à Jarvis** : maintiens le bouton pendant que tu parles, ou touche-le une fois
+   (l'écoute s'arrête quand tu te tais). La réponse s'affiche et la voix de Jarvis est jouée.
+
+Machine et port du cerveau : « Où est le cerveau de Jarvis ? » en bas de la page (réglages
+`jarvis.machine` et `jarvis.port`). Retirer un appareil : `jarvis unpair <nom>` sur la machine
+de Jarvis.
+
+Pour une autre oreille (appli Android ou iPhone) : WebSocket `wss://<serveur>/api/jarvis/oreille?fp=<empreinte>`
+avec la session CCS ou `Authorization: Bearer <jeton d'application>`. Le premier message
+(`pair` ou `hello` du protocole des oreilles de Jarvis) doit partir dès l'ouverture ; tout est
+ensuite relayé tel quel dans les deux sens (texte JSON, trames de son binaires `0x01` + phrase
+u32 + PCM 16 kHz i16, 16 000 échantillons au plus par trame). Une oreille « bouton » envoie
+`wake` avec `score: 2.0`, `level_db: 0`, `muted: false`, le son, puis `listen_end`. Jarvis
+injoignable : message `{"type": "relay_error", "message": …}` puis fermeture 4011.
+
 ### Limites à connaître
 
 - Retirer un serveur dans le bureau **ne révoque pas** son jeton sur le serveur : fais-le dans la version web, Réglages → Appareils.
