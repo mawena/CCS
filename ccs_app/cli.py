@@ -87,6 +87,11 @@ def cmd_tache(args):
     return tasks.command(list(args.args))
 
 
+def cmd_root(args):
+    from . import root_keeper
+    return root_keeper.command(list(args.args))
+
+
 def cmd_budget(args):
     from . import budget
     from .settings import load_settings
@@ -1201,6 +1206,8 @@ SELF_PARSED = (
     ("sauvegarde", ("backup",), "sauvegarde chiffrée des profils et réglages", cmd_sauvegarde),
     ("restaurer", ("restore",), "restaure une sauvegarde chiffrée", cmd_restaurer),
     ("telephone", ("phone",), "notifications sur le téléphone : état, lien, essai", cmd_telephone),
+    ("root", (), "commande root, mot de passe demandé aux appareils : root -- <commande>, etat, oublier",
+     cmd_root),
 )
 DELEGATED = {n: func for name, old, _help, func in SELF_PARSED for n in (name, *old)}
 

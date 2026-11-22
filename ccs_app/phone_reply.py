@@ -6,6 +6,10 @@ réponse secret (`phone.reply_topic`). Le jeton est tiré au hasard pour cette s
 il sert une fois, expire après `TOKEN_TTL` secondes et disparaît dès que la demande est réglée
 sur le PC. Tout le reste (jeton inconnu, déjà servi, expiré) est ignoré et journalisé sans le
 jeton. Le contenu de la commande ne passe dans la notification que si l'utilisateur l'a voulu.
+
+Même modèle pour le mot de passe root (phase 34) : chaque commande lancée avec le mot de passe
+gardé part avec un bouton « Révoquer » (`"revoke <id> <jeton>"`, jeton à usage unique valable tant
+que le mot de passe est gardé). Les notifications root ne contiennent jamais le mot de passe.
 """
 
 import hmac
@@ -24,6 +28,7 @@ TOKEN_TTL = 600           # secondes de validité d'un jeton
 RETRY_S = 5               # attente avant de se reconnecter à l'écoute
 LISTEN_TIMEOUT_S = 90     # ntfy envoie un « keepalive » toutes les 30 s
 HIDDEN_BODY = "Réponds depuis la notification ou sur le PC"
+DECISIONS = ("allow", "deny", "revoke")   # mots connus ; chaque écouteur ne prend que les siens
 
 # Nom d'outil de Claude Code → type affiché dans la notification
 KINDS = {"Bash": "Commande", "Edit": "Modification de fichier", "MultiEdit": "Modification de fichier",
@@ -53,11 +58,11 @@ class Replies:
         self._lock = threading.Lock()
         self._tokens = {}          # id de demande → (jeton, instant d'expiration)
 
-    def issue(self, request_id, now=None):
+    def issue(self, request_id, now=None, ttl=TOKEN_TTL):
         token = secrets.token_urlsafe(24)
         now = time.time() if now is None else now
         with self._lock:
-            self._tokens[request_id] = (token, now + TOKEN_TTL)
+            self._tokens[request_id] = (token, now + ttl)
         return token
 
     def settle(self, request_id):
@@ -65,15 +70,23 @@ class Replies:
         with self._lock:
             self._tokens.pop(request_id, None)
 
+    def settle_all(self):
+        with self._lock:
+            self._tokens.clear()
+
     def pending(self):
         with self._lock:
             return bool(self._tokens)
 
-    def verify(self, body, now=None):
-        """`(id, "allow"|"deny")` pour une réponse valide — une seule fois — sinon None."""
+    def verify(self, body, now=None, decisions=("allow", "deny")):
+        """`(id, décision)` pour une réponse valide — une seule fois — sinon None. Une décision
+        connue mais pas dans `decisions` (celle d'un autre écouteur du même sujet) est ignorée
+        sans bruit."""
         now = time.time() if now is None else now
         parts = str(body or "").split()
-        if len(parts) != 3 or parts[0] not in ("allow", "deny"):
+        if len(parts) == 3 and parts[0] in DECISIONS and parts[0] not in decisions:
+            return None
+        if len(parts) != 3 or parts[0] not in decisions:
             log.warning("téléphone : réponse ignorée (format inattendu)")
             return None
         decision, request_id, token = parts
@@ -100,6 +113,33 @@ def actions_header(cfg, topic, request_id, token):
     return "; ".join(
         f"http, {label}, {url}, method=POST, body={decision} {request_id} {token}, clear=true"
         for label, decision in (("Autoriser", "allow"), ("Refuser", "deny")))
+
+
+def revoke_header(cfg, topic, request_id, token):
+    """En-tête `Actions` de ntfy : bouton « Révoquer » (efface le mot de passe root gardé).
+    Encodé RFC 2047 (accent), comme les titres."""
+    url = f"{phone.base_url(cfg.get('server'))}/{topic}"
+    return phone._header(f"http, Révoquer, {url}, method=POST, body=revoke {request_id} {token}, "
+                         "clear=true")
+
+
+def root_ask_message(machine, command, show_content):
+    """Demande du mot de passe root, SANS secret : la machine, et la commande seulement si
+    l'utilisateur a voulu voir le contenu (`phone.show_content`)."""
+    name = phone._clean(machine) or "Une machine"
+    cmd = str(command or "").strip()
+    body = f"{name} demande le mot de passe root pour : {cmd}" if show_content and cmd \
+        else f"{name} demande le mot de passe root"
+    return phone.Message("root", "Mot de passe root", body[:500], 5, ("key",))
+
+
+def root_used_message(machine, command, show_content):
+    """Commande lancée avec le mot de passe root gardé (le bouton « Révoquer » va à part)."""
+    name = phone._clean(machine) or "Une machine"
+    cmd = str(command or "").strip()
+    body = f"{name} a lancé en root : {cmd}" if show_content and cmd \
+        else f"{name} a lancé une commande root"
+    return phone.Message("root", "Commande root", body[:500], 3, ("warning",))
 
 
 def permission_message(kind, project, detail, show_content):

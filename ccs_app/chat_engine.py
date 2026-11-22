@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import chat_options, chat_protocol as proto, distant, sessions, task_runner, token_use
+from . import chat_options, chat_protocol as proto, distant, root_keeper, sessions, task_runner, token_use
 from .chat_options import ChatOptions
 
 log = logging.getLogger(__name__)
@@ -263,6 +263,11 @@ class ChatSession:
         # `claude -p` (stream-json) n'écrit les instantanés de fichiers, base du retour en
         # arrière, qu'avec cette variable ; sans effet si la version l'ignore.
         env["CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING"] = "1"
+        # `sudo -A` marche seul dans les chats : le mot de passe vient du gardien de CCS
+        # (demandé aux appareils, gardé une heure en mémoire ; voir `root_keeper`).
+        askpass = root_keeper.askpass_path()
+        if askpass:
+            env["SUDO_ASKPASS"] = askpass
         env.pop(CLEAR_TOKEN_VAR, None)
         if self._auto_clear_on():
             env[CLEAR_TOKEN_VAR] = self._clear_token     # pour `ccs chat effacer`

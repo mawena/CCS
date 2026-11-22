@@ -46,6 +46,8 @@ class Bridge:
         self.busy_checks = []        # fonctions qui disent « un travail est en cours »
         self.close_hooks = []        # appelées à la fermeture d'une connexion
         self.tick_hooks = []         # coroutines appelées chaque minute (ménage)
+        self.prepare_hooks = []      # coroutines appelées au démarrage (`prepare`)
+        self.stop_hooks = []         # coroutines appelées à l'arrêt (`stop`)
         self.last_activity = clock()
         self._server = None
         self._handlers = {}
@@ -129,6 +131,11 @@ class Bridge:
                 log.warning("service de fond impossible à lancer")
         if self.install_claude and not await asyncio.to_thread(self._installer.installed):
             asyncio.ensure_future(self._install_claude())
+        for hook in self.prepare_hooks:
+            try:
+                await hook()
+            except Exception:
+                log.exception("démarrage du pont")
 
     async def _install_claude(self):
         await self.broadcast("notice", {"text": "Installation de Claude Code en cours…"})
@@ -138,6 +145,12 @@ class Bridge:
 
     async def stop(self):
         self._stop.set()
+        hooks, self.stop_hooks = self.stop_hooks, []
+        for hook in hooks:
+            try:
+                await hook()
+            except Exception:
+                log.exception("arrêt du pont")
         if self._daemon_proc is not None:
             if self._daemon_proc.poll() is None:
                 self._daemon_proc.terminate()
@@ -264,10 +277,11 @@ def build(user, key, local=False, chat=None, **kwargs):
     (projets, fichiers, feuille de route, tâches, analyse) et terminaux. `chat` : options du
     moteur de chat (`claude`, `environ`), pour le banc d'essai."""
     from . import (bridge_admin, bridge_chat, bridge_data, bridge_files, bridge_git,
-                   bridge_machines, bridge_term, bridge_work)
+                   bridge_machines, bridge_root, bridge_term, bridge_work)
     b = Bridge(user, key, local=local, **kwargs)
     b.hubs = {"chat": bridge_chat.ChatHub(b, **(chat or {})), "data": bridge_data.DataApi(b),
               "term": bridge_term.TermHub(b), "work": bridge_work.WorkApi(b),
               "admin": bridge_admin.AdminApi(b), "git": bridge_git.GitApi(b),
-              "files": bridge_files.FileOps(b), "machines": bridge_machines.MachinesApi(b)}
+              "files": bridge_files.FileOps(b), "machines": bridge_machines.MachinesApi(b),
+              "root": bridge_root.RootApi(b)}
     return b

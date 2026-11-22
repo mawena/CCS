@@ -94,7 +94,12 @@ Tout le reste (y compris les anciens noms) est passé tel quel à `claude-accoun
 | `sauvegarde` (`backup`) | `[fichier]` | sauvegarde chiffrée (gpg) |
 | `restaurer` (`restore`) | `<fichier> [--oui]` | restauration |
 | `telephone` (`phone`) | `[essai]` (`test`) | état ntfy, lien, message d'essai |
+| `root` | `-- <commande…>`, `etat` (`état`, `status`), `oublier` (`forget`) | commande lancée par `sudo -k -A`, mot de passe demandé aux appareils (code de retour de la commande rendu) ; mot de passe gardé ou non et temps restant (jamais le mot de passe) ; effacement immédiat |
 | `--version` | — | version |
+
+`ccs-askpass` (`/usr/bin`) : `SUDO_ASKPASS` de CCS, appelé par sudo ; écrit le mot de passe donné
+par le gardien sur la sortie standard, ou rien avec un code non nul. Lance le pont local s'il le
+faut.
 
 *Internes*, acceptées mais absentes de l'aide et hors du gel : `daemon` (service `ccs-daemon`),
 `collect`, `notify <titre> [texte]`, `statusline`, `hook stop-failure`, `tray`,
@@ -216,6 +221,9 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `machines.configure` | `relay`, `token` | écrit `client.toml` |
 | `machines.limit` | `machine`, `limit` | places par machine (`distant.toml`) |
 | `machines.attach` | `machine` | *interne* : relaie la connexion vers le pont d'une autre machine (pousse `machines.ready`) |
+| `root.answer` | `id`, `password` (ou `cancel: true`) | réponse à `root.ask` : mot de passe vérifié par `sudo -k -S -v` puis gardé en mémoire 1 h → `ok`, `error` ; erreurs `introuvable` (demande inconnue ou réglée), `conflit` (autre appareil en cours de vérification), `invalide` |
+| `root.status` | — | `machine, kept, expires_at, remaining` (s), `pending` (dernier `root.ask` ou `null`) ; jamais le mot de passe |
+| `root.forget` | — | efface le mot de passe gardé et abandonne la demande en cours → `had` |
 
 ### 2.2 Événements
 
@@ -227,6 +235,16 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `term.output` / `term.exit` | `term_id, data` / `term_id, code` | pont |
 | `shell.done` | sortie et fin d'une commande `shell.run` | pont |
 | `machines.ready` | `machine, name` : résultat de `machines.attach` | pont (avant la réponse) |
+| `root.ask` | `id, machine, command, expires_at, tries_left`, `error` (après un mauvais mot de passe) | pont, à tous : `sudo` attend le mot de passe (une demande à la fois, 5 min, 3 essais) |
+| `root.resolved` | `id, ok` | pont, à tous : demande réglée, les autres fenêtres se ferment |
+| `root.used` | `machine, command, at` | pont, à tous : commande lancée avec le mot de passe gardé |
+| `root.forgotten` | `machine, reason` (`expired`, `forget`, `revoke`, `stop`) | pont, à tous : mot de passe effacé |
+
+Gardien du mot de passe root (`ccs_app/root_keeper.py`, `server/bridge_root.py`) : un seul pont
+par utilisateur le tient (socket `root.sock`, voir 4.3) ; un autre pont du même utilisateur relaie
+ses événements et ses méthodes `root.*`. Avis ntfy sans secret à chaque `root.ask` (commande
+montrée seulement avec `phone.show_content`) et à chaque `root.used`, avec un bouton « Révoquer »
+(`revoke <id> <jeton>` sur `phone.reply_topic`, jeton à usage unique).
 
 Types de `chat.event.event.type` (`ccs_app/server/events.py`) : `Init`, `Hello`, `Status`,
 `Compacting`, `LocalCommand`, `TextDelta`, `AssistantText`, `Thinking`, `ToolUse`,
@@ -357,6 +375,7 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `${XDG_CACHE_HOME:-~/.cache}/ccs/effacer/` | demandes `ccs chat effacer` |
 | `~/.cache/ccs-distant/` (machine distante) | copies des projets |
 | `${XDG_RUNTIME_DIR:-/tmp/ccs-UID}/ccs/bridge.sock` | pont local du bureau |
+| `${XDG_RUNTIME_DIR:-/run/user/UID ou /tmp/ccs-UID}/ccs/root.sock` | gardien du mot de passe root (dossier 0700, socket 0600, même uid seulement) ; le mot de passe n'est jamais écrit sur disque |
 | `/run/ccs/auth.sock`, `/run/ccs/bridge/<user>/{bridge.sock,key}` | serveur |
 | `/var/lib/ccs/{sessions.json, keys/<user>, totp/<user>}` | serveur |
 | Claude Code : `$CLAUDE/.credentials.json`, `~/.claude.json`, `$CLAUDE/settings.json`, `projects/`, `sessions/`, `file-history/` | lus ; écrits pour la bascule, l'intégration et les titres |
@@ -379,6 +398,8 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `HOME`, `PATH`, `SHELL`, `TZ`, `USER`, `PYTHONPATH`, `GNUPGHOME`, `NO_COLOR`, `GIT_SSH`, `GIT_SSH_COMMAND` | usage habituel |
 | `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_RUNTIME_DIR`, `XDG_CURRENT_DESKTOP` | dossiers et bureau |
 | `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING` | posée pour les chats |
+| `SUDO_ASKPASS` | posée pour les chats et par `ccs root` : chemin de `ccs-askpass` |
+| `CCS_ROOT_COMMAND` | posée par `ccs root` : commande montrée aux appareils (sinon lue sur la ligne de sudo) |
 
 ---
 

@@ -1,0 +1,21 @@
+.TH CCS-ASKPASS 1 "novembre 2026" "ccs" "Commandes utilisateur"
+.SH NOM
+ccs-askpass \- mot de passe de sudo fourni par le gardien de CCS
+.SH SYNOPSIS
+.B SUDO_ASKPASS=/usr/bin/ccs-askpass sudo \-A
+.I commande
+.SH DESCRIPTION
+Programme appelé par
+.BR sudo (8)
+comme \fBSUDO_ASKPASS\fR (option \fB\-A\fR). Il demande le mot de passe au gardien
+du pont CCS de l'utilisateur (socket \fI$XDG_RUNTIME_DIR/ccs/root.sock\fR) : le gardien
+le garde en mémoire une heure au plus, ou le demande aux appareils connectés (web,
+bureau, téléphone) et attend la réponse cinq minutes au plus. Le mot de passe est
+écrit sur la sortie standard ; en cas d'échec, rien n'est écrit et le code de sortie
+est non nul. Le pont local est lancé s'il ne tourne pas.
+.PP
+Les chats lancés par CCS reçoivent \fBSUDO_ASKPASS\fR ; à la main, utiliser
+\fBccs root \-\- \fIcommande\fR.
+.SH VOIR AUSSI
+.BR ccs (1),
+.BR sudo (8)

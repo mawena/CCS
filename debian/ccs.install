@@ -1,5 +1,6 @@
 bin/ccs usr/bin
 bin/claude-accounts usr/bin
+bin/ccs-askpass usr/bin
 ccs_app/*.py usr/lib/ccs/ccs_app
 ccs_app/server usr/lib/ccs/ccs_app
 ccs_app/remote usr/lib/ccs/ccs_app
