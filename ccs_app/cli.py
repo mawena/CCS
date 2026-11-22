@@ -991,7 +991,8 @@ def cmd_mise_a_jour(args):
 def cmd_chat(args):
     """Chats de CCS : `effacer` demande `/clear` à la fin du tour en cours (lancé par Claude)."""
     from . import chat_engine
-    token = os.environ.get(chat_engine.CLEAR_TOKEN_VAR, "")
+    token = (os.environ.get(chat_engine.CLEAR_TOKEN_VAR)
+             or os.environ.get(chat_engine.OLD_CLEAR_TOKEN_VAR, ""))
     if not token:
         print("Pas dans un chat de CCS (ou effacement automatique désactivé dans les réglages) : "
               "rien à effacer.", file=sys.stderr)

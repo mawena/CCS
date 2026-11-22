@@ -19,7 +19,7 @@ class StorageTest(HomeTestCase):
         a = pa.set(str(self.app), "pro")
         self.assertEqual(a, Association(str(self.app), "pro", True))
         self.assertEqual(pa.get(str(self.app)), a)
-        path = self.store / "projects.json"
+        path = self.store / "project-accounts.json"
         self.assertEqual(oct(path.stat().st_mode & 0o777), "0o600")
         self.assertEqual(json.loads(path.read_text()),
                          {"version": 1, "projects": {str(self.app): {"profile": "pro", "ask": True}}})
@@ -67,14 +67,14 @@ class StorageTest(HomeTestCase):
     def test_corrupted_or_foreign_file_tolerated_then_replaced(self):
         for content in ("{pas du json", "[1, 2]", json.dumps({"version": 99, "projects": {}})):
             with self.subTest(content=content):
-                write(self.store / "projects.json", content)
+                write(self.store / "project-accounts.json", content)
                 self.assertEqual(pa.all(), [])
                 self.assertIsNone(pa.get(str(self.app)))
         pa.set(str(self.app), "pro")
         self.assertEqual(pa.get(str(self.app)).profile, "pro")
 
     def test_unexpected_entries_skipped(self):
-        write(self.store / "projects.json", {"version": 1, "projects": {
+        write(self.store / "project-accounts.json", {"version": 1, "projects": {
             str(self.app): {"profile": "pro", "ask": "oui"},
             "relatif/dossier": {"profile": "pro"},
             "/x": {"profile": 3}, "/y": "pro", "/z": {"profile": "../etc"}}})

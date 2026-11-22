@@ -325,7 +325,7 @@ ICON_CACHE_VERSION = "v2"
 
 
 def icon_dir():
-    d = core.paths().home / ".cache" / "ccs" / f"icons-{ICON_CACHE_VERSION}"
+    d = core.ccs_dir("cache") / f"icons-{ICON_CACHE_VERSION}"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

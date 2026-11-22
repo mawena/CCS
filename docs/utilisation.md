@@ -437,7 +437,7 @@ avant le symbole de pause. Le raccourci clavier « Ne pas déranger 1 h »
 décrit dans [Raccourcis clavier globaux](#raccourcis-clavier-globaux).
 
 **Pendant le silence**, les notifications sont retenues et comptées
-(`~/.claude-accounts/quiet_held.json`). À la fin, **un seul résumé** « Fin du
+(`~/.claude-accounts/quiet-held.json`). À la fin, **un seul résumé** « Fin du
 silence » dit combien ont été retenues. Une alerte retenue n'est jamais renvoyée
 après coup : elle n'est que résumée. **Jamais retenues** : « attend ta réponse »
 et son rappel (si `allow_waiting`), les sessions bloquées par une limite, le
@@ -835,7 +835,7 @@ La carte d'un projet indique « Compte du projet : boulot · bascule proposée �
 l'ouverture » (mis en avant quand ce n'est pas le compte actif). CCS ne bascule
 jamais de lui-même pour un projet : seulement quand tu le confirmes, et
 seulement pour ce que tu ouvres depuis l'application. Les associations sont
-gardées dans `~/.claude-accounts/projects.json`.
+gardées dans `~/.claude-accounts/project-accounts.json`.
 
 ## Historique des conversations
 
@@ -1160,7 +1160,7 @@ chat, le tien ou celui de Claude, pour le retrouver plus tard.
   chat local restent sur ton PC, celles d'un chat du serveur sur le serveur.
 
 Les étiquettes ne sont pas envoyées à Claude. Elles sont rangées dans
-`~/.claude-accounts/etiquettes/<conversation>.json`, un fichier par conversation.
+`~/.claude-accounts/labels/<conversation>.json`, un fichier par conversation.
 Un message envoyé avant la version 0.17.0 de CCS (ou depuis le terminal de Claude Code) peut
 être étiqueté quand il est relu depuis le journal.
 

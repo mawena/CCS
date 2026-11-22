@@ -709,20 +709,23 @@ nginx vérifie l'identité auprès de Portier et transmet le nom dans l'en-tête
   "listen": "127.0.0.1:8420",
   "origin": "https://ccs.mawena.cloud",
   "portier": {
-    "actif": true,
-    "utilisateurs": ["charles-gamligo"],
+    "enabled": true,
+    "users": ["charles-gamligo"],
     "url": "https://portier.mawena.cloud",
-    "deconnexion": "https://portier.mawena.cloud/"
+    "logout": "https://portier.mawena.cloud/"
   }
 }
 ```
 
 | Clé | Rôle |
 |---|---|
-| `actif` | `true` pour activer (tout autre valeur : désactivé) |
-| `utilisateurs` | comptes Ubuntu acceptés par l'en-tête (ils doivent aussi être dans le groupe `ccs`, jamais `root`) |
+| `enabled` | `true` pour activer (tout autre valeur : désactivé) |
+| `users` | comptes Ubuntu acceptés par l'en-tête (ils doivent aussi être dans le groupe `ccs`, jamais `root`) |
 | `url` | adresse de Portier : bouton « Se connecter via Portier » sur la page de connexion, vers `<url>/connexion?retour=<adresse de CCS>` |
-| `deconnexion` | facultatif : où renvoie « Déconnexion » (par défaut `<url>/`) |
+| `logout` | facultatif : où renvoie « Déconnexion » (par défaut `<url>/`) |
+
+Les anciennes clés (`actif`, `utilisateurs`, `deconnexion`, avant la 1.0.0) sont encore lues
+pendant toute la 1.x.
 
 Puis `sudo systemctl restart ccs-auth ccs-web`. Une requête (HTTP ou WebSocket) est alors
 authentifiée sans la page de CCS **seulement si** elle arrive de nginx (`127.0.0.1` / `::1`) et
@@ -829,7 +832,7 @@ ccs distant journal <id>                          # fin du journal d'un travail
 ccs distant arreter <id>                          # arrêt (la commande distante s'arrête aussi)
 ```
 
-Le registre des travaux est dans `~/.cache/ccs/distant/travaux/` (les 30 derniers finis et ceux
+Le registre des travaux est dans `~/.cache/ccs/machines/jobs/` (les 30 derniers finis et ceux
 de moins de 24 h sont gardés).
 
 **Page « Machines ».** Dans le web (Réglages → « Gérer les machines », ou la feuille « Machine
@@ -846,13 +849,14 @@ jamais réaffiché). La page se recharge toutes les 5 s tant qu'elle est visible
   (droits 600) avec `relais = "https://…"` et `jeton = "…"` ;
 - chaque machine de calcul : `[tunnel]` avec `ports = [22]` dans `/etc/ricochet/agent.toml`, un
   serveur SSH, et la clé publique de cette machine dans son `~/.ssh/authorized_keys` ;
-- si l'utilisateur ou le port SSH diffèrent : `~/.config/ccs/distant.toml`
+- si l'utilisateur ou le port SSH diffèrent : `~/.config/ccs/machines.toml` (avant la 1.0.0 :
+  `distant.toml` avec `utilisateur` et `limite`, renommé et lu tout seul)
 
 ```toml
 [machines.pc-bureau]
-utilisateur = "charles"
+user = "charles"
 port = 22
-limite = 3        # travaux à la fois sur cette machine (1 à 8, 2 par défaut)
+limit = 3         # travaux à la fois sur cette machine (1 à 8, 2 par défaut)
 ```
 
 Ricochet ne fait que le tunnel : c'est le serveur SSH de la machine qui décide qui entre, et
@@ -1071,7 +1075,7 @@ fautive reprend sa valeur par défaut, le fichier n'est pas modifié, et
 Les deux interrupteurs du terminal intégré (**Réglages → Terminal intégré**, ou
 menu « ⋮ » de la page Terminaux) sont gardés dans
 `~/.claude-accounts/terminals.json`, les comptes par projet dans
-`~/.claude-accounts/projects.json`, les budgets dans
+`~/.claude-accounts/project-accounts.json`, les budgets dans
 `~/.claude-accounts/budgets.json`, les tâches dans `~/.claude-accounts/tasks.json`
 (leurs journaux dans `~/.claude-accounts/tasks/<id>.jsonl`), les copies de
 l'archive des conversations dans `~/.local/share/ccs/archive`, les raccourcis

@@ -10,3 +10,8 @@ import os
 os.environ.pop("WAYLAND_DISPLAY", None)
 if os.environ.get("CCS_GUI_TESTS") != "1":
     os.environ.pop("DISPLAY", None)
+
+# Les dossiers XDG suivent HOME, que chaque test remplace par un dossier temporaire : une
+# variable XDG_*_HOME héritée du bureau ferait lire ou écrire les vrais fichiers.
+for _var in ("XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME"):
+    os.environ.pop(_var, None)

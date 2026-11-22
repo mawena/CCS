@@ -35,22 +35,22 @@ class PortierFakeAuth(FakeAuth):
 
 class ParseTest(unittest.TestCase):
     def test_disabled_by_default(self):
-        self.assertFalse(portier.parse({})["actif"])
-        self.assertFalse(portier.load("/nulle/part.json")["actif"])
-        self.assertFalse(portier.parse({"portier": {"actif": "oui", "utilisateurs": ["a"]}})["actif"])
-        self.assertFalse(portier.parse({"portier": {"actif": True, "utilisateurs": []}})["actif"])
+        self.assertFalse(portier.parse({})["enabled"])
+        self.assertFalse(portier.load("/nulle/part.json")["enabled"])
+        self.assertFalse(portier.parse({"portier": {"actif": "oui", "utilisateurs": ["a"]}})["enabled"])
+        self.assertFalse(portier.parse({"portier": {"actif": True, "utilisateurs": []}})["enabled"])
 
     def test_logout_from_url_or_explicit(self):
-        self.assertEqual(CFG["deconnexion"], "https://portier.mawena.cloud/")
+        self.assertEqual(CFG["logout"], "https://portier.mawena.cloud/")
         cfg = portier.parse({"portier": {"actif": True, "utilisateurs": ["a"], "url": "https://p",
                                          "deconnexion": "https://p/sortie"}})
-        self.assertEqual(cfg["deconnexion"], "https://p/sortie")
+        self.assertEqual(cfg["logout"], "https://p/sortie")
 
     def test_load_from_web_json(self):
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
             json.dump({"listen": "127.0.0.1:8420", "portier": {"actif": True, "utilisateurs": ["charles"]}}, f)
         self.addCleanup(os.unlink, f.name)
-        self.assertEqual(portier.load(f.name)["utilisateurs"], ("charles",))
+        self.assertEqual(portier.load(f.name)["users"], ("charles",))
 
     def test_login_url_encodes_return(self):
         self.assertEqual(portier.login_url(CFG, ORIGIN),

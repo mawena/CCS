@@ -4,7 +4,7 @@ Contenu, déduit du code de CCS :
 
 - les profils du dossier de comptes (`core.paths().store`) : `oauth.json` (jetons
   compris) et `account.json` de chaque dossier qui en a un ;
-- les réglages (`settings.json`), les comptes par projet (`projects.json`) et les
+- les réglages (`settings.json`), les comptes par projet (`project-accounts.json`) et les
   budgets (`budgets.json`), s'ils existent ;
 - la configuration des raccourcis clavier (actions installées et leur combinaison,
   lues par `shortcuts.status`, car elle vit dans les réglages du bureau).
@@ -12,6 +12,11 @@ Contenu, déduit du code de CCS :
 Jamais : états passagers (`state.json`, `pause.json`, `quiet*.json`, `terminals.json`,
 `switch-origin.json`, `updates.json`, `limits/`), caches (`usage.json`,
 `conversations-*.json`), journaux (`history.db`), verrous, ni les conversations.
+
+Noms dans l'archive (format 2, 1.0.0) : `MANIFEST.json` {format, created, profiles, files,
+shortcuts}, `profiles/<nom>/{oauth,account}.json`, `settings/<fichier>`, `shortcuts.json`. Une
+sauvegarde au format 1 (noms français `profils/`, `reglages/`, `raccourcis.json`, `cree`, et
+`reglages/projects.json`) reste lisible pendant toute la 1.x (`_new_name`, à retirer en 2.0).
 
 L'archive est un tar construit en mémoire, chiffré par
 `gpg --symmetric --cipher-algo AES256` : la phrase de passe est saisie dans la fenêtre de
@@ -37,20 +42,27 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import core, project_accounts, settings, shortcuts
+from . import core, migrate, shortcuts
 
-FORMAT = 1
+FORMAT = 2
+READ_FORMATS = (1, 2)       # 1 : noms français d'avant la 1.0.0, à retirer en 2.0
 MANIFEST = "MANIFEST.json"
-SHORTCUTS = "raccourcis.json"
+SHORTCUTS = "shortcuts.json"
+PROFILES = "profiles/"
+SETTINGS = "settings/"
 PROFILE_FILES = ("oauth.json", "account.json")
 # Fichiers du dossier de comptes sauvegardés tels quels (noms relatifs au dossier).
-STORE_FILES = (settings.settings_path().name, project_accounts.path().name, "budgets.json")
+STORE_FILES = ("settings.json", "project-accounts.json", "budgets.json")
+# Format 1 → format 2 : préfixes et noms renommés (lus pendant toute la 1.x).
+_OLD_PREFIXES = {"profils/": PROFILES, "reglages/": SETTINGS}
+_OLD_STORE_FILES = {"project-accounts.json": "projects.json"}   # migrés avant lecture
+_OLD_NAMES = {"raccourcis.json": SHORTCUTS, "settings/projects.json": "settings/project-accounts.json"}
 SUFFIX = ".gpg"
 
 MAX_MEMBER = 4 * 1024 * 1024
 MAX_TOTAL = 32 * 1024 * 1024
 _NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
-_MEMBER_RE = re.compile(r"^profils/(?!\.{1,2}/)([A-Za-z0-9._-]+)/(oauth|account)\.json$")
+_MEMBER_RE = re.compile(r"^profiles/(?!\.{1,2}/)([A-Za-z0-9._-]+)/(oauth|account)\.json$")
 
 USAGE = (
     "usage : ccs sauvegarde [fichier]          sauvegarde chiffrée (gpg) des comptes et réglages\n"
@@ -156,11 +168,12 @@ def collect(backend=None):
             files = {f: _read(d / f) for f in PROFILE_FILES}
             if all(v is not None for v in files.values()):
                 for f, content in files.items():
-                    entries[f"profils/{d.name}/{f}"] = content
+                    entries[f"{PROFILES}{d.name}/{f}"] = content
         for name in STORE_FILES:
-            content = _read(store / name)
+            old = _OLD_STORE_FILES.get(name)
+            content = _read(migrate.store_file(name, old) if old else store / name)
             if content is not None:
-                entries[f"reglages/{name}"] = content
+                entries[f"{SETTINGS}{name}"] = content
     sc = _shortcuts_snapshot(backend)
     if sc:
         entries[SHORTCUTS] = json.dumps({"actions": sc}, indent=2, ensure_ascii=False).encode()
@@ -179,10 +192,10 @@ def _shortcuts_snapshot(backend):
 def _manifest(entries, now=None):
     return {
         "format": FORMAT,
-        "cree": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now)),
-        "profils": sorted({m.group(1) for n in entries if (m := _MEMBER_RE.match(n))}),
-        "fichiers": sorted(n for n in entries if n.startswith("reglages/")),
-        "raccourcis": SHORTCUTS in entries,
+        "created": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now)),
+        "profiles": sorted({m.group(1) for n in entries if (m := _MEMBER_RE.match(n))}),
+        "files": sorted(n for n in entries if n.startswith(SETTINGS)),
+        "shortcuts": SHORTCUTS in entries,
     }
 
 
@@ -207,7 +220,7 @@ def create(dest, now=None, backend=None):
     if not dest.parent.is_dir():
         raise BackupError(f"Le dossier « {dest.parent} » n'existe pas.")
     entries = collect(backend)
-    if not any(_MEMBER_RE.match(n) for n in entries) and not any(n.startswith("reglages/") for n in entries):
+    if not any(_MEMBER_RE.match(n) for n in entries) and not any(n.startswith(SETTINGS) for n in entries):
         raise BackupError("Rien à sauvegarder : aucun profil ni réglage.")
     manifest = _manifest(entries, now)
     _encrypt(_tar(entries, manifest, now), dest)
@@ -235,9 +248,9 @@ def _contents(entries, manifest):
         except (ValueError, AttributeError):
             sc = {}
     return Contents(
-        created=str(manifest.get("cree", "")),
+        created=str(manifest.get("created", manifest.get("cree", ""))),
         profiles=sorted({m.group(1) for n in entries if (m := _MEMBER_RE.match(n))}),
-        files=sorted(n.split("/", 1)[1] for n in entries if n.startswith("reglages/")),
+        files=sorted(n.split("/", 1)[1] for n in entries if n.startswith(SETTINGS)),
         shortcuts=sc,
     )
 
@@ -251,7 +264,16 @@ def _clean_shortcuts(actions):
 
 def _valid_member(name):
     return (name in (MANIFEST, SHORTCUTS) or bool(_MEMBER_RE.match(name))
-            or (name.startswith("reglages/") and name[len("reglages/"):] in STORE_FILES))
+            or (name.startswith(SETTINGS) and name[len(SETTINGS):] in STORE_FILES))
+
+
+def _new_name(name):
+    """Nom d'un élément d'une sauvegarde au format 1 dans le format actuel (à retirer en 2.0)."""
+    for old, new in _OLD_PREFIXES.items():
+        if name.startswith(old):
+            name = new + name[len(old):]
+            break
+    return _OLD_NAMES.get(name, name)
 
 
 def _parse(data):
@@ -261,19 +283,20 @@ def _parse(data):
     try:
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as tar:
             for m in tar:
-                if not m.isfile() or not _valid_member(m.name):
+                name = _new_name(m.name)
+                if not m.isfile() or not _valid_member(name):
                     raise BackupError(f"Sauvegarde invalide : élément inattendu « {m.name[:80]} ».")
                 total += m.size
                 if m.size > MAX_MEMBER or total > MAX_TOTAL:
                     raise BackupError("Sauvegarde invalide : contenu trop gros.")
-                entries[m.name] = tar.extractfile(m).read()
+                entries[name] = tar.extractfile(m).read()
     except tarfile.TarError as e:
         raise BackupError("Sauvegarde illisible : l'archive est abîmée.") from e
     try:
         manifest = json.loads(entries.pop(MANIFEST))
     except (KeyError, ValueError):
         raise BackupError("Ce fichier n'est pas une sauvegarde de CCS (manifeste absent).") from None
-    if not isinstance(manifest, dict) or manifest.get("format") != FORMAT:
+    if not isinstance(manifest, dict) or manifest.get("format") not in READ_FORMATS:
         raise BackupError("Sauvegarde d'un format inconnu : mets CCS à jour.")
     for name, content in entries.items():
         if name != SHORTCUTS:
@@ -284,7 +307,7 @@ def _parse(data):
             if not ok:
                 raise BackupError(f"Sauvegarde invalide : « {name} » n'est pas un JSON valide.")
     for name in {m.group(1) for n in entries if (m := _MEMBER_RE.match(n))}:
-        if not all(f"profils/{name}/{f}" in entries for f in PROFILE_FILES):
+        if not all(f"{PROFILES}{name}/{f}" in entries for f in PROFILE_FILES):
             raise BackupError(f"Sauvegarde invalide : profil « {name} » incomplet.")
     return manifest, entries
 
@@ -311,7 +334,7 @@ class Backup:
         for name, content in sorted(self._entries.items()):
             if m := _MEMBER_RE.match(name):
                 yield f"profil {m.group(1)}", m.group(1), store / m.group(1) / f"{m.group(2)}.json", content
-            elif name.startswith("reglages/"):
+            elif name.startswith(SETTINGS):
                 f = name.split("/", 1)[1]
                 yield f, f, store / f, content
 

@@ -110,7 +110,7 @@ class PrefsPageTest(HomeTestCase):
         page = self.page()
         row = self.rows(page)["Thème"]
         row.set_selected(2)                       # Sombre
-        self.assertEqual(self.saved()["appearance"]["color_scheme"], "sombre")
+        self.assertEqual(self.saved()["appearance"]["color_scheme"], "dark")
         self.assertEqual(Adw.StyleManager.get_default().get_color_scheme(), Adw.ColorScheme.FORCE_DARK)
         row.set_selected(0)
         self.assertEqual(self.saved()["appearance"]["color_scheme"], "auto")
