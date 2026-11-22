@@ -691,6 +691,7 @@ class PrefsPage(Adw.PreferencesPage):
         chat.setdefault("idle_suspend_min", 30)
         chat.setdefault("rights", "manual")
         chat.setdefault("auto_clear", True)
+        chat.setdefault("read_aloud", False)
         files.setdefault("show_ignored", False)
         files.setdefault("layout", "B")
         g = Adw.PreferencesGroup(
@@ -709,6 +710,9 @@ class PrefsPage(Adw.PreferencesPage):
         g.add(self.switch_row("Effacement automatique en fin de sujet",
                               "Claude vide la conversation (/clear) quand un sujet est fini ; "
                               "s'applique aux chats lancés ensuite", "chat", "auto_clear"))
+        g.add(self.switch_row("Lire les réponses à voix haute",
+                              "À la fin de chaque tour, par la voix du système (speech-dispatcher). "
+                              "La dictée (bouton micro) demande faster-whisper", "chat", "read_aloud"))
         g.add(self.switch_row("Afficher les fichiers ignorés par git",
                               "Dans l'arbre des fichiers de l'espace de session", "files", "show_ignored"))
         g.add(self.combo_row("Disposition par défaut", "A : fichier au centre. B : chat au centre",

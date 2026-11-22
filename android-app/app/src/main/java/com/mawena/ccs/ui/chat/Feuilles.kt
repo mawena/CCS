@@ -16,8 +16,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.Reply
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,15 +50,15 @@ import com.mawena.ccs.logique.EntreeEtiquettes
 import com.mawena.ccs.logique.Etiquettes
 import com.mawena.ccs.logique.Format
 
-/** Auteur, texte d'origine et identifiant d'un message du fil (actions « Répondre », « Étiqueter »). */
-data class MessageChoisi(val auteur: Citation.Auteur, val brut: String, val msgId: String) {
+/** Auteur, texte d'origine et identifiant d'un message du fil (actions « Répondre », « Étiqueter », « Lire »). */
+data class MessageChoisi(val auteur: Citation.Auteur, val brut: String, val msgId: String, val cle: String = "") {
     /** Texte cité ou étiqueté : pour un message qui citait, sa réponse. */
     val texte: String get() = if (auteur == Citation.Auteur.Moi) Citation.texteSource(brut) else brut
 
     companion object {
         fun de(e: ElementFil): MessageChoisi? = when (e) {
             is ElementFil.MsgToi -> MessageChoisi(Citation.Auteur.Moi, e.texte, e.msgId)
-            is ElementFil.MsgClaude -> MessageChoisi(Citation.Auteur.Claude, e.texte, e.msgId)
+            is ElementFil.MsgClaude -> MessageChoisi(Citation.Auteur.Claude, e.texte, e.msgId, e.cle)
             else -> null
         }
     }
@@ -70,6 +72,8 @@ fun MenuMessage(
     repondre: () -> Unit,
     passage: () -> Unit,
     etiqueter: () -> Unit,
+    lire: (() -> Unit)? = null,
+    enLecture: Boolean = false,
 ) {
     val presse = LocalClipboardManager.current
     ModalBottomSheet(onDismissRequest = fermer) {
@@ -90,6 +94,10 @@ fun MenuMessage(
             Ligne("Citer un passage…", Icons.Filled.FormatQuote) { passage() }
             Ligne("Copier", Icons.Filled.ContentCopy) { presse.setText(AnnotatedString(m.texte)); fermer() }
             Ligne("Étiqueter", Icons.AutoMirrored.Filled.Label) { etiqueter() }
+            if (lire != null) {
+                if (enLecture) Ligne("Arrêter la lecture", Icons.Filled.Stop) { lire() }
+                else Ligne("Lire à voix haute", Icons.AutoMirrored.Filled.VolumeUp) { lire() }
+            }
         }
     }
 }

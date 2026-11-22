@@ -22,6 +22,11 @@
 /* ---- saisie ---- */
 .composer { position: relative; }
 .composer-row .icon { min-width: 44px; padding: 0 8px; }
+.composer-row .mic svg { width: 20px; height: 20px; vertical-align: middle; }
+.composer-row .mic.on { color: #e01b24; animation: mic-pulse 1.2s ease-in-out infinite; }
+@keyframes mic-pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .composer-row .mic.on { animation: none; } }
+.msg-act.on { color: var(--accent, inherit); background: var(--soft); }
 .composer-foot .stop { flex: none; margin-left: 4px; }
 .composer-foot { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 .composer-foot .opt { gap: 8px; min-width: 0; max-width: 100%; }

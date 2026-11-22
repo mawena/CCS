@@ -5,8 +5,8 @@ options:
     iOS: "17.0"
 settings:
   base:
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "38"
+    MARKETING_VERSION: "1.1.0"
+    CURRENT_PROJECT_VERSION: "39"
     SWIFT_VERSION: "5.9"
 packages:
   # émulateur de terminal (VT100/xterm) du terminal intégré
@@ -27,6 +27,9 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         ITSAppUsesNonExemptEncryption: false
+        # dictée dans la saisie du chat (micro + reconnaissance vocale fr-FR)
+        NSMicrophoneUsageDescription: "CCS utilise le micro pour dicter tes messages à Claude."
+        NSSpeechRecognitionUsageDescription: "CCS transcrit ta voix en texte dans la saisie du chat ; rien n'est envoyé sans que tu touches « Envoyer »."
         # « Ouvrir dans CCS » depuis la feuille de partage d'iOS (fichiers de tout type)
         LSSupportsOpeningDocumentsInPlace: false
         CFBundleDocumentTypes:

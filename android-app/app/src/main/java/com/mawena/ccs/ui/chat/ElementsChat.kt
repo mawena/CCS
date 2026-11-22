@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
@@ -48,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
@@ -74,6 +76,8 @@ import com.mawena.ccs.logique.Outils
 import com.mawena.ccs.logique.StatutAgent
 import com.mawena.ccs.ui.Avertissement
 import com.mawena.ccs.ui.Reussite
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /** Ce que le fil peut demander à l'écran. Créé une fois : les éléments inchangés ne se redessinent pas. */
 @Stable
@@ -87,6 +91,9 @@ class ActionsFil(
     val compacter: () -> Unit,
     val voirEtiquette: (String) -> Unit,
     val nouvelleSession: () -> Unit = {},
+    /** Clé de la réponse lue à voix haute (null : aucune), et de quoi couper la lecture. */
+    val lu: StateFlow<String?> = MutableStateFlow(null),
+    val arreterLecture: () -> Unit = {},
 )
 
 /** Une ligne du fil. `etiquettes` : celles du message montré (s'il en a). */
@@ -186,6 +193,13 @@ private fun MessageClaude(e: ElementFil.MsgClaude, etiquettes: List<String>?, su
             modifier = Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = { actions.menuMessage(e) }),
         ) {
             MarkdownVue(e.texte, Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+        }
+        val lu by actions.lu.collectAsState()
+        if (lu == e.cle) {
+            TextButton(onClick = actions.arreterLecture) {
+                Icon(Icons.AutoMirrored.Filled.VolumeUp, null, Modifier.size(16.dp))
+                Text(" Lecture en cours · Arrêter", style = MaterialTheme.typography.labelMedium)
+            }
         }
         Pastilles(etiquettes, actions, fin = false)
     }

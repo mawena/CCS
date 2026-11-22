@@ -16,6 +16,7 @@ import { FindBar } from "./chat-search.js";
 import { FilesPanel } from "./files.js";
 import { GitPanel } from "./git.js";
 import { RoadmapPanel } from "./roadmap.js";
+import { autoRead, canDictate, canSpeak, dictate, dictationError, speak, speakingKey, stopSpeaking, unlockSpeech } from "./voice.js";
 
 const RIGHTS = [["manual", "Demander"], ["acceptEdits", "Modifications acceptées"], ["plan", "Plan"],
   ["bypassPermissions", "Tout autoriser"]];
@@ -53,6 +54,8 @@ function readImage(file) {
   });
 }
 
+const MIC_ICON = [["rect", { x: 9, y: 2, width: 6, height: 12, rx: 3 }], ["path", { d: "M19 10v1a7 7 0 0 1-14 0v-1" }], ["path", { d: "M12 18v4" }]];
+const SPEAK_ICON = [["path", { d: "M11 5 6 9H2v6h4l5 4z" }], ["path", { d: "M15.5 8.5a5 5 0 0 1 0 7" }], ["path", { d: "M19 5a10 10 0 0 1 0 14" }]];
 const DOWN_ICON = [["path", { d: "M12 5v14" }], ["path", { d: "m6 13 6 6 6-6" }]];
 
 export class ChatView {
@@ -88,6 +91,11 @@ export class ChatView {
     this.quoteKey = `ccs-quote:${cwd}|${chatId}`;
     this.msgActions = [{ key: "reply", label: "Répondre", icon: REPLY_ICON, run: (msg) => this.replyTo(msg) },
       { key: "tag", label: "Étiqueter", icon: TAG_ICON, run: (msg) => this.tagMessage(msg) }];
+    // Réponses de Claude : « Lire » en plus (synthèse vocale du système), si le navigateur la connaît.
+    this.replyActions = canSpeak() ? [...this.msgActions, { key: "speak", label: "Lire", icon: SPEAK_ICON, run: (msg) => this.readAloud(msg) }]
+      : this.msgActions;
+    this.wasBusy = false;        // un tour de Claude est en cours : sa dernière réponse sera lue à la fin
+    this.lastReply = null;
     this.tagMap = {};            // identifiant d'un message → { tags, role, excerpt, ts } (conversation en cours)
     this.knownTags = [];         // étiquettes déjà utilisées (suggestions)
     this.tagsSession = null;     // conversation dont les étiquettes sont chargées
@@ -137,9 +145,11 @@ export class ChatView {
     const saved = el("button", { class: "flat icon", type: "button", "aria-label": "Messages enregistrés", title: "Messages enregistrés",
       onclick: () => openSavedSheet({ api: this.api, cwd: this.cwd, currentText: () => this.input.value,
         onInsert: (t) => this.insert(t) }) }, "★");
+    this.micBtn = canDictate() ? el("button", { class: "flat icon mic", type: "button", "aria-label": "Dicter", title: "Dicter",
+      "aria-pressed": "false", onclick: () => this.toggleDictation() }, icon(MIC_ICON)) : null;
     this.form = el("form", { class: "composer" },
       this.working, this.todos, this.thumbs, this.quoteBar,
-      el("div", { class: "composer-row" }, attach, saved, this.input, send, this.fileInput),
+      el("div", { class: "composer-row" }, attach, saved, this.input, this.micBtn, send, this.fileInput),
       this.bar,
       el("div", { class: "composer-foot" }, this.optBtn, this.context, this.stopBtn));
     this.form.addEventListener("submit", (e) => { e.preventDefault(); this.send(); });
@@ -210,7 +220,7 @@ export class ChatView {
 
   setTitle(title) { const n = this.node.querySelector(".chat-title .title"); if (n) n.textContent = title; }
 
-  destroy() { this.dead = true; clearTimeout(this.ctxTimer); for (const off of this.offs) off(); for (const { panel } of this.panels.values()) panel.destroy?.(); this.node.remove(); }
+  destroy() { this.dead = true; this.dropDictation?.(); if (this.speaking()) stopSpeaking(); clearTimeout(this.ctxTimer); for (const off of this.offs) off(); for (const { panel } of this.panels.values()) panel.destroy?.(); this.node.remove(); }
 
   // ---- saisie -----------------------------------------------------------------------------
 
@@ -437,6 +447,8 @@ export class ChatView {
       if (choice !== "send") return;
       this.cacheExpired = null;
     }
+    this.dropDictation?.();                    // ce qui arriverait encore de la dictée n'écrase pas l'envoi
+    if (autoRead()) unlockSpeech();              // geste de l'utilisateur : la réponse pourra être lue
     this.sending = true;
     try {
       const images = [...this.images];
@@ -879,10 +891,11 @@ export class ChatView {
   assistant(msgId, text, final) {
     let entry = this.texts.get(msgId);
     if (!entry) {
-      entry = { node: this.append(this.paintTags(claudeNode(this.msgActions, msgId))), text: "", timer: null };
+      entry = { node: this.append(this.paintTags(claudeNode(this.replyActions, msgId))), text: "", timer: null };
       this.texts.set(msgId, entry);
     }
     entry.text = entry.node.raw = text;
+    if (this.wasBusy) this.lastReply = entry.node;
     clearTimeout(entry.timer);
     if (final) this.render(entry.node.content, text);
     else entry.timer = setTimeout(() => this.render(entry.node.content, entry.text), 250);
@@ -1044,6 +1057,50 @@ export class ChatView {
     this.node.classList.toggle("busy", state === "busy");
     this.working.hidden = !["busy", "starting"].includes(state);
     this.working.lastChild.textContent = state === "starting" ? "Démarrage…" : "Claude travaille…";
+    if (state === "busy" || state === "starting") { if (!this.wasBusy) this.lastReply = null; this.wasBusy = true; }
+    else if (state === "idle" || state === "stopped") {
+      const reply = this.wasBusy ? this.lastReply : null;
+      this.wasBusy = false;
+      this.lastReply = null;
+      // fin d'un tour suivi en direct : sa dernière réponse est lue si le réglage le demande
+      if (reply?.raw && autoRead() && !document.hidden && this.node.isConnected && this.node.offsetParent) this.readAloud(reply);
+    }
+  }
+
+  // ── Vocal ──────────────────────────────────────────────────────────────────────────────
+  speaking() { const k = speakingKey(); return Boolean(k && k.chat === this); }
+
+  readAloud(msg) {
+    const was = speakingKey();
+    if (was?.node === msg) { stopSpeaking(); return; }          // second appui : arrêter
+    const btn = msg.querySelector('.msg-act[data-act="speak"]');
+    const mark = (on) => { if (btn) { btn.classList.toggle("on", on); btn.title = btn.dataset.label = on ? "Arrêter" : "Lire"; } };
+    if (!speak(msg.raw, { key: { chat: this, node: msg }, onEnd: () => mark(false) })) return;
+    mark(true);
+  }
+
+  toggleDictation() {
+    if (this.stopDictation) { this.stopDictation(); return; }
+    const before = this.input.value.replace(/\s+$/, "");
+    const sep = before ? (/\n$/.test(this.input.value) ? "" : " ") : "";
+    this.micBtn.classList.add("on");
+    this.micBtn.setAttribute("aria-pressed", "true");
+    this.micBtn.title = "Arrêter la dictée";
+    let live = true;
+    const stop = dictate({
+      onText: (t) => { if (!live) return; this.input.value = before + (t ? sep + t : ""); this.grow(); this.edited(); },
+      onEnd: (err) => {
+        if (this.stopDictation === stop) this.stopDictation = this.dropDictation = null;
+        this.micBtn.classList.remove("on");
+        this.micBtn.setAttribute("aria-pressed", "false");
+        this.micBtn.title = "Dicter";
+        this.saveDraft();
+        if (err) toast(dictationError(err), { kind: "error" });
+        else this.input.focus({ preventScroll: true });
+      },
+    });
+    this.stopDictation = stop;
+    this.dropDictation = () => { live = false; stop(); };
   }
 
   permissionCard(ev) {
@@ -1178,7 +1235,7 @@ export class ChatView {
 
   historyNode(m) {
     if (m.role === "user") return this.paintTags(userNode(m.text, 0, this.msgActions, this.renderQuote, m.uuid || ""));
-    if (m.role === "assistant") { const n = this.paintTags(claudeNode(this.msgActions, m.msg_id || "")); n.raw = m.text; this.render(n.content, m.text); return n; }
+    if (m.role === "assistant") { const n = this.paintTags(claudeNode(this.replyActions, m.msg_id || "")); n.raw = m.text; this.render(n.content, m.text); return n; }
     if (m.role === "tool" && m.tool) {
       return el("details", { class: `tool done${m.tool.is_error ? " error" : ""}` },
         el("summary", {}, el("strong", {}, TOOL_LABELS[m.tool.name] || m.tool.name), " ", el("span", { class: "subtle" }, m.tool.target)),

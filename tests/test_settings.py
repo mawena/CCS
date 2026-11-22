@@ -75,11 +75,11 @@ class SettingsTest(HomeTestCase):
 class Phase12SettingsTest(HomeTestCase):
     def test_chat_defaults_and_bounds(self):
         s = settings.load_settings()
-        self.assertEqual(s["chat"], {"idle_suspend_min": 30, "rights": "manual", "auto_clear": True})
+        self.assertEqual(s["chat"], {"idle_suspend_min": 30, "rights": "manual", "auto_clear": True, "read_aloud": False})
         self.assertEqual(s["files"], {"layout": "B", "show_ignored": False})
         self.assertEqual(s["appearance"], {"color_scheme": "auto", "account_colors": {}})
         write(self.store / "settings.json", {"chat": {"idle_suspend_min": 2000, "rights": "plan"}})
-        self.assertEqual(settings.load_settings()["chat"], {"idle_suspend_min": 30, "rights": "plan", "auto_clear": True})
+        self.assertEqual(settings.load_settings()["chat"], {"idle_suspend_min": 30, "rights": "plan", "auto_clear": True, "read_aloud": False})
         self.assertIn("chat.idle_suspend_min", settings.problems())
         write(self.store / "settings.json", {"chat": {"idle_suspend_min": 0}})
         self.assertEqual(settings.load_settings()["chat"]["idle_suspend_min"], 0)  # 0 = jamais

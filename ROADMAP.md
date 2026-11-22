@@ -643,6 +643,23 @@ archive de l'ancien dépôt) vient après.
 - [x] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [x] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
+## Phase 35 — Vocal : dictée et lecture des réponses (1.1.0)
+
+Charles (22/11/2026) : chatter à la voix sur toutes les plateformes. Choix : **dictée** (bouton
+micro dans la saisie, le texte s'écrit, on relit puis on envoie) et **lecture à voix haute** des
+réponses de Claude (bouton « Lire » sur chaque réponse, et un réglage « Lire les réponses » qui
+lit automatiquement chaque nouvelle réponse terminée). Voix du système, en français.
+Moteurs : web = Web Speech API (bouton caché si le navigateur ne la connaît pas) ; Android =
+`RecognizerIntent` et `TextToSpeech` ; iPhone = `SFSpeechRecognizer` et `AVSpeechSynthesizer` ;
+bureau Linux = Whisper local (`faster-whisper`, facultatif : bouton caché s'il manque) pour la
+dictée et `spd-say` (speech-dispatcher) pour la lecture.
+
+- [ ] 1. Web : micro dans la saisie, « Lire » sur les réponses, réglage de lecture automatique
+- [ ] 2. Bureau (GTK) : dictée par Whisper local (enregistrement GStreamer), lecture par speech-dispatcher
+- [ ] 3. Android : micro dans la saisie, lecture des réponses, réglage
+- [ ] 4. iPhone : micro dans la saisie, lecture des réponses, réglage (permissions micro et reconnaissance)
+- [ ] 5. Tests, README, CHANGELOG ; release mineure 1.1.0 (APK et IPA sur Codemagic, installés sur le Pixel et l'iPhone)
+
 ## Phase 34 — Mot de passe root depuis les appareils (avant la 1.0.0)
 
 Charles (22/11/2026) : ne plus être bloqué par les commandes root. Quand Claude a besoin de `sudo`,

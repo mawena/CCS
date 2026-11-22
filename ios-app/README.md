@@ -13,6 +13,9 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
 - **Chat** : fil en direct (markdown, code, outils, diffs, sous-agents), autorisations et
   questions, pièces jointes, citation, options, `/clear`, étiquettes, recherche, coût ;
   changements de la session, feuille de route, messages enregistrés.
+- **Vocal** : bouton micro de la saisie (dictée fr-FR, résultats en direct, arrêt après ~2 s de
+  silence ; le texte s'ajoute sans être envoyé) ; « Lire » dans le menu d'une réponse de Claude
+  (voix française, markdown retiré) ; réglage « Lire les réponses à voix haute » (Réglages → Voix).
 - **Fichiers** et **Git** : navigation, lecture colorée, édition, envoi et téléchargement ;
   état, diff, indexation par morceau, commit, journal, pull/push.
 - **Terminal** (Plus → Terminaux, bouton du projet, menu du chat) : émulateur SwiftTerm

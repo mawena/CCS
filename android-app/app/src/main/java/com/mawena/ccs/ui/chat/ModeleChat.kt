@@ -19,6 +19,7 @@ import com.mawena.ccs.logique.LigneFil
 import com.mawena.ccs.logique.ModeleIa
 import com.mawena.ccs.logique.NiveauContexte
 import com.mawena.ccs.logique.Tache
+import com.mawena.ccs.logique.Vocal
 import com.mawena.ccs.logique.VueAgent
 import com.mawena.ccs.reseau.ChatOuvert
 import com.mawena.ccs.reseau.CodecRpc
@@ -157,6 +158,12 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
     private val _messages = MutableSharedFlow<Message>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val messages: SharedFlow<Message> = _messages.asSharedFlow()
 
+    /** Lecture à voix haute des réponses (« Lire », et chaque fin de tour si le réglage est actif). */
+    val lecteur = Lecteur(depot.appli) { dire(it) }
+
+    /** Chat affiché (écran au premier plan) : la lecture automatique ne parle que dans ce cas. */
+    @Volatile var aLEcran = false
+
     private val shells = HashMap<String, String>()          // run_id → clé de la carte
     private val shellsTot = HashMap<String, JsonObject>()   // fins arrivées avant la réponse du pont
     private val notesShell = ArrayList<String>()
@@ -215,6 +222,7 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
 
     override fun onCleared() {
         mort = true
+        lecteur.fermer()
         sauverBrouillon()
     }
 
@@ -328,11 +336,12 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
     // ---- événements --------------------------------------------------------------------------
 
     private fun recevoir(d: JsonObject) {
-        traiter(d)
+        traiter(d, direct = true)
         publier()
     }
 
-    private fun traiter(item: JsonObject) {
+    /** `direct` : événement reçu en direct (pas rejoué par un rattachement ou l'historique). */
+    private fun traiter(item: JsonObject, direct: Boolean = false) {
         val ev = (item["event"] as? JsonObject)?.let(EvChat::lire) ?: return
         val numero = (item["seq"] as? JsonPrimitive)?.longOrNull ?: 0L
         val effets = fil.recevoir(numero, ev)
@@ -347,7 +356,10 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
                 if (fil.commandes.isNotEmpty()) _commandes.value = fil.commandes
             }
             Effet.DemanderContexte -> demanderContexte()
-            Effet.TourFini -> lireCout()
+            Effet.TourFini -> {
+                lireCout()
+                if (direct && ev is EvChat.Tour && ev.ok && !ev.interrompu) lireFinDeTour()
+            }
             Effet.MesureContexte -> fil.contexte?.let { verifierContexte(it) }
             Effet.AutorisationArrivee -> agentVu = null       // la demande est dans le fil : on y revient
         }
@@ -488,6 +500,19 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
     fun joindre(p: PieceJointe) { if (_images.value.size < MAX_IMAGES) _images.value = _images.value + p }
     fun retirerImage(p: PieceJointe) { _images.value = _images.value - p }
     fun dire(texte: String) { _messages.tryEmit(Message(texte)) }
+
+    // ---- vocal -----------------------------------------------------------------------------------
+
+    /** « Lire » sur une réponse : la lit, ou arrête si elle est déjà en cours de lecture. */
+    fun basculerLecture(cle: String, texte: String) = lecteur.basculer(cle, texte)
+
+    fun arreterLecture() = lecteur.arreter()
+
+    /** Fin de tour : lit la dernière réponse si le réglage « Lire les réponses » est actif et le chat affiché. */
+    private fun lireFinDeTour() {
+        if (!aLEcran || !depot.reglages.lireReponses) return
+        Vocal.derniereReponse(fil.fil.elements)?.let { lecteur.lire(it.cle, it.texte) }
+    }
 
     private var commandesJob: Job? = null
     private fun chargerCommandes() {

@@ -136,6 +136,7 @@ fun EcranReglages(modele: ModeleAppli, retour: () -> Unit) {
                 }
             }
             item { GroupeNotifications(modele, reglages) }
+            item { GroupeVocal(modele) }
             item {
                 Groupe("Connexion") {
                     val i = identifiants
@@ -348,6 +349,27 @@ private fun GroupeNotifications(modele: ModeleAppli, r: JsonObject?) {
             color = if (ntfy) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         TextButton(onClick = { com.mawena.ccs.ui.ouvrirReglagesNotifications(ctx) }) { Text("Réglages des notifications d'Android") }
+    }
+}
+
+/** Vocal (propre à ce téléphone) : lecture automatique des réponses de Claude. */
+@Composable
+private fun GroupeVocal(modele: ModeleAppli) {
+    val actif by modele.lireReponses.collectAsStateWithLifecycle()
+    Groupe(
+        "Vocal",
+        "Propre à ce téléphone. Micro de la saisie : dictée par la reconnaissance vocale du téléphone (le texte " +
+            "s'ajoute, tu relis puis tu envoies). Appui long sur une réponse de Claude : « Lire à voix haute ».",
+    ) {
+        Row(Modifier.fillMaxWidth().clickable { modele.changerLireReponses(!actif) }, verticalAlignment = Alignment.CenterVertically) {
+            Text("Lire les réponses à voix haute", Modifier.weight(1f))
+            Switch(actif, { modele.changerLireReponses(it) })
+        }
+        Text(
+            "Chaque réponse terminée du chat affiché est lue, avec la voix française du téléphone (réglages " +
+                "d'Android, Synthèse vocale).",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

@@ -6,6 +6,7 @@ import { clear, confirmSheet, el, toast } from "./dom.js";
 import { canInstall, install, installSteps, installed } from "./install.js";
 import { phoneGroup } from "./pages-phone.js";
 import { settingRow } from "./pages-util.js";
+import { autoRead, canDictate, canSpeak, setAutoRead, speak } from "./voice.js";
 
 const THEME_KEY = "ccs-theme";
 const THEMES = [["auto", "Automatique"], ["light", "Clair"], ["dark", "Sombre"]];
@@ -103,6 +104,26 @@ function themeGroup() {
   return group;
 }
 
+// « Voix » : lecture automatique des réponses (gardée dans ce navigateur) et ce que le navigateur sait faire.
+function voiceGroup() {
+  const group = el("section", { class: "card flat settings-group" }, el("h2", {}, "Voix"));
+  const notes = [];
+  if (!canDictate()) notes.push("Ce navigateur ne sait pas dicter : pas de bouton micro (Chrome, Edge ou Safari le savent).");
+  if (!canSpeak()) notes.push("Ce navigateur ne sait pas lire à voix haute.");
+  else {
+    const box = el("input", { type: "checkbox", checked: autoRead(), onchange: () => {
+      setAutoRead(box.checked);
+      if (box.checked) speak("Les réponses seront lues à voix haute.");
+      toast("Enregistré.", { kind: "success" });
+    } });
+    group.append(el("label", { class: "check" }, box, "Lire les réponses à voix haute"),
+      el("p", { class: "subtle" }, "Chaque réponse de Claude est lue à la fin de son tour, dans le chat ouvert. « Lire » sur une réponse la lit à la demande."));
+  }
+  if (canDictate()) notes.push("Dictée : bouton micro à côté de « Envoyer » ; le texte s'écrit dans la saisie, tu relis puis tu envoies.");
+  for (const n of notes) group.append(el("p", { class: "subtle" }, n));
+  return group;
+}
+
 // « Application » : installer CCS sur l'écran d'accueil (comme Outlook), ou rappeler qu'il l'est.
 function installGroup() {
   const group = el("section", { class: "card flat settings-group" }, el("h2", {}, "Application"));
@@ -129,7 +150,7 @@ export function mountSettings(root, api) {
   const wrap = el("div", { class: "settings-wrap" });
   const forms = el("div", { class: "settings-wrap" });
   const devices = el("section", { class: "card flat" });
-  wrap.append(themeGroup(), installGroup(), machinesGroup(), forms, devices);
+  wrap.append(themeGroup(), voiceGroup(), installGroup(), machinesGroup(), forms, devices);
   root.append(wrap);
 
   async function loadSettings() {

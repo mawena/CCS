@@ -518,6 +518,25 @@ session, compte du projet), échecs, limites atteintes sans bascule et
 démarrages de fenêtre. Filtre 7 jours, 30 jours ou tout ; aussi « Journal des
 bascules » dans le menu de l'icône.
 
+## Vocal : dicter et écouter les réponses
+
+Sur toutes les interfaces, un **micro** dans la saisie dicte le message : le texte
+s'écrit dans la saisie, tu relis puis tu envoies. **« Lire »** sur une réponse de
+Claude la lit à voix haute (sans le code ni les adresses) ; un second appui arrête.
+Le réglage **« Lire les réponses à voix haute »** lit chaque réponse à la fin du
+tour de Claude.
+
+| Interface | Dictée | Lecture | Réglage |
+|---|---|---|---|
+| Web | reconnaissance du navigateur (Chrome, Edge, Safari ; pas Firefox) | voix du système | Réglages → Voix (gardé dans le navigateur) |
+| Bureau | Whisper en local (`pip install --user faster-whisper` ; modèle `small` téléchargé à la première dictée, `CCS_WHISPER_MODEL` pour en changer) | speech-dispatcher (`spd-say`) | Réglages → Chat et fichiers (`chat.read_aloud`) |
+| Android | reconnaissance vocale du téléphone | voix française d'Android | Réglages → Vocal |
+| iPhone | reconnaissance d'iOS (autorisations micro et reconnaissance) | voix française d'iOS | Réglages → Voix |
+
+Au bureau, le bouton micro n'apparaît que si `faster-whisper` et un outil
+d'enregistrement (`pw-record`, `parecord` ou `arecord`) sont présents ; rien ne
+quitte la machine.
+
 ## Commandes root sans terminal
 
 Claude (ou toi) lance une commande root par CCS, sans rester bloqué sur une invite de `sudo` :

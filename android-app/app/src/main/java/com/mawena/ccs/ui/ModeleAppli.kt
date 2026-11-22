@@ -60,6 +60,15 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
         com.mawena.ccs.notif.ServiceVeille.appliquer(getApplication())
     }
 
+    private val _lireReponses = MutableStateFlow(depot.reglages.lireReponses)
+    /** Réglage « Lire les réponses à voix haute » (propre à ce téléphone). */
+    val lireReponses: StateFlow<Boolean> = _lireReponses.asStateFlow()
+
+    fun changerLireReponses(actif: Boolean) {
+        depot.reglages.lireReponses = actif
+        _lireReponses.value = actif
+    }
+
     /** Machine pilotée (vide : ce serveur) ; tout l'appli la suit, notifications comprises. */
     val machine: StateFlow<String> = depot.client.machine
 

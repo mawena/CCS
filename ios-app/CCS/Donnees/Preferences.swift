@@ -51,6 +51,14 @@ enum Prefs {
         set { d.set(Touches.borner(newValue), forKey: "taille-terminal") }
     }
 
+    // MARK: voix
+
+    /// Lire à voix haute chaque réponse de Claude terminée (désactivé par défaut).
+    static var lireReponses: Bool {
+        get { return d.bool(forKey: "lire-reponses") }
+        set { d.set(newValue, forKey: "lire-reponses") }
+    }
+
     // MARK: dossiers récents de « Nouvelle session » (8 au plus, le plus récent d'abord)
 
     static func recents() -> [String] {

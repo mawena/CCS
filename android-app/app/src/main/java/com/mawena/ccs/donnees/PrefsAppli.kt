@@ -11,7 +11,7 @@ enum class Theme(val valeur: String, val libelle: String) {
     }
 }
 
-/** Réglages propres à l'appli : thème, taille du texte du terminal, notifications. */
+/** Réglages propres à l'appli : thème, taille du texte du terminal, notifications, lecture à voix haute. */
 class PrefsAppli(private val prefs: Preferences) {
     var theme: Theme
         get() = Theme.de(prefs.lire(THEME))
@@ -27,6 +27,11 @@ class PrefsAppli(private val prefs: Preferences) {
         get() = prefs.lire(NOTIFS) != "0"
         set(v) = prefs.ecrire(NOTIFS, if (v) "1" else "0")
 
+    /** Chaque réponse de Claude terminée est lue à voix haute (chat affiché) : désactivé par défaut. */
+    var lireReponses: Boolean
+        get() = prefs.lire(LIRE) == "1"
+        set(v) = prefs.ecrire(LIRE, if (v) "1" else null)
+
     /** La permission des notifications (Android 13+) a déjà été demandée une fois. */
     var permissionDemandee: Boolean
         get() = prefs.lire(PERMISSION) == "1"
@@ -37,6 +42,7 @@ class PrefsAppli(private val prefs: Preferences) {
         private const val NOTIFS = "notifications"
         private const val PERMISSION = "notifications-demandees"
         private const val TERMINAL = "terminal-taille"
+        private const val LIRE = "lire-reponses"
         const val MIN_TERMINAL = 8
         const val MAX_TERMINAL = 24
         const val NORMAL_TERMINAL = 12
