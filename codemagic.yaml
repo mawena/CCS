@@ -43,3 +43,32 @@ workflows:
           (cd build && zip -qr CCS.ipa Payload)
     artifacts:
       - ios-app/build/CCS.ipa
+
+  # APK Android (android-app/) : toujours construit ici, plus sur pc-bureau. Signé avec la clé
+  # de débogage d'origine (celle de pc-bureau, variable secrète CCS_DEBUG_KEYSTORE du groupe
+  # android_signature) pour que la mise à jour s'installe par-dessus l'appli du Pixel.
+  android:
+    name: CCS Android
+    max_build_duration: 30
+    instance_type: linux_x2
+    environment:
+      java: 17
+      groups:
+        - android_signature
+    triggering:
+      events: [tag]
+      tag_patterns:
+        - pattern: 'v*'
+    scripts:
+      - name: Clé de signature
+        script: |
+          mkdir -p "$HOME/.android"
+          echo "$CCS_DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+      - name: Tests unitaires
+        script: |
+          cd android-app && ./gradlew --no-daemon testDebugUnitTest
+      - name: APK de release
+        script: |
+          cd android-app && ./gradlew --no-daemon assembleRelease
+    artifacts:
+      - android-app/app/build/outputs/apk/release/app-release.apk
