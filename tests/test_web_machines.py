@@ -70,15 +70,15 @@ out = { urls: sockets.map((s) => s.url), old: await old, fresh: await fresh,
 pickMachine(api, "", "");
 out.back = sockets[2].url; out.nameBack = machineName(api);
 """)
-        self.assertEqual(out["urls"], ["wss://ccs.exemple/api/ws",
-                                       "wss://ccs.exemple/api/ws?machine=pc-bureau"])
+        self.assertEqual(out["urls"], ["wss://ccs.exemple/api/ws?protocol=1",
+                                       "wss://ccs.exemple/api/ws?protocol=1&machine=pc-bureau"])
         self.assertEqual(out["old"], "rejeté:hors_ligne")
         self.assertEqual(out["fresh"], {"chats": [1]})
         self.assertEqual(out["seen"], ["pc-bureau"])
         self.assertEqual(out["stored"], "pc-bureau")
         self.assertEqual(out["name"], "PC du bureau")
         self.assertEqual(out["again"], "pc-bureau")          # gardé après un rechargement
-        self.assertEqual(out["back"], "wss://ccs.exemple/api/ws")
+        self.assertEqual(out["back"], "wss://ccs.exemple/api/ws?protocol=1")
         self.assertEqual(out["nameBack"], "Ce serveur")
 
     def test_machine_down_is_reported_with_its_reason(self):
@@ -136,13 +136,13 @@ const MACHINES = { configured: true, message: "", machines: [
 const now = Date.now() / 1000;
 const JOBS = { jobs: [
   { id: "a1", text: "flutter build apk", command: ["flutter", "build", "apk"], cwd: "/home/u/App", machine: "pc-bureau",
-    state: "en cours", code: null, created: now - 100, started: now - 75, ended: null, why: "" },
+    state: "running", code: null, created: now - 100, started: now - 75, ended: null, why: "" },
   { id: "b2", text: "make test", command: ["make", "test"], cwd: "/home/u/App", machine: null,
-    state: "attente", code: null, created: now - 30, started: null, ended: null, why: "en attente d'une place sur pc-bureau (2/2)" },
+    state: "waiting", code: null, created: now - 30, started: null, ended: null, why: "en attente d'une place sur pc-bureau (2/2)" },
   { id: "c3", text: "make deb", command: ["make", "deb"], cwd: "/home/u/App", machine: "pc-bureau",
-    state: "échec", code: 2, created: now - 900, started: now - 800, ended: now - 790, why: "" }] };
-const SETTINGS = { relais: "https://ricochet.exemple", jeton_defini: true, chemin: "/home/u/.config/ricochet/client.toml",
-  limite_defaut: 2, limites: { "pc-bureau": 3 } };
+    state: "failed", code: 2, created: now - 900, started: now - 800, ended: now - 790, why: "" }] };
+const SETTINGS = { relay: "https://ricochet.exemple", token_set: true, path: "/home/u/.config/ricochet/client.toml",
+  default_limit: 2, limits: { "pc-bureau": 3 } };
 function fakeApi(machine = "") {
   const calls = [];
   return { machine, calls, on: () => () => {}, async call(m, p = {}) {
@@ -298,7 +298,7 @@ out.calls = api.calls.filter((c) => c[0] === "machines.limit").map((c) => c[1]);
 """)
         self.assertEqual(out["folder"], "/home/u")              # projet d'une autre machine : ignoré
         self.assertEqual(out["limit"], "2")
-        self.assertEqual(out["calls"], [{"machine": "pc-bureau", "limite": 3}])
+        self.assertEqual(out["calls"], [{"machine": "pc-bureau", "limit": 3}])
 
     def test_relay_settings_never_show_the_token(self):
         out = run(PAGE + r"""
@@ -317,7 +317,7 @@ out.after = root.querySelector('input[type="password"]').value;
         self.assertEqual(out["pw"], "")
         self.assertEqual(out["status"], "Jeton enregistré.")
         self.assertEqual(out["address"], "https://ricochet.exemple")
-        self.assertEqual(out["calls"], [{"jeton": "secret-123"}])
+        self.assertEqual(out["calls"], [{"token": "secret-123"}])
         self.assertEqual(out["after"], "")
 
     def test_page_is_reachable_but_not_in_the_nav(self):

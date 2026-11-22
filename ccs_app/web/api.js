@@ -5,6 +5,8 @@
 // (tunnel Ricochet) ; vide, c'est ce serveur. Le choix est gardé dans le navigateur.
 
 const MACHINE_KEY = "ccs.machine";
+// version du protocole du pont (`hello` côté pont, `?protocol=` sur /api/ws)
+export const PROTOCOL = 1;
 export const MACHINE_DOWN = 4010;
 
 export async function post(path, body = {}) {
@@ -50,7 +52,8 @@ export class Api {
 
   connect() {
     this.stopped = false;
-    const query = this.machine ? `?machine=${encodeURIComponent(this.machine)}` : "";
+    // `protocol` : version du protocole du pont que cette page connaît
+    const query = `?protocol=${PROTOCOL}` + (this.machine ? `&machine=${encodeURIComponent(this.machine)}` : "");
     const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/ws${query}`;
     const ws = new WebSocket(url);
     this.ws = ws;

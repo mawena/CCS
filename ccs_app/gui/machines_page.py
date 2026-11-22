@@ -17,7 +17,9 @@ from .servers_group import _threaded
 
 REFRESH_S = 5
 LOG_S = 3
-ACTIVE = ("attente", "programmé", "envoi", "en cours")
+ACTIVE = ("waiting", "scheduled", "sending", "running")
+LABELS = {"waiting": "attente", "scheduled": "programmé", "sending": "envoi", "running": "en cours",
+          "done": "fini", "failed": "échec", "stopped": "arrêté"}
 WHEN = (("", "Maintenant"), ("nuit", "Cette nuit"), ("heure", "À une heure…"))
 
 
@@ -48,9 +50,9 @@ class Backend:
         from .. import distant
         return distant.client_settings()
 
-    def configure(self, relais=None, jeton=None):
+    def configure(self, relay=None, token=None):
         from .. import distant
-        return distant.save_client(relais=relais, jeton=jeton)
+        return distant.save_client(relay=relay, token=token)
 
     def set_limit(self, machine_id, limite):
         from .. import distant
@@ -89,7 +91,8 @@ def machine_subtitle(m):
 
 def job_subtitle(j, now=None):
     now = GLib.get_real_time() / 1e6 if now is None else now
-    parts = [j.get("state", ""), j.get("machine") or "machine à choisir"]
+    state = j.get("state", "")
+    parts = [LABELS.get(state, state), j.get("machine") or "machine à choisir"]
     if j.get("started"):
         parts.append(duration((j.get("ended") or now) - j["started"]))
     if j.get("code") is not None:
@@ -245,7 +248,7 @@ class MachinesPage(Adw.PreferencesPage):
             self._job_rows.append(row)
 
     def ask_stop(self, job):
-        running = job.get("state") in ("en cours", "envoi")
+        running = job.get("state") in ("running", "sending")
         alert = Adw.AlertDialog(heading="Arrêter ce travail ?",
                                 body=(f"« {job.get('text')} » sera arrêtée sur {job.get('machine') or 'la machine'}."
                                       if running else f"« {job.get('text')} » ne sera pas lancée."))
@@ -390,21 +393,21 @@ class MachinesPage(Adw.PreferencesPage):
                 self.relay_group.set_description(str(error))
                 return
             self.settings = s
-            self.f_relay.set_text(s.get("relais") or "")
+            self.f_relay.set_text(s.get("relay") or "")
             self.f_token.set_text("")
-            self.token_row.set_subtitle("Jeton enregistré" if s.get("jeton_defini") else "Aucun jeton")
-            self.relay_group.set_description(f"Fichier : {s.get('chemin', '')} · limite par défaut : "
-                                             f"{s.get('limite_defaut', 2)} travaux à la fois par machine")
+            self.token_row.set_subtitle("Jeton enregistré" if s.get("token_set") else "Aucun jeton")
+            self.relay_group.set_description(f"Fichier : {s.get('path', '')} · limite par défaut : "
+                                             f"{s.get('default_limit', 2)} travaux à la fois par machine")
         self.runner(self.backend.settings, done)
 
     def save_relay(self):
         relais = self.f_relay.get_text().strip()
         jeton = self.f_token.get_text()
         kwargs = {}
-        if relais != ((self.settings or {}).get("relais") or ""):
-            kwargs["relais"] = relais
+        if relais != ((self.settings or {}).get("relay") or ""):
+            kwargs["relay"] = relais
         if jeton:
-            kwargs["jeton"] = jeton
+            kwargs["token"] = jeton
         if not kwargs:
             self.toast("Rien à changer")
             return

@@ -109,8 +109,8 @@ class RemoteMachineViewTest(unittest.TestCase):
             d = manage_dialogs.trash_conversation(view, view.ops, view.notify,
                                                   {**PROJECTS["conversations"][0]}, view.refresh)
             d.emit("response", "trash")
-        method, params = self.conn.calls[-1] if self.conn.calls[-1][0] == "conversation.trash" else \
-            next(c for c in self.conn.calls if c[0] == "conversation.trash")
+        method, params = self.conn.calls[-1] if self.conn.calls[-1][0] == "conversations.trash" else \
+            next(c for c in self.conn.calls if c[0] == "conversations.trash")
         self.assertEqual(params["session_id"], "s1")
 
     def test_unreachable_server_is_said(self):

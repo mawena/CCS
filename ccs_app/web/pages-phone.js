@@ -23,7 +23,7 @@ export function phoneGroup(api, s, reload) {
   const newTopic = el("button", { class: "small", onclick: (e) => busy(e.currentTarget, async () => {
     if (!await confirmSheet({ title: "Créer un nouveau canal ?", confirm: "Créer le canal",
       body: "L'ancien canal ne recevra plus rien : il faudra se réabonner au nouveau (QR code) sur chaque téléphone." })) return;
-    try { await api.call("phone.new_topic"); } catch (err) { result.textContent = err.message; return; }
+    try { await api.call("phone.renew"); } catch (err) { result.textContent = err.message; return; }
     toast("Nouveau canal créé.", { kind: "success" });
     reload();
   }) }, "Créer un nouveau canal");

@@ -548,19 +548,19 @@ def launch(command, machine=None, tool=None, fetch=(), include=(), with_git=Fals
         code, why = _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run,
                             say, opener, not_before, why, now, sleep, poll)
     except KeyboardInterrupt:
-        distant_jobs.finish(job_id, "arrêté", 130, "interrompu", now=now)
+        distant_jobs.finish(job_id, "stopped", 130, "interrompu", now=now)
         say("interrompu")
         return 130
     except DistantError as e:
-        distant_jobs.finish(job_id, "échec", None, str(e).splitlines()[0], now=now)
+        distant_jobs.finish(job_id, "failed", None, str(e).splitlines()[0], now=now)
         raise
     except BaseException as e:
-        distant_jobs.finish(job_id, "échec", None, f"erreur : {e}", now=now)
+        distant_jobs.finish(job_id, "failed", None, f"erreur : {e}", now=now)
         raise
     finally:
         if previous is not None:
             signal.signal(signal.SIGTERM, previous)
-    state = "fini" if code == 0 else "arrêté" if code == 130 else "échec"
+    state = "done" if code == 0 else "stopped" if code == 130 else "failed"
     distant_jobs.finish(job_id, state, code, why, now=now)
     return code
 
@@ -603,7 +603,7 @@ def _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run, 
             break
         wait = "en attente d'une place sur " + ", ".join(busy)
         if wait != told:
-            distant_jobs.update(job_id, state="attente", why=wait, machine=machine)
+            distant_jobs.update(job_id, state="waiting", why=wait, machine=machine)
             say(f"{wait} (travail {job_id})")
             told = wait
         _wait(job_id, now() + poll, now, sleep, poll)
@@ -620,7 +620,7 @@ def _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run, 
     if r.returncode:
         raise DistantError(f"Envoi du projet vers {chosen.id} raté (rsync, code {r.returncode})")
     say(f"envoyé en {time.monotonic() - started:.0f} s ; lancement de la commande")
-    distant_jobs.update(job_id, state="en cours")
+    distant_jobs.update(job_id, state="running")
     try:
         code = _ssh(chosen, overrides, remote_command(root, rel, inv, command),
                     run=attached).returncode
@@ -756,33 +756,38 @@ def client_settings():
         if isinstance(value, int) and not isinstance(value, bool) and \
                 LIMIT_RANGE[0] <= value <= LIMIT_RANGE[1]:
             limits[mid] = value
-    return {"relais": str(data.get("relais", "")), "jeton_defini": bool(data.get("jeton")),
-            "chemin": str(client_path()), "limite_defaut": DEFAULT_LIMIT, "limites": limits}
+    relay, token_set, path = str(data.get("relais", "")), bool(data.get("jeton")), str(client_path())
+    return {"relay": relay, "token_set": token_set, "path": path, "default_limit": DEFAULT_LIMIT,
+            "limits": limits,
+            # compatibilité 1.x (appli iPhone), à retirer en 2.0
+            "relais": relay, "jeton_defini": token_set, "chemin": path,
+            "limite_defaut": DEFAULT_LIMIT, "limites": limits}
 
 
-def save_client(relais=None, jeton=None):
-    """Écrit `~/.config/ricochet/client.toml` (droits 600) ; une valeur absente est gardée."""
+def save_client(relay=None, token=None):
+    """Écrit `~/.config/ricochet/client.toml` (droits 600) ; une valeur absente est gardée. Les
+    clés du fichier (`relais`, `jeton`) ne changent pas."""
     path = client_path()
     data = _read_toml(path)
-    if relais is not None:
-        relais = str(relais).strip().rstrip("/")
-        if not relais.startswith(("https://", "http://")):
+    if relay is not None:
+        relay = str(relay).strip().rstrip("/")
+        if not relay.startswith(("https://", "http://")):
             raise DistantError("L'adresse du relais doit commencer par https:// (ou http://).")
-        data["relais"] = relais
-    if jeton is not None:
-        jeton = str(jeton).strip()
-        if not jeton:
+        data["relais"] = relay
+    if token is not None:
+        token = str(token).strip()
+        if not token:
             raise DistantError("Le jeton est vide.")
-        data["jeton"] = jeton
+        data["jeton"] = token
     _write_private(path, toml_dump(data))
 
 
-def set_limit(machine_id, limite):
+def set_limit(machine_id, limit):
     """Écrit `limite` dans `[machines.<id>]` de `~/.config/ccs/distant.toml`."""
     if not isinstance(machine_id, str) or not MACHINE_ID.match(machine_id):
         raise DistantError("Machine invalide.")
-    if isinstance(limite, bool) or not isinstance(limite, int) or \
-            not LIMIT_RANGE[0] <= limite <= LIMIT_RANGE[1]:
+    if isinstance(limit, bool) or not isinstance(limit, int) or \
+            not LIMIT_RANGE[0] <= limit <= LIMIT_RANGE[1]:
         raise DistantError(f"La limite doit être un nombre de {LIMIT_RANGE[0]} à {LIMIT_RANGE[1]}.")
     path = overrides_path()
     data = _read_toml(path)
@@ -792,7 +797,7 @@ def set_limit(machine_id, limite):
     conf = machines.get(machine_id)
     if not isinstance(conf, dict):
         conf = machines[machine_id] = {}
-    conf["limite"] = limite
+    conf["limite"] = limit
     _write_private(path, toml_dump(data))
 
 

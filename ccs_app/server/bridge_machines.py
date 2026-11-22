@@ -1,12 +1,14 @@
 """Les autres machines de Charles depuis le pont : leur liste (relais Ricochet) et le relais d'une
 connexion vers le pont CCS de l'une d'elles.
 
-`machine.attach` ouvre `ssh` par le tunnel Ricochet (options de `distant`) et y lance un petit
+`machines.attach` ouvre `ssh` par le tunnel Ricochet (options de `distant`) et y lance un petit
 programme Python qui branche l'entrée et la sortie de `ssh` sur le pont local de la machine
 (`ccs bridge --local`, lancé s'il ne tourne pas : c'est celui de l'application de bureau, les
 chats sont donc partagés avec elle). Ensuite, tout ce que la connexion demande part là-bas, sauf
-`hello`, `machine.attach` et `machines.*` (voir `Bridge.keeps_local`) ; les événements de là-bas
-reviennent sur la connexion. Si le lien tombe, la connexion est fermée : le web se reconnecte.
+`hello` et `machines.*` (voir `Bridge.keeps_local`) ; les événements de là-bas reviennent sur la
+connexion. Une fois le lien prêt, le pont pousse lui-même l'événement `machines.ready` sur la
+connexion. Si le lien tombe, la connexion est fermée : le web se reconnecte. Un pont distant plus
+ancien (son `hello` ne donne pas `protocol`) reçoit les anciens noms (`protocol.to_legacy`).
 """
 
 import asyncio
@@ -16,7 +18,7 @@ import shlex
 from pathlib import Path
 
 from .. import core, distant, distant_jobs
-from . import rpc
+from . import protocol, rpc
 
 log = logging.getLogger("ccs.bridge.machines")
 
@@ -118,7 +120,7 @@ class MachinesApi:
         bridge.close_hooks.append(self._forget)
         bridge.busy_checks.append(lambda: bool(self.links))
         bridge.add_handlers({
-            "machines.list": self.list, "machine.attach": self.attach,
+            "machines.list": self.list, "machines.attach": self.attach,
             "machines.jobs": self.jobs, "machines.stop": self.stop, "machines.log": self.log,
             "machines.start": self.start, "machines.settings": self.settings,
             "machines.configure": self.configure, "machines.limit": self.limit})
@@ -135,8 +137,12 @@ class MachinesApi:
     async def list(self, _conn, _params):
         return await asyncio.to_thread(distant.machines_overview, self._fetch)
 
-    async def jobs(self, _conn, _params):
-        return {"jobs": await asyncio.to_thread(distant_jobs.list_jobs)}
+    async def jobs(self, conn, _params):
+        jobs = await asyncio.to_thread(distant_jobs.list_jobs)
+        if protocol.legacy(conn):
+            # anciens états français pour les applis déjà installées : compatibilité 1.x, à retirer en 2.0
+            jobs = [distant_jobs.legacy_view(j) for j in jobs]
+        return {"jobs": jobs}
 
     async def stop(self, _conn, params):
         jid = _job_id(params)
@@ -188,12 +194,12 @@ class MachinesApi:
         return await asyncio.to_thread(distant.client_settings)
 
     async def configure(self, _conn, params):
-        relais, jeton = params.get("relais"), params.get("jeton")
-        for v in (relais, jeton):
+        relay, token = params.get("relay"), params.get("token")
+        for v in (relay, token):
             if v is not None and not isinstance(v, str):
                 raise rpc.RpcError("invalide", "Réglage invalide.")
         try:
-            await asyncio.to_thread(distant.save_client, relais=relais, jeton=jeton)
+            await asyncio.to_thread(distant.save_client, relay=relay, token=token)
         except distant.DistantError as e:
             raise rpc.RpcError("invalide", str(e)) from None
         except OSError as e:
@@ -202,7 +208,7 @@ class MachinesApi:
 
     async def limit(self, _conn, params):
         try:
-            await asyncio.to_thread(distant.set_limit, params.get("machine"), params.get("limite"))
+            await asyncio.to_thread(distant.set_limit, params.get("machine"), params.get("limit"))
         except distant.DistantError as e:
             raise rpc.RpcError("invalide", str(e)) from None
         except OSError as e:
@@ -241,7 +247,8 @@ class MachinesApi:
         client.attach(proc.stdout, proc.stdin)
         link = Link(mid, proc, client)
         try:
-            await asyncio.wait_for(client.call("hello"), HELLO_TIMEOUT)
+            remote = await asyncio.wait_for(client.call("hello", protocol=protocol.PROTOCOL),
+                                            HELLO_TIMEOUT)
         except (rpc.RpcError, asyncio.TimeoutError, ConnectionError) as e:
             why = await self._why(proc) or (str(e) if isinstance(e, rpc.RpcError) else "délai dépassé")
             await link.close()
@@ -253,10 +260,15 @@ class MachinesApi:
 
         def on_event(name, data):
             if not conn.closed:
-                asyncio.ensure_future(conn.push(name, data))
+                asyncio.ensure_future(conn.push(protocol.event_for(conn, name), data))
         client.on_event = on_event
 
+        old_remote = not (isinstance(remote, dict) and remote.get("protocol"))
+
         async def forward(method, p):
+            if old_remote:          # pont d'avant la 1.0.0 : compatibilité 1.x, à retirer en 2.0
+                name, p = protocol.to_legacy(method, p)
+                return protocol.upgrade_result(method, await client.call(name, **p))
             return await client.call(method, **p)
 
         async def watch():
@@ -268,7 +280,10 @@ class MachinesApi:
         conn.peer["machine"] = mid
         link.watch = asyncio.ensure_future(watch())
         log.info("connexion relayée vers %s", mid)
-        return {"machine": mid, "name": machine.name or mid}
+        ready = {"machine": mid, "name": machine.name or mid}
+        # `machine.ready` pour un ancien client : compatibilité 1.x, à retirer en 2.0
+        await conn.push(protocol.event_for(conn, "machines.ready"), ready)
+        return ready
 
     @staticmethod
     async def _why(proc):

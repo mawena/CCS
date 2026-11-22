@@ -116,8 +116,11 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 - Codes d'erreur : `refuse`, `introuvable`, `invalide`, `trop_gros`, `interne`, `conflit`,
   `occupe`.
 - Événement poussé par le serveur : `{"event", "data"}`.
-- `hello {ticket, session_hash}` ouvre la connexion (inutile en mode `--local`). Sur
-  `/api/ws`, `hello` et `machine.attach` sont refusés au client (ils sont faits par `ccs-web`).
+- `hello {ticket, session_hash, protocol}` ouvre la connexion (inutile en mode `--local`) et
+  renvoie `{user, protocol, version}` : `protocol` est la version du protocole du pont (**1**
+  depuis la 1.0.0), `version` celle de CCS. Le client déclare la sienne dans `protocol` (sur
+  `/api/ws` : `?protocol=1`) ; sans elle, c'est un ancien client (voir § 2.3). Sur `/api/ws`,
+  `hello` et `machines.attach` sont refusés au client (ils sont faits par `ccs-web`).
 
 ### 2.1 Méthodes
 
@@ -131,7 +134,7 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `settings.get` | — | réglages fusionnés |
 | `settings.set` | `path`, `value` | change un réglage (`path` pointé, ex. `chat.rights`) |
 | `doctor.run` | — | bilan de santé |
-| `phone.test` / `phone.new_topic` / `phone.qr` | — | essai ntfy, nouveau canal, QR du lien |
+| `phone.test` / `phone.renew` / `phone.qr` | — | essai ntfy, nouveau canal, QR du lien |
 | `analysis.report` | `days` | analyse des journaux |
 | `tasks.list` | — | file de tâches |
 | `tasks.add` | `cwd`, `message`, `model`, `rights`, `when`, `roadmap {path,text,phase}` | ajoute une tâche |
@@ -141,15 +144,15 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `projects.remove` | `cwd` | retire de la liste |
 | `projects.folders` | — | dépôts git du disque |
 | `projects.account` | `cwd` | comptes et compte présélectionné |
-| `conversation.messages` | `path`, `before`, `limit` | messages d'une conversation |
-| `conversation.rename` | `session_id`, `path`, `title` | renomme |
-| `conversation.cost` | `path` | coût |
-| `conversation.trash` | `path`, `session_id`, `title`, `cwd` | corbeille (30 jours) |
-| `conversation.trash_list` | — | contenu de la corbeille |
-| `conversation.restore` | `tid` | restaure depuis la corbeille |
+| `conversations.messages` | `path`, `before`, `limit` | messages d'une conversation |
+| `conversations.rename` | `session_id`, `path`, `title` | renomme |
+| `conversations.cost` | `path` | coût |
+| `conversations.trash` | `path`, `session_id`, `title`, `cwd` | corbeille (30 jours) (→ `trash_id`) |
+| `trash.list` | — | contenu de la corbeille : `items [{trash_id, session_id, cwd, title, trashed_at}]`, `days` |
+| `trash.restore` | `trash_id` | restaure depuis la corbeille |
 | `roadmap.read` | `cwd` | lit `ROADMAP.md` |
 | `roadmap.toggle` | `path`, `line`, `text`, `done` | coche / décoche une tâche |
-| `roadmap.task_prompt` | `path`, `text`, `phase` | message pour faire une tâche |
+| `roadmap.prompt` | `path`, `text`, `phase` | message pour faire une tâche |
 | `files.roots` | — | dossiers de départ |
 | `files.list` | `root`, `rel`, `hide_ignored` | contenu d'un dossier |
 | `files.read` / `files.image` / `files.info` | `path` | texte, image, ce qu'emporterait une suppression |
@@ -182,27 +185,27 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `chat.tags` | `session_id` | messages étiquetés |
 | `chat.tag` | `session_id`, `msg_id`, `tags`, `text`, `role` | pose ou retire des étiquettes |
 | `work.commands` / `work.files` / `work.changes` | `chat_id` | commandes `/`, fichiers, changements du chat |
-| `work.saved.list` | `cwd`, `scope` | messages enregistrés |
-| `work.saved.save` | `cwd`, `scope`, `name`, `text` | enregistre un message |
-| `work.saved.delete` | `cwd`, `scope`, `name` | supprime |
-| `work.shell.run` | `chat_id`, `command` | commande shell (→ `run_id`) |
-| `work.shell.poll` / `work.shell.stop` | `run_id` | suit, arrête |
-| `work.undo_file` | `chat_id`, `path`, `expected` | remet un fichier comme avant |
-| `work.rewind_plan` / `work.rewind_apply` | `chat_id`, `message_id` (+ `expected`) | retour en arrière |
+| `saved.list` | `cwd`, `scope` | messages enregistrés |
+| `saved.save` | `cwd`, `scope`, `name`, `text` | enregistre un message |
+| `saved.delete` | `cwd`, `scope`, `name` | supprime |
+| `shell.run` | `chat_id`, `command` | commande shell (→ `run_id`) |
+| `shell.poll` / `shell.stop` | `run_id` | suit, arrête |
+| `work.undo` | `chat_id`, `path`, `expected` | remet un fichier comme avant |
+| `rewind.plan` / `rewind.apply` | `chat_id`, `message_id` (+ `expected`) | retour en arrière |
 | `term.open` | `cwd`, `command`, `cols`, `rows`, `name` | ouvre un terminal (→ `term_id`) |
 | `term.input` | `term_id`, `data` | frappe |
 | `term.resize` | `term_id`, `cols`, `rows` | taille |
 | `term.attach` / `term.close` | `term_id` | s'abonne, ferme |
 | `term.list` | — | terminaux ouverts |
 | `machines.list` | — | machines Ricochet : `id, name, online, local, cores, load, mem_used, mem_total, tunnel, tools, limit, running, waiting` |
-| `machines.jobs` | — | travaux distants |
+| `machines.jobs` | — | travaux distants ; `state` : `waiting`, `scheduled`, `sending`, `running`, `done`, `failed`, `stopped` |
 | `machines.start` | `command`, `cwd`, `machine`, `when` | lance un travail (→ `id`) |
 | `machines.stop` | `id` | arrête un travail |
 | `machines.log` | `id`, `tail` | journal d'un travail |
-| `machines.settings` | — | `relais, jeton_defini, chemin, limite_defaut, limites` |
-| `machines.configure` | `relais`, `jeton` | écrit `client.toml` |
-| `machines.limit` | `machine`, `limite` | places par machine (`distant.toml`) |
-| `machine.attach` | `machine` | *interne* : relaie la connexion vers le pont d'une autre machine |
+| `machines.settings` | — | `relay, token_set, path, default_limit, limits` |
+| `machines.configure` | `relay`, `token` | écrit `client.toml` |
+| `machines.limit` | `machine`, `limit` | places par machine (`distant.toml`) |
+| `machines.attach` | `machine` | *interne* : relaie la connexion vers le pont d'une autre machine (pousse `machines.ready`) |
 
 ### 2.2 Événements
 
@@ -212,8 +215,8 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `chat.event` | `chat_id, seq, ts, event {type, …}` | pont, chat suivi |
 | `chat.tags` | `session_id, msg_id, entry` | pont, à tous |
 | `term.output` / `term.exit` | `term_id, data` / `term_id, code` | pont |
-| `work.shell` | sortie et fin d'une commande `work.shell.run` | pont |
-| `machine.ready` | résultat de `machine.attach` | `ccs-web` (`?machine=`) |
+| `shell.done` | sortie et fin d'une commande `shell.run` | pont |
+| `machines.ready` | `machine, name` : résultat de `machines.attach` | pont (avant la réponse) |
 
 Types de `chat.event.event.type` (`ccs_app/server/events.py`) : `Init`, `Hello`, `Status`,
 `Compacting`, `LocalCommand`, `TextDelta`, `AssistantText`, `Thinking`, `ToolUse`,
@@ -226,6 +229,34 @@ Depuis la 0.37.0 : `TurnResult.usage` = `{input, cache_read, cache_write, output
 context, cache_ttl_s, model}` (`token_use.turn_usage`, `{}` sans usage) ; `CacheExpired` =
 `{context, ttl_s, rewrite_usd, text}` ; `analysis.report` renvoie aussi `top` (gros
 consommateurs : `title, project, file, share, answers, avg_context, rewrite_share, causes`).
+
+### 2.3 Compatibilité (toute la 1.x, `ccs_app/server/protocol.py`)
+
+Le pont accepte encore les anciens noms, ramenés aux nouveaux avant tout traitement :
+
+| Ancien nom (accepté) | Nouveau nom |
+|---|---|
+| `machine.attach` | `machines.attach` |
+| `conversation.messages` / `.rename` / `.cost` / `.trash` | `conversations.messages` / `.rename` / `.cost` / `.trash` |
+| `conversation.trash_list` | `trash.list` |
+| `conversation.restore {tid}` | `trash.restore {trash_id}` |
+| `roadmap.task_prompt` | `roadmap.prompt` |
+| `phone.new_topic` | `phone.renew` |
+| `work.saved.list` / `.save` / `.delete` | `saved.list` / `.save` / `.delete` |
+| `work.shell.run` / `.poll` / `.stop` | `shell.run` / `.poll` / `.stop` |
+| `work.undo_file` | `work.undo` |
+| `work.rewind_plan` / `work.rewind_apply` | `rewind.plan` / `rewind.apply` |
+| `machines.limit {limite}` | `machines.limit {limit}` |
+| `machines.configure {relais, jeton}` | `machines.configure {relay, token}` |
+
+Un **ancien client** (aucun `protocol` déclaré) reçoit en plus les anciennes valeurs là où elles
+ont changé : événements `machine.ready` et `work.shell`, états des travaux en français dans
+`machines.jobs` (`attente`, `programmé`, `envoi`, `en cours`, `fini`, `échec`, `arrêté`). Les
+réponses gardent aussi les anciennes clés à côté des nouvelles : `tid` (et `id` dans
+`trash.list`), et `relais, jeton_defini, chemin, limite_defaut, limites` dans
+`machines.settings`. Les travaux enregistrés sur disque avec un état français sont lus avec
+l'état anglais. Vers le pont d'une autre machine plus ancien (son `hello` ne renvoie pas
+`protocol`), `machines.attach` relaie avec les anciens noms. Tout cela sera retiré en 2.0.
 
 ---
 
@@ -243,15 +274,16 @@ en-tête `X-Portier-Utilisateur` (venant de nginx en local seulement). Les POST 
 | `POST /api/pair` | `user, password, code, name` | appairage d'un appareil (jeton) |
 | `POST /api/logout` | — | déconnexion |
 | `GET /api/session` | — | `user` (+ `portier`) |
-| `GET /api/portier` | — | `actif, connexion` |
+| `GET /api/portier` | — | `enabled, login` (+ `actif, connexion`, anciennes clés gardées en 1.x) |
 | `GET /api/tokens` | — | jetons d'appareil |
 | `POST /api/revoke` | `token_id` | révoque un jeton |
-| `POST /api/app-token` | `name` | jeton durable pour l'application Android |
-| `GET /api/ws` | `?machine=ID` (facultatif) | WebSocket du pont (§ 2) |
+| `POST /api/apptoken` | `name` | jeton durable pour les applications mobiles (ancienne route `/api/app-token` acceptée en 1.x) |
+| `GET /api/ws` | `?protocol=1`, `?machine=ID` (facultatifs) | WebSocket du pont (§ 2) |
 | `GET /` et fichiers statiques | — | interface web (`ccs_app/web`) |
 
 Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012 (pont perdu),
-1011 (pont injoignable), 4010 (machine injoignable).
+1011 (pont injoignable), 4010 (machine injoignable). Avec `?machine=`, l'événement
+`machines.ready` (`machine.ready` pour un client sans `?protocol=`) arrive avant tout autre.
 
 *Interne* : `ccs-auth` (`/run/ccs/auth.sock`, même protocole) : `login`, `enroll`, `pair`,
 `check`, `check_app`, `logout`, `app_token`, `tokens`, `revoke`, `portier`.
@@ -386,6 +418,9 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 
 ### Pont JSON-RPC
 
+*Réglé par la phase 33, tâche 2 (voir § 2 et § 2.3), sauf les identifiants `id` de `tasks.*`,
+`machines.*` et `git.show`, gardés.*
+
 - Singulier et pluriel mêlés :
   - `machine.attach` à côté de `machines.*` (`bridge_machines.py:121`) ;
   - `conversation.*` à côté de `projects.*`, `tasks.*` et `files.*` (`bridge_data.py`).
@@ -416,6 +451,8 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
   `user`, `bridge.py:91`) : à ajouter avant le gel pour que les clients puissent s'adapter.
 
 ### HTTP
+
+*Réglé par la phase 33, tâche 2 (voir § 3).*
 
 - `/api/app-token` utilise un tiret ; les autres routes sont des mots simples (`server/web.py:370`).
 - `/api/portier` répond en français (`actif`, `connexion`, `web.py:193`), les autres routes

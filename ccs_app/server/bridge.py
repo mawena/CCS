@@ -4,7 +4,9 @@ le bureau ce que l'application GTK fait en local : comptes, chats, fichiers, feu
 
 Toute connexion commence par `hello` : le ticket remis par `ccs-auth` (HMAC de l'empreinte de
 la session par la clé du pont) est vérifié ; en mode local, le socket est en 0600 dans le
-dossier de l'utilisateur et `hello` suffit.
+dossier de l'utilisateur et `hello` suffit. `hello {protocol}` déclare la version du protocole que
+le client connaît (absente : ancien client) ; la réponse donne celle du pont et la version de CCS.
+Les anciens noms de méthode et de paramètre sont acceptés (`protocol.py`).
 """
 
 import asyncio
@@ -14,12 +16,13 @@ import hashlib
 import hmac
 import logging
 import os
+import shutil
 import subprocess
 import time
 from datetime import datetime, timezone
 
-from .. import account_colors, claude_install, core, daemon, pause, settings
-from . import rpc
+from .. import __version__, account_colors, claude_install, core, daemon, pause, settings
+from . import protocol, rpc
 
 log = logging.getLogger("ccs.bridge")
 
@@ -87,13 +90,15 @@ class Bridge:
                 log.warning("ticket refusé")
                 raise rpc.RpcError("refuse", "Ticket invalide.")
         conn.peer["ok"] = True
+        conn.peer["protocol"] = protocol.client_protocol(params.get("protocol"))
         self.last_activity = self.clock()
-        return {"user": self.user}
+        return {"user": self.user, "protocol": protocol.PROTOCOL, "version": __version__}
 
     @staticmethod
     def keeps_local(method):
-        """Sur une connexion relayée vers une autre machine, ce qui reste traité ici."""
-        return method in ("hello", "machine.attach") or method.startswith("machines.")
+        """Sur une connexion relayée vers une autre machine, ce qui reste traité ici (noms déjà
+        ramenés aux nouveaux par `protocol.normalize`)."""
+        return method == "hello" or method.startswith("machines.")
 
     def _on_connect(self, conn):
         self.clients.add(conn)
@@ -106,12 +111,14 @@ class Bridge:
 
     async def start(self, socket_path):
         self._server = rpc.RpcServer(self.handlers(), on_connect=self._on_connect,
-                                     on_close=self._on_close, keep_local=self.keeps_local)
+                                     on_close=self._on_close, keep_local=self.keeps_local,
+                                     normalize=protocol.normalize)
         await self._server.start_unix(socket_path, 0o600 if self.local else 0o660)
 
     async def prepare(self):
         """Sans session graphique (VPS), personne ne lance le service `ccs-daemon` : le pont le
         lance s'il ne tourne pas. Claude Code est installé s'il manque."""
+        await asyncio.to_thread(remove_old_cache)
         if self.start_daemon and await asyncio.to_thread(self._daemon_pid) is None:
             try:
                 self._daemon_proc = self._popen([core.ccs_bin(), "daemon"],
@@ -243,6 +250,13 @@ class Bridge:
         if not await asyncio.to_thread(work):
             raise rpc.RpcError("invalide", f"Valeur refusée pour {path}.")
         return {}
+
+
+def remove_old_cache():
+    """Retire une fois l'ancien dossier `~/.cache/ccs/distant-en-cours/` (abandonné en 0.32.0)."""
+    old = core.paths().home / ".cache" / "ccs" / "distant-en-cours"
+    if old.is_dir() and not old.is_symlink():
+        shutil.rmtree(old, ignore_errors=True)
 
 
 def build(user, key, local=False, chat=None, **kwargs):

@@ -93,11 +93,13 @@ class Connection:
 class RpcServer:
     """`keep_local(method)` : sur une connexion relayée (`peer["forward"]`, appel asynchrone
     `forward(method, params)`), les méthodes pour lesquelles elle répond vrai restent traitées
-    ici ; toutes les autres partent au relais."""
+    ici ; toutes les autres partent au relais. `normalize(method, params)` ramène d'abord les
+    anciens noms aux nouveaux (`protocol.normalize`)."""
 
-    def __init__(self, handlers, on_connect=None, on_close=None, keep_local=None):
+    def __init__(self, handlers, on_connect=None, on_close=None, keep_local=None, normalize=None):
         self.handlers = dict(handlers)
         self.keep_local = keep_local or (lambda method: False)
+        self.normalize = normalize
         self.on_connect = on_connect
         self.on_close = on_close
         self._server = None
@@ -163,6 +165,8 @@ class RpcServer:
         if not isinstance(method, str) or not isinstance(params, dict):
             await conn.send(_error(mid, "invalide", "Requête invalide."))
             return
+        if self.normalize is not None:
+            method, params = self.normalize(method, params)
         forward = conn.peer.get("forward")
         if forward is not None and not self.keep_local(method):
             async def handler(_conn, p):

@@ -13,7 +13,7 @@ from pathlib import Path
 from aiohttp import WSMsgType, web
 
 from .. import __version__
-from . import paths, portier, rpc
+from . import paths, portier, protocol, rpc
 from .tokens import DEVICE_AGE, MAX_AGE, session_hash
 
 log = logging.getLogger("ccs.web")
@@ -69,10 +69,14 @@ class AuthClient:
 
 
 class BridgeConnector:
-    async def connect(self, user, ticket, shash):
+    async def connect(self, user, ticket, shash, client_protocol=0):
+        """`client_protocol` : version du protocole déclarée par le client (`?protocol=`)."""
         c = rpc.RpcClient()
         await c.connect_unix(paths.bridge_socket(user))
-        await c.call("hello", ticket=ticket, session_hash=shash)
+        params = {"ticket": ticket, "session_hash": shash}
+        if client_protocol:
+            params["protocol"] = client_protocol
+        await c.call("hello", **params)
         return c
 
 
@@ -190,8 +194,11 @@ def make_app(auth, bridges, config):
 
     async def portier_info(_request):
         """Pour la page de connexion : bouton « Se connecter via Portier » si le mode est actif."""
-        return web.json_response({"actif": bool(portier_cfg["actif"]),
-                                  "connexion": portier.login_url(portier_cfg, config["origin"])})
+        enabled = bool(portier_cfg["actif"])
+        login_url = portier.login_url(portier_cfg, config["origin"])
+        # `actif`, `connexion` : compatibilité 1.x (applis mobiles), à retirer en 2.0
+        return web.json_response({"enabled": enabled, "login": login_url,
+                                  "actif": enabled, "connexion": login_url})
 
     def who_params(request, app=True):
         """Identité transmise à ccs-auth : jeton d'appareil (Bearer, sauf `app=False`), Portier
@@ -257,35 +264,44 @@ def make_app(auth, bridges, config):
             raise web.HTTPUnauthorized()
         user, ticket, token, kind = who
         machine = request.query.get("machine") or ""
+        client_protocol = protocol.client_protocol(request.query.get("protocol"))
         ws = web.WebSocketResponse(max_msg_size=rpc.MAX_LINE, heartbeat=30)
         await ws.prepare(request)
         try:
-            bridge = await bridges.connect(user, ticket, session_hash(token))
+            bridge = await bridges.connect(user, ticket, session_hash(token), client_protocol)
         except (OSError, rpc.RpcError):
             log.warning("pont de %s injoignable", user)
             await ws.close(code=1011, message=b"pont injoignable")
             return ws
+        ready_sent = []
+
+        def on_event(name, data):
+            if name in ("machines.ready", "machine.ready"):
+                ready_sent.append(name)
+            if not ws.closed:
+                asyncio.ensure_future(ws.send_json({"event": name, "data": data}))
+        bridge.on_event = on_event
+
         if machine:
             # le pont relaie cette connexion vers le pont CCS de l'autre machine (tunnel Ricochet)
+            # et pousse lui-même `machines.ready`
             try:
-                ready = await bridge.call("machine.attach", machine=machine)
+                ready = await bridge.call("machines.attach", machine=machine)
             except (OSError, rpc.RpcError) as e:
                 why = e.message if isinstance(e, rpc.RpcError) else "pont injoignable"
                 await bridge.close()
                 await ws.close(code=MACHINE_DOWN, message=why.encode("utf-8")[:120].decode("utf-8", "ignore").encode("utf-8"))
                 return ws
-            await ws.send_json({"event": "machine.ready", "data": ready})
-
-        def on_event(name, data):
-            if not ws.closed:
-                asyncio.ensure_future(ws.send_json({"event": name, "data": data}))
-        bridge.on_event = on_event
+            if not ready_sent:
+                # pont pas encore redémarré depuis la mise à jour : compatibilité 1.x, à retirer en 2.0
+                await ws.send_json({"event": "machines.ready" if client_protocol else "machine.ready",
+                                    "data": ready})
 
         async def handle(msg):
             mid = msg.get("id")
             method, params = msg.get("method"), msg.get("params") or {}
-            if (not isinstance(method, str) or method in ("hello", "machine.attach")
-                    or not isinstance(params, dict)):
+            if (not isinstance(method, str) or not isinstance(params, dict)
+                    or protocol.normalize(method, {})[0] in ("hello", "machines.attach")):
                 reply = {"id": mid, "error": {"code": "refuse", "message": "Requête refusée."}}
             else:
                 try:
@@ -367,7 +383,8 @@ def make_app(auth, bridges, config):
     app.router.add_get("/api/portier", portier_info)
     app.router.add_get("/api/tokens", tokens)
     app.router.add_post("/api/revoke", revoke)
-    app.router.add_post("/api/app-token", app_token)
+    app.router.add_post("/api/apptoken", app_token)
+    app.router.add_post("/api/app-token", app_token)   # compatibilité 1.x (applis mobiles), à retirer en 2.0
     app.router.add_get("/api/ws", ws_handler)
     app.router.add_get("/", index)
     app.router.add_static("/", WEB_DIR, show_index=False, follow_symlinks=False)

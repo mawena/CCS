@@ -34,7 +34,7 @@ const api = {
       case "chat.tag": return { entry: params.tags.length ? { tags: params.tags, role: params.role, excerpt: params.text, ts: 1 } : null };
       case "work.commands": return { commands: [], context: { enabled: true, threshold_tokens: 150000 } };
       case "work.files": return { files: [] };
-      case "conversation.messages": return { messages: history };
+      case "conversations.messages": return { messages: history };
       default: return {};
     }
   },

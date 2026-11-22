@@ -29,7 +29,7 @@ function loadCost(api, c, node) {
   if (costs.has(key)) { show(costs.get(key)); return; }
   queue = queue.then(async () => {
     if (!node.isConnected) return;
-    try { const r = await api.call("conversation.cost", { path: c.path }); costs.set(key, r); show(r); } catch { /* le coût est un plus : on l'omet */ }
+    try { const r = await api.call("conversations.cost", { path: c.path }); costs.set(key, r); show(r); } catch { /* le coût est un plus : on l'omet */ }
   });
 }
 
@@ -87,7 +87,7 @@ function preview(c, ctx) {
   const load = async () => {
     clear(body).append(loading());
     let r;
-    try { r = await ctx.api.call("conversation.messages", { path: c.path, limit: PREVIEW_MESSAGES * 3 }); } catch (e) {
+    try { r = await ctx.api.call("conversations.messages", { path: c.path, limit: PREVIEW_MESSAGES * 3 }); } catch (e) {
       clear(body).append(errorState(e.message, load));
       return;
     }
@@ -119,7 +119,7 @@ export async function copy(text) {
 // l'événement « ccs:conv-renamed ». Promesse : le nouveau titre, ou null.
 export async function renameConversation(api, c) {
   const title = await promptSheet({ title: "Renommer la conversation", value: titleOf(c), label: "Nouveau titre", confirm: "Renommer",
-    check: async (v) => (await api.call("conversation.rename", { session_id: c.session_id, title: v, path: c.path })).title });
+    check: async (v) => (await api.call("conversations.rename", { session_id: c.session_id, title: v, path: c.path })).title });
   if (title === null) return null;
   c.title = title;
   document.dispatchEvent(new CustomEvent("ccs:conv-renamed", { detail: { session_id: c.session_id, title } }));

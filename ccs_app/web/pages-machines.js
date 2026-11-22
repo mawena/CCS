@@ -9,9 +9,12 @@ import { busy, field, shortPath } from "./pages-util.js";
 export const LAST_PROJECT_KEY = "ccs.project.last";
 const REFRESH_MS = 5000;
 const LOG_MS = 3000;
-const ACTIVE = ["attente", "programmé", "envoi", "en cours"];
-const PILL = { attente: "waiting", "programmé": "waiting", envoi: "running", "en cours": "running",
-  fini: "done", "échec": "failed", "arrêté": "" };
+const ACTIVE = ["waiting", "scheduled", "sending", "running"];
+const PILL = { waiting: "waiting", scheduled: "waiting", sending: "running", running: "running",
+  done: "done", failed: "failed", stopped: "" };
+// états des travaux en français, pour l'affichage
+export const STATE_LABELS = { waiting: "attente", scheduled: "programmé", sending: "envoi", running: "en cours",
+  done: "fini", failed: "échec", stopped: "arrêté" };
 const LIMITS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 const num = (x, digits = 1) => Number(x || 0).toLocaleString("fr-FR", { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -100,7 +103,7 @@ export function mountMachines(root, api) {
       ...LIMITS.map((n) => el("option", { value: String(n) }, String(n))));
     limit.value = String(m.limit || 2);
     limit.addEventListener("change", () => busy(limit, async () => {
-      try { await api.call("machines.limit", { machine: m.id, limite: Number(limit.value) }); } catch (e) {
+      try { await api.call("machines.limit", { machine: m.id, limit: Number(limit.value) }); } catch (e) {
         toast(e.message, { kind: "error" });
         limit.value = String(m.limit || 2);
         return;
@@ -131,10 +134,10 @@ export function mountMachines(root, api) {
 
   function jobRow(j) {
     const active = ACTIVE.includes(j.state);
-    const cls = j.state === "fini" && j.code ? "failed" : PILL[j.state] ?? "";
+    const cls = j.state === "done" && j.code ? "failed" : PILL[j.state] ?? "";
     return el("article", { class: `job${active ? " active" : ""}`, "aria-label": j.text },
       el("div", { class: "job-head" }, el("code", { class: "job-cmd", title: j.text }, j.text),
-        el("span", { class: `pill ${cls}` }, j.state)),
+        el("span", { class: `pill ${cls}` }, STATE_LABELS[j.state] ?? j.state)),
       el("div", { class: "subtle" }, jobLine(j)),
       j.why ? el("div", { class: "job-why" }, j.why) : null,
       el("div", { class: "job-actions" },
@@ -155,7 +158,7 @@ export function mountMachines(root, api) {
   }
 
   async function stopJob(j) {
-    const running = j.state === "en cours" || j.state === "envoi";
+    const running = j.state === "running" || j.state === "sending";
     if (!await confirmSheet({ title: "Arrêter ce travail ?",
       body: running ? `« ${j.text} » sera arrêtée sur ${j.machine || "la machine"}.` : `« ${j.text} » ne sera pas lancée.`,
       confirm: "Arrêter", cancel: "Garder", danger: true })) return false;
@@ -243,23 +246,23 @@ export function mountMachines(root, api) {
     clear(relayBox);
     if (error) { relayBox.append(errorState(error.message, loadRelay)); return; }
     const address = el("input", { type: "url", inputmode: "url", autocomplete: "off", autocapitalize: "off", spellcheck: "false",
-      placeholder: "https://ricochet.exemple", value: s.relais || "" });
+      placeholder: "https://ricochet.exemple", value: s.relay || "" });
     const token = el("input", { type: "password", autocomplete: "new-password", "aria-label": "Jeton",
-      placeholder: s.jeton_defini ? "laisser vide pour le garder" : "jeton du relais" });
-    const status = el("span", { class: s.jeton_defini ? "ok-text" : "subtle", "data-role": "token-status" },
-      s.jeton_defini ? "Jeton enregistré." : "Aucun jeton.");
+      placeholder: s.token_set ? "laisser vide pour le garder" : "jeton du relais" });
+    const status = el("span", { class: s.token_set ? "ok-text" : "subtle", "data-role": "token-status" },
+      s.token_set ? "Jeton enregistré." : "Aucun jeton.");
     const error2 = el("p", { class: "form-error", role: "alert" });
     const save = el("button", { type: "submit", class: "primary" }, "Enregistrer");
     const f = el("form", { class: "stack" }, field("Adresse du relais", address),
       field("Jeton", token, status), error2,
-      el("p", { class: "subtle" }, `Fichier : ${shortPath(s.chemin)} · limite par défaut : ${s.limite_defaut ?? 2} travaux à la fois par machine.`),
+      el("p", { class: "subtle" }, `Fichier : ${shortPath(s.path)} · limite par défaut : ${s.default_limit ?? 2} travaux à la fois par machine.`),
       el("div", { class: "sheet-actions" }, save));
     f.addEventListener("submit", (ev) => {
       ev.preventDefault();
       error2.textContent = "";
       const params = {};
-      if (address.value.trim() !== (s.relais || "")) params.relais = address.value.trim();
-      if (token.value) params.jeton = token.value;
+      if (address.value.trim() !== (s.relay || "")) params.relay = address.value.trim();
+      if (token.value) params.token = token.value;
       if (!Object.keys(params).length) { toast("Rien à changer."); return; }
       busy(save, async () => {
         try { await api.call("machines.configure", params); } catch (e) { error2.textContent = e.message; return; }
@@ -301,7 +304,7 @@ export function mountMachines(root, api) {
     }
     if (!state.home) {
       if (!state.settings) { try { state.settings = await api.call("machines.settings"); } catch { /* sans réglages */ } }
-      state.home = (/^(\/home\/[^/]+|\/root)(?=\/|$)/.exec(state.settings?.chemin || "") || [""])[0];
+      state.home = (/^(\/home\/[^/]+|\/root)(?=\/|$)/.exec(state.settings?.path || "") || [""])[0];
     }
     if (!folder.value) folder.value = lastProject() || state.home;
   }
