@@ -14,6 +14,15 @@
       "category": "developer",
       "versions": [
         {
+          "version": "1.0.0",
+          "buildVersion": "38",
+          "date": "2026-11-22",
+          "localizedDescription": "Version 1.0 : interfaces stables, mot de passe root demandé sur l'iPhone (popup), commandes françaises.",
+          "downloadURL": "https://github.com/mawena/CCS/releases/download/v1.0.0/CCS-1.0.0.ipa",
+          "size": 2126416,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "0.37.0",
           "buildVersion": "37",
           "date": "2026-11-21",
