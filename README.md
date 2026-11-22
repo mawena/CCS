@@ -840,7 +840,12 @@ Machine et port du cerveau : « Où est le cerveau de Jarvis ? » en bas de la p
 `jarvis.machine` et `jarvis.port`). Retirer un appareil : `jarvis unpair <nom>` sur la machine
 de Jarvis.
 
-Pour une autre oreille (appli Android ou iPhone) : WebSocket `wss://<serveur>/api/jarvis/oreille?fp=<empreinte>`
+Dans les applis **Android** et **iPhone** : Plus → **Parler à Jarvis** (même bouton, même
+relais, jeton de l'appli). L'appareil photo du téléphone ouvre directement CCS sur le QR code de
+`jarvis pair` (lien `jarvis://pair?…`) ; un raccourci « Parler à Jarvis » (raccourci d'appli
+Android, App Intent sur iPhone) ouvre l'écran déjà en écoute.
+
+Pour une autre oreille : WebSocket `wss://<serveur>/api/jarvis/oreille?fp=<empreinte>`
 avec la session CCS ou `Authorization: Bearer <jeton d'application>`. Le premier message
 (`pair` ou `hello` du protocole des oreilles de Jarvis) doit partir dès l'ouverture ; tout est
 ensuite relayé tel quel dans les deux sens (texte JSON, trames de son binaires `0x01` + phrase

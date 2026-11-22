@@ -14,6 +14,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - ccs-web : point d'entrée `/api/jarvis/oreille` (session CCS exigée) qui relaie l'oreille vers
   le cerveau par le pont de l'utilisateur : tunnel Ricochet, TLS épinglé sur l'empreinte du
   cerveau, limites de taille, erreur immédiate si Jarvis est injoignable.
+- Applis Android et iPhone : Plus → « Parler à Jarvis », sur le même relais (appairage par le QR
+  code de `jarvis pair` scanné avec l'appareil photo, l'adresse collée ou code et empreinte ;
+  jeton gardé chiffré / dans le trousseau ; bouton maintenir ou toucher, voix de la réponse,
+  écoute relancée si Jarvis pose une question). Raccourci « Parler à Jarvis » (raccourci d'appli
+  Android, App Intent iPhone) et lien `ccs://jarvis` qui ouvrent l'écran déjà en écoute.
 - Pont : méthodes `jarvis.*` et réglages `jarvis.machine`, `jarvis.port` (par défaut
   `laptop-maison:7341`) et `jarvis.fingerprint`.
 

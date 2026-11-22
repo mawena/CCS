@@ -658,7 +658,11 @@ vérification de la voix.
 - [x] 4. Tests (faux cerveau TLS local, faux `ricochet-agent`, ccs-web de bout en bout, page dans node), README, CHANGELOG
 - [ ] 5. Essai réel par Charles : port 7341 autorisé dans le `[tunnel]` de l'agent Ricochet de laptop-maison (aujourd'hui refusé : « port non autorisé »), `jarvis pair`, une phrase depuis le téléphone hors du Wi-Fi
 - [ ] 6. Bureau (GTK) : il ne réutilise pas la version web ; bouton Jarvis à faire (ou ouvrir la page web)
-- [ ] 7. Applis Android et iPhone : bouton Jarvis sur le même relais (voir README, « Parler à Jarvis »)
+- [x] 7. Applis Android et iPhone : bouton Jarvis sur le même relais (voir README, « Parler à Jarvis »)
+  - [x] 7a. Logique commune testée (`logique/Jarvis.kt`, `Logique/Jarvis.swift`) : adresse `jarvis://pair?…`, messages `pair` / `hello` / `wake` / `listen_start` / `listen_end`, lecture des réponses du cerveau et du relais, trames `0x01`, rééchantillonnage 16 kHz, phrase (14 s, silence, rien dit)
+  - [x] 7b. Android : écran Plus → Parler à Jarvis (appairage, bouton maintenir / toucher), `AudioRecord` + `AudioTrack`, coffre chiffré, permission micro, raccourci d'appli et liens `ccs://jarvis`, `jarvis://pair`
+  - [x] 7c. iPhone : même écran, `AVAudioEngine` + `AVAudioPlayer`, trousseau, App Intent « Parler à Jarvis », liens `ccs://jarvis`, `jarvis://pair`
+  - [ ] 7d. Construire sur Codemagic (workflows `android` et `ios-natif`, jamais compilé ici) et essayer sur le Pixel et l'iPhone
 - [ ] 8. Release (version mineure) après l'essai réel
 
 ## Phase 35 — Vocal : dictée et lecture des réponses (1.1.0)
