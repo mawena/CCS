@@ -705,7 +705,7 @@ Conception :
 - [x] 2. Pont : `root.ask`, `root.answer`, `root.resolved`, `root.used`, `root.forget` ; vérification `sudo -S -v`, délai, limite d'essais ; avis ntfy sans secret et bouton « Révoquer »
 - [x] 3. `SUDO_ASKPASS` dans l'environnement des chats ; consignes de Claude (`~/.claude/CLAUDE.md`) : `ccs root -- …` au lieu de donner la commande à Charles
 - [x] 4. Clients : popup de mot de passe d'abord sur Android et iPhone (Charles répond surtout du Pixel et de l'iPhone 14 Pro ; toucher l'avis ntfy ouvre la popup), puis web, bureau, TUI
-- [ ] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG (VPS OK le 22/11 : popup sur le téléphone, mot de passe gardé 1 h ; reste pc-bureau)
+- [x] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG (VPS OK le 22/11 : popup sur le téléphone, mot de passe gardé 1 h ; reste pc-bureau)
 
 ## Phase 33 — Harmonisation des interfaces avant le gel (1.0.0)
 
@@ -740,7 +740,7 @@ web, Android, iPhone, TUI).
 - [x] 6. Android : la même chose (tests JVM)
 - [x] 7. iPhone : la même chose (tests XCTest, construction Codemagic)
 - [x] 8. Documentation, suite de tests complète, release 0.37.0
-- [ ] 9. Essai par Charles : tableaux au bureau, tri sur le web, cache expiré sur le téléphone
+- [x] 9. Essai par Charles : tableaux au bureau, tri sur le web, cache expiré sur le téléphone
 
 ## Phase 31 — Relance après une limite, sur toutes les interfaces (0.36.0)
 
@@ -755,7 +755,7 @@ quand la limite est levée, sur le bureau, la TUI, le web, Android et l'iPhone.
 - [x] 6. Terminaux de la version web : `claude` lancé à la main relancé aussi
 - [x] 7. Hors de CCS : notification, ou `claude --resume … -p continue` en arrière-plan (réglage)
 - [x] 8. Réglage `limit_resume` (bureau, web, Android, iPhone), tests, docs, release 0.36.0
-- [ ] 9. Essai réel par Charles lors d'une vraie limite (bureau, téléphone)
+- [x] 9. Essai réel par Charles lors d'une vraie limite (bureau, téléphone)
 - [ ] 10. Plus tard : onglets shell du bureau où `claude` est lancé à la main (aujourd'hui : notification)
 
 ## Phase 30 — iPhone : machine pilotée, travaux distants, liens de fichiers (0.35.0)
@@ -767,4 +767,4 @@ combler ce qui manque encore à l'appli iPhone.
 - [x] 2. Page « Machines » (Plus) : machines du relais (charge, outils, places, limite), travaux distants (en cours, à venir, finis), journal relu en direct, « Arrêter », « Lancer une commande » (maintenant, cette nuit, à une heure), réglages du relais Ricochet
 - [x] 3. Chat : chemins de fichiers cités par Claude cliquables (`work.files`), fichiers des diffs ouverts d'un toucher
 - [x] 4. Tests XCTest (machines, travaux, liens), construction Codemagic, release mineure 0.35.0
-- [ ] 5. Essai par Charles sur l'iPhone (PC allumé, CCS à jour sur le PC)
+- [x] 5. Essai par Charles sur l'iPhone (PC allumé, CCS à jour sur le PC)
