@@ -1,3 +1,15 @@
+ccs (1.0.0) unstable; urgency=medium
+
+  * Première version stable : interfaces figées pour la 1.x.
+  * Commandes en français (anciens noms acceptés), pont et HTTP en anglais
+    avec version de protocole, fichiers et variables en anglais migrés
+    tout seuls.
+  * Bureau : chats locaux par le pont local, visibles en direct partout ;
+    pont relancé après une mise à jour.
+  * Applis Android et iPhone au protocole 1.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 22 Nov 2026 12:00:00 +0100
+
 ccs (0.37.0) unstable; urgency=medium
 
   * Version web : ordre des sessions ouvertes (tri au choix ou à la main).
