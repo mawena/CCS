@@ -62,6 +62,12 @@ class MainActivity : ComponentActivity() {
         (application as CcsAppli).depot.client.reessayer()
         // Service de fond (notifications) : lancé d'ici, au premier plan, comme Android l'exige.
         ServiceVeille.appliquer(this)
+        (application as CcsAppli).depot.root.premierPlan(true)
+    }
+
+    override fun onStop() {
+        (application as CcsAppli).depot.root.premierPlan(false)
+        super.onStop()
     }
 
     /** Notification touchée, raccourci d'appli ou partage depuis une autre appli. */
@@ -75,6 +81,13 @@ class MainActivity : ComponentActivity() {
                         i.getStringExtra(Notifs.EXTRA_TITRE), i.getStringExtra(Notifs.EXTRA_CHAT),
                     ),
                 )
+            }
+            // la fenêtre du mot de passe s'affiche d'elle-même au premier plan : relire l'état du pont
+            Notifs.ACTION_ROOT, Intent.ACTION_VIEW -> {
+                val d = (application as CcsAppli).depot
+                if (i.action == Intent.ACTION_VIEW && i.data?.scheme != "ccs") return
+                d.client.reessayer()
+                d.root.premierPlan(true)
             }
             RACCOURCI_SESSIONS -> modele.demande.value = DemandeAppli.Sessions
             RACCOURCI_NOUVEAU -> modele.demande.value = DemandeAppli.NouveauChat

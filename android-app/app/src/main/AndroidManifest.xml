@@ -40,6 +40,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="*/*" />
             </intent-filter>
+            <!-- Lien ccs://root (bouton ou clic d'une notification ntfy) : fenêtre du mot de passe root -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ccs" android:host="root" />
+            </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/raccourcis" />
         </activity>
         <service
