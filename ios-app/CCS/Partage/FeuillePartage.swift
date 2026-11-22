@@ -141,6 +141,11 @@ extension ModeleAppli {
      * ou lien `ccs://partager` : la feuille de partage s'ouvre.
      */
     func recevoir(_ u: URL) {
+        // ccs://root : demande du mot de passe root (lien d'un avis) : la feuille revient
+        if u.scheme?.lowercased() == "ccs", u.host?.lowercased() == "root" {
+            root.afficher()
+            return
+        }
         if u.isFileURL {
             var p = partage ?? Partage(texte: "", fichiers: [])
             if !p.fichiers.contains(u) { p.fichiers.append(u) }
