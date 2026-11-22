@@ -93,7 +93,7 @@ export function mountSessions(root, api, ctx = {}) {
       project = { cwd, screen: new ProjectScreen(projectHost, api, cwd, {
         onBack: () => (history.state?.fromList ? history.back() : show(null)),
         resume: (c) => open(c.cwd, c),
-        newChat: (dir, text) => open(dir, null, {}, text),
+        newChat: (dir, text) => askNewSession(dir, text),
         openTerm: (dir) => openTerm(dir),
         opened: openedIds,
       }) };
@@ -175,7 +175,7 @@ export function mountSessions(root, api, ctx = {}) {
       { label: "Monter", disabled: at <= 0, run: () => { move(order, id, { delta: -1 }); renderRunning(); } },
       { label: "Descendre", disabled: at < 0 || at >= order.length - 1, run: () => { move(order, id, { delta: 1 }); renderRunning(); } },
       null,
-      { label: "Nouveau chat dans ce projet", disabled: !ok, run: () => open(t.cwd) },
+      { label: "Nouveau chat dans ce projet", disabled: !ok, run: () => askNewSession(t.cwd) },
       { label: "Terminal dans ce projet", disabled: !ok, run: () => openTerm(t.cwd) },
       { label: "Ouvrir le projet", disabled: !ok, run: () => showProject(t.cwd, { push: true }) },
       { label: "Copier le chemin", disabled: !ok, run: () => copy(t.cwd) },
@@ -231,11 +231,13 @@ export function mountSessions(root, api, ctx = {}) {
     addTab(key, cwd, extra.title || base(cwd), null, { cwd, ...extra });
   }
 
-  function askNewSession(initial = "") {
+  // Tout nouveau chat passe par cette feuille (modèle, droits, compte) ; initial : dossier déjà choisi,
+  // text : premier message à envoyer une fois le chat ouvert.
+  function askNewSession(initial = "", text) {
     const known = ((data && data.entries) || []).filter((p) => p.cwd && p.exists).map((p) => ({ path: p.cwd, name: p.name }));
     newSession(api, {
       known, initial,
-      onOpen: (cwd, options) => openChat(cwd, null, options),
+      onOpen: (cwd, options) => openChat(cwd, null, options, text),
       onTerm: (cwd) => openTerm(cwd),
     });
   }
@@ -335,7 +337,7 @@ export function mountSessions(root, api, ctx = {}) {
     for (const p of projects.slice(0, shownProjects)) {
       list.append(el("div", { class: "item project-item", oncontextmenu: (e) => contextMenu(e, [
         { label: "Ouvrir le projet", run: () => showProject(p.cwd, { push: true }) },
-        { label: "Nouveau chat", disabled: !p.exists, run: () => open(p.cwd) },
+        { label: "Nouveau chat", disabled: !p.exists, run: () => askNewSession(p.cwd) },
         { label: "Terminal", disabled: !p.exists, run: () => openTerm(p.cwd) },
         { label: "Copier le chemin", run: () => copy(p.cwd) },
         null,
@@ -343,7 +345,7 @@ export function mountSessions(root, api, ctx = {}) {
       ]) },
         el("button", { class: "project-open-btn grow", "aria-label": `Ouvrir le projet ${p.name}`, onclick: () => showProject(p.cwd, { push: true }) },
           el("strong", {}, p.name), el("span", { class: "subtle" }, `${p.total} conversation(s)${p.open ? ` · ${p.open} ouverte(s)` : ""}`)),
-        p.exists ? el("button", { class: "small", onclick: () => open(p.cwd) }, "Nouveau chat") : null,
+        p.exists ? el("button", { class: "small", onclick: () => askNewSession(p.cwd) }, "Nouveau chat") : null,
         p.exists ? el("button", { class: "small flat", title: "Terminal dans ce projet", "aria-label": `Terminal dans ${p.name}`, onclick: () => openTerm(p.cwd) }, "▸_") : null,
         el("button", { class: "small flat", title: "Retirer de la liste", "aria-label": `Retirer ${p.name} de la liste`,
           onclick: () => removeProject(api, p, { onDone: () => loadList({ quiet: true }) }) }, "✕")));
@@ -435,7 +437,7 @@ export function mountSessions(root, api, ctx = {}) {
 
   let timer;
   search.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { shownProjects = PROJECTS_STEP; shownConvs = CONVS_STEP; loadList({ quiet: true }); }, 300); });
-  const onNewChat = (e) => { if (e.detail?.cwd) open(e.detail.cwd, null, {}, e.detail.text); };
+  const onNewChat = (e) => { if (e.detail?.cwd) askNewSession(e.detail.cwd, e.detail.text); };
   document.addEventListener("ccs:new-chat", onNewChat);
   // conversation renommée (onglet, liste, écran Projet) : ses onglets et la liste suivent
   const onRenamed = (e) => {

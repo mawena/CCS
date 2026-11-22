@@ -122,5 +122,5 @@ export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
   loadRepos();
   api.call("accounts.state").then((s) => { home = s.home || ""; renderPicker(); }, () => {});
   refreshAccount();
-  folder.focus();
+  (initial ? go : folder).focus();      // dossier déjà choisi : reste à régler les options et ouvrir
 }
