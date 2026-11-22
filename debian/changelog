@@ -1,3 +1,9 @@
+ccs (1.0.2) unstable; urgency=medium
+
+  * Web : « Nouveau chat » ouvre la feuille des options de la session.
+
+ -- mawena <gamligocharles@gmail.com>  Sun, 22 Nov 2026 16:00:00 +0100
+
 ccs (1.0.1) unstable; urgency=medium
 
   * Web : le bandeau « Root gardé » ne fait plus défiler la page.
