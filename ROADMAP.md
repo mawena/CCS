@@ -668,9 +668,9 @@ Conception :
 
 - [x] 1. Gardien en mémoire, socket Unix, `ccs-askpass`, `ccs root -- …` / `ccs root etat|oublier` ; tests
 - [x] 2. Pont : `root.ask`, `root.answer`, `root.resolved`, `root.used`, `root.forget` ; vérification `sudo -S -v`, délai, limite d'essais ; avis ntfy sans secret et bouton « Révoquer »
-- [ ] 3. `SUDO_ASKPASS` dans l'environnement des chats ; consignes de Claude (`~/.claude/CLAUDE.md`) : `ccs root -- …` au lieu de donner la commande à Charles
+- [x] 3. `SUDO_ASKPASS` dans l'environnement des chats ; consignes de Claude (`~/.claude/CLAUDE.md`) : `ccs root -- …` au lieu de donner la commande à Charles
 - [x] 4. Clients : popup de mot de passe d'abord sur Android et iPhone (Charles répond surtout du Pixel et de l'iPhone 14 Pro ; toucher l'avis ntfy ouvre la popup), puis web, bureau, TUI
-- [ ] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG
+- [ ] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG (VPS OK le 22/11 : popup sur le téléphone, mot de passe gardé 1 h ; reste pc-bureau)
 
 ## Phase 33 — Harmonisation des interfaces avant le gel (1.0.0)
 
