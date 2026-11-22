@@ -226,6 +226,7 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `machines.settings` | — | `relay, token_set, path, default_limit, limits` |
 | `machines.configure` | `relay`, `token` | écrit `client.toml` |
 | `machines.limit` | `machine`, `limit` | places par machine (`distant.toml`) |
+| `machines.add` | `machine`, `user`, `name?`, `limit?` | déclare un PC dans Ricochet → `{id, command, expires_s}` (ligne `curl … \| sudo sh` à usage unique, 15 min) |
 | `machines.attach` | `machine` | *interne* : relaie la connexion vers le pont d'une autre machine (pousse `machines.ready`) |
 | `root.answer` | `id`, `password` (ou `cancel: true`) | réponse à `root.ask` : mot de passe vérifié par `sudo -k -S -v` puis gardé en mémoire 1 h → `ok`, `error` ; erreurs `introuvable` (demande inconnue ou réglée), `conflit` (autre appareil en cours de vérification), `invalide` |
 | `root.status` | — | `machine, kept, expires_at, remaining` (s), `pending` (dernier `root.ask` ou `null`) ; jamais le mot de passe |

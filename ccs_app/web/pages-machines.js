@@ -4,7 +4,7 @@
 // quand le web pilote une autre machine. Rechargement toutes les 5 s tant que la page est visible.
 import { ago, clear, confirmSheet, el, emptyState, errorState, loading, toast } from "./dom.js";
 import { machineName } from "./machines.js";
-import { busy, field, shortPath } from "./pages-util.js";
+import { busy, copyText, field, shortPath } from "./pages-util.js";
 
 export const LAST_PROJECT_KEY = "ccs.project.last";
 const REFRESH_MS = 5000;
@@ -72,10 +72,12 @@ export function mountMachines(root, api) {
   const jobsBox = el("div", { class: "stack" }, loading());
   const formBox = el("div", {});
   const relayBox = el("div", { class: "stack" }, loading());
+  const addBox = el("div", { class: "stack" });
   wrap.append(...(note ? [note] : []),
     el("section", { class: "card flat section", "aria-label": "Machines" }, el("h2", {}, "Machines"), machinesBox),
     el("section", { class: "card flat section", "aria-label": "Travaux" }, el("h2", {}, "Travaux"), jobsBox),
     el("section", { class: "card flat section", "aria-label": "Lancer une commande" }, el("h2", {}, "Lancer une commande"), formBox),
+    el("section", { class: "card flat section", "aria-label": "Ajouter un PC" }, el("h2", {}, "Ajouter un PC"), addBox),
     el("section", { class: "card flat section", "aria-label": "Relais Ricochet" }, el("h2", {}, "Relais Ricochet"), relayBox));
   root.append(wrap);
 
@@ -278,6 +280,56 @@ export function mountMachines(root, api) {
   async function loadRelay() {
     try { state.settings = await api.call("machines.settings"); } catch (e) { drawRelay(null, e); return; }
     drawRelay(state.settings, null);
+    drawAdd(state.settings);
+  }
+
+  // ---- ajouter un PC (lien d'installation à usage unique) ----------------------------------
+
+  function drawAdd(s) {
+    clear(addBox);
+    if (!s.relay || !s.token_set) {
+      addBox.append(el("p", { class: "subtle" }, "Règle d'abord le relais ci-dessous."));
+      return;
+    }
+    if (!s.operator_set) {
+      addBox.append(el("p", { class: "subtle" },
+        `Ajoute jeton_operateur = "…" (jeton opérateur du relais) à ${shortPath(s.path)} pour ajouter des PC d'ici.`));
+      return;
+    }
+    const id = el("input", { required: true, pattern: "[A-Za-z0-9_\\-]{1,64}", autocomplete: "off",
+      autocapitalize: "off", spellcheck: "false", placeholder: "pc-salon" });
+    const user = el("input", { required: true, pattern: "[a-z_][a-z0-9_\\-]{0,31}", autocomplete: "off",
+      autocapitalize: "off", spellcheck: "false", placeholder: "charles" });
+    const name = el("input", { maxlength: "100", placeholder: "PC du salon" });
+    const error2 = el("p", { class: "form-error", role: "alert" });
+    const submit = el("button", { type: "submit", class: "primary" }, "Créer le lien");
+    const result = el("div", { class: "stack" });
+    const f = el("form", { class: "stack" },
+      field("Identifiant", id, "lettres, chiffres, - et _"),
+      field("Ton compte sur ce PC", user, "terminal, fichiers et travaux tournent sous ce compte"),
+      field("Nom affiché (facultatif)", name), error2,
+      el("div", { class: "sheet-actions" }, submit));
+    f.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      error2.textContent = "";
+      clear(result);
+      const params = { machine: id.value.trim(), user: user.value.trim() };
+      if (name.value.trim()) params.name = name.value.trim();
+      busy(submit, async () => {
+        let r;
+        try { r = await api.call("machines.add", params); } catch (e) { error2.textContent = e.message; return; }
+        id.value = ""; name.value = "";
+        const copy = el("button", { type: "button", class: "primary" }, "Copier");
+        copy.addEventListener("click", () => copyText(r.command));
+        result.append(
+          el("p", {}, `Colle cette commande dans un terminal de « ${r.id} » (Ubuntu ou Debian). Le lien ne sert qu'une fois, pendant ${Math.round((r.expires_s || 900) / 60)} min.`),
+          el("pre", { class: "log" }, r.command),
+          el("p", { class: "subtle" }, "Elle installe l'agent Ricochet et le serveur SSH, autorise la clé de ce serveur, puis la machine apparaît ici en ligne."),
+          el("div", { class: "sheet-actions" }, copy));
+        refresh();
+      });
+    });
+    addBox.append(f, result);
   }
 
   // ---- chargement ------------------------------------------------------------------------

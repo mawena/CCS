@@ -363,7 +363,7 @@ class TestClientSettings(JobsCase):
                                         '[machines.portable]\nlimite = 99\n')
         s = distant.client_settings()
         new = {"relay": "https://r.example/", "token_set": True, "path": str(distant.client_path()),
-               "default_limit": 2, "limits": {"pc-bureau": 3}}
+               "default_limit": 2, "limits": {"pc-bureau": 3}, "operator_set": False}
         old = {"relais": "https://r.example/", "jeton_defini": True, "chemin": str(distant.client_path()),
                "limite_defaut": 2, "limites": {"pc-bureau": 3}}   # compatibilité 1.x
         self.assertEqual(s, {**new, **old})
@@ -425,3 +425,81 @@ def distant_api():
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakeResponse(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+class TestAddMachine(JobsCase):
+    def setUp(self):
+        super().setUp()
+        write(distant.client_path(), 'relais = "https://r.example"\njeton = "secret"\n'
+                                     'jeton_operateur = "operateur"\n')
+        ssh = self.home / ".ssh"
+        write(ssh / "id_rsa", "privée")
+        write(ssh / "id_rsa.pub", "ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB moi@vps\n")
+        self.requests = []
+
+    def opener(self, status=201, body=None):
+        def open_(req, timeout=None):
+            self.requests.append(req)
+            if status != 201:
+                raise distant.urllib.error.HTTPError(req.full_url, status, "x", {}, io.BytesIO(b"non"))
+            return FakeResponse(json.dumps(body or {"id": "pc-salon", "jeton": "j",
+                                                    "lien": "/rejoindre/abc", "expire_s": 900}).encode())
+        return open_
+
+    def test_creates_the_machine_and_remembers_the_user(self):
+        distant.set_limit("pc-salon", 5)
+        r = distant.add_machine("pc-salon", name="Salon", user="charles", limit=3, opener=self.opener())
+        self.assertEqual(r, {"id": "pc-salon", "command": "curl -fsSL https://r.example/rejoindre/abc | sudo sh",
+                             "expires_s": 900})
+        req = self.requests[0]
+        self.assertEqual((req.full_url, req.get_method()), ("https://r.example/api/machines", "POST"))
+        self.assertEqual(req.get_header("Authorization"), "Bearer operateur")
+        self.assertEqual(json.loads(req.data), {"id": "pc-salon", "nom": "Salon", "utilisateur": "charles",
+                                                "ports": [22], "cles_ssh": ["ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB moi@vps"]})
+        self.assertEqual(distant.load_overrides()["pc-salon"], {"limit": 3, "user": "charles"})
+        self.assertTrue(distant.client_settings()["operator_set"])
+
+    def test_refusals(self):
+        for kw in ({"machine_id": "a.b", "user": "c"}, {"machine_id": "pc", "user": ""},
+                   {"machine_id": "pc", "user": "Charles"}, {"machine_id": "pc", "user": "c", "limit": 9}):
+            with self.assertRaises(distant.DistantError):
+                distant.add_machine(opener=self.opener(), **kw)
+        with self.assertRaisesRegex(distant.DistantError, "existe déjà"):
+            distant.add_machine("pc", user="c", opener=self.opener(409))
+        with self.assertRaisesRegex(distant.DistantError, "0.6.0"):
+            distant.add_machine("pc", user="c", opener=self.opener(body={"id": "pc", "jeton": "j"}))
+        write(distant.client_path(), 'relais = "https://r.example"\njeton = "secret"\n')
+        with self.assertRaisesRegex(distant.DistantError, "jeton_operateur"):
+            distant.add_machine("pc", user="c", opener=self.opener())
+        self.assertEqual(distant.load_overrides(), {})
+
+    def test_creates_a_key_when_there_is_none(self):
+        for f in (self.home / ".ssh").iterdir():
+            f.unlink()
+
+        def keygen(argv, **kw):
+            path = Path(argv[argv.index("-f") + 1])
+            write(path, "privée")
+            write(Path(str(path) + ".pub"), "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAInouvelle ccs@ici\n")
+        distant.add_machine("pc", user="c", opener=self.opener(), run=keygen)
+        self.assertEqual(json.loads(self.requests[0].data)["cles_ssh"],
+                         ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAInouvelle ccs@ici"])
+
+    def test_cli(self):
+        out = io.StringIO()
+        with mock.patch.object(distant, "add_machine", return_value={
+                "id": "pc", "command": "curl -fsSL https://r/rejoindre/x | sudo sh", "expires_s": 900}) as add, \
+                redirect_stdout(out):
+            code = cli.main(["distant", "ajouter", "pc", "--utilisateur", "charles", "--limite", "2"])
+        self.assertEqual(code, 0)
+        add.assert_called_once_with("pc", name=None, user="charles", limit=2)
+        self.assertIn("| sudo sh", out.getvalue())
+        self.assertIn("15 min", out.getvalue())

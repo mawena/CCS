@@ -233,6 +233,19 @@ class MachinesTest(unittest.IsolatedAsyncioTestCase):
                 await c.call(method, **params)
             self.assertEqual(e.exception.code, "invalide")
 
+    async def test_add_machine(self):
+        c = await self.client()
+        with mock.patch.object(distant, "add_machine", return_value={"id": "pc", "command": "curl", "expires_s": 900}) as add:
+            r = await c.call("machines.add", machine="pc", user="charles", name="PC")
+        self.assertEqual(r["command"], "curl")
+        add.assert_called_once_with("pc", name="PC", user="charles", limit=None)
+        with mock.patch.object(distant, "add_machine", side_effect=distant.DistantError("refusé")):
+            with self.assertRaises(rpc.RpcError) as e:
+                await c.call("machines.add", machine="pc", user="charles")
+        self.assertEqual(e.exception.code, "invalide")
+        with self.assertRaises(rpc.RpcError):
+            await c.call("machines.add", machine=3, user="charles")
+
     async def test_old_client_keeps_old_names(self):
         """Applis d'avant la 1.0.0 : anciens noms de méthode, de paramètre, d'événement et
         d'état (compatibilité 1.x)."""

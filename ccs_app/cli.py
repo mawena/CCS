@@ -1040,6 +1040,13 @@ def cmd_distant(args):
             lines = distant.describe(machines, distant.load_overrides(), probe=not args.vite)
             print("\n".join(lines) if lines else "Aucune machine dans Ricochet.")
             return 0
+        if args.action == "ajouter":
+            r = distant.add_machine(args.id, name=args.nom, user=args.utilisateur, limit=args.limite)
+            print(f"« {r['id']} » est déclarée. Sur la nouvelle machine, colle dans un terminal "
+                  f"(lien valable {r['expires_s'] // 60} min, une seule fois) :\n\n  {r['command']}\n\n"
+                  "Elle installe l'agent Ricochet et le serveur SSH, autorise la clé SSH de ce "
+                  "serveur et la rend joignable par `ccs distant`.")
+            return 0
         if args.action == "travaux":
             now = time.time()
             jobs = distant_jobs.list_jobs()
@@ -1400,6 +1407,11 @@ def build_parser():
                      help="en arrière-plan : rend la main tout de suite (journal : ccs distant journal <id>)")
     dil.add_argument("--travail", help=argparse.SUPPRESS)   # interne : travail programmé, relancé par le service
     dil.add_argument("commande", nargs=argparse.REMAINDER, help="la commande, après --")
+    diaj = di_sub.add_parser("ajouter", help="ajoute un PC au réseau : donne la commande à coller dessus")
+    diaj.add_argument("id", help="identifiant de la machine (lettres, chiffres, - et _)")
+    diaj.add_argument("--utilisateur", required=True, help="ton compte sur cette machine")
+    diaj.add_argument("--nom", help="nom affiché")
+    diaj.add_argument("--limite", type=int, help="travaux à la fois sur cette machine (1 à 8)")
     di_sub.add_parser("travaux", help="commandes lancées : en attente, en cours et finies")
     dia = di_sub.add_parser("arreter", help="arrête un travail (ou le retire de la file)")
     dia.add_argument("id")
