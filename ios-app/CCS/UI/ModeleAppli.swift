@@ -136,7 +136,7 @@ final class ModeleAppli {
         let t = Task { @MainActor () -> String? in
             _ = await precedent?.value
             if let c = self.couts[cle] { return c }
-            guard let r = try? await self.client.appeler("conversation.cost", ["path": .chaine(chemin)], en: Cout.self) else { return nil }
+            guard let r = try? await self.client.appeler("conversations.cost", ["path": .chaine(chemin)], en: Cout.self) else { return nil }
             self.couts[cle] = r.short
             return r.short
         }

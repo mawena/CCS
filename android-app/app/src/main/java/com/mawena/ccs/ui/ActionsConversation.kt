@@ -112,7 +112,7 @@ fun ActionsConversation(
                 message = null
                 try {
                     client.appeler(
-                        "conversation.rename", Renomme.serializer(),
+                        "conversations.rename", Renomme.serializer(),
                         buildJsonObject { put("session_id", c.sessionId); put("title", texte.text); put("path", c.path) },
                     )
                     etat.renommer = null
@@ -155,7 +155,7 @@ fun ActionsConversation(
                 portee.launch {
                     try {
                         val r = client.appeler(
-                            "conversation.trash", MiseCorbeille.serializer(),
+                            "conversations.trash", MiseCorbeille.serializer(),
                             buildJsonObject {
                                 put("path", c.path); put("session_id", c.sessionId); put("cwd", c.cwd); put("title", c.titre)
                             },
@@ -164,7 +164,7 @@ fun ActionsConversation(
                         avis.dire("Conversation mise à la corbeille.", action = "Annuler") {
                             portee.launch {
                                 try {
-                                    client.appeler("conversation.restore", buildJsonObject { put("tid", r.tid) })
+                                    client.appeler("trash.restore", buildJsonObject { put("trash_id", r.trashId) })
                                     avis.dire("Conversation restaurée.")
                                     changee()
                                 } catch (e: Exception) {
@@ -192,7 +192,7 @@ private fun Apercu(modele: ModeleAppli, c: Conversation, fermer: () -> Unit, rep
         erreur = null
         try {
             messages = modele.depot.client.appeler(
-                "conversation.messages", Messages.serializer(),
+                "conversations.messages", Messages.serializer(),
                 buildJsonObject { put("path", c.path); put("limit", MESSAGES_APERCU * 3) },
             )
         } catch (e: Exception) {
@@ -238,7 +238,7 @@ fun DialogueCorbeille(modele: ModeleAppli, fermer: () -> Unit, changee: () -> Un
     LaunchedEffect(essai) {
         erreur = null
         try {
-            corbeille = client.appeler("conversation.trash_list", Corbeille.serializer())
+            corbeille = client.appeler("trash.list", Corbeille.serializer())
         } catch (e: Exception) {
             erreur = e.texte()
         }
@@ -259,7 +259,7 @@ fun DialogueCorbeille(modele: ModeleAppli, fermer: () -> Unit, changee: () -> Un
                     val elements = c.items.sortedByDescending { it.supprimeLe ?: 0.0 }
                     if (elements.isEmpty()) Text("La corbeille est vide.")
                     else LazyColumn(Modifier.heightIn(max = 400.dp)) {
-                        items(elements, key = { it.tid }) { it ->
+                        items(elements, key = { it.trashId }) { it ->
                             ListItem(
                                 headlineContent = { Text(it.title?.ifBlank { null } ?: "(sans titre)", maxLines = 2) },
                                 supportingContent = {
@@ -268,9 +268,9 @@ fun DialogueCorbeille(modele: ModeleAppli, fermer: () -> Unit, changee: () -> Un
                                 trailingContent = {
                                     TextButton(enabled = enCours == null, onClick = {
                                         portee.launch {
-                                            enCours = it.tid
+                                            enCours = it.trashId
                                             try {
-                                                client.appeler("conversation.restore", buildJsonObject { put("tid", it.tid) })
+                                                client.appeler("trash.restore", buildJsonObject { put("trash_id", it.trashId) })
                                                 avis.dire("Conversation restaurée.")
                                                 changee()
                                                 essai++

@@ -2,12 +2,21 @@ import Foundation
 
 /// Travaux distants (`ccs distant`) : mêmes mots que la page Machines du web (`pages-machines.js`).
 enum Travaux {
-    static let actifs: Set<String> = ["attente", "programmé", "envoi", "en cours"]
+    /// États du protocole 1 (`waiting`, `scheduled`, `sending`, `running`, `done`, `failed`, `stopped`).
+    static let actifs: Set<String> = ["waiting", "scheduled", "sending", "running"]
     static let limites = Array(1...8)
+
+    /// Libellé français d'un état, pour l'affichage (`STATE_LABELS` du web).
+    static let libelles: [String: String] = [
+        "waiting": "attente", "scheduled": "programmé", "sending": "envoi", "running": "en cours",
+        "done": "fini", "failed": "échec", "stopped": "arrêté",
+    ]
+
+    static func libelle(_ j: TravailDistant) -> String { return libelles[j.state] ?? j.state }
 
     static func actif(_ j: TravailDistant) -> Bool { return actifs.contains(j.state) }
 
-    static func enCours(_ j: TravailDistant) -> Bool { return j.state == "en cours" || j.state == "envoi" }
+    static func enCours(_ j: TravailDistant) -> Bool { return j.state == "running" || j.state == "sending" }
 
     /// Durée lisible : « 42 s », « 3 min 07 s », « 2 h 05 » (`duration`).
     static func duree(_ secondes: Double) -> String {
@@ -29,13 +38,13 @@ enum Travaux {
 
     enum Teinte { case attente, enCours, fini, echec, neutre }
 
-    /// Couleur de la pastille d'état (`PILL`) ; « fini » avec un code non nul est un échec.
+    /// Couleur de la pastille d'état (`PILL`) ; `done` avec un code non nul est un échec.
     static func teinte(_ j: TravailDistant) -> Teinte {
         switch j.state {
-        case "attente", "programmé": return .attente
-        case "envoi", "en cours": return .enCours
-        case "fini": return (j.code ?? 0) != 0 ? .echec : .fini
-        case "échec": return .echec
+        case "waiting", "scheduled": return .attente
+        case "sending", "running": return .enCours
+        case "done": return (j.code ?? 0) != 0 ? .echec : .fini
+        case "failed": return .echec
         default: return .neutre
         }
     }

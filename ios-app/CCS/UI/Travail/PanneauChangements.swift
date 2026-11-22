@@ -119,7 +119,7 @@ struct PanneauChangements: View {
                                            "Annuler ce fichier", danger: true) else { return }
             occupe = true
             do {
-                _ = try await client.appeler("work.undo_file", ["chat_id": .chaine(id), "path": .chaine(f.path), "expected": .de(f.sha256)])
+                _ = try await client.appeler("work.undo", ["chat_id": .chaine(id), "path": .chaine(f.path), "expected": .de(f.sha256)])
                 modele.avis.dire("Fichier remis comme avant la session.")
             } catch {
                 modele.avis.dire(texteErreur(error))
@@ -135,7 +135,7 @@ struct PanneauChangements: View {
             occupe = true
             let plan: PlanRetour
             do {
-                plan = try await client.appeler("work.rewind_plan", ["chat_id": .chaine(id), "message_id": .chaine(p.messageId)], en: PlanRetour.self)
+                plan = try await client.appeler("rewind.plan", ["chat_id": .chaine(id), "message_id": .chaine(p.messageId)], en: PlanRetour.self)
             } catch {
                 modele.avis.dire(texteErreur(error))
                 occupe = false
@@ -151,7 +151,7 @@ struct PanneauChangements: View {
             occupe = true
             do {
                 let attendus: [JSON] = plan.steps.map { .objet(["path": .chaine($0.path), "sha256": .de($0.sha256)]) }
-                let res = try await client.appeler("work.rewind_apply", [
+                let res = try await client.appeler("rewind.apply", [
                     "chat_id": .chaine(id), "message_id": .chaine(p.messageId), "expected": .tableau(attendus),
                 ], en: ResultatRetour.self)
                 modele.avis.dire("\(res.count) fichier(s) remis comme avant ce message.")
@@ -241,7 +241,7 @@ struct FeuilleMessages: View {
 
     private func charger() async {
         do {
-            liste = try await client.appeler("work.saved.list", ["cwd": .chaine(cwd)], en: MessagesEnregistres.self).items
+            liste = try await client.appeler("saved.list", ["cwd": .chaine(cwd)], en: MessagesEnregistres.self).items
             erreur = nil
         } catch {
             erreur = texteErreur(error)
@@ -252,7 +252,7 @@ struct FeuilleMessages: View {
         Task { @MainActor in
             guard await demandes.confirmer("Supprimer « \(m.name) » ?", "Le message enregistré disparaît.", "Supprimer", danger: true) else { return }
             do {
-                _ = try await client.appeler("work.saved.delete", ["cwd": .chaine(cwd), "scope": .chaine(m.scope), "name": .chaine(m.name)])
+                _ = try await client.appeler("saved.delete", ["cwd": .chaine(cwd), "scope": .chaine(m.scope), "name": .chaine(m.name)])
             } catch {
                 modele.avis.dire(texteErreur(error))
             }
@@ -264,7 +264,7 @@ struct FeuilleMessages: View {
         occupe = true
         Task { @MainActor in
             do {
-                _ = try await client.appeler("work.saved.save", [
+                _ = try await client.appeler("saved.save", [
                     "cwd": .chaine(cwd), "scope": .chaine(portee), "name": .chaine(nom), "text": .chaine(texteEnCours),
                 ])
                 nom = ""

@@ -183,7 +183,7 @@ struct ModificateurActions: ViewModifier {
         actions.renommer = nil
         Task { @MainActor in
             do {
-                _ = try await modele.client.appeler("conversation.rename", [
+                _ = try await modele.client.appeler("conversations.rename", [
                     "session_id": .chaine(c.sessionId), "title": .chaine(titre), "path": .chaine(c.path),
                 ])
                 modele.avis.dire("Conversation renommée.")
@@ -200,14 +200,14 @@ struct ModificateurActions: ViewModifier {
         let relire = changee
         Task { @MainActor in
             do {
-                let r = try await m.client.appeler("conversation.trash", [
+                let r = try await m.client.appeler("conversations.trash", [
                     "path": .chaine(c.path), "session_id": .chaine(c.sessionId), "cwd": .chaine(c.cwd), "title": .chaine(c.titre),
                 ], en: MiseCorbeille.self)
                 relire()
                 m.avis.dire("Conversation mise à la corbeille.", action: "Annuler") {
                     Task { @MainActor in
                         do {
-                            _ = try await m.client.appeler("conversation.restore", ["tid": .chaine(r.tid)])
+                            _ = try await m.client.appeler("trash.restore", ["trash_id": .chaine(r.trashId)])
                             m.avis.dire("Conversation restaurée.")
                             relire()
                         } catch {
@@ -277,7 +277,7 @@ private struct Apercu: View {
         .task(id: essai) {
             erreur = nil
             do {
-                let r = try await modele.client.appeler("conversation.messages", ["path": .chaine(c.path), "limit": 36], en: Messages.self)
+                let r = try await modele.client.appeler("conversations.messages", ["path": .chaine(c.path), "limit": 36], en: Messages.self)
                 messages = r.messages
             } catch {
                 erreur = texteErreur(error)
@@ -336,7 +336,7 @@ struct FeuilleCorbeille: View {
         .task(id: essai) {
             erreur = nil
             do {
-                corbeille = try await modele.client.appeler("conversation.trash_list", en: Corbeille.self)
+                corbeille = try await modele.client.appeler("trash.list", en: Corbeille.self)
             } catch {
                 erreur = texteErreur(error)
             }
@@ -353,9 +353,9 @@ struct FeuilleCorbeille: View {
 
     private func restaurer(_ el: ElementCorbeille) {
         Task { @MainActor in
-            enCours = el.tid
+            enCours = el.trashId
             do {
-                _ = try await modele.client.appeler("conversation.restore", ["tid": .chaine(el.tid)])
+                _ = try await modele.client.appeler("trash.restore", ["trash_id": .chaine(el.trashId)])
                 modele.avis.dire("Conversation restaurée.")
                 changee()
                 essai += 1
