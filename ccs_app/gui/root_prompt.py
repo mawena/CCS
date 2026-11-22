@@ -156,6 +156,9 @@ class RootDialog(Adw.Dialog):
         self.close()
 
     def _check_expiry(self):
+        if self._done or self.guard._closed:   # fermé, ou fenêtre détruite : on n'y touche plus
+            self._timer = None
+            return False
         if self.expires_at and time.time() >= self.expires_at:
             self._timer = None
             self.finish()
@@ -185,6 +188,9 @@ class RootGuard:
         self.machine = None
         self.kept_until = None
         self._tick = None
+        self._retry = None            # nouvel essai de connexion au pont (minuterie GLib)
+        self._closed = False          # fenêtre détruite : plus rien ne doit toucher aux widgets
+        window.connect("destroy", lambda *_: self.close())
         self.label = Gtk.Label()
         self.info = Gtk.Label(wrap=True, xalign=0, max_width_chars=36)
         pop_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, margin_top=8,
@@ -205,7 +211,7 @@ class RootGuard:
 
     def start(self):
         """Joint le pont local hors du fil de l'interface (il peut le lancer)."""
-        if self.bridge is None:
+        if self.bridge is None or self._closed:
             return
         in_thread(self._connect, self.attach)
 
@@ -216,8 +222,14 @@ class RootGuard:
             return None
 
     def attach(self, conn):
+        if self._closed:
+            return
         if conn is None:
-            GLib.timeout_add_seconds(RETRY_S, lambda: (self.start(), False)[1])
+            def retry():
+                self._retry = None
+                self.start()
+                return False
+            self._retry = GLib.timeout_add_seconds(RETRY_S, retry)
             return
         self.conn = conn
         attach_events(conn, self.on_event)
@@ -233,7 +245,7 @@ class RootGuard:
             self.conn.call("root.status", callback=self._status)
 
     def _status(self, result, error):
-        if error is not None or not isinstance(result, dict):
+        if self._closed or error is not None or not isinstance(result, dict):
             return
         self.machine = result.get("machine") or self.machine
         if result.get("kept"):
@@ -249,6 +261,8 @@ class RootGuard:
     # ---- événements --------------------------------------------------------------------
 
     def on_event(self, name, data):
+        if self._closed:
+            return
         data = data if isinstance(data, dict) else {}
         if name == "root.ask":
             self.ask(data)
@@ -306,6 +320,8 @@ class RootGuard:
             self.conn.call("root.answer", callback=lambda *_: None, id=request_id, cancel=True)
 
     def _answered(self, request_id, result, error):
+        if self._closed:
+            return
         dialog = self.dialog if self.dialog is not None and self.dialog.request_id == request_id else None
         if error is None and isinstance(result, dict) and result.get("ok"):
             if dialog is not None:
@@ -361,6 +377,10 @@ class RootGuard:
     def close(self):
         """Ferme le dialogue et arrête les minuteries (fenêtre détruite, tests) : une minuterie
         GLib laissée derrière toucherait des widgets détruits."""
+        self._closed = True
+        if self._retry is not None:
+            GLib.source_remove(self._retry)
+            self._retry = None
         if self.dialog is not None:
             self.dialog.finish()
         if self._tick is not None:

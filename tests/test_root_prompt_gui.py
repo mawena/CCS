@@ -56,12 +56,19 @@ class RootPromptTest(unittest.TestCase):
         self.toasts = []
         self.win = Gtk.Window()
         self.win.toast = self.toasts.append
-        self.addCleanup(self.win.destroy)
         self.win.present()
         self.conn = FakeConn()
         self.guard = root_prompt.RootGuard(self.win)
         self.guard.attach(self.conn)
-        self.addCleanup(self.guard.close)    # avant win.destroy : pas de minuterie orpheline
+        self.addCleanup(self._teardown)
+
+    def _teardown(self):
+        # Dialogue fermé et animations finies avant de détruire la fenêtre : un Adw.Dialog
+        # encore attaché à une fenêtre détruite fait planter la suite graphique complète.
+        self.guard.close()
+        flush()
+        self.win.destroy()
+        flush()
 
     def emit(self, name, data):
         self.conn.client.on_event(name, data)
