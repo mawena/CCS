@@ -643,6 +643,24 @@ archive de l'ancien dépôt) vient après.
 - [ ] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [ ] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
+## Phase 33 — Harmonisation des interfaces avant le gel (1.0.0)
+
+Charles (22/11/2026) : harmoniser d'abord, puis sortir la 1.0.0 ; les essais réels encore ouverts
+ne bloquent pas (corrections en 1.0.x). Règle de nommage (`docs/interfaces.md`, section 6) :
+- **Ce que Charles tape** (commandes, sous-commandes, options, valeurs d'arguments) : **français**.
+  Les anciens noms restent acceptés, cachés de l'aide, pendant toute la 1.x.
+- **Ce que lisent les programmes** (méthodes, paramètres et réponses du pont, événements, routes
+  HTTP, clés et noms des fichiers de config, variables d'environnement, états) : **anglais**, comme
+  la majorité déjà. Le pont accepte encore les anciens noms de méthode et de paramètre ; les fichiers
+  sont migrés tout seuls au premier lancement.
+- `~/.claude-accounts/` garde son nom (profils et historique de Claude dedans : trop risqué).
+
+- [ ] 1. Commandes : une seule table d'alias (`bin/ccs` délègue tout à `cli.py`), noms et options en français, anciens noms cachés ; `ccs gui` et `ccs integrate` transmettent leurs arguments, `best` identique des deux côtés, avertissement pour un profil masqué par une commande, commandes internes cachées, vocabulaire des droits unique
+- [ ] 2. Pont et HTTP : méthodes `machines.*`, séparateurs `.`, paramètres et réponses en anglais, états des travaux en anglais, `machine.ready` émis par le pont, version du protocole dans `hello`, anciens noms acceptés ; `/api/apptoken`, `/api/portier` en anglais ; vieux cache `distant-en-cours/` nettoyé
+- [ ] 3. Fichiers et variables : noms en anglais avec migration, XDG respecté, `color_scheme` `light|dark`, schéma de `warmup`, `web.json` en anglais (anciennes clés lues), variables `CCS_*` en anglais (anciennes lues)
+- [ ] 4. Clients : web, bureau, TUI, Android, iPhone
+- [ ] 5. Suite complète, README, `docs/interfaces.md` (contrat 1.0), CHANGELOG ; release majeure 1.0.0 ; phase 29 close
+
 ## Phase 32 — Ordre des sessions, tableaux, consommation de tokens (0.37.0)
 
 Charles (21/11/2026) : ordonner les sessions dans la version web ; plus de vide sous les
