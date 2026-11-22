@@ -104,6 +104,7 @@ fun EcranPrincipal(modele: ModeleAppli) {
             is DemandeAppli.OuvrirChat -> nav.navigate(d.dest.route()) { launchSingleTop = true }
             DemandeAppli.Sessions -> versSessions()
             DemandeAppli.NouveauChat -> { modele.nouvelleSession.value = true; versSessions() }
+            DemandeAppli.Jarvis -> nav.navigate(Routes.JARVIS) { launchSingleTop = true }
         }
     }
     val partage by modele.partage.collectAsStateWithLifecycle()
@@ -221,8 +222,10 @@ fun EcranPrincipal(modele: ModeleAppli) {
                         modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) },
                         ouvrirReglages = { nav.navigate(Routes.REGLAGES) },
                         ouvrirTerminaux = { nav.navigate(Routes.TERMINAUX) },
+                        ouvrirJarvis = { nav.navigate(Routes.JARVIS) },
                     )
                 }
+                composable(Routes.JARVIS) { com.mawena.ccs.ui.jarvis.EcranJarvis(modele, retour = { nav.popBackStack() }) }
                 composable(Routes.REGLAGES) { com.mawena.ccs.ui.reglages.EcranReglages(modele, retour = { nav.popBackStack() }) }
                 composable(Routes.TERMINAUX) {
                     com.mawena.ccs.ui.terminal.EcranTerminaux(modele, retour = { nav.popBackStack() }, ouvrir = { nav.navigate(Routes.terminal(it)) })
