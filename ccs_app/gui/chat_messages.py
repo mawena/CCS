@@ -1130,7 +1130,7 @@ class MessageList(Gtk.ScrolledWindow):
                                    css_classes=["ccs-subtle", "caption"]))
         outer.is_user = True
         outer.copy_text, outer.quote_author = raw, chat_quote.ME
-        outer.tag_id, outer.tag_role = msg_id or "", "utilisateur"
+        outer.tag_id, outer.tag_role = msg_id or "", preview.USER
         if msg_id:
             outer.tags_box = self._tags_widget(msg_id, Gtk.Align.END)
             outer.append(outer.tags_box)
@@ -1215,7 +1215,7 @@ class MessageList(Gtk.ScrolledWindow):
         bubble.add_controller(hover)
         bubble.copy_button, bubble.hover_actions = copy, actions
         bubble.append(row)
-        bubble.tag_id, bubble.tag_role = msg_id or "", "assistant"
+        bubble.tag_id, bubble.tag_role = msg_id or "", preview.ASSISTANT
         if msg_id:
             bubble.tags_box = self._tags_widget(msg_id, Gtk.Align.START)
             bubble.append(bubble.tags_box)
@@ -1245,7 +1245,7 @@ class MessageList(Gtk.ScrolledWindow):
             return None
         raw = getattr(row, "copy_text", "") or ""
         role = getattr(row, "tag_role", "")
-        text = chat_quote.source_text(raw) if role == "utilisateur" else raw
+        text = chat_quote.source_text(raw) if role == preview.USER else raw
         current = (self._tags.get(msg_id) or {}).get("tags") or []
         row.tag_popover = open_tag_editor(row, current, self.known_tags,
                                           lambda tags: self.on_tag(msg_id, tags, text, role))

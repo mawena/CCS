@@ -2,8 +2,9 @@
 
 Tout est lu dans l'historique (`history.db`, événements du service et du hook) :
 - `switch` : `detail.mode` « auto » (seuil avant la coupure : `percent`, `threshold`,
-  `projected`), « anticipee » (orchestrateur : `lost`, `minutes`), « blocage » (hook
+  `projected`), « early » (orchestrateur : `lost`, `minutes`), « blocked » (hook
   StopFailure), « manual » (`via`, `project`), « initial » (premier relevé du service) ;
+  « anticipee » et « blocage » (avant la 1.0.0) sont relus (`autoswitch.switch_mode`) ;
   `from` (compte quitté), `reason` (texte de la décision). Les anciens événements, sans
   ces champs, restent lisibles : pourcentages relus dans `reason`, compte quitté déduit
   de la bascule précédente.
@@ -11,7 +12,8 @@ Tout est lu dans l'historique (`history.db`, événements du service et du hook)
   son message ; les erreurs de relevé (`op` « fetch ») ne sont pas des bascules.
 - `alert` du hook (profil « blocage ») : limite atteinte sans bascule (pause, aucun
   autre compte disponible).
-- `warmup` : démarrages de fenêtre (orchestrateur, créneaux de warm-up).
+- `warmup` : démarrages de fenêtre (`mode` « orchestrator » ou « slot », créneaux de warm-up ;
+  « orchestrateur » et « creneau » avant la 1.0.0, relus par `warmup.mode_of`).
 Les marqueurs `limits/<session_id>.json` (`limit_events`, lus sans les modifier)
 donnent, tant qu'ils existent (24 h au plus, consommés par le terminal intégré), le
 projet de la conversation bloquée.
@@ -32,12 +34,17 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from . import core
+from .autoswitch import BLOCKED, EARLY, switch_mode
+from .warmup import ORCHESTRATOR, mode_of as warmup_mode
 
 ORIGIN_MAX_AGE_S = 600
 VIA = ("application", "icone", "notification", "ccs", "nouvelle-session", "projet", "raccourci")
 SWITCH_ERROR_OPS = ("auto_switch", "notification", "manual")
 PERIODS = (("7 jours", 7), ("30 jours", 30), ("Tout", None))
-KINDS = ("auto", "anticipee", "blocage", "manuelle", "initial", "echec", "limite", "fenetre")
+# genre d'une entrée (`Entry.kind`, en mémoire seulement) : bascule automatique, anticipée,
+# après un blocage, manuelle, début du suivi ; échec de bascule ; limite atteinte sans bascule ;
+# démarrage de fenêtre
+KINDS = ("auto", "early", "blocked", "manual", "initial", "failed", "limit", "window")
 EVENT_TYPES = ("switch", "error", "alert", "warmup")
 
 # Rapprochements (secondes) : marqueurs écrits par le hook après sa bascule ; détection
@@ -62,8 +69,8 @@ MANUAL_REASONS = {
 MANUAL_UNKNOWN = "Bascule manuelle (application, icône ou « ccs use »)"
 FAILURE_LABELS = {
     "auto": "Échec de la bascule automatique",
-    "anticipee": "Échec de la bascule anticipée",
-    "blocage": "Échec de la bascule après un blocage",
+    EARLY: "Échec de la bascule anticipée",
+    BLOCKED: "Échec de la bascule après un blocage",
     "notification": "Échec de la bascule depuis une notification",
     "manual": "Échec de la bascule manuelle",
 }
@@ -217,7 +224,7 @@ def _manual_reason(d):
 
 def _failure_reason(d, target):
     op = d.get("op")
-    key = (d.get("mode") or "auto") if op == "auto_switch" else op
+    key = (switch_mode(d) or "auto") if op == "auto_switch" else op
     label = FAILURE_LABELS.get(key, FAILURE_LABELS["auto"])
     message = str(d.get("message") or "").strip()
     text = f"{label} vers {target}"
@@ -226,7 +233,7 @@ def _failure_reason(d, target):
 
 def _warmup_entry(e, now):
     d = e.detail
-    orchestrator = d.get("mode") == "orchestrateur"
+    orchestrator = warmup_mode(d) == ORCHESTRATOR
     ok = d.get("ok")
     message = str(d.get("message") or "").strip()
     slot = d.get("time") or core.fmt_time(e.ts)
@@ -246,7 +253,7 @@ def _warmup_entry(e, now):
         else:
             reason = f"Warm-up de {slot} " + ("en cours" if now - e.ts < WARMUP_STALE_S else "sans réponse")
     failed = ok is False or (ok is None and now - e.ts >= WARMUP_STALE_S)
-    return Entry(e.ts, "fenetre", None, e.profile, e.profile or "?", reason, not failed,
+    return Entry(e.ts, "window", None, e.profile, e.profile or "?", reason, not failed,
                  message if failed else "")
 
 
@@ -315,7 +322,7 @@ def build(events, markers=None, previous=None, now=None, project_of=None):
     for e in events:
         d = e.detail if isinstance(e.detail, dict) else {}
         if e.type == "switch":
-            mode = d.get("mode")
+            mode = switch_mode(d)
             source = d.get("from") or (current if current != e.profile else None)
             if mode == "initial":
                 source = None
@@ -323,33 +330,33 @@ def build(events, markers=None, previous=None, now=None, project_of=None):
             if mode == "manual" and not d.get("via"):
                 # Le service a vu la bascule avant que son auteur (hook, service) l'enregistre.
                 if any(s.profile == e.profile and 0 < s.ts - e.ts <= RACE_S
-                       and s.detail.get("mode") in ("auto", "anticipee", "blocage") for s in switches):
+                       and switch_mode(s.detail) in ("auto", EARLY, BLOCKED) for s in switches):
                     continue
             raw = str(d.get("reason") or "")
             if mode == "auto":
                 entries.append(Entry(e.ts, "auto", source, e.profile, _title(source, e.profile),
                                      _auto_reason(d, source), detail=raw))
-            elif mode == "anticipee":
-                entries.append(Entry(e.ts, "anticipee", source, e.profile, _title(source, e.profile),
+            elif mode == EARLY:
+                entries.append(Entry(e.ts, "early", source, e.profile, _title(source, e.profile),
                                      _early_reason(d, e.profile), detail=raw))
-            elif mode == "blocage":
+            elif mode == BLOCKED:
                 found = marks.take(e.ts, ("switched", "already"), e.profile)
                 projects = marks.projects(found)
                 where = f"dans {_join(projects)}" if projects else f"sur {source}" if source else ""
                 reason = f"Bascule après un blocage (limite atteinte {where})" if where \
                     else "Bascule après un blocage (limite atteinte)"
-                entries.append(Entry(e.ts, "blocage", source, e.profile, _title(source, e.profile),
+                entries.append(Entry(e.ts, "blocked", source, e.profile, _title(source, e.profile),
                                      reason, detail=raw, projects=projects))
             elif mode == "initial":
                 entries.append(Entry(e.ts, "initial", None, e.profile, e.profile or "?",
                                      f"Début du suivi : {e.profile} était le compte actif"))
             else:
-                entries.append(Entry(e.ts, "manuelle", source, e.profile, _title(source, e.profile),
+                entries.append(Entry(e.ts, "manual", source, e.profile, _title(source, e.profile),
                                      _manual_reason(d), detail=raw))
         elif e.type == "error" and d.get("op") in SWITCH_ERROR_OPS:
             source = d.get("from") or (current if current != e.profile else None)
-            found = marks.take(e.ts, ("failed",), e.profile) if d.get("mode") == "blocage" else []
-            entries.append(Entry(e.ts, "echec", source, e.profile, _title(source, e.profile),
+            found = marks.take(e.ts, ("failed",), e.profile) if switch_mode(d) == BLOCKED else []
+            entries.append(Entry(e.ts, "failed", source, e.profile, _title(source, e.profile),
                                  _failure_reason(d, e.profile), False, str(d.get("message") or ""),
                                  marks.projects(found)))
         elif e.type == "alert" and e.profile == "blocage":
@@ -367,7 +374,7 @@ def build(events, markers=None, previous=None, now=None, project_of=None):
             projects = marks.projects(found)
             who = current or next((m.source for m in found if m.source), None)
             where = f" dans {_join(projects)}" if projects else ""
-            entries.append(Entry(e.ts, "limite", who, None, who or "?",
+            entries.append(Entry(e.ts, "limit", who, None, who or "?",
                                  f"Limite atteinte{where}{tail}", False, projects=projects))
     for e in _warmups([e for e in events if e.type == "warmup"]):
         entries.append(_warmup_entry(e, now))

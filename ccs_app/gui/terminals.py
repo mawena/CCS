@@ -42,7 +42,7 @@ def remote_messages(conn, path):
         tool = m.get("tool")
         call = preview.ToolCall(**{k: tool.get(k) for k in ("name", "target", "tool_id", "result", "is_error")
                                    if k in tool}) if isinstance(tool, dict) else None
-        out.append(preview.Message(m.get("role", ""), m.get("text", ""), m.get("ts"), call, m.get("msg_id", "")))
+        out.append(preview.Message(preview.normalize_role(m.get("role", "")), m.get("text", ""), m.get("ts"), call, m.get("msg_id", "")))
     return out
 from .session_workspace import ASK_CREATE_TEXT, SessionWorkspace
 from .terminal_split import SplitView

@@ -258,12 +258,17 @@ class MachinesApi:
             await link.close()
             raise rpc.RpcError("interne", "Connexion fermée.")
 
+        old_remote = not (isinstance(remote, dict) and remote.get("protocol"))
+
         def on_event(name, data):
             if not conn.closed:
-                asyncio.ensure_future(conn.push(protocol.event_for(conn, name), data))
+                # noms et valeurs : compatibilité 1.x, à retirer en 2.0
+                if old_remote:
+                    data = protocol.upgrade_event(name, data)
+                name = protocol.event_for(conn, name)
+                data = protocol.event_data(conn, protocol.EVENT_ALIASES.get(name, name), data)
+                asyncio.ensure_future(conn.push(name, data))
         client.on_event = on_event
-
-        old_remote = not (isinstance(remote, dict) and remote.get("protocol"))
 
         async def forward(method, p):
             if old_remote:          # pont d'avant la 1.0.0 : compatibilité 1.x, à retirer en 2.0

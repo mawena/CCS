@@ -16,6 +16,7 @@ from datetime import date, datetime, timedelta, timezone
 from . import core, costs, transcripts
 from .advisor import SESSION_S, increments, windows
 from .alerts import Alert
+from .autoswitch import BLOCKED, EARLY, switch_mode
 
 log = logging.getLogger("ccs.weekly_report")
 
@@ -29,8 +30,8 @@ SESSION_GAP_S = 30 * 60            # une reprise après 30 min d'inactivité : n
 DEFAULT_DAY, DEFAULT_HOUR = 0, 9   # sans heure de réinitialisation connue : lundi 9:00
 KEY_PREFIX = "weekly_report:"
 
-SWITCH_MODES = (("auto", "automatique"), ("anticipee", "anticipée"), ("manual", "manuelle"),
-                ("blocage", "après blocage"))
+SWITCH_MODES = (("auto", "automatique"), (EARLY, "anticipée"), ("manual", "manuelle"),
+                (BLOCKED, "après blocage"))
 ALERT_LABELS = {
     "eta": "limite bientôt atteinte", "reset": "compte de nouveau disponible",
     "weekly_ahead": "semaine en avance", "weekly_forecast": "fin de semaine prévue",
@@ -182,10 +183,10 @@ def aggregate(start, end, samples, events, answers_by_file, projects_dir):
     s, e = start.timestamp(), end.timestamp()
     r = WeekReport(start, end)
     switches = [ev for ev in events if ev.type == "switch" and s <= ev.ts < e
-                and (ev.detail or {}).get("mode") != "initial"]
+                and switch_mode(ev.detail) != "initial"]
     r.switches = len(switches)
     for ev in switches:
-        mode = (ev.detail or {}).get("mode") or "manual"
+        mode = switch_mode(ev.detail) or "manual"
         r.switches_by_mode[mode] = r.switches_by_mode.get(mode, 0) + 1
     for ev in events:
         if ev.type != "alert" or not s <= ev.ts < e:

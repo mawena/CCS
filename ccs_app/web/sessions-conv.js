@@ -92,7 +92,7 @@ function preview(c, ctx) {
       return;
     }
     // le pont envoie « utilisateur » / « assistant » (preview.py) ; les majuscules restent acceptées
-    const kind = (m) => { const role = String(m.role || "").toLowerCase(); return role === "utilisateur" || role === "user" ? "user" : role === "assistant" ? "claude" : null; };
+    const kind = (m) => { const role = String(m.role || "").toLowerCase(); return role === "user" ? "user" : role === "assistant" ? "claude" : null; };
     const shown = (r.messages || []).filter((m) => kind(m) && m.text).slice(-PREVIEW_MESSAGES);
     clear(body);
     if (!shown.length) { body.append(el("p", { class: "subtle" }, "Rien à afficher dans cette conversation.")); return; }

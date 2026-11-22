@@ -248,7 +248,9 @@ def _save_inventory(data):
 
 def cached_inventory(machine_id, now=time.time):
     inv = _load_inventory().get(machine_id)
-    if inv and now() - inv.get("quand", 0) < INVENTORY_TTL:
+    # une entrée d'avant la 1.0.0 (`outils`, `quand`) n'a pas `checked_at` : périmée, relevée à nouveau
+    if isinstance(inv, dict) and isinstance(inv.get("tools"), dict) \
+            and now() - (inv.get("checked_at") or 0) < INVENTORY_TTL:
         return inv
     return None
 
@@ -293,7 +295,7 @@ def inventory(machine, overrides, run=None, now=time.time, refresh=False):
             break
     if not path:
         raise DistantError(f"{machine.id} : impossible de lire son environnement")
-    inv = {"path": path, "outils": tools, "quand": now()}
+    inv = {"path": path, "tools": tools, "checked_at": now()}
     data = _load_inventory()
     data[machine.id] = inv
     _save_inventory(data)
@@ -302,7 +304,7 @@ def inventory(machine, overrides, run=None, now=time.time, refresh=False):
 
 def has_tool(machine, overrides, inv, tool, run=None):
     """L'outil est sur la machine ; un outil hors de la liste d'office est cherché puis retenu."""
-    tools = inv.setdefault("outils", {})
+    tools = inv.setdefault("tools", {})
     if tool in tools:
         return bool(tools[tool])
     cmd = f"PATH={shlex.quote(inv['path'])} type -P {shlex.quote(tool)}"
@@ -682,7 +684,7 @@ def machines_overview(fetch=None):
         return out
     for m in machines:
         item = _public(m)
-        tools = (inv.get(m.id) or {}).get("outils") or {}
+        tools = (inv.get(m.id) or {}).get("tools") or {}
         c = counts.get(m.id) or {}
         item.update(tools=sorted(k for k, v in tools.items() if v),
                     limit=limit_for(m.id, overrides), running=c.get("running", 0),
@@ -836,6 +838,6 @@ def describe(machines, overrides, probe=True, run=None):
             lines.append(f"  {e}")
             continue
         if inv:
-            tools = sorted(k for k, v in inv.get("outils", {}).items() if v)
+            tools = sorted(k for k, v in inv.get("tools", {}).items() if v)
             lines.append("  outils : " + (", ".join(tools) or "aucun de la liste"))
     return lines

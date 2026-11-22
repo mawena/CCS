@@ -94,12 +94,15 @@ class RpcServer:
     """`keep_local(method)` : sur une connexion relayée (`peer["forward"]`, appel asynchrone
     `forward(method, params)`), les méthodes pour lesquelles elle répond vrai restent traitées
     ici ; toutes les autres partent au relais. `normalize(method, params)` ramène d'abord les
-    anciens noms aux nouveaux (`protocol.normalize`)."""
+    anciens noms aux nouveaux (`protocol.normalize`) ; `downgrade(conn, method, result)` adapte la
+    réponse à la connexion (`protocol.downgrade_result` : anciennes valeurs pour un ancien client)."""
 
-    def __init__(self, handlers, on_connect=None, on_close=None, keep_local=None, normalize=None):
+    def __init__(self, handlers, on_connect=None, on_close=None, keep_local=None, normalize=None,
+                 downgrade=None):
         self.handlers = dict(handlers)
         self.keep_local = keep_local or (lambda method: False)
         self.normalize = normalize
+        self.downgrade = downgrade
         self.on_connect = on_connect
         self.on_close = on_close
         self._server = None
@@ -187,6 +190,8 @@ class RpcServer:
             log.exception("méthode %s", method)
             await conn.send(_error(mid, "interne", "Erreur interne du service."))
             return
+        if self.downgrade is not None:
+            result = self.downgrade(conn, method, result)
         await conn.send({"id": mid, "result": result if result is not None else {}})
 
 

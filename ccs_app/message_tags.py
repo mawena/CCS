@@ -4,7 +4,7 @@ posés sur un message pour le retrouver ensuite.
 Un fichier par conversation, `labels/<session_id>.json` dans le dossier de CCS (`etiquettes/`
 avant la 1.0.0, renommé tout seul) :
 
-    {"messages": {"<identifiant>": {"tags": ["important"], "role": "assistant",
+    {"messages": {"<identifiant>": {"tags": ["important"], "role": "assistant",  # ou "user"
                                     "excerpt": "début du message…", "ts": 1763300000.0}}}
 
 L'identifiant d'un message est le même en direct et à la relecture du journal : celui de la
@@ -25,7 +25,11 @@ from . import core, migrate
 MAX_TAGS = 10            # par message
 MAX_TAG_CHARS = 40
 EXCERPT_CHARS = 160
-ROLES = ("utilisateur", "assistant")
+USER, ASSISTANT = "user", "assistant"
+ROLES = (USER, ASSISTANT)
+# rôle d'avant la 1.0.0 (fichiers déjà écrits, anciens clients) : compatibilité 1.x, à retirer en 2.0
+OLD_ROLES = {"utilisateur": USER}
+LEGACY_ROLES = {new: old for old, new in OLD_ROLES.items()}
 
 _SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
 _MSG_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_:.-]{0,127}")
@@ -79,6 +83,21 @@ def excerpt(text):
     return one if len(one) <= EXCERPT_CHARS else one[:EXCERPT_CHARS - 1].rstrip() + "…"
 
 
+def clean_role(value):
+    """Rôle d'un message étiqueté (« user », « assistant ») ; ancien nom ramené au nouveau,
+    "" pour une valeur inconnue."""
+    value = OLD_ROLES.get(value, value) if isinstance(value, str) else ""
+    return value if value in ROLES else ""
+
+
+def legacy_entry(entry):
+    """L'entrée avec l'ancien rôle français (anciens clients du pont). Compatibilité 1.x, à
+    retirer en 2.0."""
+    if not isinstance(entry, dict) or entry.get("role") not in LEGACY_ROLES:
+        return entry
+    return dict(entry, role=LEGACY_ROLES[entry["role"]])
+
+
 def _entry(raw):
     if not isinstance(raw, dict):
         return None
@@ -86,7 +105,7 @@ def _entry(raw):
     if not tags:
         return None
     ts = raw.get("ts")
-    return {"tags": tags, "role": raw.get("role") if raw.get("role") in ROLES else "",
+    return {"tags": tags, "role": clean_role(raw.get("role")),
             "excerpt": excerpt(raw.get("excerpt")),
             "ts": float(ts) if isinstance(ts, (int, float)) and not isinstance(ts, bool) else 0.0}
 
@@ -134,12 +153,13 @@ def set_tags(session_id, msg_id, tags, text="", role="", clock=time.time):
         raise ValueError(f"message invalide : {msg_id!r}")
     path = path_of(session_id)
     tags = clean_tags(tags)
+    kind = clean_role(role)
     with _lock:
         messages = load(session_id)
         old = messages.get(msg_id) or {}
         if tags:
             messages[msg_id] = {
-                "tags": tags, "role": role if role in ROLES else old.get("role", ""),
+                "tags": tags, "role": kind or old.get("role", ""),
                 "excerpt": excerpt(text) if str(text or "").strip() else old.get("excerpt", ""),
                 "ts": old.get("ts") or float(clock())}
         else:

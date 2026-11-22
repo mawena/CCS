@@ -10,8 +10,15 @@ Dans l'autre sens, une connexion relayée vers une autre machine dont le pont es
 (son `hello` ne renvoie pas `protocol`) reçoit les anciens noms (`to_legacy`) et ses réponses
 sont complétées des nouvelles clés (`upgrade_result`).
 
-Compatibilité 1.x, à retirer en 2.0 : `METHOD_ALIASES`, `PARAM_ALIASES` et ce qui s'en sert.
+Valeurs renommées (rôles des messages et des étiquettes, « utilisateur » → « user », « outil » →
+« tool ») : un ancien client reçoit les anciennes (`downgrade_result`, `event_data`), une réponse
+ou un événement d'un ancien pont est ramené aux nouvelles (`upgrade_result`, `upgrade_event`).
+
+Compatibilité 1.x, à retirer en 2.0 : `METHOD_ALIASES`, `PARAM_ALIASES`, les conversions de
+valeurs et ce qui s'en sert.
 """
+
+from .. import message_tags, preview
 
 PROTOCOL = 1
 
@@ -68,7 +75,8 @@ def normalize(method, params):
 
 
 def to_legacy(method, params):
-    """(méthode, paramètres) aux anciens noms, pour le pont d'une machine plus ancienne."""
+    """(méthode, paramètres) aux anciens noms (et anciennes valeurs), pour le pont d'une machine
+    plus ancienne."""
     old = _LEGACY_METHODS.get(method, method)
     renames = PARAM_ALIASES.get(method)
     if renames:
@@ -76,14 +84,45 @@ def to_legacy(method, params):
         for old_key, new_key in renames.items():
             if new_key in params:
                 params.setdefault(old_key, params.pop(new_key))
+    if method == "chat.tag" and params.get("role") in message_tags.LEGACY_ROLES:
+        params = dict(params, role=message_tags.LEGACY_ROLES[params["role"]])
     return old, params
 
 
+def _roles(messages, table):
+    """Messages (`conversations.messages`) avec leur rôle passé par `table`."""
+    out = []
+    for m in messages or ():
+        if isinstance(m, dict) and m.get("role") in table:
+            m = dict(m, role=table[m["role"]])
+        out.append(m)
+    return out
+
+
+def _tag_entries(messages, convert):
+    """{identifiant: entrée} des étiquettes (`chat.tags`) passées par `convert`."""
+    if not isinstance(messages, dict):
+        return messages
+    return {k: convert(v) for k, v in messages.items()}
+
+
+def _upgrade_entry(entry):
+    if isinstance(entry, dict) and entry.get("role") in message_tags.OLD_ROLES:
+        return dict(entry, role=message_tags.OLD_ROLES[entry["role"]])
+    return entry
+
+
 def upgrade_result(method, result):
-    """Réponse d'un ancien pont complétée des nouvelles clés."""
+    """Réponse d'un ancien pont complétée des nouvelles clés et ramenée aux nouvelles valeurs."""
     if not isinstance(result, dict):
         return result
-    if method == "conversations.trash" and "tid" in result:
+    if method == "conversations.messages" and isinstance(result.get("messages"), list):
+        result["messages"] = _roles(result["messages"], preview.OLD_ROLES)
+    elif method == "chat.tags":
+        result["messages"] = _tag_entries(result.get("messages"), _upgrade_entry)
+    elif method == "chat.tag" and "entry" in result:
+        result["entry"] = _upgrade_entry(result["entry"])
+    elif method == "conversations.trash" and "tid" in result:
         result.setdefault("trash_id", result["tid"])
     elif method == "trash.list":
         for item in result.get("items") or ():
@@ -115,3 +154,38 @@ def event_for(conn, name):
     (un nom ancien venu d'un pont plus ancien est d'abord ramené au nouveau)."""
     name = EVENT_ALIASES.get(name, name)
     return _LEGACY_EVENTS.get(name, name) if legacy(conn) else name
+
+
+# ---- valeurs : anciennes pour un ancien client, nouvelles depuis un ancien pont ---------------
+
+def _downgrade_entry(entry):
+    return message_tags.legacy_entry(entry)
+
+
+def downgrade_result(conn, method, result):
+    """Réponse pour cette connexion : telle quelle, ou avec les anciennes valeurs françaises pour
+    un ancien client (rôles des messages et des étiquettes). Ne modifie pas `result`."""
+    if not legacy(conn) or not isinstance(result, dict):
+        return result
+    if method == "conversations.messages" and isinstance(result.get("messages"), list):
+        return dict(result, messages=_roles(result["messages"], preview.LEGACY_ROLES))
+    if method == "chat.tags" and isinstance(result.get("messages"), dict):
+        return dict(result, messages=_tag_entries(result["messages"], _downgrade_entry))
+    if method == "chat.tag" and "entry" in result:
+        return dict(result, entry=_downgrade_entry(result["entry"]))
+    return result
+
+
+def upgrade_event(name, data):
+    """Événement d'un ancien pont ramené aux nouvelles valeurs."""
+    if EVENT_ALIASES.get(name, name) == "chat.tags" and isinstance(data, dict) and "entry" in data:
+        return dict(data, entry=_upgrade_entry(data["entry"]))
+    return data
+
+
+def event_data(conn, name, data):
+    """Données d'un événement pour cette connexion (anciennes valeurs pour un ancien client).
+    Ne modifie pas `data`, partagé entre les connexions."""
+    if name == "chat.tags" and legacy(conn) and isinstance(data, dict) and "entry" in data:
+        return dict(data, entry=_downgrade_entry(data["entry"]))
+    return data

@@ -591,7 +591,7 @@ export class ChatView {
     const sid = this.sessionId;
     try {
       const r = await this.api.call("chat.tag", { session_id: sid, msg_id: msg.msgId, tags, text,
-        role: msg.author === ME ? "utilisateur" : "assistant" });
+        role: msg.author === ME ? "user" : "assistant" });
       if (this.sessionId === sid) this.applyTag(msg.msgId, r.entry);
     } catch (e) { toast(`Étiquettes non enregistrées : ${e.message}`, { kind: "error" }); }
   }
@@ -1177,9 +1177,9 @@ export class ChatView {
   // ---- historique d'une conversation reprise ----------------------------------------------
 
   historyNode(m) {
-    if (m.role === "utilisateur") return this.paintTags(userNode(m.text, 0, this.msgActions, this.renderQuote, m.uuid || ""));
+    if (m.role === "user") return this.paintTags(userNode(m.text, 0, this.msgActions, this.renderQuote, m.uuid || ""));
     if (m.role === "assistant") { const n = this.paintTags(claudeNode(this.msgActions, m.msg_id || "")); n.raw = m.text; this.render(n.content, m.text); return n; }
-    if (m.role === "outil" && m.tool) {
+    if (m.role === "tool" && m.tool) {
       return el("details", { class: `tool done${m.tool.is_error ? " error" : ""}` },
         el("summary", {}, el("strong", {}, TOOL_LABELS[m.tool.name] || m.tool.name), " ", el("span", { class: "subtle" }, m.tool.target)),
         m.tool.result ? el("pre", { class: "tool-result" }, m.tool.result) : null);

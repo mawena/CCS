@@ -142,7 +142,7 @@ class StopFailureHookTest(HookBase):
             integration.stop_failure({"error": "rate_limit", "cwd": "/w/GiGit"},
                                      notifier=self.sent.append)
         run.assert_called_once_with(["use", "boulot"])
-        self.assertEqual(Store().last_event("switch").detail["mode"], "blocage")
+        self.assertEqual(Store().last_event("switch").detail["mode"], "blocked")
         self.assertIn("GiGit", self.sent[0].title)
         self.assertIn("continue", self.sent[0].body)
 
