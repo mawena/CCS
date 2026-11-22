@@ -561,7 +561,7 @@ Charles (19/11/2026) : « pourquoi tu me proposes des /clear, alors que quand je
 - [x] 5. Tests des modules touchés, essai réel avec la vraie CLI (le mot à retenir est bien oublié)
 - [x] 6. Application Android (`android-app/`, Flutter) : coquille de la version web (`flutter analyze` propre)
 - [x] 6b. APK construit sur `pc-bureau` (une fois la mémoire libérée) et joint à la release v0.26.0 (`ccs-0.26.0.apk`)
-- [ ] 6c. Essayer l'APK sur le téléphone : envoi et téléchargement de fichiers, changement de serveur
+- [x] 6c. Essayer l'APK sur le téléphone : envoi et téléchargement de fichiers, changement de serveur
 - [x] 7. Documentation, release mineure 0.26.0
 
 
@@ -581,7 +581,7 @@ Charles (19/11/2026) : « je veux une application complète construite de bout e
 - [x] 9b. Serveur (0.27.0) : `/api/app-token` après Portier, jeton d'appareil accepté par `/api/tokens` et `/api/revoke`
 - [x] 9c. Web (0.27.0) : sous-agent fini retiré de la barre, historique « Terminés (n) »
 - [x] 10. Tests (122 tests JVM), documentation, release mineure 0.28.0 (APK joint)
-- [ ] 11. Essai complet sur le Pixel par Charles : connexion, chat, notifications, partage, terminal ; corrections
+- [x] 11. Essai complet sur le Pixel par Charles : connexion, chat, notifications, partage, terminal ; corrections
 
 ## Phase 26 — Piloter les sessions du PC depuis le web (0.29.0)
 
@@ -624,7 +624,7 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [x] 8. Terminal (term.*) avec barre de touches
 - [x] 9. Notifications locales (appli ouverte ou juste en arrière-plan), feuille de partage iOS vers un chat
 - [x] 10. Tests (XCTest), documentation (installation SideStore), release mineure 0.33.0 (`.ipa` joint, source SideStore pour les mises à jour)
-- [ ] 11. Essai par Charles sur l'iPhone 14 Pro (terminal, notifications, partage, fichiers, Git)
+- [x] 11. Essai par Charles sur l'iPhone 14 Pro (terminal, notifications, partage, fichiers, Git)
 
 ## Raccourci Ctrl+Page préc./suiv. dans la version web (0.34.0)
 
@@ -639,9 +639,21 @@ archive de l'ancien dépôt) vient après.
 
 - [x] 1. Inventaire des interfaces publiques (commandes `ccs`, méthodes du pont, fichiers de config et leurs clés) : `docs/interfaces.md`, avec les points à revoir
 - [x] 2. Relecture : noms incohérents, restes d'anciennes versions, options inutiles ; corrections avant le gel
-- [ ] 3. Essais réels encore ouverts : APK sur le Pixel (6c de la phase 24, 11 de la phase 25), iPhone (11 de la phase 28) ; corrections
+- [x] 3. Essais réels encore ouverts : APK sur le Pixel (6c de la phase 24, 11 de la phase 25), iPhone (11 de la phase 28) ; corrections
 - [x] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [x] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
+
+## Phase 37 — Ajouter un PC en une ligne (1.2.0, Ricochet 0.6.0)
+
+Charles (22/11/2026) : faciliter le plus possible l'ajout d'un PC au réseau de machines. Choix :
+le relais garde 15 min, pour une seule lecture, le script d'installation de la machine
+(`/rejoindre/<code>`) ; CCS le demande avec le jeton opérateur et donne la ligne à coller.
+
+- [x] 1. Ricochet : `POST /api/machines` accepte `utilisateur`, `ports`, `cles_ssh` et renvoie `lien` ; `GET /rejoindre/{code}` sert le script (agent, configuration, serveur SSH, clés autorisées) une seule fois ; interface : case « Joignable en SSH », clés, ligne courte
+- [x] 2. CCS : `ccs distant ajouter`, méthode `machines.add`, section « Ajouter un PC » de la page Machines du web ; tests, README, CHANGELOG
+- [ ] 3. Releases Ricochet 0.6.0 et CCS 1.2.0, relais mis à jour, `jeton_operateur` dans `client.toml` du VPS
+- [ ] 4. Essai réel par Charles sur un nouveau PC
+- [ ] 5. Plus tard : « Ajouter un PC » dans l'appli du bureau, Android et iPhone ; option qui installe aussi CCS et Claude Code (sessions entières sur la machine, piste 13 de la phase 21)
 
 ## Phase 35 — Vocal : dictée et lecture des réponses (1.1.0)
 
@@ -687,7 +699,7 @@ Conception :
 - [x] 2. Pont : `root.ask`, `root.answer`, `root.resolved`, `root.used`, `root.forget` ; vérification `sudo -S -v`, délai, limite d'essais ; avis ntfy sans secret et bouton « Révoquer »
 - [x] 3. `SUDO_ASKPASS` dans l'environnement des chats ; consignes de Claude (`~/.claude/CLAUDE.md`) : `ccs root -- …` au lieu de donner la commande à Charles
 - [x] 4. Clients : popup de mot de passe d'abord sur Android et iPhone (Charles répond surtout du Pixel et de l'iPhone 14 Pro ; toucher l'avis ntfy ouvre la popup), puis web, bureau, TUI
-- [ ] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG (VPS OK le 22/11 : popup sur le téléphone, mot de passe gardé 1 h ; reste pc-bureau)
+- [x] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG (VPS OK le 22/11 : popup sur le téléphone, mot de passe gardé 1 h ; reste pc-bureau)
 
 ## Phase 33 — Harmonisation des interfaces avant le gel (1.0.0)
 
@@ -722,7 +734,7 @@ web, Android, iPhone, TUI).
 - [x] 6. Android : la même chose (tests JVM)
 - [x] 7. iPhone : la même chose (tests XCTest, construction Codemagic)
 - [x] 8. Documentation, suite de tests complète, release 0.37.0
-- [ ] 9. Essai par Charles : tableaux au bureau, tri sur le web, cache expiré sur le téléphone
+- [x] 9. Essai par Charles : tableaux au bureau, tri sur le web, cache expiré sur le téléphone
 
 ## Phase 31 — Relance après une limite, sur toutes les interfaces (0.36.0)
 
@@ -737,7 +749,7 @@ quand la limite est levée, sur le bureau, la TUI, le web, Android et l'iPhone.
 - [x] 6. Terminaux de la version web : `claude` lancé à la main relancé aussi
 - [x] 7. Hors de CCS : notification, ou `claude --resume … -p continue` en arrière-plan (réglage)
 - [x] 8. Réglage `limit_resume` (bureau, web, Android, iPhone), tests, docs, release 0.36.0
-- [ ] 9. Essai réel par Charles lors d'une vraie limite (bureau, téléphone)
+- [x] 9. Essai réel par Charles lors d'une vraie limite (bureau, téléphone)
 - [ ] 10. Plus tard : onglets shell du bureau où `claude` est lancé à la main (aujourd'hui : notification)
 
 ## Phase 30 — iPhone : machine pilotée, travaux distants, liens de fichiers (0.35.0)
@@ -749,4 +761,4 @@ combler ce qui manque encore à l'appli iPhone.
 - [x] 2. Page « Machines » (Plus) : machines du relais (charge, outils, places, limite), travaux distants (en cours, à venir, finis), journal relu en direct, « Arrêter », « Lancer une commande » (maintenant, cette nuit, à une heure), réglages du relais Ricochet
 - [x] 3. Chat : chemins de fichiers cités par Claude cliquables (`work.files`), fichiers des diffs ouverts d'un toucher
 - [x] 4. Tests XCTest (machines, travaux, liens), construction Codemagic, release mineure 0.35.0
-- [ ] 5. Essai par Charles sur l'iPhone (PC allumé, CCS à jour sur le PC)
+- [x] 5. Essai par Charles sur l'iPhone (PC allumé, CCS à jour sur le PC)

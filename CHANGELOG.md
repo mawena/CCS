@@ -3,6 +3,18 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.2.0] — 2026-11-22
+
+### Ajouté
+
+- Ajouter un PC au réseau de machines en une ligne : page Machines → « Ajouter un PC », ou
+  `ccs distant ajouter <id> --utilisateur <compte>`. CCS déclare la machine dans Ricochet et
+  donne `curl -fsSL https://<relais>/rejoindre/<code> | sudo sh` (lien à usage unique,
+  15 min) : agent, serveur SSH, clé SSH de ce serveur, tunnel du port 22, terminal et
+  fichiers, sans jeton à recopier. Demande Ricochet 0.6.0 et `jeton_operateur` dans
+  `~/.config/ricochet/client.toml`.
+- Pont : méthode `machines.add` ; `machines.settings` renvoie `operator_set`.
+
 ## [1.1.0] — 2026-11-22
 
 ### Ajouté
