@@ -421,7 +421,7 @@ class CliTest(ConversationsTestCase):
         self.assertIn("aucune conversation", err)
         code, _, err = self.run_cli("resume", "cccc", "--print")
         self.assertEqual(code, 1)
-        self.assertIn("--dir", err)
+        self.assertIn("--dossier", err)
         code, out, _ = self.run_cli("resume", "cccc", "--print", "--dir", str(self.app))
         self.assertEqual((code, out.strip()), (0, f"cd {self.app} && claude --resume cccc3333-z"))
         code, out, _ = self.run_cli("conversations", "vieux")

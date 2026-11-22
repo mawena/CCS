@@ -90,6 +90,8 @@ _SCHEMES = {
     "auto": Adw.ColorScheme.DEFAULT,
     "light": Adw.ColorScheme.FORCE_LIGHT,
     "dark": Adw.ColorScheme.FORCE_DARK,
+    "clair": Adw.ColorScheme.FORCE_LIGHT,    # anciennes valeurs (avant la 1.0.0), à retirer en 2.0
+    "sombre": Adw.ColorScheme.FORCE_DARK,
 }
 
 _base_provider = None
