@@ -65,6 +65,7 @@ enum Destination: Hashable {
     case terminaux
     case terminal(String)
     case machines
+    case jarvis
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
@@ -114,6 +115,12 @@ struct EcranPrincipal: View {
             await modele.root.lireEtat()
             await modele.rafraichirMachines()
         }
+        // raccourci « Parler à Jarvis », ccs://jarvis, QR code d'appairage : Plus → Jarvis
+        .onChange(of: DemandeJarvis.partage.compteur, initial: true) { _, _ in
+            guard DemandeJarvis.partage.prendreOuverture() else { return }
+            onglet = .plus
+            if piles[.plus]?.last != .jarvis { piles[.plus] = [.jarvis] }
+        }
         .onChange(of: modele.aOuvrir) { _, d in
             guard let d = d else { return }
             modele.aOuvrir = nil
@@ -160,6 +167,7 @@ struct EcranPrincipal: View {
         case .terminaux: EcranTerminaux()
         case .terminal(let id): EcranTerminal(id: id)
         case .machines: EcranMachines()
+        case .jarvis: EcranJarvis()
         }
     }
 }
@@ -235,6 +243,13 @@ struct EcranPlus: View {
                 } footer: {
                     Text("Piloter le PC (sessions, fichiers, terminal…) depuis l'iPhone, par le relais Ricochet.")
                 }
+            }
+            Section {
+                NavigationLink(value: Destination.jarvis) {
+                    Label("Parler à Jarvis", systemImage: "waveform")
+                }
+            } footer: {
+                Text("Jarvis, l'assistant vocal de la maison, joint par le serveur CCS et le relais Ricochet. Aussi dans Raccourcis : « Parler à Jarvis ».")
             }
             Section {
                 NavigationLink(value: Destination.reglages) {

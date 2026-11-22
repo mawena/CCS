@@ -16,6 +16,14 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
 - **Vocal** : bouton micro de la saisie (dictée fr-FR, résultats en direct, arrêt après ~2 s de
   silence ; le texte s'ajoute sans être envoyé) ; « Lire » dans le menu d'une réponse de Claude
   (voix française, markdown retiré) ; réglage « Lire les réponses à voix haute » (Réglages → Voix).
+- **Parler à Jarvis** (Plus → Parler à Jarvis, raccourci « Parler à Jarvis » de l'appli
+  Raccourcis / Siri / bouton Action, lien `ccs://jarvis`) : l'assistant vocal de la maison, par le
+  relais du serveur CCS (`/api/jarvis/oreille`, même jeton que l'appli). Appairage une fois :
+  scanner le QR code de `jarvis pair` avec l'appareil photo (lien `jarvis://pair?…`, qui ouvre
+  CCS), coller l'adresse, ou saisir code et empreinte ; jeton et identifiant d'oreille dans le
+  trousseau. Puis un bouton : maintenir pour parler (fin au relâché), ou toucher une fois (fin au
+  silence) ; micro `AVAudioEngine` rééchantillonné en 16 kHz, texte et voix de la réponse,
+  écoute relancée seule si Jarvis pose une question. Le raccourci ouvre l'écran déjà en écoute.
 - **Fichiers** et **Git** : navigation, lecture colorée, édition, envoi et téléchargement ;
   état, diff, indexation par morceau, commit, journal, pull/push.
 - **Terminal** (Plus → Terminaux, bouton du projet, menu du chat) : émulateur SwiftTerm
@@ -92,6 +100,7 @@ ios-app/
 │   ├── Notif/            veille des chats et notifications locales
 │   ├── Terminal/         sessions SwiftTerm, liste et écran des terminaux
 │   ├── Partage/          feuille « Partager vers CCS »
+│   ├── Jarvis/           oreille de Jarvis : lien du relais, micro et voix, écran, raccourci (App Intent)
 │   └── UI/               écrans SwiftUI (accueil, sessions, chat, fichiers, git, réglages…)
 └── CCSTests/             tests XCTest de la logique
 ```

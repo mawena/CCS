@@ -49,6 +49,15 @@ enum Adresse {
         return c.url
     }
 
+    /// WebSocket de l'oreille de Jarvis (`api/jarvis/oreille?fp=<empreinte>`), jamais relayé vers
+    /// une machine pilotée : le cerveau est réglé sur le serveur.
+    static func oreilleJarvis(_ base: String, empreinte: String) -> URL? {
+        guard let u = api(base, "api/jarvis/oreille"), var c = URLComponents(url: u, resolvingAgainstBaseURL: false) else { return nil }
+        c.scheme = c.scheme == "http" ? "ws" : "wss"
+        c.queryItems = [URLQueryItem(name: "fp", value: empreinte)]
+        return c.url
+    }
+
     /// Hôte d'une adresse (`ccs.mawena.cloud`), ou nil.
     static func hote(_ adresse: String) -> String? {
         return URLComponents(string: adresse)?.host?.lowercased()
