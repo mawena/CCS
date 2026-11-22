@@ -4,7 +4,16 @@ le bureau ce que l'application GTK fait en local : comptes, chats, fichiers, feu
 
 Toute connexion commence par `hello` : le ticket remis par `ccs-auth` (HMAC de l'empreinte de
 la session par la clé du pont) est vérifié ; en mode local, le socket est en 0600 dans le
-dossier de l'utilisateur et `hello` suffit.
+dossier de l'utilisateur et `hello` suffit. `hello {protocol}` déclare la version du protocole que
+le client connaît (absente : ancien client) ; la réponse donne celle du pont et la version de CCS.
+Les anciens noms de méthode et de paramètre sont acceptés (`protocol.py`).
+
+Mise à jour de CCS : un pont local (`--local`) relit chaque minute la version installée ; si elle
+a changé et qu'aucun travail ne tourne (chat au travail, relais, limite attendue, terminal ou
+commande `!` du pont), il ferme ses
+chats (les conversations sont enregistrées) et se relance sur le nouveau code (`restart`, repris
+par `ccs bridge`). Les appareils se reconnectent seuls et rouvrent leurs conversations. Le service
+`ccs-bridge@` du serveur, lui, est relancé par le postinst du paquet `ccs-serveur`.
 """
 
 import asyncio
@@ -14,21 +23,36 @@ import hashlib
 import hmac
 import logging
 import os
+import re
+import shutil
 import subprocess
 import time
 from datetime import datetime, timezone
 
-from .. import account_colors, claude_install, core, daemon, pause, settings
-from . import rpc
+from .. import __version__, account_colors, claude_install, core, daemon, pause, settings
+from . import protocol, rpc
 
 log = logging.getLogger("ccs.bridge")
 
 IDLE_STOP = 12 * 3600
+_VERSION_LINE = re.compile(r"""^__version__\s*=\s*["']([^"']+)["']""", re.M)
+
+
+def installed_version(path=None):
+    """Version de CCS écrite sur le disque (celle qu'un nouveau processus chargerait), ou None."""
+    path = path or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "__init__.py")
+    try:
+        with open(path, encoding="utf-8") as f:
+            m = _VERSION_LINE.search(f.read(4096))
+    except OSError:
+        return None
+    return m.group(1) if m else None
 
 
 class Bridge:
     def __init__(self, user, key, local=False, clock=time.time, start_daemon=True,
-                 install_claude=True, popen=subprocess.Popen, daemon_pid=None, installer=None):
+                 install_claude=True, popen=subprocess.Popen, daemon_pid=None, installer=None,
+                 version_on_disk=installed_version):
         self.user = user
         self.key = key
         self.local = local
@@ -43,6 +67,11 @@ class Bridge:
         self.busy_checks = []        # fonctions qui disent « un travail est en cours »
         self.close_hooks = []        # appelées à la fermeture d'une connexion
         self.tick_hooks = []         # coroutines appelées chaque minute (ménage)
+        self.prepare_hooks = []      # coroutines appelées au démarrage (`prepare`)
+        self.stop_hooks = []         # coroutines appelées à l'arrêt du pont (chats fermés, gardien root)
+        self.restart_checks = []     # « on perdrait ceci à une relance » (terminaux, commandes)
+        self._version_on_disk = version_on_disk
+        self.restart = False         # arrêté pour se relancer sur le code mis à jour
         self.last_activity = clock()
         self._server = None
         self._handlers = {}
@@ -87,13 +116,15 @@ class Bridge:
                 log.warning("ticket refusé")
                 raise rpc.RpcError("refuse", "Ticket invalide.")
         conn.peer["ok"] = True
+        conn.peer["protocol"] = protocol.client_protocol(params.get("protocol"))
         self.last_activity = self.clock()
-        return {"user": self.user}
+        return {"user": self.user, "protocol": protocol.PROTOCOL, "version": __version__}
 
     @staticmethod
     def keeps_local(method):
-        """Sur une connexion relayée vers une autre machine, ce qui reste traité ici."""
-        return method in ("hello", "machine.attach") or method.startswith("machines.")
+        """Sur une connexion relayée vers une autre machine, ce qui reste traité ici (noms déjà
+        ramenés aux nouveaux par `protocol.normalize`)."""
+        return method == "hello" or method.startswith("machines.")
 
     def _on_connect(self, conn):
         self.clients.add(conn)
@@ -106,12 +137,15 @@ class Bridge:
 
     async def start(self, socket_path):
         self._server = rpc.RpcServer(self.handlers(), on_connect=self._on_connect,
-                                     on_close=self._on_close, keep_local=self.keeps_local)
+                                     on_close=self._on_close, keep_local=self.keeps_local,
+                                     normalize=protocol.normalize,
+                                     downgrade=protocol.downgrade_result)
         await self._server.start_unix(socket_path, 0o600 if self.local else 0o660)
 
     async def prepare(self):
         """Sans session graphique (VPS), personne ne lance le service `ccs-daemon` : le pont le
         lance s'il ne tourne pas. Claude Code est installé s'il manque."""
+        await asyncio.to_thread(remove_old_cache)
         if self.start_daemon and await asyncio.to_thread(self._daemon_pid) is None:
             try:
                 self._daemon_proc = self._popen([core.ccs_bin(), "daemon"],
@@ -122,6 +156,11 @@ class Bridge:
                 log.warning("service de fond impossible à lancer")
         if self.install_claude and not await asyncio.to_thread(self._installer.installed):
             asyncio.ensure_future(self._install_claude())
+        for hook in self.prepare_hooks:
+            try:
+                await hook()
+            except Exception:
+                log.exception("démarrage du pont")
 
     async def _install_claude(self):
         await self.broadcast("notice", {"text": "Installation de Claude Code en cours…"})
@@ -131,6 +170,12 @@ class Bridge:
 
     async def stop(self):
         self._stop.set()
+        hooks, self.stop_hooks = self.stop_hooks, []
+        for hook in hooks:
+            try:
+                await hook()
+            except Exception:
+                log.exception("arrêt du pont")
         if self._daemon_proc is not None:
             if self._daemon_proc.poll() is None:
                 self._daemon_proc.terminate()
@@ -145,6 +190,14 @@ class Bridge:
             return False
         return self.clock() - self.last_activity > IDLE_STOP
 
+    def should_restart(self):
+        """Pont local dont CCS a été mis à jour (version sur le disque différente de celle chargée)
+        et qui ne fait rien qu'on perdrait : il peut se relancer sur le nouveau code."""
+        if not self.local or any(check() for check in self.busy_checks + self.restart_checks):
+            return False
+        found = self._version_on_disk()
+        return bool(found) and found != __version__
+
     async def serve(self, socket_path):
         await self.start(socket_path)
         await self.prepare()
@@ -158,6 +211,11 @@ class Bridge:
                         await hook()
                     except Exception:
                         log.exception("ménage du pont")
+                if self.should_restart():
+                    log.info("pont de %s relancé : CCS mis à jour (%s → %s)", self.user, __version__,
+                             self._version_on_disk())
+                    self.restart = True
+                    break
                 if self.should_stop():
                     log.info("pont de %s arrêté : inactif depuis 12 h", self.user)
                     break
@@ -166,7 +224,8 @@ class Bridge:
     async def broadcast(self, event, data):
         for conn in list(self.clients):
             if conn.peer.get("ok"):
-                await conn.push(event, data)
+                # anciennes valeurs pour un ancien client : compatibilité 1.x, à retirer en 2.0
+                await conn.push(event, protocol.event_data(conn, event, data))
 
     # ---- comptes et réglages ---------------------------------------------------------
 
@@ -245,15 +304,23 @@ class Bridge:
         return {}
 
 
+def remove_old_cache():
+    """Retire une fois l'ancien dossier `~/.cache/ccs/distant-en-cours/` (abandonné en 0.32.0)."""
+    old = core.ccs_dir("cache") / "distant-en-cours"
+    if old.is_dir() and not old.is_symlink():
+        shutil.rmtree(old, ignore_errors=True)
+
+
 def build(user, key, local=False, chat=None, **kwargs):
     """Pont complet, tel que le lance `ccs bridge` : comptes et réglages, chats, données
     (projets, fichiers, feuille de route, tâches, analyse) et terminaux. `chat` : options du
     moteur de chat (`claude`, `environ`), pour le banc d'essai."""
     from . import (bridge_admin, bridge_chat, bridge_data, bridge_files, bridge_git,
-                   bridge_machines, bridge_term, bridge_work)
+                   bridge_machines, bridge_root, bridge_term, bridge_work)
     b = Bridge(user, key, local=local, **kwargs)
     b.hubs = {"chat": bridge_chat.ChatHub(b, **(chat or {})), "data": bridge_data.DataApi(b),
               "term": bridge_term.TermHub(b), "work": bridge_work.WorkApi(b),
               "admin": bridge_admin.AdminApi(b), "git": bridge_git.GitApi(b),
-              "files": bridge_files.FileOps(b), "machines": bridge_machines.MachinesApi(b)}
+              "files": bridge_files.FileOps(b), "machines": bridge_machines.MachinesApi(b),
+              "root": bridge_root.RootApi(b)}
     return b

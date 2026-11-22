@@ -193,7 +193,7 @@ class AdminBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.sent, [])
 
     async def test_phone_new_topic_saves_and_qr(self):
-        r = await self.c.call("phone.new_topic")
+        r = await self.c.call("phone.renew")
         self.assertTrue(phone.valid_topic(r["topic"]))
         self.assertEqual(settings.load_settings()["phone"]["topic"], r["topic"])
         q = await self.c.call("phone.qr")

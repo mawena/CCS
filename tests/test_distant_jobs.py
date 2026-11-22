@@ -42,7 +42,7 @@ class JobsCase(DistantCase):
                 p.kill()
             p.wait()
 
-    def busy(self, machine, state="en cours"):
+    def busy(self, machine, state="running"):
         """Un travail qui occupe une place sur `machine` (son processus est vivant)."""
         p = sleeper()
         self.procs.append(p)
@@ -67,11 +67,11 @@ class TestRegistry(JobsCase):
                                     "created", "started", "ended", "when", "not_before", "pid",
                                     "detached", "log", "why"})
         self.assertEqual((job["text"], job["state"], job["pid"], job["log"]),
-                         ("flutter build apk", "attente", os.getpid(), ""))
+                         ("flutter build apk", "waiting", os.getpid(), ""))
         self.assertEqual(jobs.get(b)["text"], "make test")
-        jobs.finish(a, "fini", 0)
-        jobs.finish(a, "échec", 3)  # un travail fini le reste
-        self.assertEqual((jobs.get(a)["state"], jobs.get(a)["code"]), ("fini", 0))
+        jobs.finish(a, "done", 0)
+        jobs.finish(a, "failed", 3)  # un travail fini le reste
+        self.assertEqual((jobs.get(a)["state"], jobs.get(a)["code"]), ("done", 0))
         self.assertEqual([j["id"] for j in jobs.list_jobs()], [b, a], "actifs d'abord")
         self.assertIsNone(jobs.get("../x"))
         self.assertEqual(oct(stat.S_IMODE(jobs._path(a).stat().st_mode)), "0o600")
@@ -80,18 +80,31 @@ class TestRegistry(JobsCase):
         p = subprocess.Popen(["true"])
         p.wait()
         jid = jobs.create(["x"], self.project, pid=p.pid)
-        self.assertEqual((jobs.get(jid)["state"], jobs.get(jid)["why"]), ("arrêté", "processus disparu"))
+        self.assertEqual((jobs.get(jid)["state"], jobs.get(jid)["why"]), ("stopped", "processus disparu"))
         self.assertFalse(jobs.stop(jid))
+
+    def test_old_french_states_on_disk_are_read(self):
+        """Fichiers écrits avant la 1.0.0 : états français convertis à la lecture."""
+        jid = jobs.create(["x"], self.project)
+        path = jobs._path(jid)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data.update(state="échec", code=2)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        self.assertEqual(jobs.get(jid)["state"], "failed")
+        self.assertEqual(jobs.label("failed"), "échec")
+        self.assertEqual(jobs.legacy_view(jobs.get(jid))["state"], "échec")
+        jobs.update(jid, state="en cours")   # un ancien appelant
+        self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["state"], "running")
 
     def test_old_finished_jobs_are_pruned(self):
         old = time.time() - 3 * 86400
         ids = []
         for i in range(35):
             jid = jobs.create(["x"], self.project, now=lambda: old + i)
-            jobs.finish(jid, "fini", 0, now=lambda: old + i)
+            jobs.finish(jid, "done", 0, now=lambda: old + i)
             ids.append(jid)
         recent = jobs.create(["y"], self.project)
-        jobs.finish(recent, "fini", 0)
+        jobs.finish(recent, "done", 0)
         jobs.create(["z"], self.project)  # nettoie en passant
         left = {p.stem for p in jobs.jobs_dir().glob("*.json")}
         self.assertEqual(len(left), 31, "30 finis + 1 actif")
@@ -111,12 +124,12 @@ class TestRegistry(JobsCase):
 class TestSlots(JobsCase):
     def test_reserve_counts_running_jobs_of_the_machine(self):
         self.busy("pc-bureau")
-        self.busy("pc-bureau", state="envoi")
+        self.busy("pc-bureau", state="sending")
         self.busy("portable")
         jid = jobs.create(["x"], self.project)
         self.assertEqual(jobs.reserve(jid, "pc-bureau", 2), (False, 2))
         self.assertEqual(jobs.reserve(jid, "pc-bureau", 3), (True, 2))
-        self.assertEqual((jobs.get(jid)["state"], jobs.get(jid)["machine"]), ("envoi", "pc-bureau"))
+        self.assertEqual((jobs.get(jid)["state"], jobs.get(jid)["machine"]), ("sending", "pc-bureau"))
         self.assertEqual(jobs.counts()["pc-bureau"], {"running": 3, "waiting": 0})
 
     def test_places_hold_between_processes(self):
@@ -135,7 +148,7 @@ class TestSlots(JobsCase):
         spans = [json.loads(p.communicate(timeout=30)[0]) for p in procs]
         most = max(sum(1 for s, e in spans if s <= t < e) for t, _ in spans)
         self.assertEqual(most, 2)
-        self.assertEqual({j["state"] for j in jobs.list_jobs()}, {"fini"})
+        self.assertEqual({j["state"] for j in jobs.list_jobs()}, {"done"})
 
     def test_launch_skips_a_full_machine(self):
         write(distant.overrides_path(), "[machines.portable]\nlimite = 1\n")
@@ -156,14 +169,14 @@ class TestSlots(JobsCase):
             return real_update(jid, **fields)
 
         def sleep(_):  # pendant l'attente, l'autre travail se termine
-            jobs.finish(other, "fini", 0)
+            jobs.finish(other, "done", 0)
         with mock.patch.object(jobs, "update", update):
             code, said = self.launch(["flutter", "build", "apk"], sleep=sleep)
         self.assertEqual(code, 0)
         self.assertIn("en attente d'une place sur pc-bureau (1/1)", said[0])
-        self.assertEqual(states, ["attente", "en cours"])
+        self.assertEqual(states, ["waiting", "running"])
         job = jobs.list_jobs()[0]
-        self.assertEqual((job["state"], job["code"], job["machine"]), ("fini", 0, "pc-bureau"))
+        self.assertEqual((job["state"], job["code"], job["machine"]), ("done", 0, "pc-bureau"))
         self.assertIsNotNone(job["started"])
 
     def test_failure_and_errors_are_recorded(self):
@@ -178,10 +191,10 @@ class TestSlots(JobsCase):
         code, _ = self.launch(["flutter test"], run=failing)
         self.assertEqual(code, 3)
         job = jobs.list_jobs()[0]
-        self.assertEqual((job["state"], job["code"], job["why"]), ("échec", 3, "la commande a renvoyé 3"))
+        self.assertEqual((job["state"], job["code"], job["why"]), ("failed", 3, "la commande a renvoyé 3"))
         with self.assertRaises(distant.DistantError):
             self.launch(["x"], machine="vieux")
-        self.assertEqual(jobs.list_jobs()[0]["state"], "échec")
+        self.assertEqual(jobs.list_jobs()[0]["state"], "failed")
         self.assertIn("vieux", jobs.list_jobs()[0]["why"])
 
 
@@ -215,10 +228,10 @@ class TestWhen(JobsCase):
         code, said = self.launch(["flutter", "build"], when="nuit", now=lambda: clock[0], sleep=sleep)
         self.assertEqual(code, 0)
         self.assertIn("programmé pour la nuit, à 23:00", said[0])
-        self.assertEqual(set(seen), {"programmé"})
+        self.assertEqual(set(seen), {"scheduled"})
         self.assertGreaterEqual(clock[0], NOON + 11 * 3600)
         job = jobs.list_jobs()[0]
-        self.assertEqual((job["state"], job["when"]), ("fini", "nuit"))
+        self.assertEqual((job["state"], job["when"]), ("done", "nuit"))
 
 
 class TestStop(JobsCase):
@@ -229,7 +242,7 @@ class TestStop(JobsCase):
         self.assertTrue(jobs.stop(jid))
         self.assertEqual(p.wait(timeout=5), -15)
         job = jobs.get(jid)
-        self.assertEqual((job["state"], job["why"]), ("arrêté", "arrêté avant le départ"))
+        self.assertEqual((job["state"], job["why"]), ("stopped", "arrêté avant le départ"))
         self.assertIsNotNone(job["ended"])
         self.assertFalse(jobs.stop(jid))
         self.assertFalse(jobs.stop("abcdef"))
@@ -238,7 +251,7 @@ class TestStop(JobsCase):
         jid, p = self.busy("pc-bureau")
         self.assertTrue(jobs.stop(jid))
         self.assertEqual(p.wait(timeout=5), -15)
-        self.assertEqual(jobs.get(jid)["state"], "arrêté")
+        self.assertEqual(jobs.get(jid)["state"], "stopped")
 
     def test_stopping_while_queued_ends_the_launch(self):
         write(distant.overrides_path(), "[machines.pc-bureau]\nlimite = 1\n")
@@ -252,7 +265,7 @@ class TestStop(JobsCase):
         self.assertEqual(code, 130)
         self.assertFalse([a for a in run.calls if a[0] == "rsync"], "rien n'est parti")
         mine = next(j for j in jobs.list_jobs() if j["text"] == "flutter build")
-        self.assertEqual(mine["state"], "arrêté")
+        self.assertEqual(mine["state"], "stopped")
 
     def test_sigterm_during_the_command_stops_it(self):
         def interrupted(argv, **kw):
@@ -261,7 +274,7 @@ class TestStop(JobsCase):
             return FakeRun()(argv, **kw)
         code, _ = self.launch(["flutter test"], run=interrupted)
         self.assertEqual(code, 130)
-        self.assertEqual((jobs.list_jobs()[0]["state"], jobs.list_jobs()[0]["code"]), ("arrêté", 130))
+        self.assertEqual((jobs.list_jobs()[0]["state"], jobs.list_jobs()[0]["code"]), ("stopped", 130))
 
 
 class TestDetached(JobsCase):
@@ -289,7 +302,7 @@ class TestDetached(JobsCase):
         while jobs.get(jid)["state"] in jobs.ACTIVE and time.monotonic() < deadline:
             time.sleep(0.1)
         job = jobs.get(jid)
-        self.assertEqual(job["state"], "échec")
+        self.assertEqual(job["state"], "failed")
         self.assertIn("injoignable", job["why"])
         self.assertIn("injoignable", jobs.read_log(jid))
         self.assertNotIn("secret", jobs.read_log(jid))
@@ -349,24 +362,26 @@ class TestClientSettings(JobsCase):
         write(distant.overrides_path(), '[machines.pc-bureau]\nutilisateur = "c"\nlimite = 3\n'
                                         '[machines.portable]\nlimite = 99\n')
         s = distant.client_settings()
-        self.assertEqual(s, {"relais": "https://r.example/", "jeton_defini": True,
-                             "chemin": str(distant.client_path()), "limite_defaut": 2,
-                             "limites": {"pc-bureau": 3}})
+        new = {"relay": "https://r.example/", "token_set": True, "path": str(distant.client_path()),
+               "default_limit": 2, "limits": {"pc-bureau": 3}}
+        old = {"relais": "https://r.example/", "jeton_defini": True, "chemin": str(distant.client_path()),
+               "limite_defaut": 2, "limites": {"pc-bureau": 3}}   # compatibilité 1.x
+        self.assertEqual(s, {**new, **old})
         self.assertNotIn("secret", json.dumps(s))
 
     def test_save_client_keeps_the_missing_value_and_mode_600(self):
         distant.client_path().chmod(0o644)
-        distant.save_client(relais="https://autre.example/")
+        distant.save_client(relay="https://autre.example/")
         self.assertEqual(distant.load_client(), {"relais": "https://autre.example", "jeton": "secret"})
         self.assertEqual(stat.S_IMODE(distant.client_path().stat().st_mode), 0o600)
-        distant.save_client(jeton="neuf")
+        distant.save_client(token="neuf")
         self.assertEqual(distant.load_client()["jeton"], "neuf")
         with self.assertRaises(distant.DistantError):
-            distant.save_client(relais="ftp://x")
+            distant.save_client(relay="ftp://x")
         with self.assertRaises(distant.DistantError):
-            distant.save_client(jeton=" ")
+            distant.save_client(token=" ")
         distant.client_path().unlink()
-        distant.save_client(relais="https://r.example", jeton="j")
+        distant.save_client(relay="https://r.example", token="j")
         self.assertEqual(stat.S_IMODE(distant.client_path().stat().st_mode), 0o600)
 
     def test_set_limit_keeps_the_rest(self):
@@ -374,7 +389,7 @@ class TestClientSettings(JobsCase):
         distant.set_limit("pc-bureau", 3)
         distant.set_limit("portable", 1)
         over = distant.load_overrides()
-        self.assertEqual(over["pc-bureau"], {"utilisateur": "charles", "port": 2244, "limite": 3})
+        self.assertEqual(over["pc-bureau"], {"user": "charles", "port": 2244, "limit": 3})
         self.assertEqual(distant.limit_for("portable", over), 1)
         self.assertEqual(distant.limit_for("autre", over), 2)
         for bad in (0, 9, "3", True):

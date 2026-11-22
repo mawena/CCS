@@ -180,7 +180,7 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
             }
         }
         viewModelScope.launch {
-            client.evenements("work.shell").collect { d -> if (d.texte("chat_id") == chatId) finShell(d) }
+            client.evenements("shell.done").collect { d -> if (d.texte("chat_id") == chatId) finShell(d) }
         }
         viewModelScope.launch {
             client.reconnexions.collect { attacher(); sonderShells() }
@@ -413,7 +413,7 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
     }
 
     private suspend fun lireHistorique(h: Historique, limite: Int) = try {
-        client.appeler("conversation.messages", Messages.serializer(), buildJsonObject {
+        client.appeler("conversations.messages", Messages.serializer(), buildJsonObject {
             put("path", h.chemin)
             put("limit", limite)
             h.avant?.let { put("before", it) }
@@ -614,7 +614,7 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
         publier(tout = true)
         viewModelScope.launch {
             val r = try {
-                client.appeler("work.shell.run", buildJsonObject { put("chat_id", id); put("command", commande) }).jsonObject
+                client.appeler("shell.run", buildJsonObject { put("chat_id", id); put("command", commande) }).jsonObject
             } catch (e: Exception) {
                 terminerShell(cle, commande, 127, e.message ?: "Erreur.", false)
                 return@launch
@@ -628,7 +628,7 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
     }
 
     fun arreterShell(runId: String) {
-        viewModelScope.launch { runCatching { client.appeler("work.shell.stop", buildJsonObject { put("run_id", runId) }) } }
+        viewModelScope.launch { runCatching { client.appeler("shell.stop", buildJsonObject { put("run_id", runId) }) } }
     }
 
     private fun finShell(d: JsonObject) {
@@ -647,7 +647,7 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
 
     private suspend fun sonderShells() {
         for (run in shells.keys.toList()) {
-            val r = runCatching { client.appeler("work.shell.poll", buildJsonObject { put("run_id", run) }).jsonObject }.getOrNull() ?: continue
+            val r = runCatching { client.appeler("shell.poll", buildJsonObject { put("run_id", run) }).jsonObject }.getOrNull() ?: continue
             if ((r["done"] as? JsonPrimitive)?.booleanOrNull == true) finShell(r)
         }
     }
@@ -692,7 +692,7 @@ class ModeleChat(private val depot: Depot, private val dest: DestChat) : ViewMod
                 demanderAttache(fil.seq)?.texte("path")?.takeIf { it.isNotEmpty() }?.let { chemin = it; if (historique == null) historique = Historique(it).also { h -> h.demarre = true; h.complet = true } }
             }
             val p = chemin ?: return@launch
-            val c = runCatching { client.appeler("conversation.cost", Cout.serializer(), buildJsonObject { put("path", p) }) }.getOrNull() ?: return@launch
+            val c = runCatching { client.appeler("conversations.cost", Cout.serializer(), buildJsonObject { put("path", p) }) }.getOrNull() ?: return@launch
             _vue.value = _vue.value.copy(cout = c.short)
         }
     }

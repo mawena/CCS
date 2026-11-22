@@ -638,10 +638,58 @@ configuration. Le reste des tâches ouvertes (dossier entier, sessions sur une a
 archive de l'ancien dépôt) vient après.
 
 - [x] 1. Inventaire des interfaces publiques (commandes `ccs`, méthodes du pont, fichiers de config et leurs clés) : `docs/interfaces.md`, avec les points à revoir
-- [ ] 2. Relecture : noms incohérents, restes d'anciennes versions, options inutiles ; corrections avant le gel
+- [x] 2. Relecture : noms incohérents, restes d'anciennes versions, options inutiles ; corrections avant le gel
 - [ ] 3. Essais réels encore ouverts : APK sur le Pixel (6c de la phase 24, 11 de la phase 25), iPhone (11 de la phase 28) ; corrections
-- [ ] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
-- [ ] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
+- [x] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
+- [x] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
+
+## Phase 34 — Mot de passe root depuis les appareils (avant la 1.0.0)
+
+Charles (22/11/2026) : ne plus être bloqué par les commandes root. Quand Claude a besoin de `sudo`,
+une demande de mot de passe s'affiche sur tous ses appareils (web, bureau, Pixel, iPhone) ; le
+premier qui répond gagne, les autres se ferment. Le mot de passe reste **en mémoire seulement**
+une heure, puis s'efface. Choix : sudo silencieux pendant l'heure, mais chaque commande root est
+notifiée avec un bouton « Révoquer ». Les services en production restent hors de portée sans
+demande explicite.
+
+Conception :
+- `ccs root -- <commande>` lance `sudo -A` avec un `SUDO_ASKPASS` fourni par CCS ; les chats de
+  Claude reçoivent `SUDO_ASKPASS` pour que `sudo -A` marche aussi tout seul.
+- Le **gardien** (dans le pont local de chaque machine) tient le mot de passe en RAM, jamais sur
+  disque ni dans un journal, derrière un socket Unix `0600` dans `$XDG_RUNTIME_DIR` (même uid
+  vérifié). Expiration absolue d'une heure ; `ccs root oublier` et « Révoquer » l'effacent.
+- Pas de mot de passe connu : le pont diffuse `root.ask` (`id`, machine, commande) à ses clients,
+  et ntfy envoie un avis **sans secret** (« pc-bureau demande le mot de passe root »). Le client
+  répond `root.answer` par le pont authentifié (TLS, ou SSH par Ricochet pour une autre machine) ;
+  le mot de passe est vérifié par `sudo -S -v` avant d'être gardé ; `root.resolved` ferme les
+  autres popups. Demande sans réponse : abandon après 5 min.
+- Chaque commande root lancée avec le mot de passe gardé : avis `root.used` + ntfy avec
+  « Révoquer » (bouton signé à usage unique, comme `phone_reply`).
+
+- [x] 1. Gardien en mémoire, socket Unix, `ccs-askpass`, `ccs root -- …` / `ccs root etat|oublier` ; tests
+- [x] 2. Pont : `root.ask`, `root.answer`, `root.resolved`, `root.used`, `root.forget` ; vérification `sudo -S -v`, délai, limite d'essais ; avis ntfy sans secret et bouton « Révoquer »
+- [ ] 3. `SUDO_ASKPASS` dans l'environnement des chats ; consignes de Claude (`~/.claude/CLAUDE.md`) : `ccs root -- …` au lieu de donner la commande à Charles
+- [x] 4. Clients : popup de mot de passe d'abord sur Android et iPhone (Charles répond surtout du Pixel et de l'iPhone 14 Pro ; toucher l'avis ntfy ouvre la popup), puis web, bureau, TUI
+- [ ] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG
+
+## Phase 33 — Harmonisation des interfaces avant le gel (1.0.0)
+
+Charles (22/11/2026) : harmoniser d'abord, puis sortir la 1.0.0 ; les essais réels encore ouverts
+ne bloquent pas (corrections en 1.0.x). Règle de nommage (`docs/interfaces.md`, section 6) :
+- **Ce que Charles tape** (commandes, sous-commandes, options, valeurs d'arguments) : **français**.
+  Les anciens noms restent acceptés, cachés de l'aide, pendant toute la 1.x.
+- **Ce que lisent les programmes** (méthodes, paramètres et réponses du pont, événements, routes
+  HTTP, clés et noms des fichiers de config, variables d'environnement, états) : **anglais**, comme
+  la majorité déjà. Le pont accepte encore les anciens noms de méthode et de paramètre ; les fichiers
+  sont migrés tout seuls au premier lancement.
+- `~/.claude-accounts/` garde son nom (profils et historique de Claude dedans : trop risqué).
+
+- [x] 1. Commandes : une seule table d'alias (`bin/ccs` délègue tout à `cli.py`), noms et options en français, anciens noms cachés ; `ccs gui` et `ccs integrate` transmettent leurs arguments, `best` identique des deux côtés, avertissement pour un profil masqué par une commande, commandes internes cachées, vocabulaire des droits unique
+- [x] 2. Pont et HTTP : méthodes `machines.*`, séparateurs `.`, paramètres et réponses en anglais, états des travaux en anglais, `machine.ready` émis par le pont, version du protocole dans `hello`, anciens noms acceptés ; `/api/apptoken`, `/api/portier` en anglais ; vieux cache `distant-en-cours/` nettoyé
+- [x] 3. Fichiers et variables : noms en anglais avec migration, XDG respecté, `color_scheme` `light|dark`, schéma de `warmup`, `web.json` en anglais (anciennes clés lues), variables `CCS_*` en anglais (anciennes lues)
+- [x] 4. Clients : web, bureau, TUI, Android, iPhone : `?protocol=1`, nouveaux noms, valeurs d'état en anglais (rôles, modes, inventaire) affichées en français, raccourcis et `ccs ajouter` aux noms français
+- [x] 4 bis. Bureau : les chats locaux passent par le pont local (`ccs bridge --local`), comme le web, pour que les autres appareils les voient en direct (aujourd'hui ils tournent dans `ccs-gui` : vus « arrêtés » et sans les derniers messages ailleurs) ; le pont relancé quand CCS est mis à jour
+- [x] 5. Suite complète, README, `docs/interfaces.md` (contrat 1.0), CHANGELOG ; release majeure 1.0.0 ; phase 29 close
 
 ## Phase 32 — Ordre des sessions, tableaux, consommation de tokens (0.37.0)
 

@@ -11,7 +11,9 @@ class StyleGuiTest(unittest.TestCase):
         from gi.repository import Adw
         from ccs_app.gui import style
         sm = Adw.StyleManager.get_default()
-        for value, expected in (("sombre", Adw.ColorScheme.FORCE_DARK),
+        for value, expected in (("dark", Adw.ColorScheme.FORCE_DARK),
+                                ("light", Adw.ColorScheme.FORCE_LIGHT),
+                                ("sombre", Adw.ColorScheme.FORCE_DARK),
                                 ("clair", Adw.ColorScheme.FORCE_LIGHT),
                                 ("auto", Adw.ColorScheme.DEFAULT)):
             style.apply_color_scheme(value)

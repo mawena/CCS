@@ -15,7 +15,7 @@ export function openSavedSheet({ api, cwd, currentText, onInsert }) {
   async function load() {
     clear(body).append(loading());
     let r;
-    try { r = await api.call("work.saved.list", { cwd }); } catch (e) {
+    try { r = await api.call("saved.list", { cwd }); } catch (e) {
       clear(body).append(errorState(e.message, load));
       return;
     }
@@ -34,13 +34,13 @@ export function openSavedSheet({ api, cwd, currentText, onInsert }) {
     const ok = await confirmSheet({ title: `Supprimer « ${item.name} » ?`, body: "Le message enregistré disparaît.",
       confirm: "Supprimer", danger: true });
     if (!ok) return;
-    try { await api.call("work.saved.delete", { cwd, scope: item.scope, name: item.name }); } catch (e) { toast(e.message, { kind: "error" }); }
+    try { await api.call("saved.delete", { cwd, scope: item.scope, name: item.name }); } catch (e) { toast(e.message, { kind: "error" }); }
     load();
   }
 
   async function saveCurrent() {
     try {
-      await api.call("work.saved.save", { cwd, scope: scope.value, name: name.value, text: currentText() });
+      await api.call("saved.save", { cwd, scope: scope.value, name: name.value, text: currentText() });
       name.value = "";
       toast("Message enregistré.", { kind: "success" });
       load();

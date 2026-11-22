@@ -1,13 +1,18 @@
 """Application `ccs tui` : projets et conversations, chat, feuille de route, comptes.
 
 Tab change d'écran, Échap revient aux projets, Ctrl+C interrompt Claude, q quitte (hors saisie).
-Le client (local ou vers un serveur) est celui de `ccs_app.remote.client`."""
+Le client (local ou vers un serveur) est celui de `ccs_app.remote.client`.
+Mot de passe root demandé par une commande (`root.ask`) : fenêtre de saisie masquée par-dessus
+l'écran (`tui/root.py`) ; F8 oublie le mot de passe gardé."""
 
 import os
 
 import urwid
 
 from .chat import ChatScreen
+from .root import RootGuard
+
+TICK_S = 5      # demande root expirée, minutes de « root gardé » : vérifiées toutes les 5 s
 
 PALETTE = [
     ("titre", "bold", ""), ("discret", "dark gray", ""), ("alerte", "yellow,bold", ""),
@@ -124,9 +129,12 @@ class TuiApp:
         self.header = urwid.Text("")
         self.footer = urwid.Text(("discret", "Tab : écran suivant · Échap : projets · Ctrl+C : arrêter Claude · q : quitter"))
         self.screens = {"projets": ProjectsScreen(self), "feuille": RoadmapScreen(self), "comptes": AccountsScreen(self)}
-        self.root = urwid.Frame(urwid.SolidFill(" "), header=urwid.AttrMap(self.header, "entete"),
-                                footer=self.footer)
+        self.frame = urwid.Frame(urwid.SolidFill(" "), header=urwid.AttrMap(self.header, "entete"),
+                                 footer=self.footer)
+        self.root = urwid.WidgetPlaceholder(self.frame)   # la fenêtre root s'y pose par-dessus
+        self.root_guard = RootGuard(self)
         self.show("projets")
+        self.root_guard.refresh()
 
     # ---- écrans --------------------------------------------------------------------------
 
@@ -135,13 +143,28 @@ class TuiApp:
             return
         self.current = name
         if name == "chat":
-            self.root.body = self.chat
+            self.frame.body = self.chat
         else:
-            self.root.body = self.screens[name]
+            self.frame.body = self.screens[name]
             self.screens[name].refresh()
+        self.update_header()
+
+    def update_header(self):
+        name = self.current
         tabs = "  ".join(f"[{NAMES[n]}]" if n == name else NAMES[n] for n in ORDER
                          if n != "chat" or self.chat is not None)
-        self.header.set_text(f" CCS · {self.label}   {tabs}")
+        self.header.set_text(f" CCS · {self.label}   {tabs}{self.root_guard.header_text()}")
+
+    def show_overlay(self, widget):
+        """Fenêtre au centre, par-dessus l'écran (None : la retire)."""
+        if widget is None:
+            self.root.original_widget = self.frame
+        else:
+            self.root.original_widget = urwid.Overlay(
+                widget, self.frame, "center", ("relative", 70), "middle", "pack", min_width=40)
+
+    def notify(self, style, text):
+        self.footer.set_text((style, text))
 
     def open_chat(self, cwd, session_id=None, title=None):
         self.cwd = cwd
@@ -169,10 +192,14 @@ class TuiApp:
                 self.chat.interrupt()
         elif key in ("q", "Q"):
             raise urwid.ExitMainLoop()
+        elif key == "f8" and self.root_guard.kept_until is not None:
+            self.root_guard.forget()
         elif key == "f5" and self.current != "chat":
             self.screens[self.current].refresh()
 
     def on_event(self, name, data):
+        if self.root_guard.on_event(name, data):
+            return
         if name == "chat.event" and self.chat is not None and data.get("chat_id") == self.chat.chat_id:
             self.chat.receive(data)
         elif name == "notice":
@@ -183,6 +210,8 @@ class TuiApp:
                 "auth": "Jeton refusé : appaire de nouveau ce serveur (ccs serveur ajouter)."}.get(state)
         if text:
             self.footer.set_text(("alerte", text))
+        if state == "reconnected":
+            self.root_guard.refresh()
         if state == "reconnected" and self.chat is not None:
             self.client.call("chat.attach", callback=self.guard(self._attached), chat_id=self.chat.chat_id,
                              since=self.chat.seq)
@@ -228,6 +257,11 @@ def run(transport, label):
     app = TuiApp(client, label)
     loop.widget = app.root
     loop.unhandled_input = app.handle_key
+
+    def tick(_loop, _data):
+        app.root_guard.tick()
+        loop.set_alarm_in(TICK_S, tick)
+    loop.set_alarm_in(TICK_S, tick)
     try:
         loop.run()
     finally:

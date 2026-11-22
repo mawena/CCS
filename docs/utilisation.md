@@ -110,7 +110,7 @@ continuent sur le serveur si on ferme la page.
   ou automatique, gardé dans le navigateur) ; la section **Téléphone** : interrupteur, serveur
   ntfy, canal secret, QR code à scanner, événements, « Montrer la commande » et un essai
   d'envoi ; les appareils connectés. Pour ajouter un compte Claude sur le serveur,
-ouvre un onglet shell et lance `ccs add <nom>` ; ouvre le lien sur le téléphone et colle le
+ouvre un onglet shell et lance `ccs ajouter <nom>` ; ouvre le lien sur le téléphone et colle le
 code dans le terminal. Réglages → Appareils liste les appareils retenus et les jetons
 d'application, et permet de les révoquer.
 
@@ -149,13 +149,13 @@ Appareils).
 
 ## Profils
 
-- `ccs save <nom>` enregistre le compte actuellement connecté dans Claude Code.
-- `ccs add <nom>` lance `claude auth login` : le navigateur s'ouvre, connecte-toi
+- `ccs enregistrer <nom>` enregistre le compte actuellement connecté dans Claude Code.
+- `ccs ajouter <nom>` lance `claude auth login` : le navigateur s'ouvre, connecte-toi
   avec le compte à ajouter. CCS refuse d'ajouter deux fois le même compte.
-- `ccs <nom>` (ou `ccs use <nom>`) bascule. Si le compte connecté n'est
+- `ccs <nom>` (ou `ccs utiliser <nom>`) bascule. Si le compte connecté n'est
   enregistré nulle part, CCS refuse de basculer pour ne pas le perdre : fais
-  d'abord `ccs save`. Un argument en trop est refusé (usage, code 1).
-- `--notifier` (avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`,
+  d'abord `ccs enregistrer`. Un argument en trop est refusé (usage, code 1).
+- `--notifier` (avec `ccs <nom>`, `ccs utiliser`, `ccs suivant`, `ccs meilleur`,
   `ccs pause`, `ccs silence`) affiche aussi le résultat en notification passagère : « Bascule
   sur boulot » (avec l'adresse du compte et les sessions qui suivront), « Déjà
   sur perso », « Bascule impossible », « Aucun compte disponible », « Pause
@@ -314,7 +314,7 @@ Aussi : menu de l'icône (« Mettre en pause », puis « Reprendre maintenant »
 bouton **Pause** du bandeau **Meilleur compte** de l'Accueil (« Reprendre » pendant
 la pause). Dans l'en-tête de la fenêtre, « Auto » devient « Auto ⏸ jusqu'à
 14:00 » (« Auto ⏸ en pause » pour une pause sans échéance) ; un clic propose
-« Reprendre maintenant ». `ccs status` affiche « En pause jusqu'à 14:00 :
+« Reprendre maintenant ». `ccs etat` affiche « En pause jusqu'à 14:00 :
 bascule automatique et orchestrateur suspendus (ccs pause off pour
 reprendre) » ; la section Planning de l'Accueil, l'icône (⏸ devant le pourcentage) et la ligne
 d'état de Claude Code rappellent aussi la pause.
@@ -344,7 +344,7 @@ l'heure, « compte quitté → compte choisi » et la raison en clair :
 | Automatique | « Bascule automatique avant la coupure (perso à 98 %) », avec « 100 % prévu avant le prochain relevé » quand c'est la projection qui a décidé |
 | Anticipée | « Bascule anticipée de l'orchestrateur : boulot allait perdre 42 % de quota dans 35 min » |
 | Après un blocage | « Bascule après un blocage (limite atteinte dans Portail) » : le projet de la session bloquée, sinon le compte quitté |
-| Manuelle | Selon son origine : « Bascule manuelle depuis l'application » (bascule faite dans la fenêtre), « … depuis l'icône », « … depuis une notification », « … par la commande ccs », « … par un raccourci clavier », « Bascule pour une nouvelle session (compte choisi) », « Bascule vers le compte du projet Portail » ; « Bascule manuelle (application, icône ou « ccs use ») » quand l'origine n'est pas connue |
+| Manuelle | Selon son origine : « Bascule manuelle depuis l'application » (bascule faite dans la fenêtre), « … depuis l'icône », « … depuis une notification », « … par la commande ccs », « … par un raccourci clavier », « Bascule pour une nouvelle session (compte choisi) », « Bascule vers le compte du projet Portail » ; « Bascule manuelle (application, icône ou « ccs utiliser ») » quand l'origine n'est pas connue |
 | Échec | « Échec de la bascule automatique vers boulot : … », avec le message de `ccs` |
 | Limite sans bascule | « Limite atteinte dans Portail pendant une pause : pas de bascule », « … : aucun autre compte disponible » |
 | Démarrage de fenêtre | « Fenêtre de 5 h démarrée par l'orchestrateur », « Warm-up de 07:00 : fenêtre de 5 h démarrée », ou son échec |
@@ -422,7 +422,7 @@ la plage de silence en cours ou prochaine, sans plage jusqu'à 08:00) ; `ccs sil
 silence, `ccs silence status` (défaut) affiche l'état. Alias : `ccs quiet`.
 `--notifier` affiche aussi le résultat en notification passagère (« Ne pas
 déranger jusqu'à 08:00 », « Silence levé »). Une durée inconnue donne le code 2.
-`ccs status` rappelle le silence : « Ne pas déranger jusqu'à … (ccs silence off
+`ccs etat` rappelle le silence : « Ne pas déranger jusqu'à … (ccs silence off
 pour reprendre) », ou « Ne pas déranger (plage de silence) … » pendant une plage
 des réglages. Le silence temporaire est gardé dans
 `~/.claude-accounts/quiet.json`.
@@ -437,7 +437,7 @@ avant le symbole de pause. Le raccourci clavier « Ne pas déranger 1 h »
 décrit dans [Raccourcis clavier globaux](#raccourcis-clavier-globaux).
 
 **Pendant le silence**, les notifications sont retenues et comptées
-(`~/.claude-accounts/quiet_held.json`). À la fin, **un seul résumé** « Fin du
+(`~/.claude-accounts/quiet-held.json`). À la fin, **un seul résumé** « Fin du
 silence » dit combien ont été retenues. Une alerte retenue n'est jamais renvoyée
 après coup : elle n'est que résumée. **Jamais retenues** : « attend ta réponse »
 et son rappel (si `allow_waiting`), les sessions bloquées par une limite, le
@@ -719,8 +719,8 @@ ailleurs (autre terminal, VS Code) n'est pas reprise une seconde fois.
 560 sp, les boutons passent en icônes et le filtre d'origine affiche
 « Toutes ».
 
-**Depuis la ligne de commande** : `claude-accounts gui --page sessions` ouvre
-l'application sur cet onglet, `claude-accounts gui --new-session` directement
+**Depuis la ligne de commande** : `claude-accounts appli --page sessions` ouvre
+l'application sur cet onglet, `claude-accounts appli --nouvelle-session` directement
 sur le dialogue « Nouvelle session », que l'application soit déjà ouverte ou
 non (voir [Raccourcis clavier globaux](#raccourcis-clavier-globaux)).
 `--page` accepte `sessions`, `comptes`, `planning`, `historique`, `analyse`,
@@ -733,7 +733,7 @@ combinent entre elles et avec `--session`.
 
 Le bouton **Nouvelle session…** de l'onglet Sessions, l'entrée du même nom
 dans le menu ☰ de la fenêtre, « Avec des options… » dans le menu de
-« Nouvelle session » d'un projet, ou `claude-accounts gui --new-session`
+« Nouvelle session » d'un projet, ou `claude-accounts appli --nouvelle-session`
 ouvrent un dialogue :
 
 - **Dossier** : le projet d'où tu pars, un projet récent ou un autre dossier
@@ -835,7 +835,7 @@ La carte d'un projet indique « Compte du projet : boulot · bascule proposée �
 l'ouverture » (mis en avant quand ce n'est pas le compte actif). CCS ne bascule
 jamais de lui-même pour un projet : seulement quand tu le confirmes, et
 seulement pour ce que tu ouvres depuis l'application. Les associations sont
-gardées dans `~/.claude-accounts/projects.json`.
+gardées dans `~/.claude-accounts/project-accounts.json`.
 
 ## Historique des conversations
 
@@ -970,7 +970,7 @@ Ctrl+R pour actualiser. Le badge de l'onglet Sessions compte les chats et les
 terminaux qui attendent ta réponse.
 
 Les anciens noms de page restent acceptés partout, y compris par
-`claude-accounts gui --page`, par les raccourcis du bureau, par le menu de
+`claude-accounts appli --page`, par les raccourcis du bureau, par le menu de
 l'icône et par le clic sur une notification :
 
 | Nom | Mène à |
@@ -1160,7 +1160,7 @@ chat, le tien ou celui de Claude, pour le retrouver plus tard.
   chat local restent sur ton PC, celles d'un chat du serveur sur le serveur.
 
 Les étiquettes ne sont pas envoyées à Claude. Elles sont rangées dans
-`~/.claude-accounts/etiquettes/<conversation>.json`, un fichier par conversation.
+`~/.claude-accounts/labels/<conversation>.json`, un fichier par conversation.
 Un message envoyé avant la version 0.17.0 de CCS (ou depuis le terminal de Claude Code) peut
 être étiqueté quand il est relu depuis le journal.
 
@@ -1397,7 +1397,7 @@ Garde-fous :
 
 Interrupteur **Reprise automatique après une limite** (activé par défaut) dans
 le menu « ⋮ » de la page Terminaux ou **Réglages → Terminal intégré** ; désactivé, le bandeau te dit seulement de
-taper « continue ». Il faut `ccs integrate on` : sans le hook, aucun marqueur
+taper « continue ». Il faut `ccs integration on` : sans le hook, aucun marqueur
 n'est écrit et rien n'est relancé. Les marqueurs
 (`~/.claude-accounts/limits/<conversation>.json`) sont retirés une fois lus, ou
 au bout de 24 h.
@@ -1447,12 +1447,12 @@ rouverts : un dossier disparu, une conversation ouverte ailleurs ou déjà dans 
 onglet ; un message récapitule ce qui l'a été.
 
 Pour essayer une copie de développement sans réveiller l'application ouverte :
-`CCS_APP_ID=io.ccs.ClaudeAccounts.Dev bin/claude-accounts gui` ; `CCS_NO_VTE=1`
+`CCS_APP_ID=io.ccs.ClaudeAccounts.Dev bin/claude-accounts appli` ; `CCS_NO_VTE=1`
 force le repli sur le terminal externe.
 
 ## Intégration dans Claude Code
 
-`ccs integrate on` (ou **Réglages → Intégration dans Claude Code**) modifie
+`ccs integration on` (ou **Réglages → Intégration dans Claude Code**) modifie
 `~/.claude/settings.json` : sauvegarde `settings.json.ccs-backup` à la première
 fois, écriture atomique ; une `statusLine` existante est conservée.
 
@@ -1474,7 +1474,7 @@ fois, écriture atomique ; une `statusLine` existante est conservée.
   notification indique « CCS est en pause jusqu'à HH:MM : pas de bascule
   automatique. » (une seule pour plusieurs sessions bloquées en même temps).
 
-`ccs integrate off` retire uniquement les entrées de CCS.
+`ccs integration off` retire uniquement les entrées de CCS.
 
 ## Raccourcis clavier globaux
 
@@ -1484,11 +1484,11 @@ défaut**.
 
 | Action (`ccs raccourcis`) | Raccourci par défaut | Commande lancée |
 |---|---|---|
-| Ouvrir CCS (`ouvrir`) | Super+Alt+C | `claude-accounts gui` |
-| Afficher les sessions (`sessions`) | Super+Alt+V | `claude-accounts gui --page sessions` |
-| Nouvelle session (`nouvelle-session`) | Super+Alt+N | `claude-accounts gui --new-session` |
-| Basculer sur le compte suivant (`suivant`) | Super+Alt+B | `ccs next --notifier` |
-| Basculer sur le meilleur compte (`meilleur`) | Super+Alt+M | `ccs best --notifier` |
+| Ouvrir CCS (`ouvrir`) | Super+Alt+C | `claude-accounts appli` |
+| Afficher les sessions (`sessions`) | Super+Alt+V | `claude-accounts appli --page sessions` |
+| Nouvelle session (`nouvelle-session`) | Super+Alt+N | `claude-accounts appli --nouvelle-session` |
+| Basculer sur le compte suivant (`suivant`) | Super+Alt+B | `ccs suivant --notifier` |
+| Basculer sur le meilleur compte (`meilleur`) | Super+Alt+M | `ccs meilleur --notifier` |
 | Pause 1 h (`pause`) | Super+Alt+P | `ccs pause 1h --notifier` |
 | Reprendre (lever la pause) (`reprendre`) | Super+Alt+R | `ccs pause off --notifier` |
 | Ne pas déranger 1 h (`silence`) | Super+Alt+D | `ccs silence 1h --notifier` |
@@ -1801,7 +1801,7 @@ santé…** dans le menu ☰ de l'application) passe tout en revue :
 
 Chaque ligne est ✔, ⚠ ou ✖ ; sous chaque problème, **la commande qui le
 corrige**, à copier (par exemple `systemctl --user restart ccs-daemon`,
-`ccs integrate on`, `ccs rm perso && ccs add perso`). Le bilan n'exécute jamais
+`ccs integration on`, `ccs supprimer perso && ccs ajouter perso`). Le bilan n'exécute jamais
 rien à ta place. Code de sortie : **0** si tout va bien, **1** au moindre
 avertissement ou erreur.
 

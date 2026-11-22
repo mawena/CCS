@@ -103,12 +103,12 @@ def trash_conversation(parent, ops, notify, conv, on_done):
             notify(f"Suppression impossible : {message(error)}")
             return
         notify("Conversation mise à la corbeille",
-               undo=lambda: ops.call("conversation.restore", restored, tid=result["tid"]))
+               undo=lambda: ops.call("trash.restore", restored, trash_id=result["trash_id"]))
         on_done()
 
     def respond(_d, response):
         if response == "trash":
-            ops.call("conversation.trash", done, path=conv.get("path") or "", session_id=conv.get("session_id") or "",
+            ops.call("conversations.trash", done, path=conv.get("path") or "", session_id=conv.get("session_id") or "",
                      cwd=conv.get("cwd") or "", title=title)
     dialog.connect("response", respond)
     dialog.present(parent)
@@ -133,7 +133,7 @@ class TrashDialog(Adw.Dialog):
             self.page.remove(self.group)
         self.group = Adw.PreferencesGroup(title="Chargement…")
         self.page.add(self.group)
-        self.ops.call("conversation.trash_list", self.fill)
+        self.ops.call("trash.list", self.fill)
 
     def fill(self, result, error):
         group = self.group
@@ -151,14 +151,14 @@ class TrashDialog(Adw.Dialog):
                                 subtitle=f"{os.path.basename((it.get('cwd') or '').rstrip('/'))} · supprimée le {when}")
             row.set_title_lines(1)
             b = Gtk.Button(label="Restaurer", valign=Gtk.Align.CENTER, css_classes=["flat"])
-            b.connect("clicked", lambda _b, tid=it.get("tid"): self.restore(tid))
+            b.connect("clicked", lambda _b, tid=it.get("trash_id"): self.restore(tid))
             row.add_suffix(b)
             group.add(row)
 
-    def restore(self, tid):
+    def restore(self, trash_id):
         def done(_r, error):
             self.notify(f"Restauration impossible : {message(error)}" if error is not None
                         else "Conversation restaurée")
             self.on_done()
             self.load()
-        self.ops.call("conversation.restore", done, tid=tid)
+        self.ops.call("trash.restore", done, trash_id=trash_id)

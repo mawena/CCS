@@ -128,11 +128,23 @@ class TestChoice(DistantCase):
         pc = self.machines()[1]
         inv = distant.inventory(pc, {}, run=run)
         self.assertEqual(inv["path"], "/home/c/flutter/bin:/usr/bin")
-        self.assertEqual(inv["outils"], {"flutter": "/home/c/flutter/bin/flutter"})
+        self.assertEqual(inv["tools"], {"flutter": "/home/c/flutter/bin/flutter"})
         distant.inventory(pc, {}, run=run)
         self.assertEqual(len(run.calls), 1, "gardé une heure")
         distant.inventory(pc, {}, run=run, now=lambda: 1e12)
         self.assertEqual(len(run.calls), 2)
+
+    def test_old_inventory_entry_is_stale(self):
+        """Entrée d'avant la 1.0.0 (`outils`, `quand`) : périmée, relevée à nouveau."""
+        import time
+        pc = self.machines()[1]
+        distant._save_inventory({pc.id: {"path": "/usr/bin", "outils": {"flutter": "/f"}, "quand": time.time()}})
+        self.assertIsNone(distant.cached_inventory(pc.id))
+        run = FakeRun()
+        inv = distant.inventory(pc, {}, run=run)
+        self.assertEqual(len(run.calls), 1)
+        self.assertIn("checked_at", inv)
+        self.assertEqual(distant.cached_inventory(pc.id)["tools"], {"flutter": "/home/c/flutter/bin/flutter"})
 
     def test_machine_with_the_tool_then_least_loaded(self):
         run = FakeRun()

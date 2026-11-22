@@ -73,24 +73,26 @@ class CollectTest(GpgCase):
         sc.install("suivant", "<Super><Alt>x", backend=self.sc)
         entries = backup.collect(self.sc)
         self.assertEqual(sorted(entries), [
-            "profils/perso/account.json", "profils/perso/oauth.json",
-            "profils/pro/account.json", "profils/pro/oauth.json",
-            "raccourcis.json", "reglages/budgets.json", "reglages/projects.json",
-            "reglages/settings.json"])
-        self.assertEqual(json.loads(entries["raccourcis.json"]), {"actions": {"suivant": "<Super><Alt>x"}})
-        self.assertIn(b"RT-perso", entries["profils/perso/oauth.json"])  # jetons compris
+            "profiles/perso/account.json", "profiles/perso/oauth.json",
+            "profiles/pro/account.json", "profiles/pro/oauth.json",
+            "settings/budgets.json", "settings/project-accounts.json",
+            "settings/settings.json", "shortcuts.json"])
+        self.assertEqual(json.loads(entries["shortcuts.json"]), {"actions": {"suivant": "<Super><Alt>x"}})
+        self.assertIn(b"RT-perso", entries["profiles/perso/oauth.json"])  # jetons compris
+        # l'ancien `projects.json` du store a été renommé avant d'être lu
+        self.assertFalse((self.store / "projects.json").exists())
 
     def test_incomplete_profile_and_foreign_names_are_skipped(self):
         write(self.store / "orphelin" / "oauth.json", oauth_for("perso"))   # sans account.json
         (self.store / "a b").mkdir()
         write(self.store / "a b" / "oauth.json", {})
         write(self.store / "a b" / "account.json", {})
-        names = {n.split("/")[1] for n in backup.collect(self.sc) if n.startswith("profils/")}
+        names = {n.split("/")[1] for n in backup.collect(self.sc) if n.startswith("profiles/")}
         self.assertEqual(names, {"perso", "pro"})
 
     def test_no_shortcuts_when_unsupported(self):
         with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "KDE"}):
-            self.assertNotIn("raccourcis.json", backup.collect(self.sc))
+            self.assertNotIn("shortcuts.json", backup.collect(self.sc))
 
     def test_default_name_is_dated(self):
         noon = time.mktime((2026, 11, 11, 12, 0, 0, 0, 0, -1))
@@ -128,7 +130,7 @@ class RoundTripTest(GpgCase):
         backup.create(dest, backend=self.sc)
         b = backup.open_backup(dest)
         self.assertEqual(b.contents.profiles, ["perso", "pro"])
-        self.assertEqual(b.contents.files, ["budgets.json", "projects.json", "settings.json"])
+        self.assertEqual(b.contents.files, ["budgets.json", "project-accounts.json", "settings.json"])
         self.assertEqual(list(b.contents.shortcuts), ["pause"])
         text = backup.describe(b.contents)
         self.assertIn("perso, pro", text)
@@ -311,7 +313,7 @@ class ParseTest(GpgCase):
 
     def test_unknown_shortcut_actions_are_dropped(self):
         manifest = {"format": 1}
-        entries = {"raccourcis.json": json.dumps({"actions": {"suivant": "<Super>x", "inconnue": "<Super>y",
+        entries = {"shortcuts.json": json.dumps({"actions": {"suivant": "<Super>x", "inconnue": "<Super>y",
                                                               "pause": 3}}).encode()}
         self.assertEqual(backup._contents(entries, manifest).shortcuts, {"suivant": "<Super>x"})
 

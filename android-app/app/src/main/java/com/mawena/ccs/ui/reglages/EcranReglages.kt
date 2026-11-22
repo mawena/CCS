@@ -377,7 +377,7 @@ private fun GroupeTelephone(
                 portee.launch {
                     if (!demandes.confirmer("Créer un nouveau canal ?", "L'ancien canal ne recevra plus rien : il faudra se réabonner au nouveau (QR code) sur chaque téléphone.", "Créer le canal")) return@launch
                     faire {
-                        client.appeler("phone.new_topic", CanalTelephone.serializer())
+                        client.appeler("phone.renew", CanalTelephone.serializer())
                         avis.dire("Nouveau canal créé.")
                         recharger()
                     }

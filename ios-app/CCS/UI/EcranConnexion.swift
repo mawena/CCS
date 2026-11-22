@@ -83,7 +83,7 @@ struct EcranConnexion: View {
                             code = ""
                         }
                     }
-                    if portier?.actif == true && enAttente == nil {
+                    if portier?.enabled == true && enAttente == nil {
                         Divider().padding(.vertical, 8)
                         Button {
                             vuePortier = true
@@ -113,7 +113,7 @@ struct EcranConnexion: View {
             }
         }
         .fullScreenCover(isPresented: $vuePortier) {
-            EcranPortier(adresse: modele.adresse, connexion: portier?.connexion ?? "", fermer: { vuePortier = false }) { cookies in
+            EcranPortier(adresse: modele.adresse, connexion: portier?.login ?? "", fermer: { vuePortier = false }) { cookies in
                 vuePortier = false
                 apresPortier(cookies)
             }

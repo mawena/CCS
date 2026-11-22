@@ -690,7 +690,7 @@ class RaccourcisCliTest(HomeTestCase):
             code, out = run("raccourcis", "status")
         self.assertEqual(code, 1)
         self.assertIn("seulement sous GNOME", out)
-        self.assertIn("/usr/bin/ccs next", out)
+        self.assertIn("/usr/bin/ccs suivant", out)
 
 
 class StatuslineHintCliTest(HomeTestCase):
@@ -990,3 +990,98 @@ class MiseAJourCliTest(HomeTestCase):
         with mock.patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit) as e:
             run("mise-a-jour", "--force")
         self.assertEqual(e.exception.code, 2)
+
+
+class NomsDesCommandesTest(HomeTestCase):
+    """Phase 33 : noms français dans l'aide, anciens noms acceptés mais cachés."""
+
+    ALIASES = {  # ancien nom → nom affiché
+        "status": "etat", "st": "etat", "best": "meilleur", "b": "meilleur", "print": "usage",
+        "orch": "orchestrateur", "planning": "plan", "ps": "sessions", "tasks": "tache",
+        "taches": "tache", "backup": "sauvegarde", "restore": "restaurer", "phone": "telephone",
+        "conv": "conversations", "historique": "conversations", "resume": "reprendre",
+        "title": "titre", "preview": "apercu", "aperçu": "apercu", "export": "exporter",
+        "analyze": "analyse", "stats": "analyse", "integrate": "integration", "conseil": "formule",
+        "doctor": "bilan", "maj": "mise-a-jour", "shortcuts": "raccourcis", "server": "serveur",
+        "quiet": "silence", "gui": "appli", "app": "appli",
+    }
+    INTERNAL = ("bridge", "web-serve", "auth-serve", "shell-distant", "notify", "statusline",
+                "hook", "tray", "collect", "daemon", "est-commande")
+
+    def help_text(self):
+        return cli.build_parser().format_help()
+
+    def test_anciens_noms_acceptes(self):
+        names = cli.command_names()
+        for old, new in self.ALIASES.items():
+            self.assertIn(old, names, old)
+            self.assertIn(new, names, new)
+
+    def test_ancien_nom_meme_commande_que_le_nouveau(self):
+        parser = cli.build_parser()
+        for old, new in self.ALIASES.items():
+            if new in ("tache", "sauvegarde", "restaurer", "telephone"):
+                self.assertIs(cli.DELEGATED[old], cli.DELEGATED[new])
+                continue
+            argv = {"titre": ["x", "y"], "reprendre": ["x"], "apercu": ["x"],
+                    "exporter": ["x"], "serveur": ["liste"], "orchestrateur": ["on"]}.get(new, [])
+            self.assertIs(parser.parse_args([old, *argv]).func,
+                          parser.parse_args([new, *argv]).func, old)
+
+    def test_aide_sans_anciens_noms_ni_internes(self):
+        text = self.help_text()
+        for new in set(self.ALIASES.values()):
+            self.assertIn(new, text)
+        sub = next(a for a in cli.build_parser()._actions if a.dest == "command")
+        shown = {a.dest for a in sub._choices_actions}
+        self.assertTrue(set(self.ALIASES.values()) <= shown)
+        for old in [*self.ALIASES, *self.INTERNAL]:
+            self.assertNotIn(old, shown, old)
+        for opt in ("--switch", "--basculer", "--days", "--project", "--new-terminal", "--dir"):
+            self.assertNotIn(opt, text)
+
+    def test_options_anciennes_et_nouvelles(self):
+        p = cli.build_parser()
+        self.assertEqual(p.parse_args(["analyse", "--jours", "3"]).days, 3)
+        self.assertEqual(p.parse_args(["analyze", "--days", "3"]).days, 3)
+        self.assertEqual(p.parse_args(["journal", "--days", "4"]).jours, 4)
+        self.assertEqual(p.parse_args(["mois", "--precedente", "2"]).precedent, 2)
+        self.assertEqual(p.parse_args(["semaine", "--precedent", "2"]).precedente, 2)
+        a = p.parse_args(["conversations", "--projet", "App", "--limite", "5", "--tous"])
+        b = p.parse_args(["conv", "--project", "App", "--limit", "5", "--all"])
+        self.assertEqual((a.project, a.limit, a.all), (b.project, b.limit, b.all))
+        a = p.parse_args(["reprendre", "abcd", "--nouveau-terminal", "--dossier", "/tmp"])
+        b = p.parse_args(["resume", "abcd", "--new-terminal", "--dir", "/tmp"])
+        self.assertEqual((a.new_terminal, a.dir), (b.new_terminal, b.dir))
+        self.assertTrue(p.parse_args(["apercu", "x"]) and p.parse_args(["reprendre", "x", "--print"]).print)
+        self.assertEqual(p.parse_args(["appli", "--tache", "12"]).task,
+                         p.parse_args(["gui", "--task", "12"]).task)
+        self.assertEqual(p.parse_args(["integrate", "status"]).action, "status")
+        self.assertEqual(p.parse_args(["integration", "etat"]).action, "status")
+        self.assertEqual(p.parse_args(["integration"]).action, "status")
+
+    def test_meilleur_bascule_par_defaut_des_deux_noms(self):
+        p = cli.build_parser()
+        for name in ("meilleur", "best"):
+            self.assertFalse(getattr(p.parse_args([name]), "voir", False), name)
+        self.assertTrue(p.parse_args(["best", "--voir"]).voir)
+        self.assertFalse(p.parse_args(["best", "--switch"]).voir)   # ancienne option : sans effet
+
+    def test_est_commande(self):
+        self.assertEqual(run("est-commande", "plan")[0], 0)
+        self.assertEqual(run("est-commande", "resume")[0], 0)
+        self.assertEqual(run("est-commande", "perso")[0], 1)
+
+    def test_commande_inconnue(self):
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err):
+            code, _ = run("nimporte")
+        self.assertEqual(code, 1)
+        self.assertIn("commande ou profil inconnu", err.getvalue())
+
+    def test_mots_etat(self):
+        from ccs_app import pause, quiet
+        self.assertIn("etat", pause.USAGE)
+        self.assertIn("etat", quiet.USAGE)
+        self.assertEqual(pause.command("etat")[0], pause.command("status")[0])
+        self.assertEqual(quiet.command(["etat"])[1], quiet.command(["status"])[1])

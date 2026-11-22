@@ -579,7 +579,7 @@ def check_integration(p):
     missing = ([] if line else ["ligne d'état"]) + ([] if hook else ["bascule après blocage (hook)"])
     if not missing:  # ligne d'état d'un autre outil, pas de hook
         missing = ["bascule après blocage (hook)"]
-    return Check(nom, AVERTISSEMENT, "non installé : " + ", ".join(missing), "ccs integrate on")
+    return Check(nom, AVERTISSEMENT, "non installé : " + ", ".join(missing), "ccs integration on")
 
 
 AUTH_WORDS = ("connexion expirée", "connexion perdue", "révoquée")
@@ -589,13 +589,13 @@ def check_profiles(p):
     profiles = p.profiles()
     if not profiles:
         return [Check("Comptes", AVERTISSEMENT, "aucun profil enregistré : enregistre le compte actuel avec "
-                                                "« ccs save <nom> »")]
+                                                "« ccs enregistrer <nom> »")]
     accounts = {a.get("name"): a for a in (p.once("state") or {}).get("accounts") or [] if isinstance(a, dict)}
     now = p.now()
     out = []
     for prof in profiles:
         nom = f"Compte {prof.name}"
-        fix = f"ccs rm {prof.name} && ccs add {prof.name}"
+        fix = f"ccs supprimer {prof.name} && ccs ajouter {prof.name}"
         info = p.token_info(prof)
         error = str((accounts.get(prof.name) or {}).get("error") or "")
         if not info.present:

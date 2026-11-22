@@ -145,7 +145,7 @@ def pending_alerts(accounts, active, fc, paces, best, settings, now, sent_keys, 
             key = f"auth:{acc.name}:{now.date().isoformat()}"
             if key not in sent_keys:
                 out.append(Alert(key, f"{acc.name} : connexion expirée",
-                                 f"Reconnecte ce compte : ccs rm {acc.name} puis ccs add {acc.name}.", 1))
+                                 f"Reconnecte ce compte : ccs supprimer {acc.name} puis ccs ajouter {acc.name}.", 1))
     advice = _model_advice(next((a for a in accounts if a.name == active), None), cfg, now, sent_keys)
     if advice:
         out.append(advice)

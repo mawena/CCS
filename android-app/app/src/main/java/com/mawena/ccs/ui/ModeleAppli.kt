@@ -101,6 +101,27 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
         depot.client.changerMachine(id, nom)
     }
 
+    /**
+     * Lien `ccs://root?machine=…` (avis ntfy d'une demande root) ou notification locale : pilote la
+     * machine qui demande si ce n'est pas celle en cours, puis relit `root.status` (la fenêtre
+     * s'affiche avec la demande en cours ; après un changement, la connexion la relit d'elle-même).
+     */
+    fun ouvrirRoot(machineLien: String?) {
+        viewModelScope.launch {
+            if (!machineLien.isNullOrBlank()) {
+                val liste = kotlinx.coroutines.withTimeoutOrNull(10_000) {
+                    runCatching { depot.client.appeler("machines.list", com.mawena.ccs.reseau.ListeMachines.serializer()) }.getOrNull()
+                }?.machines ?: _machines.value
+                val cible = com.mawena.ccs.logique.Root.cibleLien(machineLien, machine.value, liste)
+                if (cible != null) {
+                    choisirMachine(cible.first, cible.second)
+                    return@launch
+                }
+            }
+            depot.root.actualiser()
+        }
+    }
+
     fun changerTheme(t: com.mawena.ccs.donnees.Theme) {
         depot.reglages.theme = t
         _theme.value = t

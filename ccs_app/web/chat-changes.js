@@ -74,7 +74,7 @@ export class ChangesPanel {
       confirm: "Annuler ce fichier", danger: true });
     if (!ok) return;
     try {
-      await this.api.call("work.undo_file", { chat_id: this.chatId, path: f.path, ...(f.sha256 !== undefined ? { expected: f.sha256 } : {}) });
+      await this.api.call("work.undo", { chat_id: this.chatId, path: f.path, ...(f.sha256 !== undefined ? { expected: f.sha256 } : {}) });
       toast("Fichier remis comme avant la session.", { kind: "success" });
       this.actions.changed?.();
     } catch (e) { toast(e.message, { kind: "error" }); }      // « conflit » ou « occupé » : le message du pont, puis on actualise
@@ -83,7 +83,7 @@ export class ChangesPanel {
 
   async rewind(p) {
     let plan;
-    try { plan = await this.api.call("work.rewind_plan", { chat_id: this.chatId, message_id: p.message_id }); } catch (e) {
+    try { plan = await this.api.call("rewind.plan", { chat_id: this.chatId, message_id: p.message_id }); } catch (e) {
       toast(e.message, { kind: "error" });
       return;
     }
@@ -94,7 +94,7 @@ export class ChangesPanel {
       body: rewindBody(plan, this.cwd), confirm: "Revenir en arrière", danger: true });
     if (!ok) return;
     try {
-      const r = await this.api.call("work.rewind_apply", { chat_id: this.chatId, message_id: p.message_id, ...expected });
+      const r = await this.api.call("rewind.apply", { chat_id: this.chatId, message_id: p.message_id, ...expected });
       toast(`${r.count} fichier(s) remis comme avant ce message.`, { kind: "success" });
       this.actions.changed?.();
     } catch (e) { toast(e.message, { kind: "error" }); }

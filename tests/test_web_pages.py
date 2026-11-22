@@ -95,7 +95,7 @@ class PagesTest(unittest.TestCase):
         src = text("settings.js") + text("pages-phone.js")
         for path in ("git.fetch_minutes", "phone.show_content", "phone.server", "phone.topic", "phone.enabled"):
             self.assertIn(f'"{path}"', src)
-        for method in ("phone.test", "phone.qr", "phone.new_topic"):
+        for method in ("phone.test", "phone.qr", "phone.renew"):
             self.assertIn(method, src)
         self.assertIn("Enregistré.", text("pages-util.js"))
 

@@ -60,7 +60,7 @@ fun LigneConversation(
         modele.fileCouts.withLock {
             modele.couts[cle]?.let { cout = it; return@withLock }
             runCatching {
-                modele.depot.client.appeler("conversation.cost", Cout.serializer(), buildJsonObject { put("path", c.path) })
+                modele.depot.client.appeler("conversations.cost", Cout.serializer(), buildJsonObject { put("path", c.path) })
             }.onSuccess { modele.couts[cle] = it; cout = it }   // le coût est un plus : l'échec est tu
         }
     }

@@ -96,10 +96,15 @@ class Phase12SettingsTest(HomeTestCase):
         self.assertEqual(settings.problems(), ["files.layout", "files.show_ignored"])
 
     def test_appearance_color_scheme_values(self):
-        for ok in ("auto", "clair", "sombre"):
+        for ok in ("auto", "light", "dark"):
             write(self.store / "settings.json", {"appearance": {"color_scheme": ok}})
             self.assertEqual(settings.load_settings()["appearance"]["color_scheme"], ok)
-        write(self.store / "settings.json", {"appearance": {"color_scheme": "dark"}})
+        # anciennes valeurs françaises (avant la 1.0.0) : converties, sans erreur
+        for old, new in (("clair", "light"), ("sombre", "dark")):
+            write(self.store / "settings.json", {"appearance": {"color_scheme": old}})
+            self.assertEqual(settings.load_settings()["appearance"]["color_scheme"], new)
+            self.assertEqual(settings.problems(), [])
+        write(self.store / "settings.json", {"appearance": {"color_scheme": "noir"}})
         self.assertEqual(settings.load_settings()["appearance"]["color_scheme"], "auto")
         self.assertIn("appearance.color_scheme", settings.problems())
 

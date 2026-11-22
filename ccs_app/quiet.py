@@ -8,7 +8,7 @@ Deux sources de silence se cumulent :
   l'échéance. Fichier illisible : pas de silence.
 
 `notify.send` interroge `should_hold` : pendant un silence les notifications sont retenues
-(comptées par genre dans `quiet_held.json`, partagé par le service et les hooks), sauf
+(comptées par genre dans `quiet-held.json`, partagé par le service et les hooks), sauf
 - « attend ta réponse » et son rappel quand `allow_waiting` (réglage, vrai par défaut) ;
 - `blocage:*` : une session bloquée par la limite d'usage, signalée par le hook StopFailure
   (rare, une seule fois pour toutes les sessions bloquées en même temps, et l'utilisateur doit
@@ -24,13 +24,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, time as dtime, timedelta, timezone
 
-from . import core, orchestrator, pause
+from . import core, migrate, orchestrator, pause
 
 CHOICES = ("1h", "4h", "demain")
 RESUME = ("off", "reprendre")
 DURATIONS = {"1h": timedelta(hours=1), "4h": timedelta(hours=4)}
 TOMORROW_HHMM = (8, 0)  # « demain » sans plage de silence : 08:00
-USAGE = "usage : ccs silence [1h|4h|demain|off|status]"
+USAGE = "usage : ccs silence [1h|4h|demain|off|etat]"
 
 # Genres de notification retenue : (clé, singulier, pluriel), dans l'ordre du résumé.
 KINDS = (
@@ -62,7 +62,7 @@ def quiet_path():
 
 
 def held_path():
-    return core.paths().store / "quiet_held.json"
+    return migrate.store_file("quiet-held.json", "quiet_held.json")
 
 
 @contextmanager
@@ -252,14 +252,14 @@ def choices(now, settings=None):
 
 
 def command(args, now=None, settings=None):
-    """`ccs silence [1h|4h|demain|off|status]` → (code de sortie, texte). Le service doit
+    """`ccs silence [1h|4h|demain|off|etat]` (ancien : status) → (code de sortie, texte). Le service doit
     ensuite être réveillé (`daemon.request_refresh`) pour que l'état partagé suive."""
     now = now or datetime.now(timezone.utc)
     args = list(args or [])
     choice = args[0] if args else "status"
     if len(args) > 1:
         return 2, USAGE
-    if choice == "status":
+    if choice in ("status", "etat", "état"):
         st = quiet_state(now, settings)
         if st is None:
             return 0, "Pas de silence : les notifications arrivent normalement."

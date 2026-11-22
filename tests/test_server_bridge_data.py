@@ -233,9 +233,9 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
                                    for u, ts, text in (("u1", "2026-11-15T10:00:00Z", "avant"),
                                                        ("u2", "2026-11-15T10:05:00Z", "après"))))
         cut = datetime.datetime(2026, 11, 15, 10, 2, tzinfo=datetime.timezone.utc).timestamp()
-        r = await self.c.call("conversation.messages", path=str(journal), limit=50, before=cut)
+        r = await self.c.call("conversations.messages", path=str(journal), limit=50, before=cut)
         self.assertEqual([m["text"] for m in r["messages"]], ["avant"])
-        r = await self.c.call("conversation.messages", path=str(journal), limit=50)
+        r = await self.c.call("conversations.messages", path=str(journal), limit=50)
         self.assertEqual([m["text"] for m in r["messages"]], ["avant", "après"])
 
     async def test_conversation_rename_and_cost(self):
@@ -243,36 +243,36 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
         d.mkdir(parents=True)
         journal = d / "abc.jsonl"
         journal.write_text('{"type":"user","message":{"content":"salut"}}\n')
-        r = await self.c.call("conversation.rename", session_id="abc", title="  Mon  titre ", path=str(journal))
+        r = await self.c.call("conversations.rename", session_id="abc", title="  Mon  titre ", path=str(journal))
         self.assertEqual(r["title"], "Mon titre")
         self.assertIn("custom-title", journal.read_text())
         with self.assertRaises(rpc.RpcError) as cm:
-            await self.c.call("conversation.rename", session_id="abc", title=" ", path=str(journal))
+            await self.c.call("conversations.rename", session_id="abc", title=" ", path=str(journal))
         self.assertEqual(cm.exception.code, "invalide")
-        await self.refused("conversation.rename", session_id="abc", title="x", path="/etc/passwd")
-        r = await self.c.call("conversation.cost", path=str(journal))
+        await self.refused("conversations.rename", session_id="abc", title="x", path="/etc/passwd")
+        r = await self.c.call("conversations.cost", path=str(journal))
         self.assertIn("short", r)
         self.assertIn("text", r)
-        await self.refused("conversation.cost", path="/etc/passwd")
+        await self.refused("conversations.cost", path="/etc/passwd")
 
     async def test_conversation_rename_only_claude_journals(self):
         """Constat 12 : seulement un `<session_id>.jsonl` sous le dossier des projets de Claude Code."""
         bashrc = self.home / ".bashrc"
         bashrc.write_text("export A=1\n")
-        await self.refused("conversation.rename", session_id="abc", title="x", path=str(bashrc))
+        await self.refused("conversations.rename", session_id="abc", title="x", path=str(bashrc))
         other = self.home / "notes" / "abc.jsonl"
         other.parent.mkdir()
         other.write_text("{}\n")
-        await self.refused("conversation.rename", session_id="abc", title="x", path=str(other))
+        await self.refused("conversations.rename", session_id="abc", title="x", path=str(other))
         d = self.home / ".claude" / "projects" / "-p"
         d.mkdir(parents=True)
         journal = d / "abc.jsonl"
         journal.write_text('{"type":"user","message":{"content":"salut"}}\n')
-        await self.refused("conversation.rename", session_id="autre", title="x", path=str(journal))
+        await self.refused("conversations.rename", session_id="autre", title="x", path=str(journal))
         os.symlink(bashrc, d / "lien.jsonl")
-        await self.refused("conversation.rename", session_id="lien", title="x", path=str(d / "lien.jsonl"))
+        await self.refused("conversations.rename", session_id="lien", title="x", path=str(d / "lien.jsonl"))
         (d / "notes.txt").write_text("x\n")
-        await self.refused("conversation.rename", session_id="notes.txt", title="x", path=str(d / "notes.txt"))
+        await self.refused("conversations.rename", session_id="notes.txt", title="x", path=str(d / "notes.txt"))
         self.assertEqual(bashrc.read_text(), "export A=1\n")
         self.assertNotIn("custom-title", other.read_text())
         self.assertNotIn("custom-title", journal.read_text())
@@ -280,10 +280,10 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
     async def test_roadmap_task_prompt(self):
         r = await self.c.call("roadmap.read", cwd=str(self.project))
         t = r["phases"][0]["tasks"][0]
-        r = await self.c.call("roadmap.task_prompt", path=r["path"], text=t["text"], phase=r["phases"][0]["title"])
+        r = await self.c.call("roadmap.prompt", path=r["path"], text=t["text"], phase=r["phases"][0]["title"])
         self.assertIn("écrire", r["prompt"])
         with self.assertRaises(rpc.RpcError) as cm:
-            await self.c.call("roadmap.task_prompt", path=str(self.project / "ROADMAP.md"), text="inconnue", phase="x")
+            await self.c.call("roadmap.prompt", path=str(self.project / "ROADMAP.md"), text="inconnue", phase="x")
         self.assertEqual(cm.exception.code, "introuvable")
 
     async def test_tasks_add_from_roadmap(self):
@@ -335,13 +335,13 @@ class ProjectsAndTrashBridgeTest(DataBridgeTest):
         j = sessions.transcript_path(str(self.project), sid)
         j.parent.mkdir(parents=True)
         j.write_text('{"type":"user"}\n')
-        await self.refused("conversation.trash", path=str(self.project / "a.txt"), session_id="a")
-        r = await self.c.call("conversation.trash", path=str(j), session_id=sid, title="T",
+        await self.refused("conversations.trash", path=str(self.project / "a.txt"), session_id="a")
+        r = await self.c.call("conversations.trash", path=str(j), session_id=sid, title="T",
                               cwd=str(self.project))
         self.assertFalse(j.exists())
-        items = (await self.c.call("conversation.trash_list"))["items"]
+        items = (await self.c.call("trash.list"))["items"]
         self.assertEqual([(i["tid"], i["title"]) for i in items], [(r["tid"], "T")])
-        await self.c.call("conversation.restore", tid=r["tid"])
+        await self.c.call("trash.restore", tid=r["tid"])
         self.assertTrue(j.is_file())
 
     async def test_trash_refused_while_running(self):
@@ -353,6 +353,6 @@ class ProjectsAndTrashBridgeTest(DataBridgeTest):
         with mock.patch.object(bridge_data.sessions, "list_sessions",
                                return_value=[mock.Mock(session_id=sid)]):
             with self.assertRaises(rpc.RpcError) as cm:
-                await self.c.call("conversation.trash", path=str(j), session_id=sid)
+                await self.c.call("conversations.trash", path=str(j), session_id=sid)
         self.assertEqual(cm.exception.code, "occupe")
         self.assertTrue(j.exists())

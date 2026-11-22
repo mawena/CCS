@@ -21,6 +21,22 @@ final class FilChatTests: XCTestCase {
         }
     }
 
+    func testHistoriqueAuxRolesAnglaisEtAnciens() {
+        // pont 1.0 : « user » et « tool » ; « utilisateur » et « outil » (avant la 1.0.0) restent lus
+        let f = FilChat()
+        f.prefixerHistorique([
+            MessageHistorique(role: "user", text: "q", uuid: "u1"),
+            MessageHistorique(role: "tool", text: "", tool: OutilHistorique(name: "Bash", target: "ls", toolId: "t1")),
+            MessageHistorique(role: "utilisateur", text: "q2", uuid: "u2"),
+            MessageHistorique(role: "outil", text: "", tool: OutilHistorique(name: "Read", target: "a", toolId: "t2")),
+        ])
+        XCTAssertEqual(f.fil.taille, 4)
+        if case .toi = f.fil.elements[0] {} else { XCTFail("message de l'utilisateur attendu") }
+        if case .outil = f.fil.elements[1] {} else { XCTFail("outil attendu") }
+        if case .toi = f.fil.elements[2] {} else { XCTFail("message de l'utilisateur attendu") }
+        if case .outil = f.fil.elements[3] {} else { XCTFail("outil attendu") }
+    }
+
     func testUnNumeroDejaVuEstIgnore() {
         let f = FilChat()
         _ = f.recevoir(5, ev(["type": "Notice", "text": "un"]))

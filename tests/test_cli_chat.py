@@ -23,11 +23,12 @@ class ChatEffacerTest(unittest.TestCase):
             code, out, _err = self.run_cli({"XDG_CACHE_HOME": tmp, chat_engine.CLEAR_TOKEN_VAR: "ab12"})
             self.assertEqual(code, 0)
             self.assertIn("effacée", out)
-            self.assertTrue((Path(tmp) / "ccs" / "effacer" / "ab12").exists())
+            self.assertTrue((Path(tmp) / "ccs" / "clear" / "ab12").exists())
 
     def test_outside_a_chat(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"XDG_CACHE_HOME": tmp, chat_engine.CLEAR_TOKEN_VAR: ""}
+            env = {"XDG_CACHE_HOME": tmp, chat_engine.CLEAR_TOKEN_VAR: "",
+                   chat_engine.OLD_CLEAR_TOKEN_VAR: ""}
             code, _out, err = self.run_cli(env)
             self.assertEqual(code, 1)
             self.assertIn("Pas dans un chat de CCS", err)

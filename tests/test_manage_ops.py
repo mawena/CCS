@@ -57,12 +57,12 @@ class LocalOpsTest(unittest.TestCase):
         j.parent.mkdir(parents=True)
         j.write_text('{"type":"user"}\n')
         with mock.patch.object(sessions, "list_sessions", return_value=[]):
-            r, e = call(self.ops, "conversation.trash", path=str(j), session_id=sid, cwd=str(project), title="T")
+            r, e = call(self.ops, "conversations.trash", path=str(j), session_id=sid, cwd=str(project), title="T")
         self.assertIsNone(e)
         self.assertFalse(j.exists())
-        items, _e = call(self.ops, "conversation.trash_list")
+        items, _e = call(self.ops, "trash.list")
         self.assertEqual([i["title"] for i in items["items"]], ["T"])
-        _r, e = call(self.ops, "conversation.restore", tid=r["tid"])
+        _r, e = call(self.ops, "trash.restore", tid=r["tid"])
         self.assertIsNone(e)
         self.assertTrue(j.exists())
 

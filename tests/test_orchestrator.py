@@ -97,9 +97,9 @@ class StartsDueTest(unittest.TestCase):
         self.assertEqual(orch.starts_due([acc("a", 20, 120)], NOW, cfg(), FakeStore()), [])
 
     def test_recent_attempt_not_repeated(self):
-        store = FakeStore([Event(NOW.timestamp() - 300, "warmup", "a", {"mode": "orchestrateur"})])
+        store = FakeStore([Event(NOW.timestamp() - 300, "warmup", "a", {"mode": "orchestrator"})])
         self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), store), [])
-        old = FakeStore([Event(NOW.timestamp() - 1200, "warmup", "a", {"mode": "orchestrateur"})])
+        old = FakeStore([Event(NOW.timestamp() - 1200, "warmup", "a", {"mode": "orchestrator"})])
         self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), old), ["a"])
 
     def test_nothing_outside_active_hours(self):
@@ -143,8 +143,10 @@ class ExpiringTest(unittest.TestCase):
 
     def test_cooldown_and_manual_respected(self):
         accounts = [acc("act", 40, 200, active=True), acc("x", 30, 40)]
-        recent = Event(NOW.timestamp() - 600, "switch", "act", {"mode": "anticipee"})
+        recent = Event(NOW.timestamp() - 600, "switch", "act", {"mode": "early"})
         self.assertIsNone(self.decide(accounts, [recent]))
+        old = Event(NOW.timestamp() - 600, "switch", "act", {"mode": "anticipee"})   # avant la 1.0.0
+        self.assertIsNone(self.decide(accounts, [old]))
         manual = Event(NOW.timestamp() - 60, "switch", "act", {"mode": "manual"})
         self.assertIsNone(self.decide(accounts, [manual]))
 
@@ -212,18 +214,23 @@ class ReviewFixesTest(unittest.TestCase):
         self.assertEqual(slots["boulot"], local(0, 10, 30))
 
     def test_no_restart_for_5h_after_successful_start(self):
-        ok = Event(NOW.timestamp() - 3600, "warmup", "a", {"mode": "orchestrateur", "ok": True})
+        ok = Event(NOW.timestamp() - 3600, "warmup", "a", {"mode": "orchestrator", "ok": True})
         self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), FakeStore([ok])), [])
-        old = Event(NOW.timestamp() - 5 * 3600 - 60, "warmup", "a", {"mode": "orchestrateur", "ok": True})
+        old = Event(NOW.timestamp() - 5 * 3600 - 60, "warmup", "a", {"mode": "orchestrator", "ok": True})
         self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), FakeStore([old])), ["a"])
 
+    def test_old_warmup_mode_is_read(self):
+        """« orchestrateur » (avant la 1.0.0) compte comme « orchestrator »."""
+        ok = Event(NOW.timestamp() - 3600, "warmup", "a", {"mode": "orchestrateur", "ok": True})
+        self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), FakeStore([ok])), [])
+
     def test_backoff_after_repeated_failures(self):
-        fails = [Event(NOW.timestamp() - m * 60, "warmup", "a", {"mode": "orchestrateur", "ok": False})
+        fails = [Event(NOW.timestamp() - m * 60, "warmup", "a", {"mode": "orchestrator", "ok": False})
                  for m in (20, 40, 59)]
         self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), FakeStore(fails)), [])
 
     def test_any_recent_warmup_counts(self):
-        slot = Event(NOW.timestamp() - 120, "warmup", "a", {"mode": "creneau", "ok": None})
+        slot = Event(NOW.timestamp() - 120, "warmup", "a", {"mode": "slot", "ok": None})
         self.assertEqual(orch.starts_due([acc("a")], NOW, cfg(), FakeStore([slot])), [])
 
     def test_expiring_switch_only_in_active_hours(self):

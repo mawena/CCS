@@ -331,6 +331,15 @@ class CommandTest(HomeTestCase):
         self.assertEqual(code, 0)
         self.assertEqual((tasks.get("1").rights, tasks.get("1").when), ("tout", "07:05"))
 
+    def test_droits_en_mode_de_claude_code(self):
+        # Même vocabulaire que les chats (`chat.rights`) : un mode est converti.
+        for mode, rights in (("acceptEdits", "modifications"), ("bypassPermissions", "tout"),
+                             ("plan", "lecture"), ("manual", "lecture"), ("LECTURE", "lecture")):
+            code, _, err = self.run_cmd("ajouter", "m", "-C", str(self.home), "--droits", mode)
+            self.assertEqual(code, 0, err)
+            self.assertEqual(tasks.all()[-1].rights, rights, mode)
+        self.assertEqual(tasks.normalize_rights(None), tasks.DEFAULT_RIGHTS)
+
     def test_errors(self):
         for args in (("ajouter",), ("ajouter", "m", "--droits", "x"), ("ajouter", "a", "b"),
                      ("ajouter", "m", "--inconnue"), ("ajouter", "m", "-C")):

@@ -272,7 +272,7 @@ private struct GroupeTelephone: View {
                                            "L'ancien canal ne recevra plus rien : il faudra se réabonner au nouveau sur chaque téléphone.",
                                            "Créer le canal") else { return }
             faire {
-                _ = try await client.appeler("phone.new_topic", en: CanalTelephone.self)
+                _ = try await client.appeler("phone.renew", en: CanalTelephone.self)
                 modele.avis.dire("Nouveau canal créé.")
                 lien = nil
                 recharger()

@@ -1,7 +1,7 @@
 # CCS pour Android
 
 Application Android native (Kotlin + Jetpack Compose, Material 3) de CCS. Elle parle directement
-à l'API du serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws` pour la RPC et les
+à l'API du serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` (protocole 1 du pont) pour la RPC et les
 événements, routes HTTP pour la connexion. Elle remplace l'ancienne coquille Flutter (vue web),
 avec le même identifiant `com.mawena.ccs` : elle s'installe par-dessus.
 
@@ -121,7 +121,7 @@ Sessions, Fichiers, Git, Plus), notifications, partage vers CCS, raccourcis d'ap
   Keystore d'Android, sauvegarde désactivée) et se révoque depuis la version web.
 - **Portier** (si `/api/portier` le dit actif) : la page de Portier s'ouvre dans une vue web ;
   au retour sur le serveur, l'appli garde les cookies (chiffrés), puis demande un **jeton
-  d'appareil** durable (`POST /api/app-token`, nom : le modèle du téléphone, « Pixel 4 XL ») et
+  d'appareil** durable (`POST /api/apptoken`, nom : le modèle du téléphone, « Pixel 4 XL ») et
   passe au Bearer ; les cookies restent envoyés à côté (ils servent à `/api/tokens` et
   `/api/revoke`). Si le serveur ne connaît pas encore la route (404), l'appli garde les cookies
   seuls ; une connexion Portier d'avant le jeton le demande une fois au démarrage.
@@ -133,7 +133,7 @@ L'adresse du serveur se change sur l'écran de connexion (**Changer**).
 
 **Machine pilotée** : comme le web, l'appli peut piloter une autre machine (le PC, joint par le
 tunnel Ricochet) au lieu du serveur : puce en haut de **Sessions** ou **Plus → Machine pilotée**
-(cachées s'il n'y a pas d'autre machine). Le WebSocket passe alors par `/api/ws?machine=<id>` ; un
+(cachées s'il n'y a pas d'autre machine). Le WebSocket passe alors par `/api/ws?protocol=1&machine=<id>` ; un
 bandeau d'accent rappelle la machine pilotée ; si elle est injoignable (fermeture 4010), l'appli
 retente comme après une coupure. Les notifications suivent la machine choisie.
 
@@ -196,7 +196,7 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
     FileProvider), `Commun.kt` (icônes, presse-papier des fichiers).
   - `ui/git/` : `PanneauGit.kt`, `EcransGit.kt` (onglet, projet, détail d'un commit).
   - `reseau/ModelesTravail.kt` : réponses de `roadmap.*`, `tasks.*`, `work.changes`,
-    `work.rewind_*`, `work.saved.*`, `settings.*`, `phone.*`, `term.*` et de `/api/tokens`.
+    `rewind.*`, `saved.*`, `settings.*`, `phone.*`, `term.*` et de `/api/tokens`.
   - `logique/Travail.kt` (feuille de route, tâches de fond, diff unifié, retour arrière),
     `DefReglages.kt` (groupes, bornes et lecture des réglages du serveur), `Touches.kt` (Ctrl et
     Alt collants, flèches, taille du terminal).
@@ -226,7 +226,7 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
   lecture des réponses du pont, textes et filtres, événements et fil du chat, Markdown,
   coloration, diff, citation, envoi, chemins et liens de fichiers, réponses de `files.*` et `git.*`,
   feuille de route, tâches, diff unifié, réglages, touches, émulateur du terminal sur la JVM,
-  `/api/app-token`, `/api/tokens` et `/api/revoke` contre un faux serveur, décision des
+  `/api/apptoken`, `/api/tokens` et `/api/revoke` contre un faux serveur, décision des
   notifications et rappel, analyse du partage, barre des sous-agents).
 
 ## Licence

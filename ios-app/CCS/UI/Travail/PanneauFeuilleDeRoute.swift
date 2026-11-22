@@ -190,7 +190,7 @@ struct PanneauFeuilleDeRoute: View {
         Task { @MainActor in
             let invitation: String
             do {
-                invitation = try await client.appeler("roadmap.task_prompt", [
+                invitation = try await client.appeler("roadmap.prompt", [
                     "path": .chaine(chemin), "text": .chaine(a.tache.text), "phase": .chaine(a.phase.title),
                 ], en: InvitationTache.self).prompt
             } catch {

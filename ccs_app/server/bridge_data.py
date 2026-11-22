@@ -86,17 +86,17 @@ class DataApi:
         self.bridge = bridge
         bridge.add_handlers({
             "projects.add": self.project_add, "projects.remove": self.project_remove,
-            "conversation.trash": self.trash, "conversation.trash_list": self.trash_list,
-            "conversation.restore": self.restore,
-            "projects.list": self.projects, "conversation.messages": self.messages,
+            "conversations.trash": self.trash, "trash.list": self.trash_list,
+            "trash.restore": self.restore,
+            "projects.list": self.projects, "conversations.messages": self.messages,
             "files.list": self.files_list, "files.read": self.files_read,
             "files.write": self.files_write, "roadmap.read": self.roadmap_read,
             "roadmap.toggle": self.roadmap_toggle, "analysis.report": self.analysis,
             "tasks.list": self.tasks_list, "tasks.add": self.tasks_add,
             "tasks.cancel": self.tasks_cancel, "projects.folders": self.folders,
             "projects.account": self.project_account, "files.image": self.files_image,
-            "files.search": self.files_search, "conversation.rename": self.rename,
-            "conversation.cost": self.cost, "roadmap.task_prompt": self.roadmap_task_prompt,
+            "files.search": self.files_search, "conversations.rename": self.rename,
+            "conversations.cost": self.cost, "roadmap.prompt": self.roadmap_task_prompt,
         })
 
     # ---- projets et conversations ----------------------------------------------------
@@ -169,16 +169,20 @@ class DataApi:
             tid = await asyncio.to_thread(trash.put, path, session_id, cwd, title[:200])
         except trash.TrashError as e:
             raise rpc.RpcError("introuvable", str(e)) from None
-        return {"tid": tid}
+        # `tid` : compatibilité 1.x (applis mobiles), à retirer en 2.0
+        return {"trash_id": tid, "tid": tid}
 
     async def trash_list(self, _conn, _params):
         items = await asyncio.to_thread(trash.items)
-        return {"items": [{k: m.get(k) for k in ("tid", "id", "cwd", "title", "trashed_at")}
+        # `tid` et `id` : compatibilité 1.x (applis mobiles), à retirer en 2.0
+        return {"items": [{"trash_id": m.get("tid"), "session_id": m.get("id"),
+                           "cwd": m.get("cwd"), "title": m.get("title"),
+                           "trashed_at": m.get("trashed_at"), "tid": m.get("tid"), "id": m.get("id")}
                           for m in items], "days": trash.DAYS}
 
     async def restore(self, _conn, params):
         try:
-            meta = await asyncio.to_thread(trash.restore, params.get("tid"))
+            meta = await asyncio.to_thread(trash.restore, params.get("trash_id"))
         except trash.TrashError as e:
             raise rpc.RpcError("invalide", str(e)) from None
         return {"session_id": meta.get("id"), "cwd": meta.get("cwd")}

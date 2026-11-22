@@ -66,7 +66,7 @@ class SessionsWebTest(unittest.TestCase):
         for name in MINE:
             used |= set(re.findall(r'''call\(\s*["']([a-z_]+\.[a-z_]+)["']''', source(name)))
         self.assertTrue({"projects.folders", "projects.account", "files.image", "files.search",
-                         "conversation.rename", "conversation.cost", "roadmap.task_prompt"} <= used)
+                         "conversations.rename", "conversations.cost", "roadmap.prompt"} <= used)
         self.assertEqual(sorted(used - known), [])
 
     def test_new_session_options_and_project_route(self):
@@ -137,8 +137,8 @@ class ManageProjectsAndTrashTest(unittest.TestCase):
         """Web (phase 15) : ajouter un projet (dossier existant ou nouveau, git init), le retirer
         de la liste, supprimer une conversation (corbeille 30 jours) et la restaurer."""
         js = (WEB / "sessions-manage.js").read_text(encoding="utf-8")
-        for rpc_name in ("projects.add", "projects.remove", "conversation.trash",
-                         "conversation.trash_list", "conversation.restore"):
+        for rpc_name in ("projects.add", "projects.remove", "conversations.trash",
+                         "trash.list", "trash.restore"):
             self.assertIn(f'"{rpc_name}"', js)
         sessions = (WEB / "sessions.js").read_text(encoding="utf-8")
         self.assertIn("./sessions-manage.js", sessions)

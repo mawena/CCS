@@ -34,7 +34,7 @@ const api = {
       case "chat.tag": return { entry: params.tags.length ? { tags: params.tags, role: params.role, excerpt: params.text, ts: 1 } : null };
       case "work.commands": return { commands: [], context: { enabled: true, threshold_tokens: 150000 } };
       case "work.files": return { files: [] };
-      case "conversation.messages": return { messages: history };
+      case "conversations.messages": return { messages: history };
       default: return {};
     }
   },
@@ -280,7 +280,7 @@ out = { kept, third: third.quote };
     def test_history_and_other_devices_show_the_quote(self):
         out = run("""
 history = [{ role: "assistant", text: "A ou B ?", msg_id: "m0" },
-           { role: "utilisateur", text: "> **Claude :**\\n> A ou B ?\\n\\nLa B" }];
+           { role: "user", text: "> **Claude :**\\n> A ou B ?\\n\\nLa B" }];
 const view = open({ history: "/j.jsonl" });
 await settle();
 await live(view, { type: "UserSent", text: "> **Moi :**\\n> La B\\n\\nNon, la A", images: 0, nonce: "autre-appareil" });
@@ -423,9 +423,9 @@ out = { suggestions, tagCall, chips, order, after: claude.querySelectorAll(".tag
 
     def test_history_tags_panel_and_jump(self):
         out = run("""
-api.tagMap = { "u-1": { tags: ["important"], role: "utilisateur", excerpt: "Ajoute un bouton", ts: 2 },
+api.tagMap = { "u-1": { tags: ["important"], role: "user", excerpt: "Ajoute un bouton", ts: 2 },
                "msg_1": { tags: ["important", "doc"], role: "assistant", excerpt: "Voilà", ts: 1 } };
-history = [{ role: "utilisateur", text: "Ajoute un bouton", uuid: "u-1" },
+history = [{ role: "user", text: "Ajoute un bouton", uuid: "u-1" },
            { role: "assistant", text: "Voilà", msg_id: "msg_1" }];
 const view = open({ sessionId: "s1", history: { path: "/j.jsonl", loaded: 0, full: false } });
 await settle();
@@ -467,8 +467,8 @@ class ConversationPreviewTest(unittest.TestCase):
     def test_preview_shows_the_quote_apart(self):
         out = run("""
 history = [{ role: "assistant", text: "A ou B ?" },
-           { role: "utilisateur", text: "> **Claude :**\\n> A ou B ?\\n\\nLa B" },
-           { role: "utilisateur", text: "sans citation" }];
+           { role: "user", text: "> **Claude :**\\n> A ou B ?\\n\\nLa B" },
+           { role: "user", text: "sans citation" }];
 const { convRow } = await import("./sessions-conv.js");
 const conv = { session_id: "s1", path: "/j.jsonl", cwd: "/p", title: "Titre", updated_at: 0, folder_exists: true };
 const row = convRow(conv, { api, opened: new Set(), resume() {}, changed() {} });

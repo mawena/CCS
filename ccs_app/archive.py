@@ -39,8 +39,7 @@ DEFAULTS = {"enabled": True, "idle_days": 1, "max_age_days": 0}
 
 
 def archive_dir():
-    base = os.environ.get("XDG_DATA_HOME") or str(core.paths().home / ".local" / "share")
-    return Path(base) / "ccs" / "archive"
+    return core.ccs_dir("data") / "archive"
 
 
 def index_path():

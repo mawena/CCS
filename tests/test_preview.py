@@ -54,6 +54,11 @@ class PreviewTestCase(unittest.TestCase):
 
 
 class ReadMessagesTest(PreviewTestCase):
+    def test_roles_are_english_and_old_ones_are_read(self):
+        self.assertEqual((USER, ASSISTANT, TOOL, NOTE), ("user", "assistant", "tool", "note"))
+        self.assertEqual([preview.normalize_role(r) for r in ("utilisateur", "outil", "assistant", "user")],
+                         ["user", "tool", "assistant", "user"])
+
     def test_basic_exchange(self):
         p = self.journal([
             {"type": "permission-mode", "permissionMode": "default", "sessionId": "s1"},

@@ -60,8 +60,10 @@ class FakeBridgeClient:
         self.calls.append((method, params))
         if method == "boom":
             raise rpc.RpcError("refuse", "non")
-        if method == "machine.attach" and params.get("machine") == "eteint":
+        if method == "machines.attach" and params.get("machine") == "eteint":
             raise rpc.RpcError("introuvable", "eteint est hors ligne.")
+        if method == "machines.attach" and params.get("machine") == "neuf" and self.on_event:
+            self.on_event("machines.ready", {"machine": "neuf", "name": "Neuf"})   # pont 1.0 : il pousse lui-même
         return {"echo": params}
 
     async def close(self):
@@ -72,9 +74,10 @@ class FakeBridges:
     def __init__(self):
         self.connected = []
 
-    async def connect(self, user, ticket, shash):
+    async def connect(self, user, ticket, shash, client_protocol=0):
         c = FakeBridgeClient()
         self.connected.append((user, ticket, shash, c))
+        self.protocols = getattr(self, "protocols", []) + [client_protocol]
         return c
 
 
@@ -168,13 +171,32 @@ class WebTest(AioHTTPTestCase):
         await self.login()
         ws = await self.client.ws_connect("/api/ws?machine=pc", headers={"Origin": ORIGIN})
         ready = await ws.receive_json(timeout=5)
+        # pont d'avant la 1.0.0 (il ne pousse rien) : ccs-web envoie l'ancien nom à un ancien client
         self.assertEqual(ready, {"event": "machine.ready", "data": {"echo": {"machine": "pc"}}})
         await ws.send_json({"id": 1, "method": "chat.list", "params": {}})
         self.assertEqual((await ws.receive_json(timeout=5))["id"], 1)
         bridge = self.bridges.connected[0][3]
-        self.assertEqual(bridge.calls[0], ("machine.attach", {"machine": "pc"}))
-        await ws.send_json({"id": 2, "method": "machine.attach", "params": {"machine": "x"}})
-        self.assertEqual((await ws.receive_json(timeout=5))["error"]["code"], "refuse")
+        self.assertEqual(bridge.calls[0], ("machines.attach", {"machine": "pc"}))
+        for i, name in enumerate(("machine.attach", "machines.attach")):
+            await ws.send_json({"id": 2 + i, "method": name, "params": {"machine": "x"}})
+            self.assertEqual((await ws.receive_json(timeout=5))["error"]["code"], "refuse")
+        await ws.close()
+
+    async def test_ws_machine_ready_comes_from_the_bridge(self):
+        await self.login()
+        ws = await self.client.ws_connect("/api/ws?protocol=1&machine=neuf", headers={"Origin": ORIGIN})
+        ready = await ws.receive_json(timeout=5)
+        self.assertEqual(ready, {"event": "machines.ready", "data": {"machine": "neuf", "name": "Neuf"}})
+        self.assertEqual(self.bridges.protocols, [1])
+        await ws.send_json({"id": 1, "method": "chat.list", "params": {}})
+        self.assertEqual((await ws.receive_json(timeout=5)), {"id": 1, "result": {"echo": {}}})
+        await ws.close()
+
+    async def test_ws_old_bridge_new_client_gets_new_ready_name(self):
+        await self.login()
+        ws = await self.client.ws_connect("/api/ws?protocol=1&machine=pc", headers={"Origin": ORIGIN})
+        ready = await ws.receive_json(timeout=5)
+        self.assertEqual(ready["event"], "machines.ready")
         await ws.close()
 
     async def test_ws_machine_down_closes_with_the_reason(self):

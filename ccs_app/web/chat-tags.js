@@ -113,7 +113,7 @@ export class TagsPanel {
       const list = el("div", { class: "tag-items" });
       for (const [id, entry] of items) {
         list.append(el("button", { type: "button", class: "tag-item", onclick: () => this.jump(id) },
-          el("span", { class: "subtle tag-who" }, entry.role === "utilisateur" ? "Moi" : "Claude"),
+          el("span", { class: "subtle tag-who" }, entry.role === "user" ? "Moi" : "Claude"),
           el("span", { class: "tag-text" }, entry.excerpt || "(message sans texte)")));
       }
       const group = el("details", { class: "tag-group" }, el("summary", {}, el("strong", {}, tag), ` · ${items.length}`), list);

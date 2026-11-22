@@ -5,9 +5,9 @@ final class MachinesTests: XCTestCase {
     private func json(_ t: String) -> JSON { return JSON.lire(t)! }
 
     func testAdresseWebSocketAvecMachine() {
-        XCTAssertEqual(Adresse.ws("https://ccs.mawena.cloud", "api/ws")?.absoluteString, "wss://ccs.mawena.cloud/api/ws")
+        XCTAssertEqual(Adresse.ws("https://ccs.mawena.cloud", "api/ws")?.absoluteString, "wss://ccs.mawena.cloud/api/ws?protocol=1")
         XCTAssertEqual(Adresse.ws("https://ccs.mawena.cloud", "api/ws", machine: "pc-bureau")?.absoluteString,
-                       "wss://ccs.mawena.cloud/api/ws?machine=pc-bureau")
+                       "wss://ccs.mawena.cloud/api/ws?protocol=1&machine=pc-bureau")
     }
 
     func testListeEtDescription() {
@@ -43,17 +43,20 @@ final class MachinesTests: XCTestCase {
         XCTAssertEqual(Travaux.duree(7500), "2 h 05")
         let j = TravailDistant(json: json("""
         {"id": "a1", "text": "make test", "cwd": "/home/moi/Work/ccs", "machine": "pc-bureau",
-         "state": "fini", "code": 1, "created": 900, "started": 1000, "ended": 1187}
+         "state": "done", "code": 1, "created": 900, "started": 1000, "ended": 1187}
         """))
         XCTAssertEqual(Travaux.ligne(j, home: "/home/moi", maintenant: 2000), "pc-bureau · 3 min 07 s · code 1 · ~/Work/ccs")
         XCTAssertEqual(Travaux.teinte(j), .echec)
         XCTAssertFalse(Travaux.actif(j))
         let k = TravailDistant(json: json("""
-        {"id": "b2", "text": "flutter build apk", "cwd": "", "machine": null, "state": "attente", "code": null, "created": 1940}
+        {"id": "b2", "text": "flutter build apk", "cwd": "", "machine": null, "state": "waiting", "code": null, "created": 1940}
         """))
         XCTAssertEqual(Travaux.ligne(k, maintenant: 2000), "machine à choisir · créé il y a 1 min")
         XCTAssertTrue(Travaux.actif(k))
         XCTAssertEqual(Travaux.teinte(k), .attente)
+        XCTAssertEqual(Travaux.libelle(k), "attente")
+        XCTAssertEqual(Travaux.libelle(j), "fini")
+        XCTAssertEqual(Travaux.libelle(TravailDistant(json: json(#"{"state": "scheduled"}"#))), "programmé")
     }
 
     func testDemandeDeLancement() {

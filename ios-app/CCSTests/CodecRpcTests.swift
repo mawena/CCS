@@ -78,7 +78,7 @@ final class CodecRpcTests: XCTestCase {
         XCTAssertNil(Adresse.normaliser("https://moi:secret@hote.fr"))
         XCTAssertNil(Adresse.normaliser("deux mots"))
         XCTAssertEqual(Adresse.api("https://hote.fr/ccs", "/api/health")?.absoluteString, "https://hote.fr/ccs/api/health")
-        XCTAssertEqual(Adresse.ws("https://hote.fr", "api/ws")?.absoluteString, "wss://hote.fr/api/ws")
-        XCTAssertEqual(Adresse.ws("http://127.0.0.1:8420", "api/ws")?.absoluteString, "ws://127.0.0.1:8420/api/ws")
+        XCTAssertEqual(Adresse.ws("https://hote.fr", "api/ws")?.absoluteString, "wss://hote.fr/api/ws?protocol=1")
+        XCTAssertEqual(Adresse.ws("http://127.0.0.1:8420", "api/ws")?.absoluteString, "ws://127.0.0.1:8420/api/ws?protocol=1")
     }
 }

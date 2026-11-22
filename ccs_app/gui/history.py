@@ -7,25 +7,26 @@ from datetime import datetime
 from gi.repository import Adw, Gdk, Gtk
 
 from .. import switch_log
+from ..autoswitch import switch_mode
 from .charts import LineChart
 from .common import account_rgb, caption, card_box, clear, empty_state, sync_accounts, tag_account
 from .geometry import ideal_weekly_series
 
 RANGES = {"24 h": 86400, "7 jours": 7 * 86400}
 # Bascules marquées sur les courbes (le premier relevé du service n'en est pas une).
-CHART_MODES = ("auto", "manual", "anticipee", "blocage")
+CHART_MODES = ("auto", "manual", "early", "blocked")
 JOURNAL_PAGE = 100
 KIND_ICONS = {
     "auto": "emblem-synchronizing-symbolic",
-    "anticipee": "alarm-symbolic",
-    "blocage": "dialog-warning-symbolic",
-    "manuelle": "input-mouse-symbolic",
+    "early": "alarm-symbolic",
+    "blocked": "dialog-warning-symbolic",
+    "manual": "input-mouse-symbolic",
     "initial": "media-playback-start-symbolic",
-    "echec": "dialog-error-symbolic",
-    "limite": "action-unavailable-symbolic",
-    "fenetre": "weather-clear-symbolic",
+    "failed": "dialog-error-symbolic",
+    "limit": "action-unavailable-symbolic",
+    "window": "weather-clear-symbolic",
 }
-KIND_CLASSES = {"echec": "error", "limite": "warning", "blocage": "warning"}
+KIND_CLASSES = {"failed": "error", "limit": "warning", "blocked": "warning"}
 
 
 def hex_color(rgb):
@@ -238,7 +239,7 @@ class HistoryPage(Gtk.ScrolledWindow):
                 continue
             chart = LineChart()
             markers = [(e.ts, f"→ {name}") for e in switches
-                       if e.profile == name and e.detail.get("mode") in CHART_MODES]
+                       if e.profile == name and switch_mode(e.detail) in CHART_MODES]
             color = account_rgb(name)
             light = (*color, 0.55)     # la semaine : même couleur, plus claire
             chart.set_data(t0, t1, [

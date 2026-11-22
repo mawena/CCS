@@ -23,7 +23,15 @@ from pathlib import Path
 
 from . import archive, core, sessions
 
-USER, ASSISTANT, TOOL, NOTE = "utilisateur", "assistant", "outil", "note"
+USER, ASSISTANT, TOOL, NOTE = "user", "assistant", "tool", "note"
+# rôles d'avant la 1.0.0 (pont plus ancien, anciens clients) : compatibilité 1.x, à retirer en 2.0
+OLD_ROLES = {"utilisateur": USER, "outil": TOOL}
+LEGACY_ROLES = {new: old for old, new in OLD_ROLES.items()}
+
+
+def normalize_role(value):
+    """Rôle d'un message, ancien nom français ramené au nouveau."""
+    return OLD_ROLES.get(value, value)
 
 TARGET_MAX = 120
 RESULT_MAX = 2000

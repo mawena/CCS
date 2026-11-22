@@ -35,22 +35,22 @@ class PortierFakeAuth(FakeAuth):
 
 class ParseTest(unittest.TestCase):
     def test_disabled_by_default(self):
-        self.assertFalse(portier.parse({})["actif"])
-        self.assertFalse(portier.load("/nulle/part.json")["actif"])
-        self.assertFalse(portier.parse({"portier": {"actif": "oui", "utilisateurs": ["a"]}})["actif"])
-        self.assertFalse(portier.parse({"portier": {"actif": True, "utilisateurs": []}})["actif"])
+        self.assertFalse(portier.parse({})["enabled"])
+        self.assertFalse(portier.load("/nulle/part.json")["enabled"])
+        self.assertFalse(portier.parse({"portier": {"actif": "oui", "utilisateurs": ["a"]}})["enabled"])
+        self.assertFalse(portier.parse({"portier": {"actif": True, "utilisateurs": []}})["enabled"])
 
     def test_logout_from_url_or_explicit(self):
-        self.assertEqual(CFG["deconnexion"], "https://portier.mawena.cloud/")
+        self.assertEqual(CFG["logout"], "https://portier.mawena.cloud/")
         cfg = portier.parse({"portier": {"actif": True, "utilisateurs": ["a"], "url": "https://p",
                                          "deconnexion": "https://p/sortie"}})
-        self.assertEqual(cfg["deconnexion"], "https://p/sortie")
+        self.assertEqual(cfg["logout"], "https://p/sortie")
 
     def test_load_from_web_json(self):
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
             json.dump({"listen": "127.0.0.1:8420", "portier": {"actif": True, "utilisateurs": ["charles"]}}, f)
         self.addCleanup(os.unlink, f.name)
-        self.assertEqual(portier.load(f.name)["utilisateurs"], ("charles",))
+        self.assertEqual(portier.load(f.name)["users"], ("charles",))
 
     def test_login_url_encodes_return(self):
         self.assertEqual(portier.login_url(CFG, ORIGIN),
@@ -106,14 +106,15 @@ class HeaderAcceptedTest(PortierWebTest):
 
     async def test_login_page_offers_portier(self):
         r = await self.client.get("/api/portier")
-        self.assertEqual(await r.json(), {"actif": True, "connexion": portier.login_url(CFG, ORIGIN)})
+        url = portier.login_url(CFG, ORIGIN)
+        self.assertEqual(await r.json(), {"enabled": True, "login": url, "actif": True, "connexion": url})
 
     async def test_tokens_use_portier_identity(self):
         await self.client.get("/api/tokens", headers=HEADER)
         self.assertIn(("tokens", {"portier": "charles"}), self.auth.calls)
 
     async def test_device_token_for_the_android_app(self):
-        r = await self.client.post("/api/app-token", json={"name": "Pixel 4 XL"}, headers=HEADER)
+        r = await self.client.post("/api/apptoken", json={"name": "Pixel 4 XL"}, headers=HEADER)
         self.assertEqual(r.status, 200)
         self.assertIn(("app_token", {"name": "Pixel 4 XL", "portier": "charles"}), self.auth.calls)
 
@@ -170,7 +171,7 @@ class OptionDisabledTest(PortierWebTest):
         self.assertEqual(r.status, 401)
         self.assertEqual(self.portier_calls(), [])
         r = await self.client.get("/api/portier")
-        self.assertEqual(await r.json(), {"actif": False, "connexion": ""})
+        self.assertEqual(await r.json(), {"enabled": False, "login": "", "actif": False, "connexion": ""})
 
     async def test_no_portier_key_at_all(self):
         app = web.make_app(self.auth, self.bridges, {"listen": "127.0.0.1:8420", "origin": ORIGIN})

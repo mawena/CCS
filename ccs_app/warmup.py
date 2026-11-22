@@ -16,6 +16,17 @@ from pathlib import Path
 from . import core
 from .forecast import window_open
 
+# `detail.mode` des démarrages de fenêtre : créneau de warm-up réglé, ou orchestrateur
+SLOT, ORCHESTRATOR = "slot", "orchestrator"
+# modes d'avant la 1.0.0, relus : compatibilité 1.x, à retirer en 2.0
+OLD_MODES = {"creneau": SLOT, "orchestrateur": ORCHESTRATOR}
+
+
+def mode_of(detail):
+    """Mode d'un démarrage de fenêtre de l'historique, ancien nom ramené au nouveau."""
+    mode = detail.get("mode") if isinstance(detail, dict) else None
+    return OLD_MODES.get(mode, mode)
+
 SLOT_TOLERANCE = timedelta(minutes=10)
 TIMEOUT_S = 120
 # Jeton valide au moins ce temps : claude n'aura pas à le renouveler.
@@ -79,7 +90,7 @@ def _save_rotated(name, oauth):
         core.atomic_write_json(pfile, prof)
 
 
-def run(name, slot_time, store, now, mode="creneau"):
+def run(name, slot_time, store, now, mode=SLOT):
     local = now.astimezone()
     detail = {"date": local.date().isoformat(), "time": slot_time, "mode": mode}
     tmp = Path(tempfile.mkdtemp(prefix="ccs-warmup-"))

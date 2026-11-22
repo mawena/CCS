@@ -50,6 +50,13 @@ ORIGIN_CHOICES = (("Toutes les origines", None), ("VS Code", "vscode"), ("Termin
 ORIGIN_SHORT = {"Toutes les origines": "Toutes"}
 
 
+def bridge_sessions():
+    """Conversations des chats du pont local (déjà joint par l'application), hors du fil de
+    l'interface : elles se rejoignent dans un onglet au lieu d'être « ouvertes ailleurs »."""
+    from ..remote import engine as remote_engine
+    return {c.get("session_id") for c in remote_engine.local_chats() if c.get("session_id")}
+
+
 class SessionsPage(Adw.BreakpointBin):
     def __init__(self, window):
         super().__init__(width_request=360, height_request=300)
@@ -70,6 +77,7 @@ class SessionsPage(Adw.BreakpointBin):
         # Historique (None tant que la première lecture n'est pas finie).
         self.convs = None
         self.opened = set()
+        self.in_bridge = set()          # conversations des chats du pont local (web, autres appareils)
         self.suggestions = {}         # identifiant -> dossier probable (dossier d'origine disparu)
         self.by_id = {}
         self.loading = False
@@ -245,7 +253,8 @@ class SessionsPage(Adw.BreakpointBin):
                 cfg = context_alert.config(settings)
                 contexts = context_alert.contexts_for(found) if cfg["enabled"] else {}
                 heavy = cfg["threshold_tokens"] if cfg["enabled"] else None
-                return found, usage, titles, stamps, load_associations(), (memory, contexts, heavy)
+                bridged = bridge_sessions()
+                return found, usage, titles, stamps, load_associations(), (memory, contexts, heavy, bridged)
             except Exception:  # noqa: BLE001 — relevé raté : on garde le précédent
                 return None
         in_thread(work, self.sessions_loaded)
@@ -254,7 +263,7 @@ class SessionsPage(Adw.BreakpointBin):
         self.loading_sessions = False
         if result is not None:
             self.found, self.usage, titles, self.stamps, self.assocs, extra = result
-            self.memory, self.contexts, self.heavy_tokens = extra
+            self.memory, self.contexts, self.heavy_tokens, self.in_bridge = extra
             self.titles = {sid: t for sid, t in titles.items() if t}   # titre seul, sans repli
             self.opened = {s.session_id for s in self.found if s.session_id}
             self.set_badge(self.found)
@@ -277,7 +286,7 @@ class SessionsPage(Adw.BreakpointBin):
         def work():
             try:
                 convs = conversations.scan()
-                return convs, conversations.open_ids(), conversations.suggest_folders(convs)
+                return convs, conversations.open_ids(), conversations.suggest_folders(convs), bridge_sessions()
             except Exception as e:  # noqa: BLE001 — affiché plutôt qu'un sablier sans fin
                 return e
         in_thread(work, lambda result: self.history_loaded(result, quiet))
@@ -290,7 +299,7 @@ class SessionsPage(Adw.BreakpointBin):
                 self.conv_list.show_error(str(result))
                 self.update(convs=False)
         else:
-            self.convs, self.opened, self.suggestions = result
+            self.convs, self.opened, self.suggestions, self.in_bridge = result
             self.by_id = {c.session_id: c for c in self.convs}
             self.update(cards=False, quiet=quiet)
         if self.again is not None:
@@ -433,6 +442,7 @@ class SessionsPage(Adw.BreakpointBin):
         self.projects.show(self.view.entries, self.selected)
         self.render_header()
         if cards and self.found is not None and not (quiet and self.cards.busy()):
+            self.cards.in_bridge = self.in_bridge
             card = self.cards.render(self.view.sessions, self.usage, self.titles, self.stamps,
                                      self.view.selected.cwd is hub.ALL, self.highlight_target(), self.compact,
                                      memory=self.memory, contexts=self.contexts, on_close=self.close_session,

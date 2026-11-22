@@ -97,12 +97,12 @@ class CloseSessionTest(unittest.TestCase):
 
     def test_reading_computes_memory_and_contexts_in_the_worker(self):
         result, _ctx = self.read({"context_alert": {"enabled": True, "threshold_tokens": 99000}}, {7: "ctx"})
-        self.assertEqual(result[5], ({7: "mem"}, {7: "ctx"}, 99000))
+        self.assertEqual(result[5], ({7: "mem"}, {7: "ctx"}, 99000, set()))   # set() : chats du pont local
 
     def test_disabled_alert_gives_no_contexts_and_no_threshold(self):
         result, ctx = self.read({"context_alert": {"enabled": False}}, {7: "ctx"})
         ctx.assert_not_called()
-        self.assertEqual(result[5], ({7: "mem"}, {}, None))
+        self.assertEqual(result[5], ({7: "mem"}, {}, None, set()))
 
 
 if __name__ == "__main__":

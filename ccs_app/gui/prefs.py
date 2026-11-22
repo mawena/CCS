@@ -197,7 +197,7 @@ class PrefsPage(Adw.PreferencesPage):
 
     # ---- groupes -----------------------------------------------------------------
 
-    SCHEMES = (("Automatique (suit le système)", "auto"), ("Clair", "clair"), ("Sombre", "sombre"))
+    SCHEMES = (("Automatique (suit le système)", "auto"), ("Clair", "light"), ("Sombre", "dark"))
 
     def appearance_group(self):
         """Thème (Auto / Clair / Sombre) et couleur de chaque compte (cartes, jauges, courbes)."""
