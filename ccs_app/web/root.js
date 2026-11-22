@@ -322,7 +322,11 @@ export class RootWatch {
 
   renderBar() {
     const kept = this.kept;
-    if (!kept) { if (this.bar) this.bar.hidden = true; return; }
+    if (!kept) {
+      if (this.bar) this.bar.hidden = true;
+      setBarHeight(0);
+      return;
+    }
     if (!this.bar) {
       this.bar = el("div", { class: "root-bar", role: "status" },
         el("span", { class: "root-bar-ico", "aria-hidden": "true" }, "🔒"),
@@ -334,5 +338,11 @@ export class RootWatch {
     }
     this.bar.hidden = false;
     this.bar.querySelector(".root-bar-text").textContent = keptText(kept.machine, kept.until - this.now());
+    setBarHeight(this.bar.offsetHeight);
   }
+}
+
+// Hauteur du bandeau retirée de celle des sessions (style.css), sinon la page défile.
+function setBarHeight(px) {
+  document.documentElement?.style?.setProperty?.("--root-bar-h", `${px || 0}px`);
 }
