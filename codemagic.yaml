@@ -50,7 +50,7 @@ workflows:
   android:
     name: CCS Android
     max_build_duration: 30
-    instance_type: linux_x2
+    instance_type: mac_mini_m2   # seule machine de l'offre gratuite
     environment:
       java: 17
       groups:
