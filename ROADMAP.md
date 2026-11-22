@@ -643,6 +643,35 @@ archive de l'ancien dépôt) vient après.
 - [ ] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [ ] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
+## Phase 34 — Mot de passe root depuis les appareils (avant la 1.0.0)
+
+Charles (22/11/2026) : ne plus être bloqué par les commandes root. Quand Claude a besoin de `sudo`,
+une demande de mot de passe s'affiche sur tous ses appareils (web, bureau, Pixel, iPhone) ; le
+premier qui répond gagne, les autres se ferment. Le mot de passe reste **en mémoire seulement**
+une heure, puis s'efface. Choix : sudo silencieux pendant l'heure, mais chaque commande root est
+notifiée avec un bouton « Révoquer ». Les services en production restent hors de portée sans
+demande explicite.
+
+Conception :
+- `ccs root -- <commande>` lance `sudo -A` avec un `SUDO_ASKPASS` fourni par CCS ; les chats de
+  Claude reçoivent `SUDO_ASKPASS` pour que `sudo -A` marche aussi tout seul.
+- Le **gardien** (dans le pont local de chaque machine) tient le mot de passe en RAM, jamais sur
+  disque ni dans un journal, derrière un socket Unix `0600` dans `$XDG_RUNTIME_DIR` (même uid
+  vérifié). Expiration absolue d'une heure ; `ccs root oublier` et « Révoquer » l'effacent.
+- Pas de mot de passe connu : le pont diffuse `root.ask` (`id`, machine, commande) à ses clients,
+  et ntfy envoie un avis **sans secret** (« pc-bureau demande le mot de passe root »). Le client
+  répond `root.answer` par le pont authentifié (TLS, ou SSH par Ricochet pour une autre machine) ;
+  le mot de passe est vérifié par `sudo -S -v` avant d'être gardé ; `root.resolved` ferme les
+  autres popups. Demande sans réponse : abandon après 5 min.
+- Chaque commande root lancée avec le mot de passe gardé : avis `root.used` + ntfy avec
+  « Révoquer » (bouton signé à usage unique, comme `phone_reply`).
+
+- [ ] 1. Gardien en mémoire, socket Unix, `ccs-askpass`, `ccs root -- …` / `ccs root etat|oublier` ; tests
+- [ ] 2. Pont : `root.ask`, `root.answer`, `root.resolved`, `root.used`, `root.forget` ; vérification `sudo -S -v`, délai, limite d'essais ; avis ntfy sans secret et bouton « Révoquer »
+- [ ] 3. `SUDO_ASKPASS` dans l'environnement des chats ; consignes de Claude (`~/.claude/CLAUDE.md`) : `ccs root -- …` au lieu de donner la commande à Charles
+- [ ] 4. Clients : popup de mot de passe dans le web, le bureau, la TUI, Android et iPhone
+- [ ] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG
+
 ## Phase 33 — Harmonisation des interfaces avant le gel (1.0.0)
 
 Charles (22/11/2026) : harmoniser d'abord, puis sortir la 1.0.0 ; les essais réels encore ouverts
