@@ -643,6 +643,18 @@ archive de l'ancien dépôt) vient après.
 - [x] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [x] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
+## Phase 37 — Ajouter un PC en une ligne (1.2.0, Ricochet 0.6.0)
+
+Charles (22/11/2026) : faciliter le plus possible l'ajout d'un PC au réseau de machines. Choix :
+le relais garde 15 min, pour une seule lecture, le script d'installation de la machine
+(`/rejoindre/<code>`) ; CCS le demande avec le jeton opérateur et donne la ligne à coller.
+
+- [x] 1. Ricochet : `POST /api/machines` accepte `utilisateur`, `ports`, `cles_ssh` et renvoie `lien` ; `GET /rejoindre/{code}` sert le script (agent, configuration, serveur SSH, clés autorisées) une seule fois ; interface : case « Joignable en SSH », clés, ligne courte
+- [x] 2. CCS : `ccs distant ajouter`, méthode `machines.add`, section « Ajouter un PC » de la page Machines du web ; tests, README, CHANGELOG
+- [ ] 3. Releases Ricochet 0.6.0 et CCS 1.2.0, relais mis à jour, `jeton_operateur` dans `client.toml` du VPS
+- [ ] 4. Essai réel par Charles sur un nouveau PC
+- [ ] 5. Plus tard : « Ajouter un PC » dans l'appli du bureau, Android et iPhone ; option qui installe aussi CCS et Claude Code (sessions entières sur la machine, piste 13 de la phase 21)
+
 ## Phase 35 — Vocal : dictée et lecture des réponses (1.1.0)
 
 Charles (22/11/2026) : chatter à la voix sur toutes les plateformes. Choix : **dictée** (bouton

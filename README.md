@@ -883,12 +883,29 @@ outils, places et limite ; travaux avec « Journal » et « Arrêter » ; lancer
 machine, maintenant / cette nuit / à une heure) ; adresse et jeton du relais (le jeton n'est
 jamais réaffiché). La page se recharge toutes les 5 s tant qu'elle est visible.
 
-**Mise en place** (une fois) :
+**Ajouter un PC au réseau** (le plus simple) : page Machines → « Ajouter un PC » (identifiant,
+ton compte sur ce PC), ou
+
+```sh
+ccs distant ajouter pc-salon --utilisateur charles [--nom "PC du salon"] [--limite 2]
+```
+
+CCS déclare la machine dans Ricochet et donne **une ligne à coller** dans un terminal du PC
+(Ubuntu ou Debian) : `curl -fsSL https://<relais>/rejoindre/<code> | sudo sh`. Elle installe
+l'agent Ricochet et le serveur SSH, autorise la clé SSH de ce serveur pour ce compte, ouvre le
+port 22 aux tunnels, active terminal et fichiers, puis démarre l'agent : la machine apparaît en
+ligne et `ccs distant` peut s'en servir tout de suite. Le lien ne sert qu'une fois, pendant
+15 minutes, et le jeton de la machine n'est jamais affiché. Il faut Ricochet 0.6.0 ou plus et
+le jeton opérateur du relais dans `~/.config/ricochet/client.toml` (`jeton_operateur = "…"`, son
+empreinte dans `jeton_operateur_sha256` de `/etc/ricochet/serveur.toml`).
+
+**Mise en place à la main** (une fois) :
 
 - relais Ricochet : un jeton des tunnels (`ricochet-serveur jeton`, empreinte dans
   `jeton_tunnel_sha256`) ;
 - cette machine : `ricochet-agent` 0.3.0 ou plus, et `~/.config/ricochet/client.toml`
-  (droits 600) avec `relais = "https://…"` et `jeton = "…"` ;
+  (droits 600) avec `relais = "https://…"`, `jeton = "…"` et, pour ajouter des PC d'ici,
+  `jeton_operateur = "…"` ;
 - chaque machine de calcul : `[tunnel]` avec `ports = [22]` dans `/etc/ricochet/agent.toml`, un
   serveur SSH, et la clé publique de cette machine dans son `~/.ssh/authorized_keys` ;
 - si l'utilisateur ou le port SSH diffèrent : `~/.config/ccs/machines.toml` (avant la 1.0.0 :

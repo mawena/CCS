@@ -154,6 +154,7 @@ function fakeApi(machine = "") {
     if (m === "files.roots") return { home: "/home/u", roots: ["/home/u"] };
     if (m === "projects.list") return { entries: [{ cwd: "/home/u/App", exists: true }] };
     if (m === "machines.start") return { id: "d4" };
+    if (m === "machines.add") return { id: p.machine, command: "curl -fsSL https://r/rejoindre/x | sudo sh", expires_s: 900 };
     return { ok: true };
   } };
 }
@@ -319,6 +320,31 @@ out.after = root.querySelector('input[type="password"]').value;
         self.assertEqual(out["address"], "https://ricochet.exemple")
         self.assertEqual(out["calls"], [{"token": "secret-123"}])
         self.assertEqual(out["after"], "")
+
+    def test_add_a_pc_needs_the_operator_token(self):
+        out = run(PAGE + r"""
+mountMachines(root, fakeApi());
+await settle();
+out = root.querySelectorAll("section").find((n) => n.getAttribute("aria-label") === "Ajouter un PC").textContent;
+""")
+        self.assertIn("jeton_operateur", out)
+
+    def test_add_a_pc_gives_the_command(self):
+        out = run(PAGE + r"""
+SETTINGS.operator_set = true;
+const api = fakeApi();
+mountMachines(root, api);
+await settle();
+const box = root.querySelectorAll("section").find((n) => n.getAttribute("aria-label") === "Ajouter un PC");
+const inputs = box.querySelectorAll("input");
+inputs[0].value = "pc-salon"; inputs[1].value = "charles";
+button("Créer le lien", box).click(); await settle();
+out = { calls: api.calls.filter((c) => c[0] === "machines.add").map((c) => c[1]),
+        pre: box.querySelector("pre").textContent, id: inputs[0].value };
+""")
+        self.assertEqual(out["calls"], [{"machine": "pc-salon", "user": "charles"}])
+        self.assertEqual(out["pre"], "curl -fsSL https://r/rejoindre/x | sudo sh")
+        self.assertEqual(out["id"], "")
 
     def test_page_is_reachable_but_not_in_the_nav(self):
         views = (WEB / "views.js").read_text(encoding="utf-8")

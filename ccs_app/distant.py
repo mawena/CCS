@@ -771,7 +771,7 @@ def client_settings():
             limits[mid] = value
     relay, token_set, path = str(data.get("relais", "")), bool(data.get("jeton")), str(client_path())
     return {"relay": relay, "token_set": token_set, "path": path, "default_limit": DEFAULT_LIMIT,
-            "limits": limits,
+            "limits": limits, "operator_set": bool(data.get("jeton_operateur")),
             # compatibilité 1.x (appli iPhone), à retirer en 2.0
             "relais": relay, "jeton_defini": token_set, "chemin": path,
             "limite_defaut": DEFAULT_LIMIT, "limites": limits}
@@ -813,6 +813,97 @@ def set_limit(machine_id, limit):
     conf.pop("limite", None)
     conf["limit"] = limit
     _write_private(path, toml_dump(data))
+
+
+# ------------------------------------------------------------------ ajout d'une machine
+
+NEW_MACHINE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")   # règle de Ricochet
+UNIX_USER = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
+SSH_KEYS = ("id_ed25519", "id_ecdsa", "id_rsa")
+
+
+def public_key(run=None):
+    """Clé publique SSH de cette machine (celle que `ssh` présente aux autres) ; une clé ed25519
+    sans phrase de passe est créée s'il n'y en a aucune (les travaux tournent sans terminal)."""
+    ssh = Path.home() / ".ssh"
+    for name in SSH_KEYS:
+        pub = ssh / f"{name}.pub"
+        if pub.is_file() and (ssh / name).is_file():
+            return pub.read_text(encoding="utf-8").strip()
+    ssh.mkdir(mode=0o700, exist_ok=True)
+    key = ssh / "id_ed25519"
+    try:
+        (run or subprocess.run)(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C",
+                                 f"ccs@{socket.gethostname()}", "-f", str(key)],
+                                check=True, capture_output=True)
+        return (ssh / "id_ed25519.pub").read_text(encoding="utf-8").strip()
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise DistantError(f"Clé SSH impossible à créer ({key}) : {e}") from None
+
+
+def operator_token():
+    path = client_path()
+    token = str(_read_toml(path).get("jeton_operateur", "")).strip()
+    if not token:
+        raise DistantError(
+            f"Pour ajouter une machine, CCS a besoin du jeton opérateur du relais : ajoute "
+            f'jeton_operateur = "…" à {path} (jeton de `ricochet-serveur jeton`, son empreinte '
+            "dans jeton_operateur_sha256 de /etc/ricochet/serveur.toml).")
+    return token
+
+
+def add_machine(machine_id, name=None, user=None, limit=None, ports=(22,), opener=None, run=None):
+    """Déclare une machine dans Ricochet et renvoie la commande à coller sur elle (lien à usage
+    unique, 15 min) : elle installe l'agent, le serveur SSH et la clé de cette machine, ouvre les
+    ports aux tunnels et démarre l'agent. L'utilisateur et la limite vont dans `machines.toml`."""
+    if not isinstance(machine_id, str) or not NEW_MACHINE_ID.match(machine_id):
+        raise DistantError("Identifiant invalide : lettres, chiffres, - et _ (64 au plus).")
+    user = (user or "").strip() or None
+    if user is None or not UNIX_USER.match(user):
+        raise DistantError("Indique l'utilisateur de la machine (nom Unix en minuscules).")
+    name = (name or "").strip() or None
+    if name and len(name) > 100:
+        raise DistantError("Nom trop long (100 caractères au plus).")
+    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int)
+                              or not LIMIT_RANGE[0] <= limit <= LIMIT_RANGE[1]):
+        raise DistantError(f"La limite doit être un nombre de {LIMIT_RANGE[0]} à {LIMIT_RANGE[1]}.")
+    client = load_client()
+    token = operator_token()
+    ports = sorted({int(p) for p in ports})
+    body = {"id": machine_id, "nom": name, "utilisateur": user, "ports": ports,
+            "cles_ssh": [public_key(run)] if 22 in ports else []}
+    req = urllib.request.Request(
+        client["relais"] + "/api/machines", data=json.dumps(body).encode("utf-8"), method="POST",
+        headers={"Authorization": "Bearer " + token, "Content-Type": "application/json",
+                 "User-Agent": "ccs"})
+    try:
+        with (opener or urllib.request.urlopen)(req, timeout=15) as r:
+            created = json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace").strip()[:200]
+        why = {401: "jeton opérateur refusé", 403: "jeton opérateur refusé",
+               409: f"« {machine_id} » existe déjà (révoque-la dans Ricochet pour la recréer)"
+               }.get(e.code, f"erreur {e.code} : {detail}")
+        raise DistantError(f"Relais Ricochet : {why}") from None
+    except (OSError, ValueError) as e:
+        raise DistantError(f"Relais Ricochet {client['relais']} injoignable : {e}") from None
+    link = created.get("lien")
+    if not isinstance(link, str) or not link.startswith("/rejoindre/"):
+        raise DistantError("Ce relais ne donne pas de lien d'installation : Ricochet 0.6.0 ou plus.")
+    path = overrides_path()
+    data = _read_toml(path)
+    machines = data.get("machines")
+    if not isinstance(machines, dict):
+        machines = data["machines"] = {}
+    conf = machines.setdefault(machine_id, {})
+    if not isinstance(conf, dict):
+        conf = machines[machine_id] = {}
+    conf["user"] = user
+    if limit is not None:
+        conf["limit"] = limit
+    _write_private(path, toml_dump(data))
+    return {"id": machine_id, "command": f"curl -fsSL {client['relais']}{link} | sudo sh",
+            "expires_s": int(created.get("expire_s") or 900)}
 
 
 def describe(machines, overrides, probe=True, run=None):

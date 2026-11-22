@@ -123,7 +123,8 @@ class MachinesApi:
             "machines.list": self.list, "machines.attach": self.attach,
             "machines.jobs": self.jobs, "machines.stop": self.stop, "machines.log": self.log,
             "machines.start": self.start, "machines.settings": self.settings,
-            "machines.configure": self.configure, "machines.limit": self.limit})
+            "machines.configure": self.configure, "machines.limit": self.limit,
+            "machines.add": self.add})
 
     async def _machines(self):
         if not distant.configured():
@@ -214,6 +215,19 @@ class MachinesApi:
         except OSError as e:
             raise rpc.RpcError("interne", f"Écriture impossible : {e.strerror or e}") from None
         return {"ok": True}
+
+    async def add(self, _conn, params):
+        """Déclare une machine dans Ricochet : renvoie la commande à coller sur elle."""
+        mid, name, user, limit = (params.get(k) for k in ("machine", "name", "user", "limit"))
+        for v in (mid, name, user):
+            if v is not None and not isinstance(v, str):
+                raise rpc.RpcError("invalide", "Paramètre invalide.")
+        try:
+            return await asyncio.to_thread(distant.add_machine, mid, name=name, user=user, limit=limit)
+        except distant.DistantError as e:
+            raise rpc.RpcError("invalide", str(e)) from None
+        except OSError as e:
+            raise rpc.RpcError("interne", f"Écriture impossible : {e.strerror or e}") from None
 
     @staticmethod
     async def _ssh(machine):
