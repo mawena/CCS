@@ -3,6 +3,13 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.0.2] — 2026-11-22
+
+### Corrigé
+
+- Web : « Nouveau chat » (projet, liste, onglet, feuille de route) ouvre la feuille des options
+  (modèle, droits, compte) avec le dossier déjà rempli, au lieu d'ouvrir le chat directement.
+
 ## [1.0.1] — 2026-11-22
 
 ### Corrigé
