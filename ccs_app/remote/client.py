@@ -15,7 +15,7 @@ import threading
 import aiohttp
 
 from .. import core
-from ..server import rpc
+from ..server import protocol, rpc
 
 
 class AuthError(Exception):
@@ -116,7 +116,8 @@ class WebTransport:
     async def connect(self):
         session = aiohttp.ClientSession(headers={"User-Agent": "CCS"})
         try:
-            ws = await session.ws_connect(self.server.url + "/api/ws", max_msg_size=rpc.MAX_LINE,
+            ws = await session.ws_connect(self.server.url + f"/api/ws?protocol={protocol.PROTOCOL}",
+                                          max_msg_size=rpc.MAX_LINE,
                                           headers={"Authorization": f"Bearer {self.server.token}"},
                                           heartbeat=30, timeout=20)
         except aiohttp.WSServerHandshakeError as e:
@@ -160,7 +161,7 @@ class BridgeClient:
         self._reader = asyncio.ensure_future(self._read_loop(link))
         if self.transport.needs_hello:
             try:
-                await self.call("hello")
+                await self.call("hello", protocol=protocol.PROTOCOL)
             except rpc.RpcError:
                 await self._drop(link)
                 raise ConnectionError("pont : bonjour refusé") from None

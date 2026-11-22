@@ -36,11 +36,11 @@ class FakeBackend:
             {"id": "portable", "name": "Portable", "online": False, "local": False, "cores": 0, "load": 0,
              "mem_used": 0, "mem_total": 0, "tunnel": True, "tools": [], "limit": 3, "running": 0, "waiting": 0}]}
         self.jobs_value = [
-            {"id": "a1", "text": "flutter build apk", "cwd": "/tmp", "machine": "pc-bureau", "state": "en cours",
+            {"id": "a1", "text": "flutter build apk", "cwd": "/tmp", "machine": "pc-bureau", "state": "running",
              "code": None, "created": 900.0, "started": 925.0, "ended": None, "why": ""},
-            {"id": "b2", "text": "make test", "cwd": "/tmp", "machine": None, "state": "attente", "code": None,
+            {"id": "b2", "text": "make test", "cwd": "/tmp", "machine": None, "state": "waiting", "code": None,
              "created": 990.0, "started": None, "ended": None, "why": "en attente d'une place sur pc-bureau (2/2)"},
-            {"id": "c3", "text": "make deb", "cwd": "/tmp", "machine": "pc-bureau", "state": "échec", "code": 2,
+            {"id": "c3", "text": "make deb", "cwd": "/tmp", "machine": "pc-bureau", "state": "failed", "code": 2,
              "created": 100.0, "started": 200.0, "ended": 210.0, "why": ""}]
 
     def overview(self):
@@ -65,11 +65,11 @@ class FakeBackend:
 
     def settings(self):
         self.calls.append(("settings",))
-        return {"relais": "https://ricochet.exemple", "jeton_defini": True, "chemin": "/x/client.toml",
-                "limite_defaut": 2, "limites": {}}
+        return {"relay": "https://ricochet.exemple", "token_set": True, "path": "/x/client.toml",
+                "default_limit": 2, "limits": {}}
 
-    def configure(self, relais=None, jeton=None):
-        self.calls.append(("configure", relais, jeton))
+    def configure(self, relay=None, token=None):
+        self.calls.append(("configure", relay, token))
 
     def set_limit(self, machine_id, limite):
         self.calls.append(("limit", machine_id, limite))

@@ -128,7 +128,7 @@ class AdminApi:
         bridge.add_handlers({
             "accounts.cards": self.cards, "doctor.run": self.doctor_run,
             "tasks.log": self.task_log, "tasks.remove": self.task_remove,
-            "phone.test": self.phone_test, "phone.new_topic": self.phone_new_topic,
+            "phone.test": self.phone_test, "phone.renew": self.phone_new_topic,
             "phone.qr": self.phone_qr,
         })
 
