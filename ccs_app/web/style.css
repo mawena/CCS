@@ -177,7 +177,7 @@ a.button.portier[hidden] { display: none; }
 .settings { display: grid; gap: 12px; max-width: 640px; }
 
 /* ---- sessions et chat ---- */
-.sessions { display: grid; grid-template-columns: auto minmax(0, 1fr); height: calc(100dvh - 57px); }
+.sessions { display: grid; grid-template-columns: auto minmax(0, 1fr); height: calc(100dvh - 57px - var(--root-bar-h, 0px)); }
 .sessions > .side { width: 320px; }
 .sessions.side-hidden { grid-template-columns: 1fr; }
 .sessions.side-hidden > .side { display: none; }
@@ -249,7 +249,7 @@ a.button.portier[hidden] { display: none; }
   .sessions > .side { width: auto !important; }
   .sessions.side-hidden > .side { display: grid; }
   .side-toggle, .resize-handle { display: none; }
-  .sessions { grid-template-columns: 1fr; height: calc(100dvh - 49px - var(--nav-h) - env(safe-area-inset-bottom)); }
+  .sessions { grid-template-columns: 1fr; height: calc(100dvh - 49px - var(--nav-h) - env(safe-area-inset-bottom) - var(--root-bar-h, 0px)); }
   .sessions.chat-open .side { display: none; }
   .sessions:not(.chat-open) .main { display: none; }
   .side { border-right: 0; }
@@ -516,7 +516,7 @@ dialog.sheet h2 { margin: 0 0 6px; font-size: 1.1em; }
 @media (max-width: 719px) {
   body.chat-mode .topbar, body.chat-mode .nav { display: none; }
   body.chat-mode .view[data-view="sessions"] { padding-bottom: 0; }
-  body.chat-mode .sessions { height: 100dvh; padding-top: env(safe-area-inset-top); }
+  body.chat-mode .sessions { height: calc(100dvh - var(--root-bar-h, 0px)); padding-top: env(safe-area-inset-top); }
   .toasts { bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom)); }
   body.chat-mode .toasts { bottom: 90px; }
 }

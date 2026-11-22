@@ -3,6 +3,13 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.0.1] — 2026-11-22
+
+### Corrigé
+
+- Web : le bandeau « Root gardé » ne fait plus défiler toute la page (sa hauteur est retirée
+  de celle des sessions).
+
 ## [1.0.0] — 2026-11-22
 
 Première version stable : les interfaces sont figées pour toute la 1.x (contrat dans
