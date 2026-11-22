@@ -3,19 +3,30 @@
 Deux transports : le socket du pont local de l'utilisateur (lancé par `ccs bridge --local` s'il
 ne répond pas), ou le WebSocket d'un serveur CCS avec un jeton d'application. La connexion se
 rétablit seule ; `on_state` reçoit "online", "offline", "reconnected" ou "auth" (jeton refusé).
+
+Pont local plus ancien que ce client (CCS mis à jour, pont d'avant la relance automatique) : s'il
+ne fait rien (aucun chat au travail, aucun terminal), le client l'arrête (SIGTERM sur le pid du pair du socket,
+même utilisateur) et en lance un neuf. Un pont occupé est gardé tel quel.
 """
 
 import asyncio
 import itertools
 import json
 import os
+import signal
+import socket
+import struct
 import subprocess
 import threading
+import time
 
 import aiohttp
 
-from .. import core
+from .. import __version__, core
 from ..server import protocol, rpc
+
+BUSY = ("starting", "busy", "permission")
+RESPAWN_S = 30          # pont local lancé il y a moins longtemps : on attend, sans en relancer un
 
 
 class AuthError(Exception):
@@ -51,27 +62,85 @@ class _LocalLink:
             pass
 
 
+def version_tuple(text):
+    """« 0.37.0 » → (0, 37, 0) ; None si ce n'est pas une version."""
+    try:
+        return tuple(int(x) for x in str(text).split("-")[0].split("."))
+    except (TypeError, ValueError):
+        return None
+
+
+def peer_pid(writer):
+    """Pid du processus à l'autre bout d'un socket Unix, s'il tourne sous le même utilisateur."""
+    sock = writer.get_extra_info("socket")
+    try:
+        pid, uid, _gid = struct.unpack("3i", sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED,
+                                                             struct.calcsize("3i")))
+    except (AttributeError, OSError, struct.error):
+        return None
+    return pid if uid == os.getuid() and pid > 0 else None
+
+
 class LocalTransport:
     needs_hello = True
 
-    def __init__(self, path=None, spawn=spawn_local_bridge, timeout=10):
+    def __init__(self, path=None, spawn=spawn_local_bridge, timeout=10, version=__version__,
+                 kill=os.kill, clock=time.monotonic):
         self.path = str(path or default_socket())
         self.spawn = spawn
         self.timeout = timeout
-        self._spawned = False
+        self.version = version
+        self._kill = kill
+        self._clock = clock
+        self._spawned_at = None
+        self._replaced = False
         self.label = "local"
 
     async def _open(self):
         r, w = await asyncio.open_unix_connection(self.path, limit=rpc.MAX_LINE + 1)
         return _LocalLink(r, w)
 
+    async def outdated(self, client, link, hello):
+        """Après `hello` : vrai si le pont, plus ancien que ce client et sans chat au travail, vient
+        d'être arrêté (il faut se reconnecter : un pont neuf sera lancé). Une fois par client."""
+        mine, theirs = version_tuple(self.version), version_tuple((hello or {}).get("version"))
+        if self._replaced or self.spawn is None or not mine or not theirs or theirs >= mine:
+            return False
+        try:
+            chats = (await client.call("chat.list")).get("chats") or []
+            terms = (await client.call("term.list")).get("terms") or []
+        except rpc.RpcError:
+            return False
+        if terms or any(c.get("state") in BUSY for c in chats):
+            return False                 # un chat travaille, un terminal est ouvert : gardé tel quel
+        pid = peer_pid(link.writer)
+        if pid is None or pid == os.getpid():
+            return False
+        self._replaced = True
+        try:
+            self._kill(pid, signal.SIGTERM)
+        except OSError:
+            return False
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 5
+        while loop.time() < deadline:    # attendre qu'il ne réponde plus
+            try:
+                probe = await self._open()
+            except (FileNotFoundError, ConnectionRefusedError):
+                break
+            await probe.close()
+            await asyncio.sleep(0.1)
+        self._spawned_at = None
+        return True
+
     async def connect(self):
         try:
             return await self._open()
         except (FileNotFoundError, ConnectionRefusedError):
-            if self._spawned or self.spawn is None:
+            recent = self._spawned_at is not None and self._clock() - self._spawned_at < RESPAWN_S
+            if recent or self.spawn is None:
                 raise ConnectionError("pont local injoignable") from None
-        self._spawned = True
+        self._spawned_at = self._clock()
         self.spawn()
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self.timeout
@@ -143,6 +212,8 @@ class BridgeClient:
         self._reader = None
         self._retry = None
         self._closing = False
+        self.bridge_version = None
+        self._quiet = set()
 
     @property
     def online(self):
@@ -161,10 +232,19 @@ class BridgeClient:
         self._reader = asyncio.ensure_future(self._read_loop(link))
         if self.transport.needs_hello:
             try:
-                await self.call("hello", protocol=protocol.PROTOCOL)
+                hello = await self.call("hello", protocol=protocol.PROTOCOL)
             except rpc.RpcError:
                 await self._drop(link)
                 raise ConnectionError("pont : bonjour refusé") from None
+            self.bridge_version = (hello or {}).get("version")
+            outdated = getattr(self.transport, "outdated", None)
+            if outdated is not None:
+                self._quiet.add(link)           # le pont arrêté ferme ce lien : pas une coupure
+                if await outdated(self, link, hello):
+                    await self._drop(link)      # ancien pont arrêté : le neuf est lancé ici
+                    await self._establish()
+                    return
+                self._quiet.discard(link)
 
     async def connect(self):
         self._closing = False
@@ -172,6 +252,8 @@ class BridgeClient:
         self._state("online")
 
     async def _drop(self, link):
+        """Ferme un lien abandonné exprès : sa fin n'annonce pas de coupure (pas de reconnexion)."""
+        self._quiet.add(link)
         if self._link is link:
             self._link = None
         await link.close()
@@ -206,7 +288,9 @@ class BridgeClient:
                 if not fut.done():
                     fut.set_exception(rpc.RpcError("interne", "Connexion perdue."))
             self._pending.clear()
-            if not self._closing:
+            if link in self._quiet:
+                self._quiet.discard(link)
+            elif not self._closing:
                 self._state("offline")
                 if self.retry_delays and (self._retry is None or self._retry.done()):
                     self._retry = asyncio.ensure_future(self._reconnect())

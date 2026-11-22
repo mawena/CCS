@@ -51,6 +51,7 @@ class SessionCards(Gtk.Box):
         self.active_name = None
         self.memory, self.contexts, self.on_close = {}, {}, None
         self.heavy_tokens = context_alert.DEFAULTS["threshold_tokens"]
+        self.in_bridge = set()           # conversations tenues par le pont local (rejoignables)
         self.cost_loader = costs.Loader()
         self.known_costs = {}            # journal -> (empreinte, Cost) : affichés sans attendre
         self.cost_labels = {}            # journal -> [(libellé, texte sans le coût)]
@@ -136,6 +137,9 @@ class SessionCards(Gtk.Box):
 
     def card(self, s, u, titles, show_project, compact):
         tab = self.window.terminals.find(pid=s.pid)
+        bridged = bool(s.session_id) and s.session_id in self.in_bridge
+        if tab is None and bridged:
+            tab = self.window.terminals.find(session_id=s.session_id)
         # Toutes les sessions utilisent le compte actif : sa couleur borde la carte.
         card = card_box(8, account=self.active_name)
         top = Gtk.Box(spacing=10)
@@ -148,7 +152,8 @@ class SessionCards(Gtk.Box):
         title.append(Gtk.Label(label=state, valign=Gtk.Align.CENTER, ellipsize=Pango.EllipsizeMode.END,
                                tooltip_text=state, css_classes=["caption", STATE_CLASSES[s.state]]))
         info.append(title)
-        where = "dans l'application" if tab else "VS Code" if "vscode" in s.entrypoint else "terminal"
+        where = ("dans l'application" if tab else "pont CCS (web, autres appareils)" if bridged
+                 else "VS Code" if "vscode" in s.entrypoint else "terminal")
         parts = ([s.project] if show_project else []) + [
             where, f"ouverte depuis {duration(time.time() - s.started_at)}", f"pid {s.pid}"]
         info.append(caption(" · ".join(parts)))
@@ -183,6 +188,12 @@ class SessionCards(Gtk.Box):
                               tooltip_text="Aller à l'onglet de cette session dans l'application")
             show.connect("clicked", lambda *_: self.window.terminals.present(tab))
             buttons.append(show)
+        elif bridged and self.window.terminals.available:
+            join = Gtk.Button(label="Rejoindre", css_classes=["suggested-action"], valign=Gtk.Align.CENTER,
+                              tooltip_text="Suivre et piloter ce chat (ouvert du web ou d'un autre appareil) "
+                                           "dans un onglet")
+            join.connect("clicked", lambda *_: self.window.open_claude(s.cwd, s.session_id, name))
+            buttons.append(join)
         here = "Terminal ici" if self.window.terminals.available else "Terminal ici (externe)"
         for label, icon, cb in ((here, "utilities-terminal-symbolic", lambda *_: self.window.open_shell(s.cwd)),
                                 ("Ouvrir le dossier", "folder-open-symbolic",

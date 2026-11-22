@@ -688,7 +688,7 @@ ne bloquent pas (corrections en 1.0.x). Règle de nommage (`docs/interfaces.md`,
 - [x] 2. Pont et HTTP : méthodes `machines.*`, séparateurs `.`, paramètres et réponses en anglais, états des travaux en anglais, `machine.ready` émis par le pont, version du protocole dans `hello`, anciens noms acceptés ; `/api/apptoken`, `/api/portier` en anglais ; vieux cache `distant-en-cours/` nettoyé
 - [x] 3. Fichiers et variables : noms en anglais avec migration, XDG respecté, `color_scheme` `light|dark`, schéma de `warmup`, `web.json` en anglais (anciennes clés lues), variables `CCS_*` en anglais (anciennes lues)
 - [ ] 4. Clients : web, bureau, TUI, Android, iPhone (Android et iPhone faits : `?protocol=1`, nouveaux noms, états anglais affichés en français)
-- [ ] 4 bis. Bureau : les chats locaux passent par le pont local (`ccs bridge --local`), comme le web, pour que les autres appareils les voient en direct (aujourd'hui ils tournent dans `ccs-gui` : vus « arrêtés » et sans les derniers messages ailleurs) ; le pont relancé quand CCS est mis à jour
+- [x] 4 bis. Bureau : les chats locaux passent par le pont local (`ccs bridge --local`), comme le web, pour que les autres appareils les voient en direct (aujourd'hui ils tournent dans `ccs-gui` : vus « arrêtés » et sans les derniers messages ailleurs) ; le pont relancé quand CCS est mis à jour
 - [ ] 5. Suite complète, README, `docs/interfaces.md` (contrat 1.0), CHANGELOG ; release majeure 1.0.0 ; phase 29 close
 
 ## Phase 32 — Ordre des sessions, tableaux, consommation de tokens (0.37.0)
