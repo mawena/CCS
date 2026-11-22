@@ -518,6 +518,29 @@ session, compte du projet), échecs, limites atteintes sans bascule et
 démarrages de fenêtre. Filtre 7 jours, 30 jours ou tout ; aussi « Journal des
 bascules » dans le menu de l'icône.
 
+## Commandes root sans terminal
+
+Claude (ou toi) lance une commande root par CCS, sans rester bloqué sur une invite de `sudo` :
+
+```bash
+ccs root -- apt install ripgrep
+ccs root etat       # mot de passe gardé ? combien de temps encore ?
+ccs root oublier    # l'effacer tout de suite
+```
+
+- Si CCS n'a pas le mot de passe, une fenêtre le demande sur **tous tes appareils** connectés :
+  version web, application de bureau, TUI, Android, iPhone. Une notification ntfy prévient
+  (sans aucun secret) ; la toucher ouvre la fenêtre dans l'appli, sur la bonne machine. Le premier
+  appareil qui répond l'emporte, les autres fenêtres se ferment. « Refuser » abandonne la commande.
+- Le mot de passe est vérifié par `sudo`, puis gardé **en mémoire seulement** une heure, par le
+  pont de la machine (socket Unix réservé à ton utilisateur). Jamais sur disque ni dans un journal.
+  3 essais par demande ; une demande sans réponse abandonne après 5 minutes.
+- Pendant l'heure, chaque commande root est signalée sur tes appareils, avec un bouton
+  « Révoquer » qui efface le mot de passe.
+- Chaque machine (VPS, PC…) garde son propre mot de passe. Les chats lancés par CCS ont
+  `SUDO_ASKPASS` : `sudo -A` y marche aussi, mais `ccs root` reste préférable (chaque commande
+  y est signalée).
+
 ## Raccourcis clavier
 
 Des raccourcis **globaux**, qui marchent même application fermée, tous
