@@ -140,7 +140,7 @@ final class ModeleChat {
             let sid = d.texte("session_id")
             if !sid.isEmpty && sid == s.fil.sessionId { s.appliquerEtiquette(d.texte("msg_id"), EvChat.etiquettes(d["entry"])) }
         }
-        client.ecouter("work.shell", pour: self) { [weak self] d in
+        client.ecouter("shell.done", pour: self) { [weak self] d in
             guard let s = self, let id = s.chatId, d.texte("chat_id") == id else { return }
             s.finShell(d)
         }
@@ -412,7 +412,7 @@ final class ModeleChat {
         var params: [String: JSON] = ["path": .chaine(h.chemin), "limit": .de(limite)]
         if let a = h.avant { params["before"] = .nombre(a) }
         do {
-            return try await client.appeler("conversation.messages", params, delai: 60, en: Messages.self).messages
+            return try await client.appeler("conversations.messages", params, delai: 60, en: Messages.self).messages
         } catch let e as RpcErreur {
             return e.code == "introuvable" ? [] : nil      // chat neuf : pas encore de journal
         } catch {
@@ -640,7 +640,7 @@ final class ModeleChat {
         Task { @MainActor in
             let r: JSON
             do {
-                r = try await client.appeler("work.shell.run", ["chat_id": .chaine(id), "command": .chaine(commande)])
+                r = try await client.appeler("shell.run", ["chat_id": .chaine(id), "command": .chaine(commande)])
             } catch {
                 terminerShell(cle, commande, 127, texteErreur(error), false)
                 return
@@ -658,7 +658,7 @@ final class ModeleChat {
     }
 
     func arreterShell(_ runId: String) {
-        Task { @MainActor in _ = try? await client.appeler("work.shell.stop", ["run_id": .chaine(runId)]) }
+        Task { @MainActor in _ = try? await client.appeler("shell.stop", ["run_id": .chaine(runId)]) }
     }
 
     private func finShell(_ d: JSON) {
@@ -686,7 +686,7 @@ final class ModeleChat {
 
     private func sonderShells() async {
         for run in Array(shells.keys) {
-            guard let r = try? await client.appeler("work.shell.poll", ["run_id": .chaine(run)]) else { continue }
+            guard let r = try? await client.appeler("shell.poll", ["run_id": .chaine(run)]) else { continue }
             if r.bool("done") { finShell(r) }
         }
     }
@@ -745,7 +745,7 @@ final class ModeleChat {
                 }
             }
             guard let p = chemin else { return }
-            if let c = try? await client.appeler("conversation.cost", ["path": .chaine(p)], en: Cout.self) {
+            if let c = try? await client.appeler("conversations.cost", ["path": .chaine(p)], en: Cout.self) {
                 vue.cout = c.short
             }
         }

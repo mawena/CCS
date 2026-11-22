@@ -115,9 +115,9 @@ struct ReglagesRelais: LisibleJSON {
     var chemin = ""
     var limiteDefaut = 2
     init(json j: JSON) {
-        relais = j.texte("relais")
-        jetonDefini = j.bool("jeton_defini")
-        chemin = j.texte("chemin")
-        limiteDefaut = j.entier("limite_defaut", 2)
+        relais = j.texte("relay")
+        jetonDefini = j.bool("token_set")
+        chemin = j.texte("path")
+        limiteDefaut = j.entier("default_limit", 2)
     }
 }

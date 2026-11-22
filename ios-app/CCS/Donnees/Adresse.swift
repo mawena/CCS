@@ -34,12 +34,18 @@ enum Adresse {
         return URL(string: b + "/" + c)
     }
 
-    /// Même adresse en `ws://` ou `wss://` (WebSocket), relayée vers une autre machine avec
-    /// `?machine=<id>` (vide : ce serveur).
+    /// Version du protocole du pont que parle l'appli (`docs/interfaces.md` § 2).
+    static let protocole = 1
+
+    /// Même adresse en `ws://` ou `wss://` (WebSocket) avec `?protocol=1`, relayée vers une autre
+    /// machine avec `&machine=<id>` (vide : ce serveur). Sans `protocol`, le serveur nous
+    /// prendrait pour un ancien client (anciens noms).
     static func ws(_ base: String, _ chemin: String, machine: String = "") -> URL? {
         guard let u = api(base, chemin), var c = URLComponents(url: u, resolvingAgainstBaseURL: false) else { return nil }
         c.scheme = c.scheme == "http" ? "ws" : "wss"
-        if !machine.isEmpty { c.queryItems = [URLQueryItem(name: "machine", value: machine)] }
+        var q = [URLQueryItem(name: "protocol", value: String(protocole))]
+        if !machine.isEmpty { q.append(URLQueryItem(name: "machine", value: machine)) }
+        c.queryItems = q
         return c.url
     }
 
