@@ -34,7 +34,7 @@ def remote_messages(conn, path):
             if getattr(e, "code", "") != "introuvable":
                 raise
             # serveur d'avant la 1.0.0 : compatibilité 1.x, à retirer en 2.0
-            r = conn.client.call_sync("conversation.messages", timeout=30, path=str(path), limit=300)
+            r = conn.client.call_sync("conversations.messages", timeout=30, path=str(path), limit=300)
     except Exception:  # noqa: BLE001 — serveur injoignable : pas d'historique, le chat reste utilisable
         return []
     out = []

@@ -297,7 +297,7 @@ class Bridge:
 
 def remove_old_cache():
     """Retire une fois l'ancien dossier `~/.cache/ccs/distant-en-cours/` (abandonné en 0.32.0)."""
-    old = core.paths().home / ".cache" / "ccs" / "distant-en-cours"
+    old = core.ccs_dir("cache") / "distant-en-cours"
     if old.is_dir() and not old.is_symlink():
         shutil.rmtree(old, ignore_errors=True)
 
