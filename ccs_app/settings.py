@@ -111,6 +111,10 @@ DEFAULTS = {
     # aux conversations bloquées ; outside : conversation fermée hors de CCS, « notify »
     # (notification) ou « resume » (claude --resume en arrière-plan).
     "limit_resume": {"enabled": True, "outside": "notify"},
+    # Oreilles de Jarvis (relais de la version web, `server/bridge_jarvis.py`) : machine du relais
+    # Ricochet où tourne le cerveau, son port, et l'empreinte de son certificat (base64url,
+    # 43 caractères ; vide tant qu'aucun appareil n'a été appairé).
+    "jarvis": {"machine": "laptop-maison", "port": 7341, "fingerprint": ""},
 }
 
 
@@ -162,11 +166,12 @@ BOUNDS = {
     "context_alert.threshold_tokens": (1000, 10_000_000),
     "chat.idle_suspend_min": (0, 1440),
     "git.fetch_minutes": (0, 1440),
+    "jarvis.port": (1, 65535),
 }
 INTEGERS = {"alerts.weekly_report_hour", "alerts.monthly_report_hour", "advisor.weeks",
             "advisor.max_accounts", "tasks.max_attempts", "archive.idle_days",
             "archive.max_age_days", "context_alert.threshold_tokens",
-            "chat.idle_suspend_min", "git.fetch_minutes"}
+            "chat.idle_suspend_min", "git.fetch_minutes", "jarvis.port"}
 CHOICES = {
     # Mode de Claude Code, ou mot des droits de `ccs tache` (converti à la lecture).
     "chat.rights": launch_options.PERMISSION_MODE_VALUES + launch_options.RIGHTS_WORDS,
@@ -179,6 +184,8 @@ CHOICES = {
 OLD_VALUES = {"appearance.color_scheme": {"clair": "light", "sombre": "dark"}}
 _COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 _HHMM = re.compile(r"^(\d{1,2}):(\d{2})$")
+_MACHINE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_FINGERPRINT = re.compile(r"^([A-Za-z0-9_-]{43})?$")
 
 
 def _is_number(v):
@@ -210,6 +217,10 @@ def _valid(path, v, default):
         return isinstance(v, str) and phone.valid_server(v)
     if path in ("phone.topic", "phone.reply_topic"):
         return isinstance(v, str) and (v == "" or phone.valid_topic(v))
+    if path == "jarvis.machine":
+        return isinstance(v, str) and bool(_MACHINE.match(v))
+    if path == "jarvis.fingerprint":
+        return isinstance(v, str) and bool(_FINGERPRINT.match(v))
     if path in CHOICES:
         return isinstance(v, str) and v in CHOICES[path]
     if path == "budget.alert_pcts":

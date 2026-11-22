@@ -6,6 +6,7 @@ aucun secret : session et appareil sont des cookies `HttpOnly`, `Secure`, `SameS
 """
 
 import asyncio
+import base64
 import json
 import logging
 from pathlib import Path
@@ -27,6 +28,15 @@ RECHECK_S = 300          # une session expirée ou révoquée ferme ses WebSocke
 CLOSED_BY_AUTH = 4001
 BRIDGE_LOST = 1012       # connexion au pont perdue : le navigateur se reconnecte
 MACHINE_DOWN = 4010      # `?machine=` : l'autre machine est injoignable (raison en clair)
+JARVIS_DOWN = 4011       # /api/jarvis/oreille : Jarvis est injoignable ou le lien est rompu
+JARVIS_FIRST_S = 10      # délai pour le premier message de l'oreille (`hello` ou `pair`)
+# oreille → cerveau : JSON court ou trame de son (0x01 + phrase u32 + 16 000 échantillons i16)
+JARVIS_MAX_IN = 64 * 1024
+
+
+def _reason(text):
+    """Raison de fermeture d'un WebSocket : 123 octets au plus, sans couper un caractère."""
+    return str(text).encode("utf-8")[:120].decode("utf-8", "ignore").encode("utf-8")
 
 
 def load_config(path=None):
@@ -256,6 +266,26 @@ def make_app(auth, bridges, config):
             return None
         return r["user"], r["ticket"], token, kind
 
+    async def recheck(ws, who, stop):
+        """Session, jeton d'application ou Portier revérifié toutes les 5 min : `stop` posé si
+        `ccs-auth` le refuse (expiré, révoqué)."""
+        user, _ticket, token, kind = who
+        while not ws.closed:
+            await asyncio.sleep(RECHECK_S)
+            try:
+                if kind == "portier":
+                    await auth.call("portier", portier=user)
+                elif kind == "app":
+                    await auth.call("check_app", token=token)
+                else:
+                    await auth.call("check", session=token)
+            except rpc.RpcError as e:
+                if e.code == "refuse":
+                    stop.set()
+                    return
+            except OSError:
+                pass
+
     async def ws_handler(request):
         if not origin_ok(request):
             raise web.HTTPForbidden()
@@ -313,24 +343,7 @@ def make_app(auth, bridges, config):
 
         stop = asyncio.Event()
         open_ws.setdefault(token, {})[ws] = stop
-
-        async def recheck():
-            while not ws.closed:
-                await asyncio.sleep(RECHECK_S)
-                try:
-                    if kind == "portier":
-                        await auth.call("portier", portier=user)
-                    elif kind == "app":
-                        await auth.call("check_app", token=token)
-                    else:
-                        await auth.call("check", session=token)
-                except rpc.RpcError as e:
-                    if e.code == "refuse":
-                        stop.set()
-                        return
-                except OSError:
-                    pass
-        watcher = asyncio.ensure_future(recheck())
+        watcher = asyncio.ensure_future(recheck(ws, who, stop))
         tasks = set()
         stopped = asyncio.ensure_future(stop.wait())
         bridge_down = asyncio.ensure_future(bridge.wait_closed())
@@ -371,6 +384,113 @@ def make_app(auth, bridges, config):
             await bridge.close()
         return ws
 
+    async def jarvis_handler(request):
+        """Oreille de Jarvis (bouton de la version web, applis) : mêmes contrôles que `/api/ws`
+        (origine, session, jeton d'application ou Portier, revérification, déconnexion), puis
+        relais des messages texte et binaires vers le cerveau, par le pont de l'utilisateur
+        (`bridge_jarvis`). `?fp=` : empreinte du cerveau (sinon celle déjà enregistrée). Le
+        premier message de l'oreille (`hello` ou `pair`) part avec l'ouverture du lien.
+        Injoignable ou lien rompu : message `{"type": "relay_error", "message"}` puis code 4011."""
+        if not origin_ok(request):
+            raise web.HTTPForbidden()
+        who = await identify(request)
+        if who is None:
+            raise web.HTTPUnauthorized()
+        user, ticket, token, _kind = who
+        ws = web.WebSocketResponse(max_msg_size=JARVIS_MAX_IN, heartbeat=30)
+        await ws.prepare(request)
+
+        async def fail(message, code=JARVIS_DOWN):
+            if not ws.closed:
+                await ws.send_json({"type": "relay_error", "message": message})
+                await ws.close(code=code, message=_reason(message))
+
+        try:
+            first = await ws.receive(timeout=JARVIS_FIRST_S)
+        except asyncio.TimeoutError:
+            await fail("Premier message de l'oreille attendu.", 1008)
+            return ws
+        if first.type != WSMsgType.TEXT:
+            if first.type not in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED, WSMsgType.ERROR):
+                await fail("Premier message de l'oreille attendu.", 1008)
+            return ws
+        try:
+            bridge = await bridges.connect(user, ticket, session_hash(token), protocol.PROTOCOL)
+        except (OSError, rpc.RpcError):
+            log.warning("pont de %s injoignable", user)
+            await fail("Pont CCS injoignable.", 1011)
+            return ws
+        outbox = asyncio.Queue()
+
+        def on_event(name, data):
+            if name == "jarvis.message":
+                outbox.put_nowait(data)
+            elif name == "jarvis.closed":
+                outbox.put_nowait({"closed": str(data.get("reason") or "")})
+        bridge.on_event = on_event
+
+        async def deliver():
+            """Messages du cerveau vers l'oreille, dans l'ordre, jusqu'à sa fermeture."""
+            while not ws.closed:
+                item = await outbox.get()
+                if "closed" in item:
+                    await ws.close(code=1000, message=_reason(item["closed"]))
+                elif "text" in item:
+                    await ws.send_str(item["text"])
+                elif "binary" in item:
+                    await ws.send_bytes(base64.b64decode(item["binary"]))
+
+        try:
+            await bridge.call("jarvis.open", fingerprint=request.query.get("fp", ""), first=first.data)
+        except (OSError, rpc.RpcError) as e:
+            await bridge.close()
+            await fail(e.message if isinstance(e, rpc.RpcError) else "Pont CCS injoignable.")
+            return ws
+        stop = asyncio.Event()
+        open_ws.setdefault(token, {})[ws] = stop
+        watcher = asyncio.ensure_future(recheck(ws, who, stop))
+        sender = asyncio.ensure_future(deliver())
+        stopped = asyncio.ensure_future(stop.wait())
+        bridge_down = asyncio.ensure_future(bridge.wait_closed())
+        try:
+            while True:
+                receiving = asyncio.ensure_future(ws.receive())
+                await asyncio.wait({receiving, stopped, bridge_down, sender},
+                                   return_when=asyncio.FIRST_COMPLETED)
+                if not receiving.done():
+                    receiving.cancel()
+                    if stop.is_set():
+                        await ws.close(code=CLOSED_BY_AUTH, message=b"session terminee")
+                    elif bridge_down.done():
+                        await fail("Pont CCS déconnecté.")
+                    break
+                msg = receiving.result()
+                if msg.type == WSMsgType.TEXT:
+                    params = {"text": msg.data}
+                elif msg.type == WSMsgType.BINARY:
+                    params = {"binary": base64.b64encode(msg.data).decode()}
+                else:
+                    break                     # fermé par l'oreille, ou message trop gros
+                try:
+                    await bridge.call("jarvis.send", **params)
+                except (OSError, rpc.RpcError) as e:
+                    await fail(e.message if isinstance(e, rpc.RpcError) else "Pont CCS injoignable.")
+                    break
+        finally:
+            for t in (watcher, stopped, bridge_down):
+                t.cancel()
+            open_ws.get(token, {}).pop(ws, None)
+            if not sender.done():
+                sender.cancel()
+            try:
+                await asyncio.wait_for(bridge.call("jarvis.close"), 2)
+            except (OSError, rpc.RpcError, asyncio.TimeoutError):
+                pass
+            await bridge.close()
+            if not ws.closed:
+                await ws.close()
+        return ws
+
     async def index(_request):
         return web.FileResponse(WEB_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
@@ -386,6 +506,7 @@ def make_app(auth, bridges, config):
     app.router.add_post("/api/apptoken", app_token)
     app.router.add_post("/api/app-token", app_token)   # compatibilité 1.x (applis mobiles), à retirer en 2.0
     app.router.add_get("/api/ws", ws_handler)
+    app.router.add_get("/api/jarvis/oreille", jarvis_handler)
     app.router.add_get("/", index)
     app.router.add_static("/", WEB_DIR, show_index=False, follow_symlinks=False)
     return app
