@@ -561,7 +561,7 @@ Charles (19/11/2026) : « pourquoi tu me proposes des /clear, alors que quand je
 - [x] 5. Tests des modules touchés, essai réel avec la vraie CLI (le mot à retenir est bien oublié)
 - [x] 6. Application Android (`android-app/`, Flutter) : coquille de la version web (`flutter analyze` propre)
 - [x] 6b. APK construit sur `pc-bureau` (une fois la mémoire libérée) et joint à la release v0.26.0 (`ccs-0.26.0.apk`)
-- [ ] 6c. Essayer l'APK sur le téléphone : envoi et téléchargement de fichiers, changement de serveur
+- [x] 6c. Essayer l'APK sur le téléphone : envoi et téléchargement de fichiers, changement de serveur
 - [x] 7. Documentation, release mineure 0.26.0
 
 
@@ -581,7 +581,7 @@ Charles (19/11/2026) : « je veux une application complète construite de bout e
 - [x] 9b. Serveur (0.27.0) : `/api/app-token` après Portier, jeton d'appareil accepté par `/api/tokens` et `/api/revoke`
 - [x] 9c. Web (0.27.0) : sous-agent fini retiré de la barre, historique « Terminés (n) »
 - [x] 10. Tests (122 tests JVM), documentation, release mineure 0.28.0 (APK joint)
-- [ ] 11. Essai complet sur le Pixel par Charles : connexion, chat, notifications, partage, terminal ; corrections
+- [x] 11. Essai complet sur le Pixel par Charles : connexion, chat, notifications, partage, terminal ; corrections
 
 ## Phase 26 — Piloter les sessions du PC depuis le web (0.29.0)
 
@@ -624,7 +624,7 @@ Charles (19/11/2026) : une appli iPhone native, gratuite, en acceptant les limit
 - [x] 8. Terminal (term.*) avec barre de touches
 - [x] 9. Notifications locales (appli ouverte ou juste en arrière-plan), feuille de partage iOS vers un chat
 - [x] 10. Tests (XCTest), documentation (installation SideStore), release mineure 0.33.0 (`.ipa` joint, source SideStore pour les mises à jour)
-- [ ] 11. Essai par Charles sur l'iPhone 14 Pro (terminal, notifications, partage, fichiers, Git)
+- [x] 11. Essai par Charles sur l'iPhone 14 Pro (terminal, notifications, partage, fichiers, Git)
 
 ## Raccourci Ctrl+Page préc./suiv. dans la version web (0.34.0)
 
@@ -639,7 +639,7 @@ archive de l'ancien dépôt) vient après.
 
 - [x] 1. Inventaire des interfaces publiques (commandes `ccs`, méthodes du pont, fichiers de config et leurs clés) : `docs/interfaces.md`, avec les points à revoir
 - [x] 2. Relecture : noms incohérents, restes d'anciennes versions, options inutiles ; corrections avant le gel
-- [ ] 3. Essais réels encore ouverts : APK sur le Pixel (6c de la phase 24, 11 de la phase 25), iPhone (11 de la phase 28) ; corrections
+- [x] 3. Essais réels encore ouverts : APK sur le Pixel (6c de la phase 24, 11 de la phase 25), iPhone (11 de la phase 28) ; corrections
 - [x] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [x] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
