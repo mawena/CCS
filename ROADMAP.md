@@ -638,10 +638,10 @@ configuration. Le reste des tâches ouvertes (dossier entier, sessions sur une a
 archive de l'ancien dépôt) vient après.
 
 - [x] 1. Inventaire des interfaces publiques (commandes `ccs`, méthodes du pont, fichiers de config et leurs clés) : `docs/interfaces.md`, avec les points à revoir
-- [ ] 2. Relecture : noms incohérents, restes d'anciennes versions, options inutiles ; corrections avant le gel
+- [x] 2. Relecture : noms incohérents, restes d'anciennes versions, options inutiles ; corrections avant le gel
 - [ ] 3. Essais réels encore ouverts : APK sur le Pixel (6c de la phase 24, 11 de la phase 25), iPhone (11 de la phase 28) ; corrections
-- [ ] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
-- [ ] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
+- [x] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
+- [x] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
 ## Phase 34 — Mot de passe root depuis les appareils (avant la 1.0.0)
 
@@ -689,7 +689,7 @@ ne bloquent pas (corrections en 1.0.x). Règle de nommage (`docs/interfaces.md`,
 - [x] 3. Fichiers et variables : noms en anglais avec migration, XDG respecté, `color_scheme` `light|dark`, schéma de `warmup`, `web.json` en anglais (anciennes clés lues), variables `CCS_*` en anglais (anciennes lues)
 - [x] 4. Clients : web, bureau, TUI, Android, iPhone : `?protocol=1`, nouveaux noms, valeurs d'état en anglais (rôles, modes, inventaire) affichées en français, raccourcis et `ccs ajouter` aux noms français
 - [x] 4 bis. Bureau : les chats locaux passent par le pont local (`ccs bridge --local`), comme le web, pour que les autres appareils les voient en direct (aujourd'hui ils tournent dans `ccs-gui` : vus « arrêtés » et sans les derniers messages ailleurs) ; le pont relancé quand CCS est mis à jour
-- [ ] 5. Suite complète, README, `docs/interfaces.md` (contrat 1.0), CHANGELOG ; release majeure 1.0.0 ; phase 29 close
+- [x] 5. Suite complète, README, `docs/interfaces.md` (contrat 1.0), CHANGELOG ; release majeure 1.0.0 ; phase 29 close
 
 ## Phase 32 — Ordre des sessions, tableaux, consommation de tokens (0.37.0)
 
