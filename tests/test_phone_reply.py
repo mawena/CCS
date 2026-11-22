@@ -57,6 +57,27 @@ class RepliesTest(unittest.TestCase):
         self.assertIsNone(r.verify(f"allow req_1 {token}", now=1001.0))
         self.assertFalse(r.pending())
 
+    def test_revoke_only_for_its_listener(self):
+        r = phone_reply.Replies()
+        t = r.issue("rv", now=1000.0, ttl=3600)
+        self.assertIsNone(r.verify(f"revoke rv {t}", now=1001.0))          # écouteur des autorisations
+        self.assertEqual(r.verify(f"revoke rv {t}", now=3000.0, decisions=("revoke",)), ("rv", "revoke"))
+        t = r.issue("a", now=1.0)
+        with self.assertNoLogs("ccs.phone", level=logging.WARNING):
+            self.assertIsNone(r.verify(f"allow a {t}", now=2.0, decisions=("revoke",)))
+        r.settle_all()
+        self.assertFalse(r.pending())
+
+    def test_root_messages_hold_no_secret(self):
+        shown = phone_reply.root_ask_message("vps", "apt update", True)
+        self.assertEqual(shown.body, "vps demande le mot de passe root pour : apt update")
+        hidden = phone_reply.root_ask_message("vps", "apt update", False)
+        self.assertNotIn("apt", hidden.body)
+        self.assertNotIn("nginx", phone_reply.root_used_message("vps", "systemctl restart nginx", False).body)
+        header = phone_reply.revoke_header(CFG, REPLY, "rv", "jeton")
+        self.assertTrue(header.startswith("=?UTF-8?B?"))
+        header.encode("ascii")
+
     def test_pending_tracks_open_requests(self):
         r = phone_reply.Replies()
         self.assertFalse(r.pending())

@@ -12,97 +12,112 @@ d'environnement · 6. Points à revoir avant le gel.
 
 ## 1. Commandes
 
-Deux points d'entrée :
+Règle (phase 33) : ce que Charles tape est en français. Les anciens noms (commandes, options,
+valeurs) restent acceptés pendant toute la 1.x, mais n'apparaissent plus dans l'aide ; ils sont
+notés ci-dessous entre parenthèses, après « anciens : ».
 
-- `ccs` (`bin/ccs`, Bash) : bascule entre profils elle-même, et passe le reste à
-  `claude-accounts`, parfois avec des alias ou des options en plus.
+Deux points d'entrée, une seule table des noms :
+
+- `ccs` (`bin/ccs`, Bash) : bascule entre profils elle-même (table `own_command`), et passe
+  tout le reste, tel quel et avec tous ses arguments, à `claude-accounts`.
 - `claude-accounts` (`bin/claude-accounts` → `ccs_app/cli.py`, argparse) : toutes les autres
-  commandes. Sans sous-commande, il ouvre l'application graphique (`gui`).
+  commandes et leurs anciens noms (`build_parser`, seule table). Sans sous-commande, il ouvre
+  l'application graphique (`appli`). Une commande inconnue donne « commande ou profil inconnu »
+  (code 1).
+
+`ccs <nom>` bascule sur le profil `<nom>`, sauf si `<nom>` est aussi une commande (nouveau ou
+ancien nom) : la commande l'emporte, et le profil se joint par `ccs utiliser <nom>`.
+`ccs enregistrer`, `ccs ajouter` et `ccs renommer` préviennent (sur la sortie d'erreur) quand le
+nom choisi est masqué ainsi.
 
 ### 1.1 Commandes propres à `ccs` (Bash)
 
-| Commande (alias) | Arguments, options | Rôle |
+| Commande (anciens noms) | Arguments, options | Rôle |
 |---|---|---|
-| `ccs` / `list` (`ls`) | — | liste les profils (● = actif) |
-| `ccs <nom>` | `[--notifier]` | bascule sur le profil `<nom>` (raccourci de `use`) |
-| `use` (`switch`, `sw`) | `<nom> [--notifier]` | bascule sur un profil |
-| `next` (`n`) | `[--notifier]` | profil suivant utilisable |
-| `save` | `<nom>` | enregistre le compte connecté |
-| `add` (`login`) | `<nom> [--email A] [--console] [--sso]` | `claude auth login` puis enregistrement |
-| `current` (`whoami`) | — | profil actif |
-| `rm` (`remove`, `delete`) | `<nom>` | supprime un profil |
-| `rename` (`mv`) | `<a> <b>` | renomme un profil |
-| `usage` (`u`) | — | → `claude-accounts print` |
-| `gui` (`app`) | — (arguments ignorés) | → `claude-accounts gui`, détaché |
-| `best` (`b`) | `[--notifier]` | → `claude-accounts best --switch` (bascule toujours) |
+| `ccs` / `liste` (`list`, `ls`) | — | liste les profils (● = actif) |
+| `ccs <nom>` | `[--notifier]` | bascule sur le profil `<nom>` (raccourci de `utiliser`) |
+| `utiliser` (`use`, `switch`, `sw`) | `<nom> [--notifier]` | bascule sur un profil |
+| `suivant` (`next`, `n`) | `[--notifier]` | profil suivant utilisable |
+| `enregistrer` (`save`) | `<nom>` | enregistre le compte connecté |
+| `ajouter` (`add`, `login`) | `<nom> [--email A] [--console] [--sso]` | `claude auth login` puis enregistrement |
+| `actuel` (`current`, `whoami`) | — | profil actif |
+| `supprimer` (`rm`, `remove`, `delete`) | `<nom>` | supprime un profil |
+| `renommer` (`rename`, `mv`) | `<a> <b>` | renomme un profil |
+| `appli` (`gui`, `app`) | tous les arguments de `claude-accounts appli` | application graphique, détachée du terminal |
 | `version` (`--version`, `-v`) | — | version |
-| `help` (`-h`, `--help`) | — | aide |
+| `aide` (`help`, `-h`, `--help`) | — | aide |
 
-Passées telles quelles à `claude-accounts` (alias Bash entre parenthèses) : `status` (`st`),
-`auto`, `pause`, `doctor` (`bilan`), `formule` (`conseil`), `semaine`, `mois`, `moment`,
-`silence` (`quiet`), `mise-a-jour` (`maj`), `journal`, `tui`, `serveur` (`server`), `totp`,
-`bridge`, `web-serve`, `auth-serve`, `shell-distant`, `projet`, `raccourcis` (`shortcuts`),
-`orch` (`orchestrateur`), `plan` (`planning`), `sessions` (`ps`), `tache` (`taches`, `tasks`),
-`distant`, `chat`, `budget`, `fiche`, `sauvegarde` (`backup`), `restaurer` (`restore`),
-`telephone` (`phone`), `conversations` (`conv`, `historique`), `resume` (`reprendre`),
-`title` (`titre`), `preview` (`apercu`, `aperçu`), `export` (`exporter`),
-`integrate` (`integration`, 1ᵉʳ argument seulement, `status` par défaut), `analyze` (`stats`).
-
-Non accessibles par `ccs` : `print`, `daemon`, `collect`, `notify`, `statusline`, `hook`, `tray`.
+Tout le reste (y compris les anciens noms) est passé tel quel à `claude-accounts`.
 
 ### 1.2 Sous-commandes de `claude-accounts`
 
-| Commande (alias argparse) | Arguments, options | Rôle |
+| Commande (anciens noms) | Arguments, options (anciens) | Rôle |
 |---|---|---|
-| `gui` (défaut) | `--session PID:ID`, `--page ONGLET`, `--task ID`, `--new-session` | application graphique |
-| `print` (ancien : `--print`) | — | usage de tous les comptes |
-| `status` | — | compte actif, meilleur compte, capacité |
-| `best` | `--switch`, `--notifier` | meilleur compte maintenant |
+| `appli` (défaut ; `gui`, `app`) | `--session PID:ID`, `--page ONGLET`, `--tache ID` (`--task`), `--nouvelle-session` (`--new-session`) | application graphique |
+| `usage` (`print`, `u` ; option `--print`) | — | usage de tous les comptes |
+| `etat` (`état`, `status`, `st`) | — | compte actif, meilleur compte, capacité |
+| `meilleur` (`best`, `b`) | `--voir`, `--notifier` (`--switch`, `--basculer` : sans effet) | bascule sur le meilleur compte ; `--voir` l'affiche seulement. Même comportement par `ccs` et `claude-accounts` |
 | `auto` | `on\|off` | bascule automatique |
-| `orch` | `on\|off` | orchestrateur |
-| `pause` | `[1h\|4h\|demain\|manuel\|off\|status]`, `--notifier` | suspend bascule et orchestrateur |
-| `silence` (`quiet`) | `[1h\|4h\|demain\|off\|reprendre\|status]`, `--notifier` | ne pas déranger |
-| `doctor` | — | bilan de santé (code 1 au moindre problème) |
+| `orchestrateur` (`orch`) | `on\|off` | orchestrateur |
+| `pause` | `[1h\|4h\|demain\|manuel\|off\|etat]` (`status`), `--notifier` | suspend bascule et orchestrateur |
+| `silence` (`quiet`) | `[1h\|4h\|demain\|off\|reprendre\|etat]` (`status`), `--notifier` | ne pas déranger |
+| `bilan` (`doctor`) | — | bilan de santé (code 1 au moindre problème) |
 | `formule` (`conseil`) | — | formule conseillée |
-| `semaine` | `--precedente N` | bilan hebdomadaire |
-| `mois` | `--precedent N` | rapport mensuel |
+| `semaine` | `--precedente N` (`--precedent`) | bilan hebdomadaire |
+| `mois` | `--precedent N` (`--precedente` accepté) | rapport mensuel |
 | `moment` | `--duree 3h`, `--sur 24h` | meilleur moment pour une grosse tâche |
 | `mise-a-jour` (`maj`) | `--verifier` | installe la dernière version |
-| `journal` | `--jours N` \| `--tout` | journal des bascules |
-| `plan` | — | planning des fenêtres de 5 h |
-| `sessions` | — | sessions Claude Code ouvertes |
+| `journal` | `--jours N` (`--days`) \| `--tout` | journal des bascules |
+| `plan` (`planning`) | — | planning des fenêtres de 5 h |
+| `sessions` (`ps`) | — | sessions Claude Code ouvertes |
 | `projet` | `[<dossier>] [<compte>\|aucun]` | compte par projet |
-| `raccourcis` (`shortcuts`) | `status\|on\|off [action…]\|set <action> <raccourci>` | raccourcis GNOME |
+| `raccourcis` (`shortcuts`) | `etat` (`status`) \| `on\|off [action…]` \| `definir <action> <raccourci>` (`set`) | raccourcis GNOME |
 | `tui` | `--serveur NOM` | plein écran dans le terminal |
-| `serveur ajouter` | `<cible> [--nom N]` | appairage avec un serveur CCS |
+| `serveur ajouter` (`server`) | `<cible> [--nom N]` | appairage avec un serveur CCS |
 | `serveur liste` / `retirer <cible>` | — | serveurs appairés |
 | `totp reinitialiser` | `<user>` | efface la double authentification (root) |
 | `distant machines` | `--vite` | machines Ricochet, charge, outils |
-| `distant lancer` | `--machine M`, `--outil O`, `--rapatrier CHEMIN`…, `--inclure CHEMIN`…, `--avec-git`, `--quand nuit\|HH:MM`, `--detache`, `--travail ID` (caché), `-- <commande>` | commande sur une autre machine |
+| `distant lancer` | `--machine M`, `--outil O`, `--rapatrier CHEMIN`…, `--inclure CHEMIN`…, `--avec-git`, `--quand nuit\|HH:MM`, `--detache`, `-- <commande>` | commande sur une autre machine |
 | `distant travaux` | — | travaux en attente, en cours, finis |
 | `distant arreter` / `journal` | `<id>` | arrêt ; sortie d'un travail détaché |
 | `chat effacer` | — | `/clear` à la fin du tour (appelé par Claude dans un chat CCS) |
-| `conversations` | `[mots…]`, `-p/--project`, `--vscode`\|`--terminal`, `-n/--limit N`, `--all`, `--json` | historique |
-| `resume` | `<ref>`, `--vscode`\|`--new-terminal`\|`--print`, `--dir D` | reprend une conversation |
-| `title` | `<ref> <titre…>` | renomme une conversation |
-| `preview` (`apercu`) | `<ref>` | aperçu d'une conversation |
-| `export` | `<ref> [fichier.md]` | export Markdown |
-| `integrate` | `on\|off\|status` | ligne d'état et hook dans Claude Code |
-| `analyze` | `--days N` | analyse des journaux locaux |
-| `tache` (`taches`, `tasks`) | `[liste\|list\|ls]`, `ajouter\|add "<msg>" [-C dossier] [--modele m] [--droits lecture\|modifications\|tout] [--quand quota\|nuit\|HH:MM]`, `voir\|suivre\|show <id>`, `annuler\|cancel <id>`, `supprimer\|remove\|rm <id>`, `aide` | file de tâches |
+| `conversations` (`conv`, `historique`) | `[mots…]`, `-p/--projet` (`--project`), `--vscode`\|`--terminal`, `-n/--limite N` (`--limit`), `--tous` (`--all`), `--json` | historique |
+| `reprendre` (`resume`) | `<ref>`, `--vscode`\|`--nouveau-terminal` (`--new-terminal`)\|`--afficher` (`--print`), `--dossier D` (`--dir`) | reprend une conversation |
+| `titre` (`title`) | `<ref> <titre…>` | renomme une conversation |
+| `apercu` (`aperçu`, `preview`) | `<ref>` | aperçu d'une conversation |
+| `exporter` (`export`) | `<ref> [fichier.md]` | export Markdown |
+| `integration` (`integrate`) | `[on\|off\|etat]` (`status`), tous les arguments transmis | ligne d'état et hook dans Claude Code |
+| `analyse` (`analyze`, `stats`) | `--jours N` (`--days`) | analyse des journaux locaux |
+| `tache` (`taches`, `tasks`) | `[liste]`, `ajouter "<msg>" [-C dossier] [--modele m] [--droits D] [--quand quota\|nuit\|HH:MM]`, `voir <id>`, `annuler <id>`, `supprimer <id>`, `aide` ; anciens : `list`, `ls`, `add`, `suivre`, `show`, `cancel`, `remove`, `rm` | file de tâches |
 | `budget` | `[<dossier> <montant>\|aucun]` | budget hebdomadaire par projet |
 | `fiche` | `<identifiant>` | fiche « où j'en étais » |
 | `sauvegarde` (`backup`) | `[fichier]` | sauvegarde chiffrée (gpg) |
 | `restaurer` (`restore`) | `<fichier> [--oui]` | restauration |
-| `telephone` (`phone`) | `[essai\|test]` | état ntfy, lien, message d'essai |
+| `telephone` (`phone`) | `[essai]` (`test`) | état ntfy, lien, message d'essai |
+| `root` | `-- <commande…>`, `etat` (`état`, `status`), `oublier` (`forget`) | commande lancée par `sudo -k -A`, mot de passe demandé aux appareils (code de retour de la commande rendu) ; mot de passe gardé ou non et temps restant (jamais le mot de passe) ; effacement immédiat |
 | `--version` | — | version |
 
-*Internes* : `daemon` (service utilisateur `ccs-daemon`), `collect`, `notify <titre> [texte]`,
-`statusline`, `hook stop-failure`, `tray`, `bridge [--socket S] [--local]`, `web-serve`,
-`auth-serve`, `shell-distant <serveur> <cwd>` (les quatre derniers cachés de l'aide).
+`ccs-askpass` (`/usr/bin`) : `SUDO_ASKPASS` de CCS, appelé par sudo ; écrit le mot de passe donné
+par le gardien sur la sortie standard, ou rien avec un code non nul. Lance le pont local s'il le
+faut.
 
-`--notifier` : `next`, `use`, `best`, `pause`, `silence` (notification bureau, bascule notée
-« raccourci » dans le journal).
+*Internes*, acceptées mais absentes de l'aide et hors du gel : `daemon` (service `ccs-daemon`),
+`collect`, `notify <titre> [texte]`, `statusline`, `hook stop-failure`, `tray`,
+`bridge [--socket S] [--local]`, `web-serve`, `auth-serve`, `shell-distant <serveur> <cwd>`,
+`est-commande <nom>` (pour `bin/ccs`), et l'option `distant lancer --travail ID`.
+
+`--notifier` : `suivant`, `utiliser`, `meilleur`, `pause`, `silence` (notification bureau,
+bascule notée « raccourci » dans le journal).
+
+### 1.3 Droits (un seul vocabulaire)
+
+`tache --droits` et le réglage `chat.rights` (ainsi que le paramètre `rights` de `tasks.add` et
+de `chat.open`) acceptent les mêmes valeurs : les mots `lecture`, `modifications`, `tout`, ou un
+mode de Claude Code (`manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`),
+sans tenir compte de la casse. `launch_options.convert_rights` est la seule table de passage :
+`lecture` ↔ `plan` (et `manual`, `dontAsk` → `lecture` pour une tâche sans personne pour
+répondre), `modifications` ↔ `acceptEdits` (et `auto`), `tout` ↔ `bypassPermissions`.
+Une tâche garde le mot, un chat garde le mode.
 
 ---
 
@@ -116,8 +131,16 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 - Codes d'erreur : `refuse`, `introuvable`, `invalide`, `trop_gros`, `interne`, `conflit`,
   `occupe`.
 - Événement poussé par le serveur : `{"event", "data"}`.
-- `hello {ticket, session_hash}` ouvre la connexion (inutile en mode `--local`). Sur
-  `/api/ws`, `hello` et `machine.attach` sont refusés au client (ils sont faits par `ccs-web`).
+- `hello {ticket, session_hash, protocol}` ouvre la connexion (inutile en mode `--local`) et
+  renvoie `{user, protocol, version}` : `protocol` est la version du protocole du pont (**1**
+  depuis la 1.0.0), `version` celle de CCS. Le client déclare la sienne dans `protocol` (sur
+  `/api/ws` : `?protocol=1`) ; sans elle, c'est un ancien client (voir § 2.3). Sur `/api/ws`,
+  `hello` et `machines.attach` sont refusés au client (ils sont faits par `ccs-web`).
+- Pont local (`ccs bridge --local`) : c'est lui qui tient les chats de l'application de bureau
+  (le web et les autres appareils les voient par `machines.attach`). Il se relance seul sur le
+  nouveau code quand la version de CCS installée change et qu'aucun travail ne tourne (ses chats
+  sont fermés, les appareils les rouvrent sur la même conversation) ; un pont plus ancien que le
+  client et sans chat au travail est arrêté par le client, qui en lance un neuf.
 
 ### 2.1 Méthodes
 
@@ -131,7 +154,7 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `settings.get` | — | réglages fusionnés |
 | `settings.set` | `path`, `value` | change un réglage (`path` pointé, ex. `chat.rights`) |
 | `doctor.run` | — | bilan de santé |
-| `phone.test` / `phone.new_topic` / `phone.qr` | — | essai ntfy, nouveau canal, QR du lien |
+| `phone.test` / `phone.renew` / `phone.qr` | — | essai ntfy, nouveau canal, QR du lien |
 | `analysis.report` | `days` | analyse des journaux |
 | `tasks.list` | — | file de tâches |
 | `tasks.add` | `cwd`, `message`, `model`, `rights`, `when`, `roadmap {path,text,phase}` | ajoute une tâche |
@@ -141,15 +164,15 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `projects.remove` | `cwd` | retire de la liste |
 | `projects.folders` | — | dépôts git du disque |
 | `projects.account` | `cwd` | comptes et compte présélectionné |
-| `conversation.messages` | `path`, `before`, `limit` | messages d'une conversation |
-| `conversation.rename` | `session_id`, `path`, `title` | renomme |
-| `conversation.cost` | `path` | coût |
-| `conversation.trash` | `path`, `session_id`, `title`, `cwd` | corbeille (30 jours) |
-| `conversation.trash_list` | — | contenu de la corbeille |
-| `conversation.restore` | `tid` | restaure depuis la corbeille |
+| `conversations.messages` | `path`, `before`, `limit` | messages d'une conversation ; `role` : `user`, `assistant`, `tool`, `note` |
+| `conversations.rename` | `session_id`, `path`, `title` | renomme |
+| `conversations.cost` | `path` | coût |
+| `conversations.trash` | `path`, `session_id`, `title`, `cwd` | corbeille (30 jours) (→ `trash_id`) |
+| `trash.list` | — | contenu de la corbeille : `items [{trash_id, session_id, cwd, title, trashed_at}]`, `days` |
+| `trash.restore` | `trash_id` | restaure depuis la corbeille |
 | `roadmap.read` | `cwd` | lit `ROADMAP.md` |
 | `roadmap.toggle` | `path`, `line`, `text`, `done` | coche / décoche une tâche |
-| `roadmap.task_prompt` | `path`, `text`, `phase` | message pour faire une tâche |
+| `roadmap.prompt` | `path`, `text`, `phase` | message pour faire une tâche |
 | `files.roots` | — | dossiers de départ |
 | `files.list` | `root`, `rel`, `hide_ignored` | contenu d'un dossier |
 | `files.read` / `files.image` / `files.info` | `path` | texte, image, ce qu'emporterait une suppression |
@@ -171,38 +194,42 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `git.commit` | `cwd`, `message`, `amend` | commit |
 | `git.push` | `cwd`, `force` | push |
 | `chat.open` | `cwd`, `session_id`, `options {model, effort, ultracode, rights}` | ouvre un chat (→ `chat_id`) |
-| `chat.list` | — | chats ouverts |
+| `chat.list` | — | chats ouverts (`chat_id`, `cwd`, `state`, `seq`, `session_id`, `path`, `title`, `pid`, `devices`…) |
 | `chat.attach` | `chat_id`, `since` | s'abonne (événements depuis `seq`) |
 | `chat.send` | `chat_id`, `text`, `images`, `uuid`, `shown`, `nonce` | envoie un message |
 | `chat.answer` | `chat_id`, `request_id`, `decision`, `message` | répond à une autorisation |
 | `chat.questions` | `chat_id`, `request_id`, `answers` | répond à des questions |
-| `chat.interrupt` / `chat.close` / `chat.context` | `chat_id` | interrompt, ferme, usage du contexte |
+| `chat.interrupt` / `chat.context` | `chat_id` | interrompt, usage du contexte |
+| `chat.close` | `chat_id`, `keep_if_shared` | ferme (→ `closed`) ; avec `keep_if_shared`, détache seulement l'appareil si un autre suit le chat (→ `closed: false`, `devices`) |
 | `chat.options` | `chat_id`, `options` | change modèle, effort, droits |
 | `chat.render` | `markdown` | rend du Markdown en HTML |
-| `chat.tags` | `session_id` | messages étiquetés |
-| `chat.tag` | `session_id`, `msg_id`, `tags`, `text`, `role` | pose ou retire des étiquettes |
+| `chat.tags` | `session_id` | messages étiquetés ; `role` de chaque entrée : `user`, `assistant` ou `""` |
+| `chat.tag` | `session_id`, `msg_id`, `tags`, `text`, `role` (`user` ou `assistant` ; l'ancien `utilisateur` est accepté) | pose ou retire des étiquettes |
 | `work.commands` / `work.files` / `work.changes` | `chat_id` | commandes `/`, fichiers, changements du chat |
-| `work.saved.list` | `cwd`, `scope` | messages enregistrés |
-| `work.saved.save` | `cwd`, `scope`, `name`, `text` | enregistre un message |
-| `work.saved.delete` | `cwd`, `scope`, `name` | supprime |
-| `work.shell.run` | `chat_id`, `command` | commande shell (→ `run_id`) |
-| `work.shell.poll` / `work.shell.stop` | `run_id` | suit, arrête |
-| `work.undo_file` | `chat_id`, `path`, `expected` | remet un fichier comme avant |
-| `work.rewind_plan` / `work.rewind_apply` | `chat_id`, `message_id` (+ `expected`) | retour en arrière |
+| `saved.list` | `cwd`, `scope` | messages enregistrés |
+| `saved.save` | `cwd`, `scope`, `name`, `text` | enregistre un message |
+| `saved.delete` | `cwd`, `scope`, `name` | supprime |
+| `shell.run` | `chat_id`, `command` | commande shell (→ `run_id`) |
+| `shell.poll` / `shell.stop` | `run_id` | suit, arrête |
+| `work.undo` | `chat_id`, `path`, `expected` | remet un fichier comme avant |
+| `rewind.plan` / `rewind.apply` | `chat_id`, `message_id` (+ `expected`) | retour en arrière |
 | `term.open` | `cwd`, `command`, `cols`, `rows`, `name` | ouvre un terminal (→ `term_id`) |
 | `term.input` | `term_id`, `data` | frappe |
 | `term.resize` | `term_id`, `cols`, `rows` | taille |
 | `term.attach` / `term.close` | `term_id` | s'abonne, ferme |
 | `term.list` | — | terminaux ouverts |
 | `machines.list` | — | machines Ricochet : `id, name, online, local, cores, load, mem_used, mem_total, tunnel, tools, limit, running, waiting` |
-| `machines.jobs` | — | travaux distants |
+| `machines.jobs` | — | travaux distants ; `state` : `waiting`, `scheduled`, `sending`, `running`, `done`, `failed`, `stopped` |
 | `machines.start` | `command`, `cwd`, `machine`, `when` | lance un travail (→ `id`) |
 | `machines.stop` | `id` | arrête un travail |
 | `machines.log` | `id`, `tail` | journal d'un travail |
-| `machines.settings` | — | `relais, jeton_defini, chemin, limite_defaut, limites` |
-| `machines.configure` | `relais`, `jeton` | écrit `client.toml` |
-| `machines.limit` | `machine`, `limite` | places par machine (`distant.toml`) |
-| `machine.attach` | `machine` | *interne* : relaie la connexion vers le pont d'une autre machine |
+| `machines.settings` | — | `relay, token_set, path, default_limit, limits` |
+| `machines.configure` | `relay`, `token` | écrit `client.toml` |
+| `machines.limit` | `machine`, `limit` | places par machine (`distant.toml`) |
+| `machines.attach` | `machine` | *interne* : relaie la connexion vers le pont d'une autre machine (pousse `machines.ready`) |
+| `root.answer` | `id`, `password` (ou `cancel: true`) | réponse à `root.ask` : mot de passe vérifié par `sudo -k -S -v` puis gardé en mémoire 1 h → `ok`, `error` ; erreurs `introuvable` (demande inconnue ou réglée), `conflit` (autre appareil en cours de vérification), `invalide` |
+| `root.status` | — | `machine, kept, expires_at, remaining` (s), `pending` (dernier `root.ask` ou `null`) ; jamais le mot de passe |
+| `root.forget` | — | efface le mot de passe gardé et abandonne la demande en cours → `had` |
 
 ### 2.2 Événements
 
@@ -212,8 +239,18 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `chat.event` | `chat_id, seq, ts, event {type, …}` | pont, chat suivi |
 | `chat.tags` | `session_id, msg_id, entry` | pont, à tous |
 | `term.output` / `term.exit` | `term_id, data` / `term_id, code` | pont |
-| `work.shell` | sortie et fin d'une commande `work.shell.run` | pont |
-| `machine.ready` | résultat de `machine.attach` | `ccs-web` (`?machine=`) |
+| `shell.done` | sortie et fin d'une commande `shell.run` | pont |
+| `machines.ready` | `machine, name` : résultat de `machines.attach` | pont (avant la réponse) |
+| `root.ask` | `id, machine, command, expires_at, tries_left`, `error` (après un mauvais mot de passe) | pont, à tous : `sudo` attend le mot de passe (une demande à la fois, 5 min, 3 essais) |
+| `root.resolved` | `id, ok` | pont, à tous : demande réglée, les autres fenêtres se ferment |
+| `root.used` | `machine, command, at` | pont, à tous : commande lancée avec le mot de passe gardé |
+| `root.forgotten` | `machine, reason` (`expired`, `forget`, `revoke`, `stop`) | pont, à tous : mot de passe effacé |
+
+Gardien du mot de passe root (`ccs_app/root_keeper.py`, `server/bridge_root.py`) : un seul pont
+par utilisateur le tient (socket `root.sock`, voir 4.3) ; un autre pont du même utilisateur relaie
+ses événements et ses méthodes `root.*`. Avis ntfy sans secret à chaque `root.ask` (commande
+montrée seulement avec `phone.show_content`) et à chaque `root.used`, avec un bouton « Révoquer »
+(`revoke <id> <jeton>` sur `phone.reply_topic`, jeton à usage unique).
 
 Types de `chat.event.event.type` (`ccs_app/server/events.py`) : `Init`, `Hello`, `Status`,
 `Compacting`, `LocalCommand`, `TextDelta`, `AssistantText`, `Thinking`, `ToolUse`,
@@ -226,6 +263,50 @@ Depuis la 0.37.0 : `TurnResult.usage` = `{input, cache_read, cache_write, output
 context, cache_ttl_s, model}` (`token_use.turn_usage`, `{}` sans usage) ; `CacheExpired` =
 `{context, ttl_s, rewrite_usd, text}` ; `analysis.report` renvoie aussi `top` (gros
 consommateurs : `title, project, file, share, answers, avg_context, rewrite_share, causes`).
+
+### 2.3 Compatibilité (toute la 1.x, `ccs_app/server/protocol.py`)
+
+Le pont accepte encore les anciens noms, ramenés aux nouveaux avant tout traitement :
+
+| Ancien nom (accepté) | Nouveau nom |
+|---|---|
+| `machine.attach` | `machines.attach` |
+| `conversation.messages` / `.rename` / `.cost` / `.trash` | `conversations.messages` / `.rename` / `.cost` / `.trash` |
+| `conversation.trash_list` | `trash.list` |
+| `conversation.restore {tid}` | `trash.restore {trash_id}` |
+| `roadmap.task_prompt` | `roadmap.prompt` |
+| `phone.new_topic` | `phone.renew` |
+| `work.saved.list` / `.save` / `.delete` | `saved.list` / `.save` / `.delete` |
+| `work.shell.run` / `.poll` / `.stop` | `shell.run` / `.poll` / `.stop` |
+| `work.undo_file` | `work.undo` |
+| `work.rewind_plan` / `work.rewind_apply` | `rewind.plan` / `rewind.apply` |
+| `machines.limit {limite}` | `machines.limit {limit}` |
+| `machines.configure {relais, jeton}` | `machines.configure {relay, token}` |
+
+Un **ancien client** (aucun `protocol` déclaré) reçoit en plus les anciennes valeurs là où elles
+ont changé : événements `machine.ready` et `work.shell`, états des travaux en français dans
+`machines.jobs` (`attente`, `programmé`, `envoi`, `en cours`, `fini`, `échec`, `arrêté`), rôles
+`utilisateur` et `outil` dans `conversations.messages`, `utilisateur` dans `chat.tags`, `chat.tag`
+et l'événement `chat.tags` (`downgrade_result`, `event_data`). Les
+réponses gardent aussi les anciennes clés à côté des nouvelles : `tid` (et `id` dans
+`trash.list`), et `relais, jeton_defini, chemin, limite_defaut, limites` dans
+`machines.settings`. Les travaux enregistrés sur disque avec un état français sont lus avec
+l'état anglais. Vers le pont d'une autre machine plus ancien (son `hello` ne renvoie pas
+`protocol`), `machines.attach` relaie avec les anciens noms et l'ancien rôle `utilisateur` de
+`chat.tag`, et ramène ses réponses et événements aux nouvelles valeurs (rôles des messages et des
+étiquettes). Tout cela sera retiré en 2.0.
+
+Valeurs d'état relues sous leur nouveau nom (fichiers et historique écrits avant la 1.0.0) :
+
+| Où | Ancienne valeur (lue) | Nouvelle valeur |
+|---|---|---|
+| `$STORE/labels/<session>.json`, `role` | `utilisateur` | `user` |
+| `history.db`, `detail.mode` des bascules (`switch`, `error`) | `anticipee`, `blocage` | `early`, `blocked` |
+| `history.db`, `detail.mode` des démarrages de fenêtre (`warmup`) | `creneau`, `orchestrateur` | `slot`, `orchestrator` |
+| `$CACHE/ccs/machines.json` (inventaire, cache) | `outils`, `quand` | `tools`, `checked_at` (entrée ancienne : périmée, relevée à nouveau) |
+
+Les genres du journal des bascules (`switch_log.KINDS`, en mémoire seulement, lus par le bureau)
+sont `auto`, `early`, `blocked`, `manual`, `initial`, `failed`, `limit`, `window`.
 
 ---
 
@@ -243,15 +324,16 @@ en-tête `X-Portier-Utilisateur` (venant de nginx en local seulement). Les POST 
 | `POST /api/pair` | `user, password, code, name` | appairage d'un appareil (jeton) |
 | `POST /api/logout` | — | déconnexion |
 | `GET /api/session` | — | `user` (+ `portier`) |
-| `GET /api/portier` | — | `actif, connexion` |
+| `GET /api/portier` | — | `enabled, login` (+ `actif, connexion`, anciennes clés gardées en 1.x) |
 | `GET /api/tokens` | — | jetons d'appareil |
 | `POST /api/revoke` | `token_id` | révoque un jeton |
-| `POST /api/app-token` | `name` | jeton durable pour l'application Android |
-| `GET /api/ws` | `?machine=ID` (facultatif) | WebSocket du pont (§ 2) |
+| `POST /api/apptoken` | `name` | jeton durable pour les applications mobiles (ancienne route `/api/app-token` acceptée en 1.x) |
+| `GET /api/ws` | `?protocol=1`, `?machine=ID` (facultatifs) | WebSocket du pont (§ 2) |
 | `GET /` et fichiers statiques | — | interface web (`ccs_app/web`) |
 
 Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012 (pont perdu),
-1011 (pont injoignable), 4010 (machine injoignable).
+1011 (pont injoignable), 4010 (machine injoignable). Avec `?machine=`, l'événement
+`machines.ready` (`machine.ready` pour un client sans `?protocol=`) arrive avant tout autre.
 
 *Interne* : `ccs-auth` (`/run/ccs/auth.sock`, même protocole) : `login`, `enroll`, `pair`,
 `check`, `check_app`, `logout`, `app_token`, `tokens`, `revoke`, `portier`.
@@ -260,19 +342,31 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 
 ## 4. Fichiers de configuration et d'état
 
-`$STORE` = `${CCS_HOME:-~/.claude-accounts}` ; `$CLAUDE` = `${CLAUDE_CONFIG_DIR:-~/.claude}`.
+`$STORE` = `${CCS_HOME:-~/.claude-accounts}` ; `$CLAUDE` = `${CLAUDE_CONFIG_DIR:-~/.claude}` ;
+`$CONFIG`, `$CACHE`, `$DATA` = `${XDG_CONFIG_HOME:-~/.config}`, `${XDG_CACHE_HOME:-~/.cache}`,
+`${XDG_DATA_HOME:-~/.local/share}` (variable prise si c'est un chemin absolu ; calcul unique :
+`core.xdg_home`, `core.ccs_dir`).
+
+Noms en anglais, mots séparés par `-`. **Compatibilité 1.x** (`ccs_app/migrate.py`, à retirer
+en 2.0) : un fichier renommé l'est tout seul au premier usage, si le nouveau nom n'existe pas
+encore (sinon le nouveau est gardé et l'ancien laissé tel quel) ; les anciennes clés et valeurs
+sont lues et converties. Anciens noms : `projects.json` → `project-accounts.json`,
+`quiet_held.json` → `quiet-held.json`, `etiquettes/` → `labels/`, `~/.config/ccs/distant.toml`
+→ `$CONFIG/ccs/machines.toml`, `~/.cache/ccs/distant.json` → `$CACHE/ccs/machines.json`,
+`~/.cache/ccs/distant/travaux/` → `$CACHE/ccs/machines/jobs/`, `~/.cache/ccs/effacer/` →
+`$CACHE/ccs/clear/`.
 
 ### 4.1 Configuration (modifiable par l'utilisateur)
 
 | Fichier | Clés |
 |---|---|
 | `$STORE/settings.json` | voir 4.2 |
-| `$STORE/projects.json` | compte par dossier (`ccs projet`) |
+| `$STORE/project-accounts.json` | compte par dossier (`ccs projet`) |
 | `$STORE/budgets.json` | budget hebdomadaire par dossier |
-| `$STORE/serveurs.json` (0600) | liste de `{name, url, user, token}` |
-| `~/.config/ccs/distant.toml` | `[machines.<id>]` : `utilisateur`, `port`, `limite` |
-| `~/.config/ricochet/client.toml` (0600, partagé avec Ricochet) | `relais`, `jeton` |
-| `/etc/ccs/web.json` (serveur) | `listen`, `origin`, `portier {actif, utilisateurs, url, deconnexion}` |
+| `$STORE/serveurs.json` (0600) | liste de `{name, url, user, token}` ; deviendra `servers.json` (voir § 6) |
+| `$CONFIG/ccs/machines.toml` | `[machines.<id>]` : `user`, `port`, `limit` (anciennes clés `utilisateur`, `limite` lues) |
+| `$CONFIG/ricochet/client.toml` (0600, partagé avec Ricochet) | `relais`, `jeton` (clés de Ricochet, gardées) |
+| `/etc/ccs/web.json` (serveur) | `listen`, `origin`, `portier {enabled, users, url, logout}` (anciennes clés `actif`, `utilisateurs`, `deconnexion` lues) |
 
 ### 4.2 Clés de `settings.json` (`ccs_app/settings.py`)
 
@@ -283,7 +377,7 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `poll` | `normal_s`, `fast_s` |
 | `advisor` | `weeks`, `margin_pct`, `plan_prices`, `profile_plans`, `max_accounts` |
 | `updates` | `enabled` |
-| `warmup` | libre (par profil) |
+| `warmup` | par profil, liste de créneaux `{time: "HH:MM", days: [0…6]}` (`days` facultatif, 0 = lundi) ; créneau invalide ignoré |
 | `orchestrator` | `enabled`, `active_hours {start, end, days}`, `stagger`, `expiring_switch`, `expiring_within_min`, `expiring_min_left`, `expiring_cooldown_min`, `reserve_points`, `max_weekly_start` |
 | `tasks` | `enabled`, `night {start, end}`, `max_attempts` |
 | `phone` | `enabled`, `server`, `topic`, `events {waiting, task, switch, exhausted}`, `show_content`, `reply_topic` |
@@ -295,7 +389,7 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `chat` | `idle_suspend_min`, `rights` (`manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`), `auto_clear` |
 | `files` | `layout` (`A`\|`B`), `show_ignored` |
 | `git` | `layout` (`A`\|`B`\|`C`), `fetch_minutes`, `avatars` |
-| `appearance` | `color_scheme` (`auto`\|`clair`\|`sombre`), `account_colors` |
+| `appearance` | `color_scheme` (`auto`\|`light`\|`dark` ; `clair`, `sombre` lus et convertis), `account_colors` |
 
 ### 4.3 État (écrit par CCS)
 
@@ -303,18 +397,18 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 |---|---|
 | `$STORE/<profil>/oauth.json`, `account.json`, `usage.json` | jeton OAuth, compte, dernier usage |
 | `$STORE/state.json`, `daemon.pid`, `history.db` | état du service, historique d'usage |
-| `$STORE/pause.json`, `quiet.json`, `quiet_held.json` | pause, ne pas déranger, notifications retenues |
+| `$STORE/pause.json`, `quiet.json`, `quiet-held.json` | pause, ne pas déranger, notifications retenues |
 | `$STORE/switch-origin.json`, `updates.json`, `context-alerts.json` | origine de bascule, mises à jour, alertes de contexte |
 | `$STORE/tasks.json`, `tasks/` | file de tâches et journaux |
 | `$STORE/terminals.json`, `messages.json`, `conversations-cache.json`, `conversations-moves.json` | terminaux, messages enregistrés, caches |
-| `$STORE/etiquettes/`, `limits/`, `avatars/` | étiquettes, limites atteintes (`outcome`, `cwd`, `resume_at`, `lifted_at`), avatars |
+| `$STORE/labels/`, `limits/`, `avatars/` | étiquettes, limites atteintes (`outcome`, `cwd`, `resume_at`, `lifted_at`), avatars |
 | `$STORE/.lock`, `.tasks.lock`, `.pause.lock`, … | verrous |
 | `<projet>/.ccs/messages.json` | messages enregistrés du projet |
-| `${XDG_DATA_HOME:-~/.local/share}/ccs/` | `projects.json`, `archive/` (+ `index.json`), `trash/` |
-| `~/.cache/ccs/` | `distant.json` (inventaire), `distant/travaux/<id>.json` et `.log`, `icons-*` |
-| `${XDG_CACHE_HOME:-~/.cache}/ccs/effacer/` | demandes `ccs chat effacer` |
+| `$DATA/ccs/` | `projects.json` (projets ajoutés ou retirés à la main), `archive/` (+ `index.json`), `trash/` |
+| `$CACHE/ccs/` | `machines.json` (inventaire : `{<machine>: {path, tools, checked_at}}`), `machines/jobs/<id>.json` et `.log`, `icons-*`, `clear/` (demandes `ccs chat effacer`) |
 | `~/.cache/ccs-distant/` (machine distante) | copies des projets |
 | `${XDG_RUNTIME_DIR:-/tmp/ccs-UID}/ccs/bridge.sock` | pont local du bureau |
+| `${XDG_RUNTIME_DIR:-/run/user/UID ou /tmp/ccs-UID}/ccs/root.sock` | gardien du mot de passe root (dossier 0700, socket 0600, même uid seulement) ; le mot de passe n'est jamais écrit sur disque |
 | `/run/ccs/auth.sock`, `/run/ccs/bridge/<user>/{bridge.sock,key}` | serveur |
 | `/var/lib/ccs/{sessions.json, keys/<user>, totp/<user>}` | serveur |
 | Claude Code : `$CLAUDE/.credentials.json`, `~/.claude.json`, `$CLAUDE/settings.json`, `projects/`, `sessions/`, `file-history/` | lus ; écrits pour la bascule, l'intégration et les titres |
@@ -329,20 +423,26 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `CLAUDE_CONFIG_DIR` | dossier de Claude Code (comme Claude Code) |
 | `CCS_VIA` | origine d'une bascule pour le journal (`bin/ccs`) |
 | `CCS_BIN` | chemin de `claude-accounts` à relancer |
-| `CCS_CHAT_JETON` | jeton du chat, posé par CCS pour `ccs chat effacer` |
+| `CCS_CHAT_TOKEN` | jeton du chat, posé par CCS pour `ccs chat effacer` (l'ancienne `CCS_CHAT_JETON` est encore lue, plus posée) |
 | `CCS_SERVER_ROOT` | racine des chemins du serveur (tests) |
 | `CCS_APP_ID` | identifiant d'application distinct (essais) |
 | `CCS_NO_VTE` | force le terminal externe (essais) |
-| `CCS_PATH`, `CCS_OUTIL` | posées sur la machine distante par `distant lancer` |
+| `CCS_CHAT_IN_PROCESS` | `1` : chats du bureau dans l'application, sans le pont local (essais, tests) |
+| `CCS_PATH`, `CCS_TOOL` | lignes de l'inventaire d'une machine distante (`CCS_TOOL=<outil>=<chemin>` ; l'ancienne `CCS_OUTIL` est encore lue) |
 | `HOME`, `PATH`, `SHELL`, `TZ`, `USER`, `PYTHONPATH`, `GNUPGHOME`, `NO_COLOR`, `GIT_SSH`, `GIT_SSH_COMMAND` | usage habituel |
-| `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_RUNTIME_DIR`, `XDG_CURRENT_DESKTOP` | dossiers et bureau |
+| `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_RUNTIME_DIR`, `XDG_CURRENT_DESKTOP` | dossiers et bureau |
 | `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING` | posée pour les chats |
+| `SUDO_ASKPASS` | posée pour les chats et par `ccs root` : chemin de `ccs-askpass` |
+| `CCS_ROOT_COMMAND` | posée par `ccs root` : commande montrée aux appareils (sinon lue sur la ligne de sudo) |
 
 ---
 
 ## 6. Points à revoir avant le gel
 
 ### Commandes
+
+*Réglé en phase 33, tâche 1 : voir la section 1. Liste gardée pour mémoire ; les
+numéros de ligne sont ceux de la 0.37.0.*
 
 - Deux interfaces en couches : `bin/ccs` (Bash) redéclare les alias de `cli.py`, mais pas les
   mêmes. `conv`/`historique`, `reprendre`, `titre`, `aperçu`, `exporter`, `integration`,
@@ -386,6 +486,9 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 
 ### Pont JSON-RPC
 
+*Réglé par la phase 33, tâche 2 (voir § 2 et § 2.3), sauf les identifiants `id` de `tasks.*`,
+`machines.*` et `git.show`, gardés.*
+
 - Singulier et pluriel mêlés :
   - `machine.attach` à côté de `machines.*` (`bridge_machines.py:121`) ;
   - `conversation.*` à côté de `projects.*`, `tasks.*` et `files.*` (`bridge_data.py`).
@@ -417,36 +520,39 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 
 ### HTTP
 
+*Réglé par la phase 33, tâche 2 (voir § 3).*
+
 - `/api/app-token` utilise un tiret ; les autres routes sont des mots simples (`server/web.py:370`).
 - `/api/portier` répond en français (`actif`, `connexion`, `web.py:193`), les autres routes
   en anglais (`user`, `status`, `token`).
 
 ### Fichiers et variables
 
-- Configuration dispersée sous trois racines :
-  - `~/.claude-accounts/` (nom historique, `core.py:75`) ;
-  - `~/.config/ccs/distant.toml` (`distant.py:101`) ;
-  - `~/.local/share/ccs/` (`project_list.py:23`).
-  Et deux fichiers `projects.json` de sens différent (`project_accounts.py:40` /
-  `project_list.py:24`).
-- XDG appliqué à moitié :
-  - `XDG_CACHE_HOME` est respecté pour `effacer/` (`chat_engine.py:56`), mais pas pour
-    `~/.cache/ccs` (`distant.py:105`, `distant_jobs.py:39`, `tray.py:328`) ;
-  - `XDG_CONFIG_HOME` est ignoré (`distant.py:93`) ;
-  - `chat_engine.py:56` lit `Path.home()` au lieu de `core.paths().home`.
-- Noms de fichiers mêlés :
-  - français : `serveurs.json`, `etiquettes/`, `raccourcis.json` ;
-  - anglais : `budgets.json`, `limits/`, `pause.json` ;
-  - `quiet_held.json` avec `_`, `switch-origin.json` et `context-alerts.json` avec `-`.
-- `settings.json` :
-  - clés anglaises mais valeurs françaises pour `appearance.color_scheme` (`clair|sombre`,
-    `settings.py:166`) ;
-  - la section `warmup` est libre, sans schéma (`settings.py:67`) ;
-  - le commentaire « phase 11/12/13 » se trouve dans les défauts.
-- `/etc/ccs/web.json` mêle `listen`/`origin` (anglais) et `portier.actif`/`utilisateurs`/
-  `deconnexion` (français) (`server/web.py:21`, `portier.py:24`).
-- Variables d'environnement : `CCS_CHAT_JETON`, `CCS_OUTIL` (français) à côté de
-  `CCS_NO_VTE`, `CCS_APP_ID`, `CCS_HOME` (anglais) (`chat_engine.py:42`, `distant.py:251`).
-- Compatibilités anciennes à trancher :
-  - `LEGACY_KINDS`, ancien format de l'API d'usage (`core.py:38`, externe, à garder) ;
-  - état sans `fetched_at` (`cli.py:507`).
+*Réglé par la phase 33, tâche 3 (voir § 4 et § 5).* Décisions :
+
+- noms anglais, séparateur `-` (`quiet-held.json`) ; `$STORE/projects.json` devient
+  `project-accounts.json` (l'autre `projects.json`, sous `$DATA/ccs/`, garde son nom) ;
+  `~/.claude-accounts/` garde le sien ;
+- XDG respecté partout (`core.xdg_home`), y compris `XDG_CONFIG_HOME` ;
+- la sauvegarde (`ccs sauvegarde`) passe au format 2 : `profiles/`, `settings/`,
+  `shortcuts.json`, manifeste `created` ; le format 1 reste lisible ;
+- `LEGACY_KINDS` (ancien format de l'API d'usage, `core.py`) : gardé, c'est un format externe ;
+- état sans `fetched_at` (`cli.py`, `_usable_best`) : gardé pendant la 1.x (un service d'avant
+  la 1.0.0 peut encore tourner pendant la mise à jour), à retirer en 2.0.
+
+Fait aussi en tâche 4 : `serveurs.json` → `servers.json` (migré), nettoyage de
+`distant-en-cours/` sous `${XDG_CACHE_HOME}`.
+
+Gelé tel quel pour la 1.x :
+
+- ~~valeurs encore françaises dans des états~~ : faites (rôles des messages et des étiquettes,
+  modes des bascules et des démarrages de fenêtre, genres du journal, inventaire des machines ;
+  voir § 2.3). Restent en français, stockées dans `history.db` ou `switch-origin.json` : le
+  pseudo-profil `blocage` des alertes du hook et ses clés (`blocage:<ts>`, `pause`, `deja`), et
+  les origines `via` des bascules manuelles (`icone`, `projet`, `raccourci`, `nouvelle-session`) ;
+  renvoyés par le pont : les choix de pause `demain` et `manuel` (`pause_choices`, `pause.set
+  {choice}`, mêmes mots que `ccs pause`), et les codes d'erreur (voir plus haut).
+
+  Ces valeurs (avec les droits des tâches `lecture`, `modifications`, `tout`, mots tapés par
+  l'utilisateur) font partie du contrat 1.0 tel quel ; leur passage à l'anglais est reporté
+  à la 2.0.

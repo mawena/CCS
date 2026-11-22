@@ -76,6 +76,24 @@ def paths():
     return Paths(home, config_dir, config_dir / ".credentials.json", global_json, store)
 
 
+# Racines XDG (seul endroit qui les calcule) : la variable si elle est un chemin absolu,
+# sinon le dossier habituel sous HOME. Les dossiers de CCS sont `<racine>/ccs`.
+_XDG = {"config": ("XDG_CONFIG_HOME", ".config"), "cache": ("XDG_CACHE_HOME", ".cache"),
+        "data": ("XDG_DATA_HOME", ".local/share")}
+
+
+def xdg_home(kind):
+    """Racine XDG `config`, `cache` ou `data` (relue à chaque appel)."""
+    var, default = _XDG[kind]
+    value = os.environ.get(var, "")
+    return Path(value) if os.path.isabs(value) else paths().home / default
+
+
+def ccs_dir(kind):
+    """`${XDG_<KIND>_HOME}/ccs` : configuration, cache ou données de CCS hors du store."""
+    return xdg_home(kind) / "ccs"
+
+
 # --------------------------------------------------------------------------
 # Fichiers
 # --------------------------------------------------------------------------
@@ -244,7 +262,7 @@ def access_token(name, force_refresh=False):
         oauth = live if active else stored
         if not oauth.get("refreshToken"):
             raise UsageError(f"connexion perdue : reconnecte ce compte avec "
-                             f"« ccs rm {name} » puis « ccs add {name} »")
+                             f"« ccs supprimer {name} » puis « ccs ajouter {name} »")
         fresh = oauth.get("expiresAt", 0) - time.time() * 1000 > EXPIRY_MARGIN_MS
         if fresh and not force_refresh:
             return oauth["accessToken"]

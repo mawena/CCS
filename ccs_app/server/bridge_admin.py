@@ -58,7 +58,7 @@ def friendly_error(raw):
     if m:
         code, rest = int(m.group(1)), m.group(2)
         if code == 401 or "authentication_error" in rest:
-            return "Connexion refusée par Anthropic : reconnecte ce compte (« ccs add » dans un terminal)."
+            return "Connexion refusée par Anthropic : reconnecte ce compte (« ccs ajouter » dans un terminal)."
         if code == 403:
             return "Accès refusé par Anthropic pour ce compte."
         if code == 429:
@@ -128,7 +128,7 @@ class AdminApi:
         bridge.add_handlers({
             "accounts.cards": self.cards, "doctor.run": self.doctor_run,
             "tasks.log": self.task_log, "tasks.remove": self.task_remove,
-            "phone.test": self.phone_test, "phone.new_topic": self.phone_new_topic,
+            "phone.test": self.phone_test, "phone.renew": self.phone_new_topic,
             "phone.qr": self.phone_qr,
         })
 

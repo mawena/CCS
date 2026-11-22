@@ -69,7 +69,7 @@ fun FeuilleMessages(modele: ModeleAppli, cwd: String, texteEnCours: String, ferm
 
     suspend fun charger() {
         try {
-            liste = client.appeler("work.saved.list", MessagesEnregistres.serializer(), buildJsonObject { put("cwd", cwd) }).items
+            liste = client.appeler("saved.list", MessagesEnregistres.serializer(), buildJsonObject { put("cwd", cwd) }).items
             erreur = null
         } catch (e: Exception) {
             erreur = e.texte()
@@ -101,7 +101,7 @@ fun FeuilleMessages(modele: ModeleAppli, cwd: String, texteEnCours: String, ferm
                                 portee.launch {
                                     if (!demandes.confirmer("Supprimer « ${m.name} » ?", "Le message enregistré disparaît.", "Supprimer", danger = true)) return@launch
                                     try {
-                                        client.appeler("work.saved.delete", buildJsonObject { put("cwd", cwd); put("scope", m.scope); put("name", m.name) })
+                                        client.appeler("saved.delete", buildJsonObject { put("cwd", cwd); put("scope", m.scope); put("name", m.name) })
                                     } catch (e: Exception) { avis.dire(e.texte()) }
                                     charger()
                                 }
@@ -122,7 +122,7 @@ fun FeuilleMessages(modele: ModeleAppli, cwd: String, texteEnCours: String, ferm
                         occupe = true
                         portee.launch {
                             try {
-                                client.appeler("work.saved.save", buildJsonObject {
+                                client.appeler("saved.save", buildJsonObject {
                                     put("cwd", cwd); put("scope", portee2); put("name", nom); put("text", texteEnCours)
                                 })
                                 nom = ""

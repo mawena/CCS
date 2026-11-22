@@ -210,7 +210,7 @@ class OrchestratorDaemonTest(OrchestratorBase):
             self.d.tick(self.settings, NOW)
         self.assertEqual(self.started, ["pro"])
         ev = self.store_db.last_event("warmup", "pro")
-        self.assertEqual(ev.detail["mode"], "orchestrateur")
+        self.assertEqual(ev.detail["mode"], "orchestrator")
 
     def test_disabled_never_starts(self):
         self.settings["orchestrator"]["enabled"] = False
@@ -225,7 +225,7 @@ class OrchestratorDaemonTest(OrchestratorBase):
             self.d.tick(self.settings, NOW)
         run.assert_called_once_with(["use", "pro"])
         detail = self.store_db.last_event("switch").detail
-        self.assertEqual(detail["mode"], "anticipee")
+        self.assertEqual(detail["mode"], "early")
         self.assertEqual((detail["lost"], detail["expiring"]), (70.0, "pro"))
 
     def test_precise_wake_before_reset(self):

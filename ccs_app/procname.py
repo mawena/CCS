@@ -4,7 +4,7 @@ import ctypes
 import sys
 
 PR_SET_NAME = 15
-NAMES = {"gui": "ccs-gui", "daemon": "ccs-daemon", "tray": "ccs-tray"}
+NAMES = {"appli": "ccs-gui", "gui": "ccs-gui", "app": "ccs-gui", "daemon": "ccs-daemon", "tray": "ccs-tray"}
 DEFAULT = "ccs"
 
 
@@ -12,7 +12,7 @@ def name_for(argv):
     """Nom de processus selon la sous-commande (sans sous-commande : l'interface graphique)."""
     args = [a for a in argv if not a.startswith("-")]
     if not args:
-        return NAMES["gui"]
+        return NAMES["appli"]
     return NAMES.get(args[0], DEFAULT)
 
 

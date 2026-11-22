@@ -46,6 +46,7 @@ import com.mawena.ccs.logique.Citation
 import com.mawena.ccs.logique.ElementFil
 import com.mawena.ccs.logique.EntreeEtiquettes
 import com.mawena.ccs.logique.Etiquettes
+import com.mawena.ccs.logique.Format
 
 /** Auteur, texte d'origine et identifiant d'un message du fil (actions « Répondre », « Étiqueter »). */
 data class MessageChoisi(val auteur: Citation.Auteur, val brut: String, val msgId: String) {
@@ -172,7 +173,7 @@ fun FeuilleEtiquettes(messages: Map<String, EntreeEtiquettes>, filtre: String?, 
                 }
                 items(liste, key = { "t:$tag:${it.first}" }) { (id, e) ->
                     Row(Modifier.fillMaxWidth().clickable { aller(id) }.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (e.role == "utilisateur") "Toi" else "Claude", Modifier.padding(end = 8.dp),
+                        Text(if (Format.role(e.role) == Format.Role.Toi) "Toi" else "Claude", Modifier.padding(end = 8.dp),
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(e.extrait.ifEmpty { "(message)" }, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                     }

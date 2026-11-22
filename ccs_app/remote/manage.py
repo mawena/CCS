@@ -9,9 +9,11 @@ import asyncio
 import threading
 import types
 
+from ..server import protocol
+
 # Méthodes de gestion permises (le reste du pont n'est pas exposé en local par ce biais).
-METHODS = ("projects.add", "projects.remove", "projects.folders", "conversation.trash",
-           "conversation.trash_list", "conversation.restore")
+METHODS = ("projects.add", "projects.remove", "projects.folders", "conversations.trash",
+           "trash.list", "trash.restore")
 
 
 class OpsError(Exception):
@@ -27,7 +29,17 @@ class RemoteOps:
         self.conn = conn
 
     def call(self, method, done, **params):
-        self.conn.call(method, callback=done, **params)
+        def answered(result, error):
+            if error is not None and getattr(error, "code", "") == "introuvable" \
+                    and str(getattr(error, "message", "")).startswith("Méthode inconnue"):
+                # serveur d'avant la 1.0.0 : anciens noms (compatibilité 1.x, à retirer en 2.0)
+                old, old_params = protocol.to_legacy(method, params)
+                if old != method:
+                    self.conn.call(old, callback=lambda r, e: done(
+                        protocol.upgrade_result(method, r) if e is None else r, e), **old_params)
+                    return
+            done(result, error)
+        self.conn.call(method, callback=answered, **params)
 
 
 class LocalOps:
@@ -50,9 +62,10 @@ class LocalOps:
         def run():
             result = error = None
             try:
-                if method not in METHODS:
+                name, args = protocol.normalize(method, params)
+                if name not in METHODS:
                     raise OpsError("Opération non permise sur ce poste.", "refuse")
-                result = asyncio.run(self._handlers()[method](None, params))
+                result = asyncio.run(self._handlers()[name](None, args))
             except Exception as e:  # noqa: BLE001 — erreur du pont (RpcError) ou imprévue : montrée
                 error = e if hasattr(e, "message") else OpsError(str(e) or type(e).__name__)
             self.dispatch(done, result, error)

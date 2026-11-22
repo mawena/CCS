@@ -71,8 +71,8 @@ async function offerPortier() {
   try {
     const r = await fetch("/api/portier", { credentials: "same-origin" });
     const p = r.ok ? await r.json() : null;
-    if (p?.actif && p.connexion) {
-      link.href = p.connexion;
+    if (p?.enabled && p.login) {
+      link.href = p.login;
       link.hidden = false;
     }
   } catch { /* sans réponse : connexion habituelle seulement */ }

@@ -333,7 +333,7 @@ process.exit(0);
 
     def test_roles_in_preview_and_state_fixes(self):
         conv = (WEB / "sessions-conv.js").read_text()
-        self.assertIn('"utilisateur"', conv)
+        self.assertIn('role === "user"', conv)
         chat = (WEB / "chat.js").read_text()
         self.assertIn("CYCLE_RIGHTS", chat)
         self.assertNotIn("RIGHTS.map(([v]) => v)", chat)

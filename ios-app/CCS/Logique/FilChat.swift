@@ -567,11 +567,11 @@ final class FilChat {
         for m in messages {
             n += 1
             switch m.role {
-            case "utilisateur":
+            case "user", "utilisateur":
                 avant.append(.toi(ElementFil.MsgToi(cle: "h\(n)-\(m.uuid)", texte: m.text, images: 0, msgId: m.uuid)))
             case "assistant":
                 avant.append(.claude(ElementFil.MsgClaude(cle: "h\(n)-\(m.msgId)", texte: m.text, msgId: m.msgId, fini: true)))
-            case "outil":
+            case "tool", "outil":
                 if let t = m.tool {
                     avant.append(.outil(ElementFil.Outil(
                         cle: "h\(n)-\(t.toolId)", nom: t.name, cible: t.target, resultat: t.result, erreur: t.erreur, fini: true

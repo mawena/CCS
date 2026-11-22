@@ -113,8 +113,13 @@ class ModelesTest {
         )
         assertEquals("opus", chats.chats.single().options!!.model)
         assertNull(chats.chats.single().path)
-        val co = lire(Corbeille.serializer(), """{"items":[{"tid":"t1","id":"s1","cwd":"/x","title":"T","trashed_at":10.5}],"days":30}""")
+        val co = lire(Corbeille.serializer(), """{"items":[{"trash_id":"t1","session_id":"s1","cwd":"/x","title":"T","trashed_at":10.5}],"days":30}""")
+        assertEquals("t1", co.items.single().trashId)
+        assertEquals("s1", co.items.single().sessionId)
         assertEquals(10.5, co.items.single().supprimeLe!!, 0.0)
+        val po = lire(InfoPortier.serializer(), """{"enabled":true,"login":"https://portier.fr/x","actif":true,"connexion":"https://portier.fr/x"}""")
+        assertTrue(po.enabled)
+        assertEquals("https://portier.fr/x", po.login)
         val cp = lire(
             CompteProjet.serializer(),
             """{"profiles":[{"name":"perso","email":"a@b","active":true},{"name":"pro","email":"c@d","active":false}],

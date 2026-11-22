@@ -164,11 +164,11 @@ class ActionsTest(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
         cmds = {a.id: a.display for a in sc.ACTIONS}
         self.assertEqual(cmds, {
-            "ouvrir": "claude-accounts gui",
-            "sessions": "claude-accounts gui --page sessions",
-            "nouvelle-session": "claude-accounts gui --new-session",
-            "suivant": "ccs next --notifier",
-            "meilleur": "ccs best --notifier",
+            "ouvrir": "claude-accounts appli",
+            "sessions": "claude-accounts appli --page sessions",
+            "nouvelle-session": "claude-accounts appli --nouvelle-session",
+            "suivant": "ccs suivant --notifier",
+            "meilleur": "ccs meilleur --notifier",
             "pause": "ccs pause 1h --notifier",
             "reprendre": "ccs pause off --notifier",
             "silence": "ccs silence 1h --notifier",
@@ -209,11 +209,11 @@ class ActionsTest(unittest.TestCase):
                     p.write_text("#!/bin/sh\n")
                     p.chmod(0o755)
             with mock.patch.object(sc, "USR_BIN", usr), mock.patch.object(sc, "REPO_BIN", repo):
-                self.assertEqual(sc.command_for(sc.action("suivant")), f"{usr}/ccs next --notifier")
+                self.assertEqual(sc.command_for(sc.action("suivant")), f"{usr}/ccs suivant --notifier")
                 (usr / "ccs").unlink()
-                self.assertEqual(sc.command_for(sc.action("suivant")), f"{repo}/ccs next --notifier")
+                self.assertEqual(sc.command_for(sc.action("suivant")), f"{repo}/ccs suivant --notifier")
                 self.assertEqual(sc.command_for(sc.action("sessions")),
-                                 f"{usr}/claude-accounts gui --page sessions")
+                                 f"{usr}/claude-accounts appli --page sessions")
 
     def test_command_quotes_paths_with_spaces(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -281,7 +281,7 @@ class InstallTest(SafetyMixin, unittest.TestCase):
         path = DIR + "ccs-ouvrir/"
         self.assertEqual(custom_list(self.b), FOREIGN + [path])
         self.assertEqual(custom(self.b, path), {
-            "name": "CCS : Ouvrir CCS", "command": "/usr/bin/claude-accounts gui",
+            "name": "CCS : Ouvrir CCS", "command": "/usr/bin/claude-accounts appli",
             "binding": "<Super><Alt>c"})
         self.assertTrue(item.installed)
         self.assertEqual(item.binding, "<Super><Alt>c")
@@ -404,7 +404,7 @@ class InstallTest(SafetyMixin, unittest.TestCase):
         self.b.set(sc.CUSTOM_SCHEMA, {"command": "/vieux/depot/bin/ccs next"}, DIR + "ccs-suivant/")
         self.b.log.clear()
         self.assertEqual(sc.update_commands(backend=self.b), ["suivant"])
-        self.assertEqual(custom(self.b, DIR + "ccs-suivant/")["command"], "/usr/bin/ccs next --notifier")
+        self.assertEqual(custom(self.b, DIR + "ccs-suivant/")["command"], "/usr/bin/ccs suivant --notifier")
         self.assertEqual(sc.update_commands(backend=self.b), [])
 
     def test_shortcut_installed_under_the_old_name_is_still_ours(self):
@@ -438,6 +438,8 @@ class InstallTest(SafetyMixin, unittest.TestCase):
             sc.install(act, backend=self.b)
         old = {"suivant": "ccs next", "meilleur": "ccs best", "pause": "ccs pause 1h",
                "reprendre": "ccs pause off"}
+        new = {"suivant": "ccs suivant", "meilleur": "ccs meilleur", "pause": "ccs pause 1h",
+               "reprendre": "ccs pause off"}
         for act, cmd in old.items():
             self.b.set(sc.CUSTOM_SCHEMA, {"command": "/usr/bin/" + cmd}, DIR + f"ccs-{act}/")
         sc.set_binding("pause", "Super+Alt+F12", backend=self.b)
@@ -446,7 +448,7 @@ class InstallTest(SafetyMixin, unittest.TestCase):
         self.assertEqual([i.id for i in st.items if i.outdated], list(old))
         self.assertIn("commande à mettre à jour : ccs raccourcis on suivant", sc.format_text(st))
         self.assertEqual(sc.update_commands(backend=self.b), list(old))
-        for act, cmd in old.items():
+        for act, cmd in new.items():
             self.assertEqual(custom(self.b, DIR + f"ccs-{act}/")["command"], f"/usr/bin/{cmd} --notifier")
         self.assertEqual(custom(self.b, DIR + "ccs-pause/")["binding"], "<Super><Alt>F12")
         self.assertFalse(any(i.outdated for i in sc.status(backend=self.b).items))
@@ -574,7 +576,7 @@ class StatusTest(SafetyMixin, unittest.TestCase):
         self.assertEqual(st.items, [])
         text = sc.format_text(st)
         self.assertIn(st.support.message, text)
-        self.assertIn("ccs next", text)  # les commandes à créer à la main
+        self.assertIn("ccs suivant", text)  # les commandes à créer à la main
 
     def test_format_text(self):
         sc.install("ouvrir", backend=self.b)

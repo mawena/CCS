@@ -744,7 +744,7 @@ class TagsTest(unittest.TestCase):
         pop = self.ml.edit_tags(row)
         pop.tag_entry.set_text("  ,  ")
         pop.tag_entry.emit("activate")                                    # Entrée valide aussi
-        self.assertEqual(self.tagged, [("u-1", [], "Ajoute un bouton", "utilisateur")])
+        self.assertEqual(self.tagged, [("u-1", [], "Ajoute un bouton", "user")])
 
     def test_user_bubble_menu_and_pills_update_without_reload(self):
         row = self.ml.add_user(quote.compose("claude", "A ou B ?", "La B"), (), msg_id="u-1")
@@ -754,8 +754,8 @@ class TagsTest(unittest.TestCase):
         row.tag_button.emit("clicked")
         row.tag_popover.tag_entry.set_text("décision, Décision, à revoir")
         row.tag_popover.tag_ok.emit("clicked")
-        self.assertEqual(self.tagged[-1], ("u-1", ["décision", "à revoir"], "La B", "utilisateur"))
-        self.ml.update_tags("u-1", {"tags": ["décision", "à revoir"], "role": "utilisateur", "excerpt": "La B"})
+        self.assertEqual(self.tagged[-1], ("u-1", ["décision", "à revoir"], "La B", "user"))
+        self.ml.update_tags("u-1", {"tags": ["décision", "à revoir"], "role": "user", "excerpt": "La B"})
         self.assertEqual(self.pills(row), ["décision", "à revoir"])
         self.assertTrue(row.tags_box.get_visible())
         self.ml.update_tags("u-1", None)                                  # retirées
@@ -773,7 +773,7 @@ class TagsTest(unittest.TestCase):
     def test_history_rows_carry_their_identifiers_and_can_be_found(self):
         msgs = [preview.Message(preview.USER, f"demande {i}", uuid=f"u-{i}") if i % 2 == 0
                 else preview.Message(preview.ASSISTANT, f"réponse {i}", msg_id=f"m-{i}") for i in range(160)]
-        self.ml.set_tags({"u-0": {"tags": ["début"], "role": "utilisateur", "excerpt": "demande 0", "ts": 1.0}})
+        self.ml.set_tags({"u-0": {"tags": ["début"], "role": "user", "excerpt": "demande 0", "ts": 1.0}})
         self.ml.load_history(msgs)
         self.assertFalse(self.ml._tagged_rows("u-0"))                    # pas encore construit
         self.assertTrue(self.ml.show_message("u-0"))                      # construit pour le retrouver

@@ -12,7 +12,6 @@ récente que son retrait apparaît, ou si une session y tourne.
 
 import os
 import time
-from pathlib import Path
 
 from . import core
 
@@ -20,8 +19,7 @@ VERSION = 1
 
 
 def path():
-    base = os.environ.get("XDG_DATA_HOME") or str(core.paths().home / ".local" / "share")
-    return Path(base) / "ccs" / "projects.json"
+    return core.ccs_dir("data") / "projects.json"
 
 
 def _clean(raw):

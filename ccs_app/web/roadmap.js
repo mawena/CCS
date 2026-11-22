@@ -91,7 +91,7 @@ export class RoadmapPanel {
     const choose = (run) => async () => {
       close();
       let prompt;
-      try { prompt = (await this.api.call("roadmap.task_prompt", info)).prompt; } catch (e) { toast(e.message, { kind: "error" }); return; }
+      try { prompt = (await this.api.call("roadmap.prompt", info)).prompt; } catch (e) { toast(e.message, { kind: "error" }); return; }
       try { await run(prompt); } catch (e) { toast(e.message, { kind: "error" }); }
     };
     const inChat = this.actions.send && !this.actions.standalone;

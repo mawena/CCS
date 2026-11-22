@@ -1,0 +1,17 @@
+#!/usr/bin/python3
+"""ccs-askpass : SUDO_ASKPASS de CCS. Demande le mot de passe au gardien du pont (il le garde en
+mémoire une heure, ou le demande aux appareils) et l'écrit sur la sortie standard ; en cas
+d'échec, sortie non nulle sans rien écrire."""
+
+import os
+import sys
+
+here = os.path.dirname(os.path.realpath(__file__))
+for candidate in (os.path.join(here, ".."), "/usr/lib/ccs"):
+    if os.path.isdir(os.path.join(candidate, "ccs_app")):
+        sys.path.insert(0, os.path.abspath(candidate))
+        break
+
+from ccs_app.root_keeper import askpass_main  # noqa: E402
+
+sys.exit(askpass_main())

@@ -3,6 +3,37 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.0.0] — 2026-11-22
+
+Première version stable : les interfaces sont figées pour toute la 1.x (contrat dans
+`docs/interfaces.md`). Les anciens noms restent acceptés jusqu'à la 2.0.
+
+### Modifié
+
+- **Commandes en français** : `liste`, `utiliser`, `suivant`, `ajouter`, `meilleur`, `appli`,
+  `etat`, `silence`, `raccourcis`, `mise-a-jour`… et leurs options (`--jours`, `--projet`,
+  `--nouvelle-session`…). Une seule table pour `ccs` et `claude-accounts` ; les anciens noms
+  marchent encore mais sont cachés de l'aide. `meilleur` bascule par défaut (`--voir` pour
+  seulement afficher). Les raccourcis clavier proposent les nouvelles commandes.
+- **Pont et HTTP en anglais**, avec une version de protocole (`hello`, `/api/ws?protocol=1`) :
+  `machines.attach`, `conversations.*`, `trash.*`, `saved.*`, `shell.*`, `rewind.*`,
+  événements `machines.ready` et `shell.done`, états des travaux `waiting`… `stopped`,
+  `/api/apptoken`, `/api/portier` (`enabled`, `login`). Un client sans version reçoit les
+  anciens noms.
+- **Fichiers et variables en anglais, migrés tout seuls** au premier usage : `servers.json`,
+  `labels/`, `quiet-held.json`, `project-accounts.json`, `~/.config/ccs/machines.toml`,
+  `color_scheme` `light|dark`, `web.json` (`portier.enabled`, `users`, `logout`),
+  `CCS_CHAT_TOKEN`, `CCS_TOOL`. `XDG_CONFIG_HOME` et `XDG_CACHE_HOME` sont respectés.
+  Sauvegardes au format 2 (le format 1 reste lisible).
+- **Applis Android et iPhone** au protocole 1 : à mettre à jour avec le serveur.
+
+### Corrigé
+
+- **Chats du bureau visibles en direct partout** : ils tournent désormais dans le pont local,
+  comme ceux du web. Les autres appareils ne les voient plus « arrêtés » ni en retard ; fermer
+  un onglet ne coupe pas un chat suivi ailleurs, quitter l'appli ne coupe aucun chat. Le pont
+  se relance seul après une mise à jour de CCS, dès que rien n'y tourne.
+
 ## [0.37.0] — 2026-11-21
 
 ### Ajouté

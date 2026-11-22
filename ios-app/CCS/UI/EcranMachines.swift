@@ -255,7 +255,7 @@ struct EcranMachines: View {
     private func changerLimite(_ m: Machine, _ n: Int) async {
         if n == m.limit { return }
         do {
-            _ = try await client.appeler("machines.limit", ["machine": .chaine(m.id), "limite": .nombre(Double(n))])
+            _ = try await client.appeler("machines.limit", ["machine": .chaine(m.id), "limit": .nombre(Double(n))])
             await rafraichir()
         } catch {
             modele.avis.dire(texteErreur(error))
@@ -298,8 +298,8 @@ struct EcranMachines: View {
         erreurRelais = nil
         var p: [String: JSON] = [:]
         let r = relais.trimmingCharacters(in: .whitespaces)
-        if r != (reglages?.relais ?? "") { p["relais"] = .chaine(r) }
-        if !jeton.isEmpty { p["jeton"] = .chaine(jeton) }
+        if r != (reglages?.relais ?? "") { p["relay"] = .chaine(r) }
+        if !jeton.isEmpty { p["token"] = .chaine(jeton) }
         if p.isEmpty {
             erreurRelais = "Rien à enregistrer."
             return
@@ -331,7 +331,7 @@ private struct PastilleEtat: View {
             case .neutre: return .gray
             }
         }()
-        Text(travail.state)
+        Text(Travaux.libelle(travail))
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
@@ -357,7 +357,7 @@ private struct FeuilleJournal: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(travail.text).font(.system(.subheadline, design: .monospaced).weight(.semibold))
                         let t = etat ?? travail
-                        Text("\(t.state) · \(Travaux.ligne(t, home: home))").font(.caption).foregroundStyle(.secondary)
+                        Text("\(Travaux.libelle(t)) · \(Travaux.ligne(t, home: home))").font(.caption).foregroundStyle(.secondary)
                         Text(texte)
                             .font(.system(size: 11, design: .monospaced))
                             .textSelection(.enabled)

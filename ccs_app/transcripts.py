@@ -203,7 +203,7 @@ def advice(report):
     if len(accounts) > 1:
         top, v = max(accounts.items(), key=lambda kv: kv[1])
         if 100 * v / report.total > 75:
-            tips.append(f"« {top} » porte l'essentiel de l'usage : `ccs best` répartit mieux "
+            tips.append(f"« {top} » porte l'essentiel de l'usage : `ccs meilleur` répartit mieux "
                         f"la charge entre tes comptes.")
     return tips[:5]
 

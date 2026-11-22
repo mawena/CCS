@@ -261,7 +261,7 @@ private struct FilChatVue: View {
         }
         .sheet(item: $aEtiqueter) { m in
             DialogueEtiquettes(m: m, actuelles: mc.etiquettes[m.msgId]?.etiquettes ?? [], connues: mc.connues) { liste in
-                mc.etiqueter(m.msgId, liste, texte: m.texte, role: m.auteur == .moi ? "utilisateur" : "assistant")
+                mc.etiqueter(m.msgId, liste, texte: m.texte, role: m.auteur == .moi ? "user" : "assistant")
             }
         }
         .sheet(item: $volet) { v in

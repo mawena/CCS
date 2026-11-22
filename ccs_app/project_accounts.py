@@ -1,6 +1,6 @@
 """Compte par projet : un dossier de projet associé à un compte préféré.
 
-~/.claude-accounts/projects.json (600, écriture atomique sous verrou `.projects.lock`) :
+~/.claude-accounts/project-accounts.json (`projects.json` avant la 1.0.0, renommé tout seul ; 600, écriture atomique sous verrou `.projects.lock`) :
     {"version": 1,
      "projects": {"/home/u/Work/App": {"profile": "pro", "ask": true}}}
 
@@ -21,7 +21,7 @@ import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 
-from . import core
+from . import core, migrate
 
 FILE_VERSION = 1
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -37,7 +37,7 @@ class Association:
 
 
 def path():
-    return core.paths().store / "projects.json"
+    return migrate.store_file("project-accounts.json", "projects.json")
 
 
 def normalize(cwd):
@@ -289,7 +289,7 @@ def command(args, cwd=None, profiles=None, home=None):
         return 1, f"dossier introuvable : {where}"
     remove = account.lower() in NONE_WORDS
     if not remove and account not in profiles:
-        return 1, f"compte inconnu : {account} (voir « ccs list »)"
+        return 1, f"compte inconnu : {account} (voir « ccs liste »)"
     try:
         had = remove and folder in _read()
         set(folder, None if remove else account)

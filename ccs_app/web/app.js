@@ -114,12 +114,12 @@ function start(user) {
   document.getElementById("shell").hidden = false;
   state.api = new Api();
   state.api.on("offline", () => banner("Connexion perdue : reconnexion…", "warning"));
-  // vers une autre machine, le WebSocket s'ouvre avant le tunnel : « machine.ready » le confirme
+  // vers une autre machine, le WebSocket s'ouvre avant le tunnel : « machines.ready » le confirme
   state.api.on("online", () => {
     banner(state.api.machine ? `Connexion à ${machineName(state.api)}…` : "", "info");
     checkVersion();
   });
-  state.api.on("machine.ready", (d) => {
+  state.api.on("machines.ready", (d) => {
     banner("");
     if (announced !== d.machine) toast(`Tu pilotes ${d.name || d.machine}.`);   // pas à chaque reconnexion
     announced = d.machine;

@@ -12,6 +12,8 @@ final class ModeleAppli {
     let terminaux: Terminaux
     /// Veille des chats : notifications locales (fin de tour, demande en attente).
     let veille: Veille
+    /// Mot de passe root demandé par la machine pilotée (`root.*`) : feuille, bandeau, avis.
+    let root: GardienRoot
     /// Partage reçu (« Ouvrir dans CCS », `ccs://partager`) : la feuille de partage s'ouvre.
     var partage: Partage? = nil
     /// Chat à ouvrir (toucher sur une notification, partage livré).
@@ -38,6 +40,7 @@ final class ModeleAppli {
         avis = av
         terminaux = Terminaux(client: c, dire: { m in av.dire(m) })
         veille = Veille(client: c)
+        root = GardienRoot(client: c, dire: { m in av.dire(m) })
         let a = Prefs.adresse
         adresse = a
         theme = Prefs.theme
@@ -117,6 +120,7 @@ final class ModeleAppli {
         if id == client.machine { return }
         terminaux.oublier()
         veille.oublierChats()
+        root.vider()
         client.changerMachine(id, nom: nom)
     }
 
@@ -127,6 +131,7 @@ final class ModeleAppli {
         couts = [:]
         terminaux.oublier()
         veille.arreter()
+        root.vider()
     }
 
     /// Coût court d'une conversation (« 0,42 $ ») ; le coût est un plus : un échec est tu.
@@ -136,7 +141,7 @@ final class ModeleAppli {
         let t = Task { @MainActor () -> String? in
             _ = await precedent?.value
             if let c = self.couts[cle] { return c }
-            guard let r = try? await self.client.appeler("conversation.cost", ["path": .chaine(chemin)], en: Cout.self) else { return nil }
+            guard let r = try? await self.client.appeler("conversations.cost", ["path": .chaine(chemin)], en: Cout.self) else { return nil }
             self.couts[cle] = r.short
             return r.short
         }

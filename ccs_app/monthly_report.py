@@ -419,6 +419,9 @@ def add_arguments(parser):
     """Options de `ccs mois` (pour le sous-analyseur de cli)."""
     parser.add_argument("--precedent", type=_months_back, default=0, metavar="N",
                         help="N mois avant le mois écoulé (0 = le dernier mois terminé)")
+    # Même mot que `ccs semaine --precedente` : accepté, absent de l'aide.
+    parser.add_argument("--precedente", type=_months_back, dest="precedent", default=argparse.SUPPRESS,
+                        help=argparse.SUPPRESS)
 
 
 def _parse(argv):

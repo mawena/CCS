@@ -27,10 +27,17 @@ object Adresse {
         return url.newBuilder().addPathSegments(chemin.trimStart('/')).build()
     }
 
-    /** WebSocket `api/ws`, relayé vers une autre machine avec `?machine=<id>` (vide : ce serveur). */
-    fun ws(base: String, machine: String = ""): HttpUrl = api(base, "api/ws").let { u ->
-        if (machine.isEmpty()) u else u.newBuilder().addQueryParameter("machine", machine).build()
-    }
+    /** Version du protocole du pont que parle l'appli (`docs/interfaces.md` § 2). */
+    const val PROTOCOLE = 1
+
+    /**
+     * WebSocket `api/ws?protocol=1`, relayé vers une autre machine avec `&machine=<id>` (vide : ce
+     * serveur). Sans `protocol`, le serveur nous prendrait pour un ancien client (anciens noms).
+     */
+    fun ws(base: String, machine: String = ""): HttpUrl = api(base, "api/ws").newBuilder()
+        .addQueryParameter("protocol", PROTOCOLE.toString())
+        .apply { if (machine.isNotEmpty()) addQueryParameter("machine", machine) }
+        .build()
 }
 
 /** Petit magasin clé → texte, pour tester le stockage sans Android. */

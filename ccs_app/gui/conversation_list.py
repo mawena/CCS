@@ -232,7 +232,7 @@ class ConversationList(Gtk.Box):
         buttons = Gtk.Box(spacing=2, valign=Gtk.Align.CENTER)
         tab = self.window.terminals.find(session_id=c.session_id)
         embedded = self.window.terminals.available
-        problem = self.problem(c)
+        problem = self.problem(c, target="external")
         where = f" depuis {short_path(suggestion)}" if suggestion else ""
         if tab is not None:
             b = self.button("go-next-symbolic", "Afficher", "Ouverte dans l'application : aller à son onglet",
@@ -243,8 +243,9 @@ class ConversationList(Gtk.Box):
             icon, short, label, _toast = TARGETS[target]
             if target == "terminal" and not embedded:
                 label = f"Reprendre dans un terminal externe (terminal intégré : {terminal.VTE_PACKAGE})"
-            b = self.button(icon, short, cap(problem) if problem else label + where, compact)
-            b.set_sensitive(problem is None)
+            why = self.problem(c, target=target)
+            b = self.button(icon, short, cap(why) if why else label + where, compact)
+            b.set_sensitive(why is None)
             b.connect("clicked", lambda *_, t=target: self.resume(c, t))
             buttons.append(b)
         entries = [("Aperçu…", "conv.preview"), ("Copier la commande", "conv.copy")]
@@ -288,12 +289,17 @@ class ConversationList(Gtk.Box):
 
     # ---- actions -------------------------------------------------------------
 
-    def problem(self, conv, elsewhere=False):
+    def problem(self, conv, elsewhere=False, target="terminal"):
         """Raison d'empêcher la reprise ; un dossier disparu ne bloque pas quand on sait
-        d'où reprendre (dossier proposé, ou choisi si `elsewhere`)."""
+        d'où reprendre (dossier proposé, ou choisi si `elsewhere`). Une conversation qui tourne
+        dans le pont local (`page.in_bridge` : ouverte du web, d'un autre appareil) se rejoint
+        dans un onglet de l'application, pas dans VS Code ni dans un terminal externe."""
         if not conv.folder_exists and (elsewhere or self.page.suggestions.get(conv.session_id)):
             conv = replace(conv, folder_exists=True)
-        return conversations.resume_problem(conv, self.page.opened)
+        opened = self.page.opened
+        if target == "terminal" and self.window.terminals.available:
+            opened = set(opened) - set(getattr(self.page, "in_bridge", ()))
+        return conversations.resume_problem(conv, opened)
 
     def activate(self, conv):
         tab = self.window.terminals.find(session_id=conv.session_id)
@@ -307,7 +313,7 @@ class ConversationList(Gtk.Box):
         if tab is not None and target != "vscode":
             self.window.terminals.present(tab)  # déjà dans un onglet de l'application
             return
-        problem = self.problem(conv, elsewhere=bool(folder))
+        problem = self.problem(conv, elsewhere=bool(folder), target=target)
         if problem:
             self.window.toast(cap(problem))
             return

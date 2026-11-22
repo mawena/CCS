@@ -193,3 +193,27 @@ class OpenSessionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VocabulaireDesDroitsTest(unittest.TestCase):
+    """Phase 33 : `tache --droits` et `chat.rights` acceptent les mêmes valeurs."""
+
+    def test_conversion_dans_les_deux_sens(self):
+        self.assertEqual(lo.convert_rights("lecture", "mode"), "plan")
+        self.assertEqual(lo.convert_rights("modifications", "mode"), "acceptEdits")
+        self.assertEqual(lo.convert_rights("Tout", "mode"), "bypassPermissions")
+        self.assertEqual(lo.convert_rights("acceptEdits", "droits"), "modifications")
+        self.assertEqual(lo.convert_rights("acceptedits", "mode"), "acceptEdits")
+        self.assertEqual(lo.convert_rights("tout", "droits"), "tout")
+        for value in ("x", "", None):
+            with self.assertRaises(ValueError):
+                lo.convert_rights(value, "mode")
+
+    def test_chat_options_et_reglage(self):
+        from ccs_app import chat_options, settings
+        self.assertEqual(chat_options.ChatOptions(rights="modifications").rights, "acceptEdits")
+        self.assertEqual(chat_options.ChatOptions(rights="plan").rights, "plan")
+        self.assertEqual(chat_options.default_rights({"chat": {"rights": "tout"}}), "bypassPermissions")
+        self.assertEqual(chat_options.default_rights({"chat": {"rights": "acceptEdits"}}), "acceptEdits")
+        self.assertIn("lecture", settings.CHOICES["chat.rights"])
+        self.assertIn("acceptEdits", settings.CHOICES["chat.rights"])

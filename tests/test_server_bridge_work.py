@@ -87,55 +87,55 @@ class FilesTest(WorkTest):
 class SavedTest(WorkTest):
     def test_save_list_delete_global_and_project(self):
         cwd = str(self.project)
-        self.call("work.saved.save", cwd=cwd, scope="global", name="Bonjour", text="Salut")
-        self.call("work.saved.save", cwd=cwd, scope="projet", name="Tests", text="Lance les tests")
-        items = self.call("work.saved.list", cwd=cwd)["items"]
+        self.call("saved.save", cwd=cwd, scope="global", name="Bonjour", text="Salut")
+        self.call("saved.save", cwd=cwd, scope="projet", name="Tests", text="Lance les tests")
+        items = self.call("saved.list", cwd=cwd)["items"]
         self.assertEqual({(i["name"], i["scope"]) for i in items}, {("Bonjour", "global"), ("Tests", "projet")})
         self.assertTrue((self.project / ".ccs" / "messages.json").exists())
-        self.call("work.saved.delete", cwd=cwd, scope="projet", name="Tests")
-        items = self.call("work.saved.list", cwd=cwd)["items"]
+        self.call("saved.delete", cwd=cwd, scope="projet", name="Tests")
+        items = self.call("saved.list", cwd=cwd)["items"]
         self.assertEqual([i["name"] for i in items], ["Bonjour"])
 
     def test_save_same_name_replaces(self):
         cwd = str(self.project)
-        self.call("work.saved.save", cwd=cwd, scope="global", name="A", text="1")
-        self.call("work.saved.save", cwd=cwd, scope="global", name="A", text="2")
-        items = self.call("work.saved.list", cwd=cwd)["items"]
+        self.call("saved.save", cwd=cwd, scope="global", name="A", text="1")
+        self.call("saved.save", cwd=cwd, scope="global", name="A", text="2")
+        items = self.call("saved.list", cwd=cwd)["items"]
         self.assertEqual([i["text"] for i in items], ["2"])
 
     def test_global_hidden_by_project_is_kept(self):
         """Constat 7 : écrire un message commun n'efface pas un commun de même nom qu'un
         message du projet."""
         cwd = str(self.project)
-        self.call("work.saved.save", cwd=cwd, scope="global", name="Revue", text="globale")
-        self.call("work.saved.save", cwd=cwd, scope="projet", name="Revue", text="du projet")
-        self.call("work.saved.save", cwd=cwd, scope="global", name="Merci", text="merci")
-        self.call("work.saved.delete", cwd=cwd, scope="global", name="Merci")
+        self.call("saved.save", cwd=cwd, scope="global", name="Revue", text="globale")
+        self.call("saved.save", cwd=cwd, scope="projet", name="Revue", text="du projet")
+        self.call("saved.save", cwd=cwd, scope="global", name="Merci", text="merci")
+        self.call("saved.delete", cwd=cwd, scope="global", name="Merci")
         self.assertEqual([(s.name, s.text) for s in saved_messages.read_scope("global")], [("Revue", "globale")])
-        items = self.call("work.saved.list", cwd=cwd)["items"]
+        items = self.call("saved.list", cwd=cwd)["items"]
         self.assertEqual([(i["name"], i["scope"]) for i in items], [("Revue", "projet")])
 
     def test_project_messages_only_in_an_open_chat_folder(self):
         """Constat 11 : `.ccs/` n'est créé que dans le dossier d'un chat ouvert."""
         other = self.home / "ailleurs"
         other.mkdir()
-        e = self.fails("work.saved.save", cwd=str(other), scope="projet", name="a", text="b")
+        e = self.fails("saved.save", cwd=str(other), scope="projet", name="a", text="b")
         self.assertEqual(e.code, "refuse")
-        self.assertEqual(self.fails("work.saved.delete", cwd=str(other), scope="projet", name="a").code, "refuse")
+        self.assertEqual(self.fails("saved.delete", cwd=str(other), scope="projet", name="a").code, "refuse")
         self.assertFalse((other / ".ccs").exists())
-        self.call("work.saved.save", cwd=str(other), scope="global", name="a", text="b")   # commun : permis
+        self.call("saved.save", cwd=str(other), scope="global", name="a", text="b")   # commun : permis
         self.assertFalse((other / ".ccs").exists())
 
     def test_invalid_and_forbidden(self):
-        self.assertEqual(self.fails("work.saved.save", cwd=str(self.project), scope="x", name="a", text="b").code, "invalide")
-        self.assertEqual(self.fails("work.saved.save", cwd=str(self.project), scope="global", name=" ", text="b").code, "invalide")
-        self.assertEqual(self.fails("work.saved.list", cwd="/etc").code, "refuse")
+        self.assertEqual(self.fails("saved.save", cwd=str(self.project), scope="x", name="a", text="b").code, "invalide")
+        self.assertEqual(self.fails("saved.save", cwd=str(self.project), scope="global", name=" ", text="b").code, "invalide")
+        self.assertEqual(self.fails("saved.list", cwd="/etc").code, "refuse")
 
 
 class ShellTest(WorkTest):
     def run_shell(self, command):
         async def go():
-            r = await self.bridge._handlers["work.shell.run"](self.conn, {"chat_id": "c1", "command": command})
+            r = await self.bridge._handlers["shell.run"](self.conn, {"chat_id": "c1", "command": command})
             for _ in range(200):
                 if self.conn.pushed:
                     break
@@ -147,15 +147,20 @@ class ShellTest(WorkTest):
         r = self.run_shell("pwd")
         self.assertTrue(r["run_id"])
         name, data = self.conn.pushed[0]
-        self.assertEqual(name, "work.shell")
+        self.assertEqual(name, "work.shell")      # ancien client : ancien nom (compatibilité 1.x)
         self.assertEqual(data["code"], 0)
         self.assertEqual(data["output"].strip(), str(self.project))
         self.assertEqual(data["chat_id"], "c1")
 
+    def test_new_client_gets_shell_done(self):
+        self.conn.peer = {"protocol": 1}
+        self.run_shell("true")
+        self.assertEqual(self.conn.pushed[0][0], "shell.done")
+
     def test_failure_code_and_poll(self):
         r = self.run_shell("echo non >&2; exit 3")
         self.assertEqual(self.conn.pushed[0][1]["code"], 3)
-        p = self.call("work.shell.poll", run_id=r["run_id"])
+        p = self.call("shell.poll", run_id=r["run_id"])
         self.assertTrue(p["done"])
         self.assertIn("non", p["output"])
 
@@ -167,13 +172,13 @@ class ShellTest(WorkTest):
         self.assertEqual(self.conn.pushed[0][1]["code"], 0)
 
     def test_empty_command_refused(self):
-        self.assertEqual(self.fails("work.shell.run", chat_id="c1", command="  ").code, "invalide")
+        self.assertEqual(self.fails("shell.run", chat_id="c1", command="  ").code, "invalide")
 
     def test_stop(self):
         async def go():
-            r = await self.bridge._handlers["work.shell.run"](self.conn, {"chat_id": "c1", "command": "sleep 30"})
+            r = await self.bridge._handlers["shell.run"](self.conn, {"chat_id": "c1", "command": "sleep 30"})
             await asyncio.sleep(0.3)
-            await self.bridge._handlers["work.shell.stop"](self.conn, {"run_id": r["run_id"]})
+            await self.bridge._handlers["shell.stop"](self.conn, {"run_id": r["run_id"]})
             for _ in range(300):
                 if self.conn.pushed:
                     break
@@ -203,7 +208,7 @@ class ChangesTest(WorkTest):
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
     def plan(self, mid="m1"):
-        r = self.call("work.rewind_plan", chat_id="c1", message_id=mid)
+        r = self.call("rewind.plan", chat_id="c1", message_id=mid)
         return r, [{"path": s["path"], "sha256": s["sha256"]} for s in r["steps"]]
 
     def test_changes_with_diff_and_points(self):
@@ -236,7 +241,7 @@ class ChangesTest(WorkTest):
                           self.user("m2", "sans instantané"))
         r = self.call("work.changes", chat_id="c1")
         self.assertEqual([p["message_id"] for p in r["points"]], ["m1"])
-        self.assertEqual(self.fails("work.rewind_plan", chat_id="c1", message_id="m2").code, "introuvable")
+        self.assertEqual(self.fails("rewind.plan", chat_id="c1", message_id="m2").code, "introuvable")
         self.assertEqual(Path(self.f).read_text(), "après\n")
 
     def test_changes_of_deleted_file_and_too_big_file(self):
@@ -276,9 +281,9 @@ class ChangesTest(WorkTest):
         (self.copies / "h1@v1").write_text("avant\n")
         Path(self.f).write_text("après\n")
         self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: ("h1@v1", 1)}))
-        self.assertEqual(self.fails("work.undo_file", chat_id="c1", path=str(self.project / "autre"),
+        self.assertEqual(self.fails("work.undo", chat_id="c1", path=str(self.project / "autre"),
                                     expected=None).code, "introuvable")
-        self.call("work.undo_file", chat_id="c1", path=self.f, expected=self.sha(self.f))
+        self.call("work.undo", chat_id="c1", path=self.f, expected=self.sha(self.f))
         self.assertEqual(Path(self.f).read_text(), "avant\n")
 
     def test_undo_file_checks_what_was_shown(self):
@@ -288,9 +293,9 @@ class ChangesTest(WorkTest):
         self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: ("h1@v1", 1)}))
         shown = self.call("work.changes", chat_id="c1")["files"][0]["sha256"]
         Path(self.f).write_text("modifié depuis\n")
-        e = self.fails("work.undo_file", chat_id="c1", path=self.f, expected=shown)
+        e = self.fails("work.undo", chat_id="c1", path=self.f, expected=shown)
         self.assertEqual((e.code, e.message), ("conflit", "Un fichier a changé depuis l'affichage : vérifie de nouveau."))
-        self.assertEqual(self.fails("work.undo_file", chat_id="c1", path=self.f).code, "invalide")
+        self.assertEqual(self.fails("work.undo", chat_id="c1", path=self.f).code, "invalide")
         self.assertEqual(Path(self.f).read_text(), "modifié depuis\n")
 
     def test_undo_removes_created_file(self):
@@ -298,7 +303,7 @@ class ChangesTest(WorkTest):
         self.journal_with(self.user("m1", "x"), snap_line("m1", {self.f: (None, 1)}))
         ch = self.call("work.changes", chat_id="c1")["files"][0]
         self.assertEqual(ch["kind"], "created")
-        self.call("work.undo_file", chat_id="c1", path=self.f, expected=ch["sha256"])
+        self.call("work.undo", chat_id="c1", path=self.f, expected=ch["sha256"])
         self.assertFalse(Path(self.f).exists())
 
     def test_rewind_plan_then_apply(self):
@@ -310,7 +315,7 @@ class ChangesTest(WorkTest):
         self.assertEqual(plan["steps"][0]["sha256"], self.sha(self.f))
         self.assertEqual(plan["skipped"], [])
         self.assertEqual(Path(self.f).read_text(), "après\n")      # le plan n'écrit rien
-        r = self.call("work.rewind_apply", chat_id="c1", message_id="m1", expected=expected)
+        r = self.call("rewind.apply", chat_id="c1", message_id="m1", expected=expected)
         self.assertEqual(r["count"], 1)
         self.assertEqual(Path(self.f).read_text(), "avant\n")
 
@@ -325,13 +330,13 @@ class ChangesTest(WorkTest):
         _plan, expected = self.plan()
         self.assertEqual([e["path"] for e in expected], [self.f])
         Path(other).write_text("b changé depuis\n")             # un fichier de plus à remettre
-        e = self.fails("work.rewind_apply", chat_id="c1", message_id="m1", expected=expected)
+        e = self.fails("rewind.apply", chat_id="c1", message_id="m1", expected=expected)
         self.assertEqual(e.code, "conflit")
         _plan, expected = self.plan()
         Path(self.f).write_text("encore autre chose\n")          # contenu changé depuis l'affichage
-        self.assertEqual(self.fails("work.rewind_apply", chat_id="c1", message_id="m1",
+        self.assertEqual(self.fails("rewind.apply", chat_id="c1", message_id="m1",
                                     expected=expected).code, "conflit")
-        self.assertEqual(self.fails("work.rewind_apply", chat_id="c1", message_id="m1").code, "invalide")
+        self.assertEqual(self.fails("rewind.apply", chat_id="c1", message_id="m1").code, "invalide")
         self.assertEqual(Path(self.f).read_text(), "encore autre chose\n")
         self.assertEqual(Path(other).read_text(), "b changé depuis\n")
 
@@ -342,9 +347,9 @@ class ChangesTest(WorkTest):
         _plan, expected = self.plan()
         for state in ("starting", "busy", "permission"):
             self.chat.engine.state = state
-            e = self.fails("work.rewind_apply", chat_id="c1", message_id="m1", expected=expected)
+            e = self.fails("rewind.apply", chat_id="c1", message_id="m1", expected=expected)
             self.assertEqual((e.code, e.message), ("occupe", "Claude travaille : attends la fin du tour."))
-            self.assertEqual(self.fails("work.undo_file", chat_id="c1", path=self.f,
+            self.assertEqual(self.fails("work.undo", chat_id="c1", path=self.f,
                                         expected=self.sha(self.f)).code, "occupe")
         self.assertEqual(Path(self.f).read_text(), "après\n")
 
@@ -359,7 +364,7 @@ class ChangesTest(WorkTest):
         plan, expected = self.plan()
         self.assertEqual([s["path"] for s in plan["steps"]], [self.f])
         self.assertEqual(plan["skipped"], [outside])
-        r = self.call("work.rewind_apply", chat_id="c1", message_id="m1", expected=expected)
+        r = self.call("rewind.apply", chat_id="c1", message_id="m1", expected=expected)
         self.assertEqual((r["count"], r["skipped"]), (1, [outside]))
         self.assertEqual(Path(self.f).read_text(), "avant\n")
         self.assertFalse(os.path.exists(outside))

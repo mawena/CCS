@@ -62,10 +62,10 @@ export async function trashConversation(api, c, { onDone }) {
   if (!await confirmSheet({ title: "Supprimer cette conversation ?", body: `« ${titleOf(c)} » part dans la corbeille de CCS : tu peux la restaurer pendant 30 jours.`,
     confirm: "Supprimer", danger: true })) return;
   try {
-    const r = await api.call("conversation.trash", { path: c.path, session_id: c.session_id, cwd: c.cwd, title: titleOf(c) });
+    const r = await api.call("conversations.trash", { path: c.path, session_id: c.session_id, cwd: c.cwd, title: titleOf(c) });
     onDone?.();
     toast("Conversation mise à la corbeille.", { kind: "success", timeout: 8000, action: { label: "Annuler", run: async () => {
-      try { await api.call("conversation.restore", { tid: r.tid }); toast("Conversation restaurée.", { kind: "success" }); onDone?.(); }
+      try { await api.call("trash.restore", { trash_id: r.trash_id }); toast("Conversation restaurée.", { kind: "success" }); onDone?.(); }
       catch (e) { toast(e.message, { kind: "error" }); }
     } } });
   } catch (e) { toast(e.message, { kind: "error" }); }
@@ -79,14 +79,14 @@ export function openTrash(api, { onDone }) {
   const load = async () => {
     clear(body).append(loading());
     let r;
-    try { r = await api.call("conversation.trash_list"); } catch (e) { clear(body).append(errorState(e.message, load)); return; }
+    try { r = await api.call("trash.list"); } catch (e) { clear(body).append(errorState(e.message, load)); return; }
     clear(body).append(el("p", { class: "subtle" }, `Les conversations supprimées y restent ${r.days} jours, puis sont effacées.`));
     const items = (r.items || []).sort((a, b) => (b.trashed_at || 0) - (a.trashed_at || 0));
     if (!items.length) { body.append(el("p", {}, "La corbeille est vide.")); return; }
     for (const it of items) {
       const btn = el("button", { type: "button", class: "small", onclick: async () => {
         btn.disabled = true;
-        try { await api.call("conversation.restore", { tid: it.tid }); toast("Conversation restaurée.", { kind: "success" }); onDone?.(); load(); }
+        try { await api.call("trash.restore", { trash_id: it.trash_id }); toast("Conversation restaurée.", { kind: "success" }); onDone?.(); load(); }
         catch (e) { toast(e.message, { kind: "error" }); btn.disabled = false; }
       } }, "Restaurer");
       body.append(el("div", { class: "item trash-item" },

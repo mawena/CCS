@@ -88,8 +88,8 @@ expander.ccs-details > title { color: alpha(@card_fg_color, 0.7); font-size: 0.9
 
 _SCHEMES = {
     "auto": Adw.ColorScheme.DEFAULT,
-    "clair": Adw.ColorScheme.FORCE_LIGHT,
-    "sombre": Adw.ColorScheme.FORCE_DARK,
+    "light": Adw.ColorScheme.FORCE_LIGHT,
+    "dark": Adw.ColorScheme.FORCE_DARK,
 }
 
 _base_provider = None
@@ -148,7 +148,7 @@ def install():
 
 
 def apply_color_scheme(value):
-    """« auto » suit le système ; « clair » et « sombre » forcent le thème."""
+    """« auto » suit le système ; « light » et « dark » forcent le thème."""
     Adw.StyleManager.get_default().set_color_scheme(_SCHEMES.get(value, Adw.ColorScheme.DEFAULT))
 
 

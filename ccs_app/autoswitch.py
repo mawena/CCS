@@ -9,6 +9,18 @@ COOLDOWN_S = 300
 MANUAL_RESPECT_S = 300
 MANUAL_OVERRIDE = 99.5
 
+# `detail.mode` des bascules dans l'historique : « auto », « early » (orchestrateur, quota sur le
+# point d'expirer), « blocked » (hook StopFailure), « manual », « initial ».
+EARLY, BLOCKED = "early", "blocked"
+# modes d'avant la 1.0.0, relus : compatibilité 1.x, à retirer en 2.0
+OLD_MODES = {"anticipee": EARLY, "blocage": BLOCKED}
+
+
+def switch_mode(detail):
+    """Mode d'une bascule (ou d'un échec de bascule) de l'historique, ancien nom ramené au nouveau."""
+    mode = detail.get("mode") if isinstance(detail, dict) else None
+    return OLD_MODES.get(mode, mode)
+
 
 @dataclass
 class Decision:

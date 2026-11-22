@@ -152,20 +152,20 @@ struct Cout: LisibleJSON {
 }
 
 struct MiseCorbeille: LisibleJSON {
-    var tid = ""
-    init(json j: JSON) { tid = j.texte("tid") }
+    var trashId = ""
+    init(json j: JSON) { trashId = j.texte("trash_id") }
 }
 
 struct ElementCorbeille: LisibleJSON, Identifiable {
-    var tid = ""
+    var trashId = ""
     var sessionId: String?
     var cwd: String?
     var title: String?
     var supprimeLe: Double?
-    var id: String { return tid }
+    var id: String { return trashId }
     init(json j: JSON) {
-        tid = j.texte("tid")
-        sessionId = j.texteOuNul("id")
+        trashId = j.texte("trash_id")
+        sessionId = j.texteOuNul("session_id")
         cwd = j.texteOuNul("cwd")
         title = j.texteOuNul("title")
         supprimeLe = j.doubleOuNul("trashed_at")
@@ -246,7 +246,7 @@ struct OutilHistorique: Equatable {
     }
 }
 
-/// Un message de `conversation.messages` (`Message` de `preview.py`).
+/// Un message de `conversations.messages` (`Message` de `preview.py`).
 struct MessageHistorique: Equatable {
     var role = ""
     var text = ""

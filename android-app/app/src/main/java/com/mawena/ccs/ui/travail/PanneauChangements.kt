@@ -92,7 +92,7 @@ fun PanneauChangements(modele: ModeleAppli, chatId: String?, cwd: String, ouvrir
         if (!demandes.confirmer("Annuler les changements de ${Format.base(f.path)} ?", ChangementsChat.texteAnnulation(f), "Annuler ce fichier", danger = true)) return@launch
         occupe = true
         try {
-            client.appeler("work.undo_file", buildJsonObject {
+            client.appeler("work.undo", buildJsonObject {
                 put("chat_id", chatId); put("path", f.path)
                 put("expected", f.sha256?.let { JsonPrimitive(it) } ?: JsonNull)
             })
@@ -109,7 +109,7 @@ fun PanneauChangements(modele: ModeleAppli, chatId: String?, cwd: String, ouvrir
     fun revenir(p: PointRetour) = portee.launch {
         occupe = true
         val plan = try {
-            client.appeler("work.rewind_plan", PlanRetour.serializer(), buildJsonObject { put("chat_id", chatId); put("message_id", p.messageId) })
+            client.appeler("rewind.plan", PlanRetour.serializer(), buildJsonObject { put("chat_id", chatId); put("message_id", p.messageId) })
         } catch (e: Exception) {
             avis.dire(e.texte()); occupe = false; return@launch
         }
@@ -118,7 +118,7 @@ fun PanneauChangements(modele: ModeleAppli, chatId: String?, cwd: String, ouvrir
         if (!demandes.confirmer(ChangementsChat.titreRetour(plan), ChangementsChat.texteRetour(plan, cwd), "Revenir en arrière", danger = true)) return@launch
         occupe = true
         try {
-            val res = client.appeler("work.rewind_apply", ResultatRetour.serializer(), buildJsonObject {
+            val res = client.appeler("rewind.apply", ResultatRetour.serializer(), buildJsonObject {
                 put("chat_id", chatId); put("message_id", p.messageId)
                 putJsonArray("expected") {
                     plan.steps.forEach { s -> addJsonObject { put("path", s.path); put("sha256", s.sha256?.let { JsonPrimitive(it) } ?: JsonNull) } }

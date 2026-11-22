@@ -1,13 +1,16 @@
 """Registre des commandes lancées par `ccs distant lancer` (calcul réparti).
 
-Un fichier JSON par travail dans `~/.cache/ccs/distant/travaux/<id>.json`, écrit de façon
+Un fichier JSON par travail dans `~/.cache/ccs/machines/jobs/<id>.json` (`~/.cache` suit
+`XDG_CACHE_HOME` ; `distant/travaux/` avant la 1.0.0, renommé tout seul), écrit de façon
 atomique ; le journal d'un travail détaché est `<id>.log` à côté. Toute lecture-écriture passe
-par un verrou (`fcntl.flock` sur `.verrou`) : plusieurs `ccs distant lancer` simultanés comptent
+par un verrou (`fcntl.flock` sur `.lock`) : plusieurs `ccs distant lancer` simultanés comptent
 ainsi les places des machines sans se marcher dessus.
 
-États : « attente » (pas de place libre), « programmé » (`--quand`), « envoi » (copie du
-projet), « en cours », puis « fini », « échec » ou « arrêté ». Un travail actif dont le
-processus a disparu est montré « arrêté » (« processus disparu »).
+États (en anglais, comme ceux des tâches) : `waiting` (pas de place libre), `scheduled`
+(`--quand`), `sending` (copie du projet), `running`, puis `done`, `failed` ou `stopped`. Un
+travail actif dont le processus a disparu est montré `stopped` (« processus disparu »).
+L'affichage en français passe par `label(state)`. Les fichiers écrits avant la 1.0.0 portent les
+anciens états français : ils sont convertis à la lecture (`OLD_STATES`).
 """
 
 import fcntl
@@ -24,19 +27,24 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import core
+from . import core, migrate
 
-ACTIVE = ("attente", "programmé", "envoi", "en cours")
-WAITING = ("attente", "programmé")
-RUNNING = ("envoi", "en cours")
-FINAL = ("fini", "échec", "arrêté")
+ACTIVE = ("waiting", "scheduled", "sending", "running")
+WAITING = ("waiting", "scheduled")
+RUNNING = ("sending", "running")
+FINAL = ("done", "failed", "stopped")
+LABELS = {"waiting": "attente", "scheduled": "programmé", "sending": "envoi",
+          "running": "en cours", "done": "fini", "failed": "échec", "stopped": "arrêté"}
+# anciens états français (fichiers écrits avant la 1.0.0) → nouveaux
+OLD_STATES = {v: k for k, v in LABELS.items()}
 KEEP = 30                   # travaux finis gardés au moins
 KEEP_RECENT = 24 * 3600     # et tous ceux de moins de 24 h
 ID_RE = re.compile(r"^[0-9a-f]{6,16}$")
 
 
 def jobs_dir():
-    d = core.paths().home / ".cache" / "ccs" / "distant" / "travaux"
+    cache = core.ccs_dir("cache")
+    d = migrate.renamed(cache / "machines" / "jobs", cache / "distant" / "travaux")
     d.mkdir(mode=0o700, parents=True, exist_ok=True)
     return d
 
@@ -52,7 +60,7 @@ def log_path(job_id):
 @contextmanager
 def locked():
     """Verrou exclusif sur le registre, partagé entre processus."""
-    with open(jobs_dir() / ".verrou", "a") as f:
+    with open(jobs_dir() / ".lock", "a") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
         try:
             yield
@@ -81,7 +89,22 @@ def _read(job_id):
         job = json.loads(_path(job_id).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    return job if isinstance(job, dict) and job.get("id") == job_id else None
+    if not isinstance(job, dict) or job.get("id") != job_id:
+        return None
+    if job.get("state") in OLD_STATES:
+        job["state"] = OLD_STATES[job["state"]]
+    return job
+
+
+def label(state):
+    """État d'un travail en français, pour l'affichage (`ccs distant travaux`, pages)."""
+    return LABELS.get(state, state or "?")
+
+
+def legacy_view(job):
+    """Le travail avec l'ancien état français (anciens clients du pont). Compatibilité 1.x,
+    à retirer en 2.0."""
+    return dict(job, state=LABELS.get(job.get("state"), job.get("state")))
 
 
 def _write(job):
@@ -98,9 +121,9 @@ def _all():
 
 
 def _view(job):
-    """Le travail tel qu'on le montre : actif mais processus mort → « arrêté »."""
+    """Le travail tel qu’on le montre : actif mais processus mort → `stopped`."""
     if job.get("state") in ACTIVE and job.get("pid") and not alive(job["pid"]):
-        job = dict(job, state="arrêté", why="processus disparu")
+        job = dict(job, state="stopped", why="processus disparu")
     return job
 
 
@@ -119,7 +142,7 @@ def _prune(now):
 
 def create(command, cwd, machine=None, tool=None, when="", not_before=None, why="",
            detached=False, pid=None, now=time.time):
-    """Inscrit un travail (« programmé » si `not_before` est à venir, sinon « attente »)."""
+    """Inscrit un travail (`scheduled` si `not_before` est à venir, sinon `waiting`)."""
     t = now()
     with locked():
         _prune(t)
@@ -130,7 +153,7 @@ def create(command, cwd, machine=None, tool=None, when="", not_before=None, why=
         text = command[0] if len(command) == 1 else shlex.join(command)
         job = {"id": job_id, "command": list(command), "text": text, "cwd": str(cwd),
                "machine": machine, "tool": tool,
-               "state": "programmé" if not_before and not_before > t else "attente",
+               "state": "scheduled" if not_before and not_before > t else "waiting",
                "code": None, "created": t, "started": None, "ended": None, "when": when or "",
                "not_before": not_before, "pid": pid if pid is not None else os.getpid(),
                "detached": bool(detached), "log": str(log_path(job_id)) if detached else "",
@@ -145,6 +168,8 @@ def update(job_id, **fields):
         job = _read(job_id)
         if job is None:
             return None
+        if fields.get("state") in OLD_STATES:
+            fields["state"] = OLD_STATES[fields["state"]]
         job.update(fields)
         _write(job)
         return job
@@ -157,7 +182,7 @@ def finish(job_id, state, code=None, why="", now=time.time):
         if job is None:
             return None
         if job.get("state") not in FINAL:
-            job.update(state=state, code=code, why=why or "", ended=now())
+            job.update(state=OLD_STATES.get(state, state), code=code, why=why or "", ended=now())
             _write(job)
         return job
 
@@ -172,7 +197,7 @@ def reserve(job_id, machine_id, limit, now=time.time):
                    and j.get("state") in RUNNING and alive(j.get("pid")))
         if busy >= limit:
             return False, busy
-        job.update(state="envoi", machine=machine_id, started=now(), why="")
+        job.update(state="sending", machine=machine_id, started=now(), why="")
         _write(job)
         return True, busy
 
@@ -219,7 +244,7 @@ def stop(job_id, now=time.time):
             return False
         pid = job.get("pid")
         if job.get("state") in WAITING or not alive(pid):
-            job.update(state="arrêté", ended=now(), code=None,
+            job.update(state="stopped", ended=now(), code=None,
                        why="arrêté avant le départ" if job.get("state") in WAITING else "arrêté")
             _write(job)
     if alive(pid) and pid != os.getpid():
@@ -285,7 +310,7 @@ def start(command, cwd, machine=None, tool=None, when="", *, fetch=(), include=(
                                             stdout=log, stderr=subprocess.STDOUT,
                                             start_new_session=True)
     except OSError as e:
-        finish(job_id, "échec", why=f"lancement impossible : {e}")
+        finish(job_id, "failed", why=f"lancement impossible : {e}")
         raise distant.DistantError(f"Lancement impossible : {e}") from None
     update(job_id, pid=p.pid)
     if hasattr(p, "wait"):  # pas de processus zombie dans le pont

@@ -15,7 +15,7 @@ import re
 import threading
 
 from .. import chat_quote, context_alert, file_history, saved_messages, sessions, settings, shell_command
-from . import rpc
+from . import protocol, rpc
 from .bridge_chat import BUSY
 from .bridge_data import safe_path
 
@@ -127,7 +127,7 @@ def _expected_sha(value):
 
 
 def _expected_files(params):
-    """{chemin: sha256 ou None} montré par work.rewind_plan (paramètre `expected`)."""
+    """{chemin: sha256 ou None} montré par rewind.plan (paramètre `expected`)."""
     raw = params.get("expected")
     if not isinstance(raw, list) or len(raw) > MAX_EXPECTED:
         raise rpc.RpcError("invalide", "Fichiers montrés manquants : actualise.")
@@ -143,16 +143,17 @@ class WorkApi:
     def __init__(self, bridge):
         self.bridge = bridge
         self.shells = {}                                   # run_id → ShellRun en cours
+        getattr(bridge, "restart_checks", []).append(lambda: bool(self.shells))
         self.shell_done = collections.OrderedDict()        # run_id → résultat
         self._ids = itertools.count(1)
         bridge.add_handlers({
             "work.commands": self.commands, "work.files": self.files,
-            "work.saved.list": self.saved_list, "work.saved.save": self.saved_save,
-            "work.saved.delete": self.saved_delete,
-            "work.shell.run": self.shell_run, "work.shell.stop": self.shell_stop,
-            "work.shell.poll": self.shell_poll,
-            "work.changes": self.changes, "work.undo_file": self.undo_file,
-            "work.rewind_plan": self.rewind_plan, "work.rewind_apply": self.rewind_apply,
+            "saved.list": self.saved_list, "saved.save": self.saved_save,
+            "saved.delete": self.saved_delete,
+            "shell.run": self.shell_run, "shell.stop": self.shell_stop,
+            "shell.poll": self.shell_poll,
+            "work.changes": self.changes, "work.undo": self.undo_file,
+            "rewind.plan": self.rewind_plan, "rewind.apply": self.rewind_apply,
         })
 
     def _chat(self, params):
@@ -267,7 +268,8 @@ class WorkApi:
             self.shell_done.popitem(last=False)
         for c in {conn, *chat.conns}:
             if not c.closed:
-                asyncio.ensure_future(c.push("work.shell", data))
+                # `work.shell` pour un ancien client : compatibilité 1.x, à retirer en 2.0
+                asyncio.ensure_future(c.push(protocol.event_for(c, "shell.done"), data))
 
     async def shell_stop(self, _conn, params):
         run = self.shells.get(params.get("run_id"))
@@ -366,7 +368,7 @@ class WorkApi:
 
     async def rewind_apply(self, _conn, params):
         """Applique le plan seulement s'il est celui qui a été montré : mêmes fichiers, mêmes
-        contenus actuels (`expected` : [{path, sha256}] de work.rewind_plan)."""
+        contenus actuels (`expected` : [{path, sha256}] de rewind.plan)."""
         chat = self._chat(params)
         _not_busy(chat)
         expected = _expected_files(params)

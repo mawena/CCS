@@ -374,9 +374,9 @@ class FilChat {
         val avant = messages.mapNotNull { m ->
             n++
             when (m.role) {
-                "utilisateur" -> ElementFil.MsgToi("h$n-${m.uuid}", m.text, 0, m.uuid)
+                "user", "utilisateur" -> ElementFil.MsgToi("h$n-${m.uuid}", m.text, 0, m.uuid)
                 "assistant" -> ElementFil.MsgClaude("h$n-${m.msgId}", m.text, m.msgId, true)
-                "outil" -> m.tool?.let { t ->
+                "tool", "outil" -> m.tool?.let { t ->
                     ElementFil.Outil("h$n-${t.toolId}", t.name, t.target, resultat = t.result, erreur = t.erreur, fini = true)
                 }
                 else -> if (m.text.isNotBlank()) ElementFil.Note("h$n", m.text) else null

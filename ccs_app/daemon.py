@@ -251,7 +251,7 @@ class Daemon:
         from . import warmup
         t = threading.Thread(target=warmup.run, daemon=True,
                              args=(name, now.astimezone().strftime("%H:%M"), self.store, now),
-                             kwargs={"mode": "orchestrateur"})
+                             kwargs={"mode": warmup.ORCHESTRATOR})
         t.start()
         self.workers = [w for w in getattr(self, "workers", []) if w.is_alive()] + [t]
 
@@ -442,7 +442,7 @@ class Daemon:
             early = orchestrator.expiring_decision(states, active, now, ocfg, events, reserve)
             if early is not None:
                 decision = early
-                switched = autoswitch.execute(early, self.store, now, mode="anticipee")
+                switched = autoswitch.execute(early, self.store, now, mode=autoswitch.EARLY)
         if switched:
             delay = poll["fast_s"]
         best = best_account(states, now, reserve=reserve)
@@ -451,7 +451,7 @@ class Daemon:
             for name in orchestrator.starts_due(states, now, ocfg, self.store):
                 local = now.astimezone()
                 self.store.add_event(now.timestamp(), "warmup", name, {
-                    "mode": "orchestrateur", "date": local.date().isoformat(),
+                    "mode": "orchestrator", "date": local.date().isoformat(),
                     "time": f"{local:%H:%M}", "ok": None, "message": "en cours"})
                 self.starter(name, now)
             wake = orchestrator.next_wake(states, now, ocfg)

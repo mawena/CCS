@@ -651,6 +651,10 @@ class AutoClearTest(unittest.TestCase):
         self.assertNotIn(eng.CLEAR_TOKEN_VAR, s._env())
         self.assertNotIn(eng.CLEAR_HINT, " ".join(s._argv()))
 
+    def test_sudo_askpass_given_to_claude(self):
+        s, _proc = self.session()
+        self.assertTrue(s._env()["SUDO_ASKPASS"].endswith("ccs-askpass"))
+
     def test_token_and_hint_given_to_claude(self):
         s, _proc = self.session()
         self.assertEqual(s._env()[eng.CLEAR_TOKEN_VAR], s._clear_token)

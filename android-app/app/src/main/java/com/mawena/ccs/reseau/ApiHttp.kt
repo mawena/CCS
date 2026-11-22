@@ -50,12 +50,12 @@ class ApiHttp(private val http: OkHttpClient) {
     }
 
     /**
-     * Jeton d'appareil durable pour une connexion par Portier (`POST /api/app-token`). Null si le
+     * Jeton d'appareil durable pour une connexion par Portier (`POST /api/apptoken`). Null si le
      * serveur ne connaît pas encore la route (404) ou refuse : on garde alors les cookies.
      */
     suspend fun jetonAppli(i: Identifiants, nom: String): String? = withContext(Dispatchers.IO) {
         val corps = buildJsonObject { put("name", nom.take(60)) }.toString().toRequestBody(typeJson)
-        val req = Request.Builder().url(Adresse.api(i.serveur, "api/app-token")).authentifier(i).post(corps).build()
+        val req = Request.Builder().url(Adresse.api(i.serveur, "api/apptoken")).authentifier(i).post(corps).build()
         runCatching {
             http.newCall(req).execute().use { r ->
                 if (!r.isSuccessful) return@use null

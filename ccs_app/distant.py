@@ -9,8 +9,9 @@ le reste est du `ssh` et du `rsync` ordinaires. `ccs distant lancer -- <commande
 4. rapporte les fichiers demandés (`--rapatrier`).
 
 Réglages : `~/.config/ricochet/client.toml` (adresse du relais et jeton des tunnels, lu aussi par
-`ricochet-agent tunnel`) et, si besoin, `~/.config/ccs/distant.toml` (utilisateur et port SSH
-par machine).
+`ricochet-agent tunnel`) et, si besoin, `~/.config/ccs/machines.toml` (`[machines.<id>]` : `user`,
+`port` SSH et `limit` de commandes simultanées ; `~/.config` suit `XDG_CONFIG_HOME`). Avant la
+1.0.0 : `distant.toml` avec `utilisateur` et `limite`, renommé tout seul et encore lu.
 """
 
 import hashlib
@@ -31,7 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import core, distant_jobs
+from . import core, distant_jobs, migrate
 
 # Outils cherchés d'office sur chaque machine (les autres le sont à la demande).
 TOOLS = ("flutter", "dart", "cargo", "node", "npm", "pnpm", "yarn", "bun", "go", "java",
@@ -89,20 +90,21 @@ class Machine:
 
 # ------------------------------------------------------------------ réglages
 
-def _config_home():
-    return core.paths().home / ".config"
-
-
 def client_path():
-    return _config_home() / "ricochet" / "client.toml"
+    return core.xdg_home("config") / "ricochet" / "client.toml"
 
 
 def overrides_path():
-    return _config_home() / "ccs" / "distant.toml"
+    d = core.ccs_dir("config")
+    return migrate.renamed(d / "machines.toml", d / "distant.toml")
+
+
+# anciennes clés de `[machines.<id>]` (avant la 1.0.0), lues encore : à retirer en 2.0
+OLD_OVERRIDE_KEYS = {"utilisateur": "user", "limite": "limit"}
 
 
 def _cache_dir():
-    d = core.paths().home / ".cache" / "ccs"
+    d = core.ccs_dir("cache")
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -138,7 +140,8 @@ def load_client():
 
 
 def load_overrides():
-    """Réglages par machine : `[machines.<id>]` avec `utilisateur` et `port`."""
+    """Réglages par machine : `[machines.<id>]` avec `user`, `port` et `limit` (anciennes clés
+    françaises converties)."""
     try:
         data = tomllib.loads(overrides_path().read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -146,7 +149,14 @@ def load_overrides():
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise DistantError(f"{overrides_path()} illisible : {e}") from None
     machines = data.get("machines", {})
-    return machines if isinstance(machines, dict) else {}
+    if not isinstance(machines, dict):
+        return {}
+    for conf in machines.values():
+        if isinstance(conf, dict):
+            for old, new in OLD_OVERRIDE_KEYS.items():
+                if old in conf:
+                    conf.setdefault(new, conf.pop(old))
+    return machines
 
 
 # ------------------------------------------------------------------ machines
@@ -189,7 +199,7 @@ def ssh_port(machine, overrides):
 
 
 def target(machine, overrides):
-    user = (overrides.get(machine.id) or {}).get("utilisateur")
+    user = (overrides.get(machine.id) or {}).get("user")
     return f"{user}@{machine.id}" if user else machine.id
 
 
@@ -220,7 +230,8 @@ def _ssh(machine, overrides, command, run=None, **kw):
 # ------------------------------------------------------------------ inventaire
 
 def _inventory_file():
-    return _cache_dir() / "distant.json"
+    d = _cache_dir()
+    return migrate.renamed(d / "machines.json", d / "distant.json")
 
 
 def _load_inventory():
@@ -237,7 +248,9 @@ def _save_inventory(data):
 
 def cached_inventory(machine_id, now=time.time):
     inv = _load_inventory().get(machine_id)
-    if inv and now() - inv.get("quand", 0) < INVENTORY_TTL:
+    # une entrée d'avant la 1.0.0 (`outils`, `quand`) n'a pas `checked_at` : périmée, relevée à nouveau
+    if isinstance(inv, dict) and isinstance(inv.get("tools"), dict) \
+            and now() - (inv.get("checked_at") or 0) < INVENTORY_TTL:
         return inv
     return None
 
@@ -248,8 +261,8 @@ def parse_inventory(text):
         line = line.strip()
         if line.startswith("CCS_PATH="):
             path = line[len("CCS_PATH="):]
-        elif line.startswith("CCS_OUTIL="):
-            name, _, where = line[len("CCS_OUTIL="):].partition("=")
+        elif line.startswith(("CCS_TOOL=", "CCS_OUTIL=")):   # CCS_OUTIL : avant la 1.0.0
+            name, _, where = line.partition("=")[2].partition("=")
             if name and where:
                 tools[name] = where
     return path, tools
@@ -266,7 +279,7 @@ def inventory(machine, overrides, run=None, now=time.time, refresh=False):
         if inv:
             return inv
     probe = ("echo CCS_PATH=$PATH; for o in " + " ".join(TOOLS) +
-             "; do p=$(type -P $o) && echo CCS_OUTIL=$o=$p; done")
+             "; do p=$(type -P $o) && echo CCS_TOOL=$o=$p; done")
     path, tools = "", {}
     for shell in ("bash -lic", "bash -lc"):
         try:
@@ -282,7 +295,7 @@ def inventory(machine, overrides, run=None, now=time.time, refresh=False):
             break
     if not path:
         raise DistantError(f"{machine.id} : impossible de lire son environnement")
-    inv = {"path": path, "outils": tools, "quand": now()}
+    inv = {"path": path, "tools": tools, "checked_at": now()}
     data = _load_inventory()
     data[machine.id] = inv
     _save_inventory(data)
@@ -291,7 +304,7 @@ def inventory(machine, overrides, run=None, now=time.time, refresh=False):
 
 def has_tool(machine, overrides, inv, tool, run=None):
     """L'outil est sur la machine ; un outil hors de la liste d'office est cherché puis retenu."""
-    tools = inv.setdefault("outils", {})
+    tools = inv.setdefault("tools", {})
     if tool in tools:
         return bool(tools[tool])
     cmd = f"PATH={shlex.quote(inv['path'])} type -P {shlex.quote(tool)}"
@@ -363,8 +376,8 @@ def choose(machines, overrides, tool=None, wanted=None, run=None, now=time.time)
 
 
 def limit_for(machine_id, overrides):
-    """Nombre de commandes lancées en même temps sur la machine (`limite`, 2 par défaut)."""
-    value = (overrides.get(machine_id) or {}).get("limite")
+    """Nombre de commandes lancées en même temps sur la machine (`limit`, 2 par défaut)."""
+    value = (overrides.get(machine_id) or {}).get("limit")
     if isinstance(value, int) and not isinstance(value, bool) and \
             LIMIT_RANGE[0] <= value <= LIMIT_RANGE[1]:
         return value
@@ -548,19 +561,19 @@ def launch(command, machine=None, tool=None, fetch=(), include=(), with_git=Fals
         code, why = _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run,
                             say, opener, not_before, why, now, sleep, poll)
     except KeyboardInterrupt:
-        distant_jobs.finish(job_id, "arrêté", 130, "interrompu", now=now)
+        distant_jobs.finish(job_id, "stopped", 130, "interrompu", now=now)
         say("interrompu")
         return 130
     except DistantError as e:
-        distant_jobs.finish(job_id, "échec", None, str(e).splitlines()[0], now=now)
+        distant_jobs.finish(job_id, "failed", None, str(e).splitlines()[0], now=now)
         raise
     except BaseException as e:
-        distant_jobs.finish(job_id, "échec", None, f"erreur : {e}", now=now)
+        distant_jobs.finish(job_id, "failed", None, f"erreur : {e}", now=now)
         raise
     finally:
         if previous is not None:
             signal.signal(signal.SIGTERM, previous)
-    state = "fini" if code == 0 else "arrêté" if code == 130 else "échec"
+    state = "done" if code == 0 else "stopped" if code == 130 else "failed"
     distant_jobs.finish(job_id, state, code, why, now=now)
     return code
 
@@ -603,7 +616,7 @@ def _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run, 
             break
         wait = "en attente d'une place sur " + ", ".join(busy)
         if wait != told:
-            distant_jobs.update(job_id, state="attente", why=wait, machine=machine)
+            distant_jobs.update(job_id, state="waiting", why=wait, machine=machine)
             say(f"{wait} (travail {job_id})")
             told = wait
         _wait(job_id, now() + poll, now, sleep, poll)
@@ -620,7 +633,7 @@ def _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run, 
     if r.returncode:
         raise DistantError(f"Envoi du projet vers {chosen.id} raté (rsync, code {r.returncode})")
     say(f"envoyé en {time.monotonic() - started:.0f} s ; lancement de la commande")
-    distant_jobs.update(job_id, state="en cours")
+    distant_jobs.update(job_id, state="running")
     try:
         code = _ssh(chosen, overrides, remote_command(root, rel, inv, command),
                     run=attached).returncode
@@ -671,7 +684,7 @@ def machines_overview(fetch=None):
         return out
     for m in machines:
         item = _public(m)
-        tools = (inv.get(m.id) or {}).get("outils") or {}
+        tools = (inv.get(m.id) or {}).get("tools") or {}
         c = counts.get(m.id) or {}
         item.update(tools=sorted(k for k, v in tools.items() if v),
                     limit=limit_for(m.id, overrides), running=c.get("running", 0),
@@ -752,37 +765,42 @@ def client_settings():
         overrides = {}
     limits = {}
     for mid, conf in overrides.items():
-        value = conf.get("limite") if isinstance(conf, dict) else None
+        value = conf.get("limit") if isinstance(conf, dict) else None
         if isinstance(value, int) and not isinstance(value, bool) and \
                 LIMIT_RANGE[0] <= value <= LIMIT_RANGE[1]:
             limits[mid] = value
-    return {"relais": str(data.get("relais", "")), "jeton_defini": bool(data.get("jeton")),
-            "chemin": str(client_path()), "limite_defaut": DEFAULT_LIMIT, "limites": limits}
+    relay, token_set, path = str(data.get("relais", "")), bool(data.get("jeton")), str(client_path())
+    return {"relay": relay, "token_set": token_set, "path": path, "default_limit": DEFAULT_LIMIT,
+            "limits": limits,
+            # compatibilité 1.x (appli iPhone), à retirer en 2.0
+            "relais": relay, "jeton_defini": token_set, "chemin": path,
+            "limite_defaut": DEFAULT_LIMIT, "limites": limits}
 
 
-def save_client(relais=None, jeton=None):
-    """Écrit `~/.config/ricochet/client.toml` (droits 600) ; une valeur absente est gardée."""
+def save_client(relay=None, token=None):
+    """Écrit `~/.config/ricochet/client.toml` (droits 600) ; une valeur absente est gardée. Les
+    clés du fichier (`relais`, `jeton`) ne changent pas."""
     path = client_path()
     data = _read_toml(path)
-    if relais is not None:
-        relais = str(relais).strip().rstrip("/")
-        if not relais.startswith(("https://", "http://")):
+    if relay is not None:
+        relay = str(relay).strip().rstrip("/")
+        if not relay.startswith(("https://", "http://")):
             raise DistantError("L'adresse du relais doit commencer par https:// (ou http://).")
-        data["relais"] = relais
-    if jeton is not None:
-        jeton = str(jeton).strip()
-        if not jeton:
+        data["relais"] = relay
+    if token is not None:
+        token = str(token).strip()
+        if not token:
             raise DistantError("Le jeton est vide.")
-        data["jeton"] = jeton
+        data["jeton"] = token
     _write_private(path, toml_dump(data))
 
 
-def set_limit(machine_id, limite):
-    """Écrit `limite` dans `[machines.<id>]` de `~/.config/ccs/distant.toml`."""
+def set_limit(machine_id, limit):
+    """Écrit `limit` dans `[machines.<id>]` de `~/.config/ccs/machines.toml`."""
     if not isinstance(machine_id, str) or not MACHINE_ID.match(machine_id):
         raise DistantError("Machine invalide.")
-    if isinstance(limite, bool) or not isinstance(limite, int) or \
-            not LIMIT_RANGE[0] <= limite <= LIMIT_RANGE[1]:
+    if isinstance(limit, bool) or not isinstance(limit, int) or \
+            not LIMIT_RANGE[0] <= limit <= LIMIT_RANGE[1]:
         raise DistantError(f"La limite doit être un nombre de {LIMIT_RANGE[0]} à {LIMIT_RANGE[1]}.")
     path = overrides_path()
     data = _read_toml(path)
@@ -792,7 +810,8 @@ def set_limit(machine_id, limite):
     conf = machines.get(machine_id)
     if not isinstance(conf, dict):
         conf = machines[machine_id] = {}
-    conf["limite"] = limite
+    conf.pop("limite", None)
+    conf["limit"] = limit
     _write_private(path, toml_dump(data))
 
 
@@ -819,6 +838,6 @@ def describe(machines, overrides, probe=True, run=None):
             lines.append(f"  {e}")
             continue
         if inv:
-            tools = sorted(k for k, v in inv.get("outils", {}).items() if v)
+            tools = sorted(k for k, v in inv.get("tools", {}).items() if v)
             lines.append("  outils : " + (", ".join(tools) or "aucun de la liste"))
     return lines

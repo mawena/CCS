@@ -44,6 +44,28 @@ def one(events, **kw):
     return entries[0]
 
 
+class OldValuesTest(unittest.TestCase):
+    """Modes d'avant la 1.0.0 dans l'historique : relus sous leur nouveau nom."""
+
+    def test_old_switch_modes(self):
+        early = one([sw(at(6, 10), "pro", mode="anticipee", lost=60, minutes=25, **{"from": "perso"})])
+        self.assertEqual(early.kind, "early")
+        blocked = one([sw(at(6, 11), "pro", mode="blocage", **{"from": "perso"})], markers={})
+        self.assertEqual(blocked.kind, "blocked")
+        failed = one([err(at(6, 10), "pro", op="auto_switch", mode="blocage", message="ko")])
+        self.assertTrue(failed.reason.startswith("Échec de la bascule après un blocage"))
+
+    def test_old_warmup_modes(self):
+        e = one([warm(at(6, 7), "pro", mode="orchestrateur", date="2026-11-06", time="07:00", ok=True)])
+        self.assertEqual((e.kind, e.reason), ("window", "Fenêtre de 5 h démarrée par l'orchestrateur"))
+        e = one([warm(at(6, 7), "pro", mode="creneau", date="2026-11-06", time="07:00", ok=True)])
+        self.assertIn("Warm-up de 07:00", e.reason)
+
+    def test_kinds_are_english(self):
+        self.assertEqual(switch_log.KINDS, ("auto", "early", "blocked", "manual", "initial", "failed",
+                                            "limit", "window"))
+
+
 class AutoSwitchReasonTest(unittest.TestCase):
     def test_threshold_switch_with_recorded_percent(self):
         e = one([sw(at(6, 14, 32), "pro", mode="auto", **{"from": "perso"}, percent=98.4,
@@ -71,19 +93,19 @@ class AutoSwitchReasonTest(unittest.TestCase):
 
 class EarlySwitchReasonTest(unittest.TestCase):
     def test_structured_detail(self):
-        e = one([sw(at(6, 10), "pro", mode="anticipee", lost=60, minutes=25, **{"from": "perso"})])
-        self.assertEqual(e.kind, "anticipee")
+        e = one([sw(at(6, 10), "pro", mode="early", lost=60, minutes=25, **{"from": "perso"})])
+        self.assertEqual(e.kind, "early")
         self.assertEqual(e.reason, "Bascule anticipée de l'orchestrateur : pro allait perdre 60 % "
                                    "de quota dans 25 min")
 
     def test_old_event_read_from_the_reason(self):
-        e = one([sw(at(6, 10), "pro", mode="anticipee", reason="pro va perdre 45 % de quota dans 12 min",
+        e = one([sw(at(6, 10), "pro", mode="early", reason="pro va perdre 45 % de quota dans 12 min",
                     **{"from": "perso"})])
         self.assertEqual(e.reason, "Bascule anticipée de l'orchestrateur : pro allait perdre 45 % "
                                    "de quota dans 12 min")
 
     def test_unknown_detail(self):
-        e = one([sw(at(6, 10), "pro", mode="anticipee", **{"from": "perso"})])
+        e = one([sw(at(6, 10), "pro", mode="early", **{"from": "perso"})])
         self.assertEqual(e.reason, "Bascule anticipée de l'orchestrateur (quota sur le point d'expirer)")
 
 
@@ -91,9 +113,9 @@ class BlockedSwitchTest(unittest.TestCase):
     def test_marker_gives_the_blocked_project(self):
         t = at(6, 11)
         markers = {"s1": LimitEvent("s1", t + 2, "perso", "pro", True, "switched")}
-        e = one([alert(t, f"blocage:{t:.0f}"), sw(t, "pro", mode="blocage", **{"from": "perso"},
+        e = one([alert(t, f"blocage:{t:.0f}"), sw(t, "pro", mode="blocked", **{"from": "perso"},
                                                   reason="perso bloqué → pro (au repos)")], markers=markers)
-        self.assertEqual((e.kind, e.source, e.target), ("blocage", "perso", "pro"))
+        self.assertEqual((e.kind, e.source, e.target), ("blocked", "perso", "pro"))
         self.assertEqual(e.reason, "Bascule après un blocage (limite atteinte dans GiGit)")
         self.assertEqual(e.projects, ("GiGit",))
 
@@ -102,32 +124,32 @@ class BlockedSwitchTest(unittest.TestCase):
         markers = {"s1": LimitEvent("s1", t + 2, "perso", "pro", True, "switched"),
                    "s2": LimitEvent("s2", t + 40, "perso", "pro", True, "already"),
                    "s3": LimitEvent("s3", t + 4000, "perso", "pro", True, "already")}  # trop tard
-        e = one([sw(t, "pro", mode="blocage", **{"from": "perso"}),
+        e = one([sw(t, "pro", mode="blocked", **{"from": "perso"}),
                  alert(t + 40, "deja")], markers=markers)
         self.assertEqual(e.reason, "Bascule après un blocage (limite atteinte dans GiGit et Autre)")
 
     def test_without_marker(self):
-        e = one([sw(at(6, 11), "pro", mode="blocage", **{"from": "perso"})], markers={})
+        e = one([sw(at(6, 11), "pro", mode="blocked", **{"from": "perso"})], markers={})
         self.assertEqual(e.reason, "Bascule après un blocage (limite atteinte sur perso)")
 
     def test_marker_of_another_switch_ignored(self):
         t = at(6, 11)
         markers = {"s1": LimitEvent("s1", t + 2, "perso", "boulot", True, "switched")}
-        e = one([sw(t, "pro", mode="blocage", **{"from": "perso"})], markers=markers)
+        e = one([sw(t, "pro", mode="blocked", **{"from": "perso"})], markers=markers)
         self.assertEqual(e.projects, ())
 
     def test_manual_detection_racing_the_hook_is_dropped(self):
         t = at(6, 11)
-        entries = build([sw(t - 3, "pro", mode="manual"), sw(t, "pro", mode="blocage", **{"from": "perso"})],
+        entries = build([sw(t - 3, "pro", mode="manual"), sw(t, "pro", mode="blocked", **{"from": "perso"})],
                         previous="perso")
-        self.assertEqual([e.kind for e in entries], ["blocage"])
+        self.assertEqual([e.kind for e in entries], ["blocked"])
 
 
 class ManualSwitchTest(unittest.TestCase):
     def test_origin_unknown_and_source_from_previous_switch(self):
         entries = build([sw(at(6, 8), "perso", mode="initial"), sw(at(6, 9), "pro", mode="manual")])
         self.assertEqual(entries[0].title, "perso → pro")
-        self.assertEqual(entries[0].kind, "manuelle")
+        self.assertEqual(entries[0].kind, "manual")
         self.assertEqual(entries[0].reason, "Bascule manuelle (application, icône ou « ccs use »)")
 
     def test_previous_profile_before_the_period(self):
@@ -162,9 +184,9 @@ class ManualSwitchTest(unittest.TestCase):
 
 class FailureTest(unittest.TestCase):
     def test_failed_early_switch(self):
-        e = one([err(at(6, 10), "pro", op="auto_switch", message="jeton révoqué", mode="anticipee",
+        e = one([err(at(6, 10), "pro", op="auto_switch", message="jeton révoqué", mode="early",
                      **{"from": "perso"})])
-        self.assertEqual((e.kind, e.ok, e.title), ("echec", False, "perso → pro"))
+        self.assertEqual((e.kind, e.ok, e.title), ("failed", False, "perso → pro"))
         self.assertEqual(e.reason, "Échec de la bascule anticipée vers pro : jeton révoqué")
 
     def test_old_failure_without_mode(self):
@@ -174,7 +196,7 @@ class FailureTest(unittest.TestCase):
         self.assertEqual(entries[0].source, "perso")
 
     def test_other_failures(self):
-        cases = [({"op": "auto_switch", "mode": "blocage"}, "Échec de la bascule après un blocage vers pro"),
+        cases = [({"op": "auto_switch", "mode": "blocked"}, "Échec de la bascule après un blocage vers pro"),
                  ({"op": "notification"}, "Échec de la bascule depuis une notification vers pro"),
                  ({"op": "manual", "via": "projet"}, "Échec de la bascule manuelle vers pro")]
         for detail, start in cases:
@@ -196,7 +218,7 @@ class BlockedWithoutSwitchTest(unittest.TestCase):
         markers = {"s1": LimitEvent("s1", t, "perso", None, False, "paused"),
                    "s2": LimitEvent("s2", t + 30, "perso", None, False, "paused")}
         e = one([alert(t, "pause")], markers=markers)
-        self.assertEqual((e.kind, e.ok, e.title), ("limite", False, "perso"))
+        self.assertEqual((e.kind, e.ok, e.title), ("limit", False, "perso"))
         self.assertEqual(e.reason, "Limite atteinte dans GiGit et Autre pendant une pause : pas de bascule")
 
     def test_exhausted(self):
@@ -213,8 +235,8 @@ class BlockedWithoutSwitchTest(unittest.TestCase):
     def test_failed_switch_after_a_block_is_one_entry(self):
         t = at(6, 12)
         entries = build([alert(t, f"blocage:{t:.0f}"),
-                         err(t, "pro", op="auto_switch", mode="blocage", message="ko", **{"from": "perso"})])
-        self.assertEqual([e.kind for e in entries], ["echec"])
+                         err(t, "pro", op="auto_switch", mode="blocked", message="ko", **{"from": "perso"})])
+        self.assertEqual([e.kind for e in entries], ["failed"])
 
     def test_other_alerts_ignored(self):
         self.assertEqual(build([alert(at(6, 12), "switch:1", profile=None),
@@ -224,25 +246,25 @@ class BlockedWithoutSwitchTest(unittest.TestCase):
 class WindowStartTest(unittest.TestCase):
     def test_orchestrator_start_placeholder_replaced_by_result(self):
         t = at(6, 7)
-        e = one([warm(t, "pro", mode="orchestrateur", date="2026-11-06", time="07:00", ok=None,
+        e = one([warm(t, "pro", mode="orchestrator", date="2026-11-06", time="07:00", ok=None,
                       message="en cours"),
-                 warm(t, "pro", mode="orchestrateur", date="2026-11-06", time="07:00", ok=True, message="")])
-        self.assertEqual((e.kind, e.title, e.ok), ("fenetre", "pro", True))
+                 warm(t, "pro", mode="orchestrator", date="2026-11-06", time="07:00", ok=True, message="")])
+        self.assertEqual((e.kind, e.title, e.ok), ("window", "pro", True))
         self.assertEqual(e.reason, "Fenêtre de 5 h démarrée par l'orchestrateur")
 
     def test_slot_failure(self):
         e = one([warm(at(6, 7), "pro", date="2026-11-06", time="07:00", ok=None, message="en cours"),
-                 warm(at(6, 7), "pro", mode="creneau", date="2026-11-06", time="07:00", ok=False,
+                 warm(at(6, 7), "pro", mode="slot", date="2026-11-06", time="07:00", ok=False,
                       message="délai dépassé")])
         self.assertFalse(e.ok)
         self.assertEqual(e.reason, "Warm-up de 07:00 impossible : délai dépassé")
 
     def test_slot_success_and_running(self):
-        e = one([warm(at(6, 7), "pro", mode="creneau", date="2026-11-06", time="07:00", ok=True)])
+        e = one([warm(at(6, 7), "pro", mode="slot", date="2026-11-06", time="07:00", ok=True)])
         self.assertEqual(e.reason, "Warm-up de 07:00 : fenêtre de 5 h démarrée")
-        e = one([warm(NOW - 30, "pro", mode="orchestrateur", date="2026-11-06", time="14:59", ok=None)])
+        e = one([warm(NOW - 30, "pro", mode="orchestrator", date="2026-11-06", time="14:59", ok=None)])
         self.assertEqual(e.reason, "Démarrage de la fenêtre par l'orchestrateur en cours")
-        e = one([warm(NOW - 3600, "pro", mode="orchestrateur", date="2026-11-06", time="14:00", ok=None)])
+        e = one([warm(NOW - 3600, "pro", mode="orchestrator", date="2026-11-06", time="14:00", ok=None)])
         self.assertEqual(e.reason, "Démarrage de la fenêtre par l'orchestrateur sans réponse")
 
 
@@ -293,11 +315,11 @@ class StoreLoadTest(HomeTestCase):
         entries = switch_log.load(self.db, days=7, now=NOW, markers={})
         self.assertEqual([(e.source, e.target) for e in entries], [("perso", "pro")])
         everything = switch_log.load(self.db, days=None, now=NOW, markers={})
-        self.assertEqual([e.kind for e in everything], ["manuelle", "initial"])
+        self.assertEqual([e.kind for e in everything], ["manual", "initial"])
 
     def test_markers_read_from_disk(self):
         t = at(6, 11)
-        self.db.add_event(t, "switch", "pro", {"mode": "blocage", "from": "perso"})
+        self.db.add_event(t, "switch", "pro", {"mode": "blocked", "from": "perso"})
         write(self.store / "limits" / "s9.json", {"session_id": "s9", "ts": t + 1, "from": "perso",
                                                   "to": "pro", "switched": True, "outcome": "switched"})
         cwd = str(self.home / "Work" / "GiGit")
@@ -346,7 +368,7 @@ class OriginNoteTest(HomeTestCase):
         db = Store()
         switch_log.record_failure(db, "pro", "projet", "verrou occupé", source="perso", now=at(6, 9))
         e = switch_log.load(db, days=7, now=NOW, markers={})[0]
-        self.assertEqual((e.kind, e.reason), ("echec", "Échec de la bascule manuelle vers pro : verrou occupé"))
+        self.assertEqual((e.kind, e.reason), ("failed", "Échec de la bascule manuelle vers pro : verrou occupé"))
 
 
 if __name__ == "__main__":

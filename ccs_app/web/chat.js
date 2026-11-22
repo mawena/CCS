@@ -203,7 +203,7 @@ export class ChatView {
     this.offs.push(api.on("chat.event", (d) => { if (d.chat_id === this.chatId) this.receive(d); }));
     this.offs.push(api.on("chat.tags", (d) => { if (d.session_id && d.session_id === this.sessionId) this.applyTag(d.msg_id, d.entry); }));
     this.loadTags();
-    this.offs.push(api.on("work.shell", (d) => { if (d.chat_id === this.chatId) this.shellDone(d); }));
+    this.offs.push(api.on("shell.done", (d) => { if (d.chat_id === this.chatId) this.shellDone(d); }));
     this.offs.push(api.on("reconnected", () => { this.attach(); this.pollShells(); }));
     this.attach();                                   // l'historique suit le premier rattachement
   }
@@ -467,12 +467,12 @@ export class ChatView {
     Object.assign(card, { out, status, stop });
     this.append(card);
     let r;
-    try { r = await this.api.call("work.shell.run", { chat_id: this.chatId, command }); } catch (e) {
+    try { r = await this.api.call("shell.run", { chat_id: this.chatId, command }); } catch (e) {
       this.shellFinish({ card, command }, { code: 127, output: e.message, truncated: false });
       return;
     }
     const entry = { card, command };
-    stop.addEventListener("click", () => this.api.call("work.shell.stop", { run_id: r.run_id }).catch(() => {}));
+    stop.addEventListener("click", () => this.api.call("shell.stop", { run_id: r.run_id }).catch(() => {}));
     this.shells.set(r.run_id, entry);
     const early = this.shellEarly.get(r.run_id);
     if (early) this.shellDone(early);
@@ -498,7 +498,7 @@ export class ChatView {
 
   async pollShells() {                       // après une coupure, une fin de commande a pu être manquée
     for (const run_id of [...this.shells.keys()]) {
-      try { const r = await this.api.call("work.shell.poll", { run_id }); if (r.done) this.shellDone(r); } catch { /* sera retenté */ }
+      try { const r = await this.api.call("shell.poll", { run_id }); if (r.done) this.shellDone(r); } catch { /* sera retenté */ }
     }
   }
 
@@ -591,7 +591,7 @@ export class ChatView {
     const sid = this.sessionId;
     try {
       const r = await this.api.call("chat.tag", { session_id: sid, msg_id: msg.msgId, tags, text,
-        role: msg.author === ME ? "utilisateur" : "assistant" });
+        role: msg.author === ME ? "user" : "assistant" });
       if (this.sessionId === sid) this.applyTag(msg.msgId, r.entry);
     } catch (e) { toast(`Étiquettes non enregistrées : ${e.message}`, { kind: "error" }); }
   }
@@ -1177,9 +1177,9 @@ export class ChatView {
   // ---- historique d'une conversation reprise ----------------------------------------------
 
   historyNode(m) {
-    if (m.role === "utilisateur") return this.paintTags(userNode(m.text, 0, this.msgActions, this.renderQuote, m.uuid || ""));
+    if (m.role === "user") return this.paintTags(userNode(m.text, 0, this.msgActions, this.renderQuote, m.uuid || ""));
     if (m.role === "assistant") { const n = this.paintTags(claudeNode(this.msgActions, m.msg_id || "")); n.raw = m.text; this.render(n.content, m.text); return n; }
-    if (m.role === "outil" && m.tool) {
+    if (m.role === "tool" && m.tool) {
       return el("details", { class: `tool done${m.tool.is_error ? " error" : ""}` },
         el("summary", {}, el("strong", {}, TOOL_LABELS[m.tool.name] || m.tool.name), " ", el("span", { class: "subtle" }, m.tool.target)),
         m.tool.result ? el("pre", { class: "tool-result" }, m.tool.result) : null);
@@ -1195,7 +1195,7 @@ export class ChatView {
   async loadHistory() {
     const h = this.history;
     let r;
-    try { r = await this.api.call("conversation.messages", this.historyParams(h, HISTORY_LIMIT)); } catch { return; }
+    try { r = await this.api.call("conversations.messages", this.historyParams(h, HISTORY_LIMIT)); } catch { return; }
     if (this.history !== h) return;                  // fil remis à zéro entre-temps
     const msgs = r.messages || [];
     h.loaded = msgs.length;
@@ -1212,7 +1212,7 @@ export class ChatView {
     if (!h || h.full) return;
     h.full = true;
     let r;
-    try { r = await this.api.call("conversation.messages", this.historyParams(h, 100000)); } catch { h.full = false; return; }
+    try { r = await this.api.call("conversations.messages", this.historyParams(h, 100000)); } catch { h.full = false; return; }
     const older = (r.messages || []).slice(0, Math.max(0, (r.messages || []).length - h.loaded));
     const first = this.thread.firstChild;
     for (const m of older) { const n = this.historyNode(m); if (n) this.thread.insertBefore(n, first); }

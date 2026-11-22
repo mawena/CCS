@@ -321,7 +321,7 @@ fun EcranChat(
             fermer = { aEtiqueter = null },
         ) { tags ->
             aEtiqueter = null
-            mc.etiqueter(m.msgId, tags, m.texte, if (m.auteur == Citation.Auteur.Moi) "utilisateur" else "assistant")
+            mc.etiqueter(m.msgId, tags, m.texte, if (m.auteur == Citation.Auteur.Moi) "user" else "assistant")
         }
     }
     if (voletEtiquettes) {
