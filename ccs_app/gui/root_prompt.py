@@ -358,6 +358,15 @@ class RootGuard:
             GLib.source_remove(self._tick)
             self._tick = None
 
+    def close(self):
+        """Ferme le dialogue et arrête les minuteries (fenêtre détruite, tests) : une minuterie
+        GLib laissée derrière toucherait des widgets détruits."""
+        if self.dialog is not None:
+            self.dialog.finish()
+        if self._tick is not None:
+            GLib.source_remove(self._tick)
+            self._tick = None
+
     def _on_tick(self):
         self._tick = None
         self.update_indicator()              # relance la minuterie tant que le mot de passe est gardé

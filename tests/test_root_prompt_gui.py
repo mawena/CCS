@@ -61,6 +61,7 @@ class RootPromptTest(unittest.TestCase):
         self.conn = FakeConn()
         self.guard = root_prompt.RootGuard(self.win)
         self.guard.attach(self.conn)
+        self.addCleanup(self.guard.close)    # avant win.destroy : pas de minuterie orpheline
 
     def emit(self, name, data):
         self.conn.client.on_event(name, data)
