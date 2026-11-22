@@ -658,7 +658,7 @@ dictée et `spd-say` (speech-dispatcher) pour la lecture.
 - [x] 2. Bureau (GTK) : dictée par Whisper local (enregistrement pw-record, parecord ou arecord), lecture par speech-dispatcher
 - [x] 3. Android : micro dans la saisie, lecture des réponses, réglage
 - [x] 4. iPhone : micro dans la saisie, lecture des réponses, réglage (permissions micro et reconnaissance)
-- [ ] 5. Tests, README, CHANGELOG ; release mineure 1.1.0 (APK et IPA sur Codemagic, installés sur le Pixel et l'iPhone)
+- [x] 5. Tests, README, CHANGELOG ; release mineure 1.1.0 (APK et IPA sur Codemagic, installés sur le Pixel et l'iPhone)
 
 ## Phase 34 — Mot de passe root depuis les appareils (avant la 1.0.0)
 
