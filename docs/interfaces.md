@@ -540,12 +540,11 @@ numéros de ligne sont ceux de la 0.37.0.*
 - état sans `fetched_at` (`cli.py`, `_usable_best`) : gardé pendant la 1.x (un service d'avant
   la 1.0.0 peut encore tourner pendant la mise à jour), à retirer en 2.0.
 
-Reste à faire :
+Fait aussi en tâche 4 : `serveurs.json` → `servers.json` (migré), nettoyage de
+`distant-en-cours/` sous `${XDG_CACHE_HOME}`.
 
-- `$STORE/serveurs.json` → `servers.json` : `ccs_app/remote/servers.py`, ligne `path()`, doit
-  renvoyer `migrate.store_file("servers.json", "serveurs.json")` (fichier tenu par la tâche 4) ;
-- l'ancien dossier `~/.cache/ccs/distant-en-cours/` est nettoyé par `server/bridge.py` sous
-  `~/.cache` en dur : à faire passer par `core.ccs_dir("cache")` ;
+Gelé tel quel pour la 1.x :
+
 - ~~valeurs encore françaises dans des états~~ : faites (rôles des messages et des étiquettes,
   modes des bascules et des démarrages de fenêtre, genres du journal, inventaire des machines ;
   voir § 2.3). Restent en français, stockées dans `history.db` ou `switch-origin.json` : le
@@ -553,3 +552,7 @@ Reste à faire :
   les origines `via` des bascules manuelles (`icone`, `projet`, `raccourci`, `nouvelle-session`) ;
   renvoyés par le pont : les choix de pause `demain` et `manuel` (`pause_choices`, `pause.set
   {choice}`, mêmes mots que `ccs pause`), et les codes d'erreur (voir plus haut).
+
+  Ces valeurs (avec les droits des tâches `lecture`, `modifications`, `tout`, mots tapés par
+  l'utilisateur) font partie du contrat 1.0 tel quel ; leur passage à l'anglais est reporté
+  à la 2.0.
