@@ -99,10 +99,11 @@ class ChatTab(Gtk.Box):
     }
 
     def __init__(self, owner, launch, options=None, history_path=None, claude=None, environ=None,
-                 engine_factory=None, remote=None, history_reader=None):
+                 engine_factory=None, remote=None, history_reader=None, bridged=False):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.owner = owner
         self.remote = remote                      # nom du serveur CCS d'un chat distant
+        self.bridged = bridged                    # chat local tenu par le pont local (vu partout)
         self._history_reader = history_reader
         self.launch = launch
         self.options = options if options is not None else chat_options.from_args(launch.extra_args)
@@ -270,6 +271,19 @@ class ChatTab(Gtk.Box):
         engine = self.engine
         threading.Thread(target=engine.stop, daemon=True).start()
 
+    def detach(self):
+        """Fermeture de l'application : un chat tenu par le pont local continue d'y tourner (les
+        autres appareils le suivent) ; sinon, comme `hang_up`."""
+        detach = getattr(self.engine, "detach", None) if self.bridged else None
+        if detach is None:
+            self.hang_up()
+            return
+        self._closed = True
+        self._settle_phone()
+        for run in list(self._shells):
+            run.stop()
+        detach()
+
     def suspend_if_idle(self, idle_s):
         """Met `claude` en veille s'il est resté au repos `idle_s` secondes."""
         return self.engine.suspend_if_idle(time.time(), idle_s)
@@ -314,7 +328,8 @@ class ChatTab(Gtk.Box):
     def remote_state(self, state):
         """État de la connexion au serveur d'un chat distant : bandeau pendant une coupure."""
         if state == "offline":
-            self.offline_banner.set_title("Serveur injoignable : reconnexion…")
+            self.offline_banner.set_title("Pont local injoignable : reconnexion…" if self.bridged
+                                          else "Serveur injoignable : reconnexion…")
             self.offline_banner.set_revealed(True)
         elif state == "auth":
             self.offline_banner.set_title("Le serveur refuse ce PC : appaire-le de nouveau (Réglages → Serveurs CCS).")
@@ -624,7 +639,7 @@ class ChatTab(Gtk.Box):
             self.messages.known_tags = list(known)
             if self.tags_panel.get_reveal_child():
                 self._fill_tags_panel()
-        if self.remote:
+        if self.remote or self.bridged:
             load = getattr(self.engine, "load_tags", None)
             if load is not None:
                 load(lambda messages, known: apply(messages, known))
@@ -644,7 +659,7 @@ class ChatTab(Gtk.Box):
                 self.messages.add_notice(f"Étiquettes non enregistrées : {error}", "error")
                 return
             self._apply_tags(sid, msg_id, entry)
-        if self.remote:
+        if self.remote or self.bridged:
             setter = getattr(self.engine, "set_tags", None)
             if setter is not None:
                 setter(msg_id, tags, text, role, callback=done)
@@ -917,7 +932,7 @@ class ChatTab(Gtk.Box):
         return False
 
     def _on_state(self, ev):
-        if not self.remote:
+        if not (self.remote or self.bridged):
             self._auto_note(self._auto_compact.on_state(ev.state))
         st, now = self.state, time.time()
         previous = st.state
@@ -1267,7 +1282,7 @@ class ChatTab(Gtk.Box):
         threshold = cfg["threshold_tokens"]
         pct = threshold * 100 / ev.maximum if ev.maximum else None
         self.bar.set_context(ev.percentage, pct, ev.total)
-        if self.remote:                 # chat d'un serveur : son pont compacte et l'écrit dans le fil
+        if self.remote or self.bridged:  # chat tenu par un pont : il compacte et l'écrit dans le fil
             auto = ev.auto_compact
         else:
             auto = context_alert.auto_on(cfg)

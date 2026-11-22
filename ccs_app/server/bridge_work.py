@@ -143,6 +143,7 @@ class WorkApi:
     def __init__(self, bridge):
         self.bridge = bridge
         self.shells = {}                                   # run_id → ShellRun en cours
+        getattr(bridge, "restart_checks", []).append(lambda: bool(self.shells))
         self.shell_done = collections.OrderedDict()        # run_id → résultat
         self._ids = itertools.count(1)
         bridge.add_handlers({

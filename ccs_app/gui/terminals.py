@@ -61,6 +61,8 @@ COLORS = {False: ("#1e1e1e", "#ffffff"), True: ("#ffffff", "#1e1e1e")}  # sombre
 SAVE_DELAY_MS = 1000
 STOP_WAIT_TRIES = 60       # 60 × 100 ms : temps laissé au chat pour s'arrêter avant le terminal
 ELSEWHERE_TEXT = "Cette conversation est ouverte ailleurs : tu pourras écrire quand elle sera fermée."
+NO_BRIDGE_TEXT = ("Pont local injoignable : ce chat tourne dans l'application. Le web et les autres "
+                  "appareils ne le verront pas en direct.")
 SPLIT_ACCEL = "<Control><Shift>e"
 QUEUE_ACCEL = "<Control><Shift>m"
 CSS = b"""
@@ -764,20 +766,42 @@ class TerminalsPage(Gtk.Box):
         options = chat_options_module.with_default_rights(options, extra_args, settings.load_settings())
         return self.open_chat(cwd, resume, title, options, extra_args)
 
+    def local_bridge(self):
+        """Connexion au pont local (lancé s'il ne tourne pas), ou None : les chats restent alors
+        dans l'application. Remplaçable (tests)."""
+        from ..remote import engine as remote_engine
+        return remote_engine.local_connection(gui_dispatch)
+
     def open_chat(self, cwd, resume=None, title=None, options=None, extra_args=(), present=True):
         """Onglet de chat (sans processus) dans un espace de session ; l'historique de la
-        conversation `resume` est chargé depuis son journal. Une conversation qui tourne dans
-        un autre terminal s'ouvre en lecture seule."""
+        conversation `resume` est chargé depuis son journal. Le chat tourne dans le pont local
+        (vu en direct par le web et les autres appareils) ; sans pont, dans l'application. Une
+        conversation qui tourne dans un autre terminal s'ouvre en lecture seule ; si elle tourne
+        déjà dans le pont (ouverte du web, du téléphone), l'onglet la rejoint."""
         chat_cls, chat_options = _chat_classes()
         launch = terminal.claude_launch(cwd, resume, title, extra_args=tuple(extra_args or ()))
         history = None
         if resume:
             path = sessions.transcript_path(cwd, resume)
             history = path if path.exists() else None
+        conn = self.local_bridge()
+        kwargs = {}
+        if conn is not None:
+            from ..remote import engine as remote_engine
+
+            def factory(cwd_, session_id, options_, on_event):
+                return remote_engine.RemoteChatEngine(conn, cwd_, session_id, options_, on_event,
+                                                      close_on_stop=True)
+            kwargs = {"engine_factory": factory, "bridged": True}
         tab = chat_cls(self, launch, options if options is not None else chat_options.ChatOptions(),
-                       history)
+                       history, **kwargs)
         tab.state.chat = True
+        tab.state.bridged = conn is not None
         tab.elsewhere_pid = None
+        if conn is not None:
+            conn.listeners.add(tab.remote_state)
+        elif os.environ.get("CCS_CHAT_IN_PROCESS") != "1":
+            tab.show_notice(NO_BRIDGE_TEXT)
         self.install_workspace(tab)
         tab.page = self.view.append(tab)
         tab.update_page()
@@ -786,8 +810,20 @@ class TerminalsPage(Gtk.Box):
             self.present(tab)
         self.changed(tab)
         if resume:
-            in_thread(sessions.list_sessions, lambda live: self.check_elsewhere(tab, live))
+            if conn is not None:
+                in_thread(lambda: (sessions.list_sessions(), self.bridge_chats(conn)),
+                          lambda found: self.check_elsewhere(tab, *found))
+            else:
+                in_thread(sessions.list_sessions, lambda live: self.check_elsewhere(tab, live))
         return tab
+
+    @staticmethod
+    def bridge_chats(conn, timeout=10):
+        """Chats du pont local (hors du fil de l'interface) ; [] s'il ne répond pas."""
+        try:
+            return conn.client.call_sync("chat.list", timeout=timeout).get("chats") or []
+        except Exception:  # noqa: BLE001
+            return []
 
     # ---- serveurs CCS (chats et shells distants) -----------------------------------------
 
@@ -1198,7 +1234,8 @@ class TerminalsPage(Gtk.Box):
         return False
 
     def startup(self):
-        """Au lancement : onglets de la dernière fois rouverts (interrupteur) ou proposés."""
+        """Au lancement : onglets de la dernière fois rouverts (interrupteur) ou proposés. Le
+        plan, préparé hors du fil de l'interface, joint (et lance) le pont local des chats."""
         records, selected = terminal_store.load_tabs()
         if records:
             self.pending, self.pending_selected = records, selected
@@ -1206,7 +1243,14 @@ class TerminalsPage(Gtk.Box):
         return False
 
     def plan(self, records, selected, present=()):
-        return terminal.restore_plan(records, selected, opened=conversations.open_ids(), present=present)
+        """Hors du fil de l'interface. Les conversations qui tournent dans le pont local (chats
+        laissés à la dernière fermeture, ou ouverts du web) ne sont pas « ouvertes ailleurs » :
+        leurs onglets reviennent et les rejoignent."""
+        opened = conversations.open_ids()
+        conn = self.local_bridge()
+        if conn is not None:
+            opened -= {c.get("session_id") for c in self.bridge_chats(conn)}
+        return terminal.restore_plan(records, selected, opened=opened, present=present)
 
     def offer(self, plan):
         if self.pending is None or not plan.tabs:
@@ -1330,14 +1374,22 @@ class TerminalsPage(Gtk.Box):
         return True
 
     def close_question(self):
+        """Confirmation avant de fermer la fenêtre ; les chats du pont local n'en demandent pas :
+        ils continuent d'y tourner."""
         for tab in self.tabs():
             if tab.state.kind == "shell":
                 tab.state.busy = tab.foreground_busy()
-        return terminal.close_question(self.states())
+        return terminal.close_question([s for s in self.states() if not getattr(s, "bridged", False)])
 
     def hang_up_all(self):
+        """Fermeture de l'application : terminaux et chats en processus arrêtés ; les chats du
+        pont local sont seulement détachés (ils continuent, vus du web et des autres appareils)."""
         for tab in self.tabs():
-            tab.hang_up()
+            detach = getattr(tab, "detach", None)
+            if detach is not None and getattr(tab.state, "bridged", False):
+                detach()
+            else:
+                tab.hang_up()
 
     # ---- menu des onglets ------------------------------------------------------------
 
@@ -1449,8 +1501,8 @@ class TerminalsPage(Gtk.Box):
         now, blocked = time.time(), set()
         planned_on = getattr(self, "limit_cfg", {}).get("enabled", True)
         for tab in tabs:
-            if getattr(tab, "remote", None):
-                continue  # chat d'un serveur CCS : son pont le relance et l'écrit dans le fil
+            if getattr(tab, "remote", None) or getattr(tab.state, "bridged", False):
+                continue  # chat tenu par un pont (serveur, ou pont local) : il le relance et l'écrit dans le fil
             event = limits.get(tab.state.session_id) if tab.state.session_id else None
             decision = terminal.resume_decision(tab.state, event, now, enabled=self.options["auto_resume"],
                                                 planned_enabled=planned_on)
@@ -1521,12 +1573,16 @@ class TerminalsPage(Gtk.Box):
 
     # ---- chats : conversation ouverte ailleurs ---------------------------------------
 
-    def check_elsewhere(self, tab, live):
+    def check_elsewhere(self, tab, live, bridge_chats=()):
         """Une session Claude Code vivante, hors de nos onglets, tient déjà la conversation :
-        le chat passe en lecture seule (deux processus la corrompraient)."""
+        le chat passe en lecture seule (deux processus la corrompraient). Celles du pont local
+        (`bridge_chats`, chat.list) ne comptent pas : l'onglet les rejoint."""
         if tab.page is None or tab.state.running:
             return
+        if any(c.get("session_id") == tab.state.session_id for c in bridge_chats):
+            return
         own = {t.state.pid for t in self.tabs() if t.state.pid}
+        own |= {c.get("pid") for c in bridge_chats if c.get("pid")}
         pid = terminal.elsewhere_pid(tab.state.session_id, live, own)
         if pid:
             self.set_read_only(tab, pid)

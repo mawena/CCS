@@ -131,6 +131,11 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
   depuis la 1.0.0), `version` celle de CCS. Le client déclare la sienne dans `protocol` (sur
   `/api/ws` : `?protocol=1`) ; sans elle, c'est un ancien client (voir § 2.3). Sur `/api/ws`,
   `hello` et `machines.attach` sont refusés au client (ils sont faits par `ccs-web`).
+- Pont local (`ccs bridge --local`) : c'est lui qui tient les chats de l'application de bureau
+  (le web et les autres appareils les voient par `machines.attach`). Il se relance seul sur le
+  nouveau code quand la version de CCS installée change et qu'aucun travail ne tourne (ses chats
+  sont fermés, les appareils les rouvrent sur la même conversation) ; un pont plus ancien que le
+  client et sans chat au travail est arrêté par le client, qui en lance un neuf.
 
 ### 2.1 Méthodes
 
@@ -184,12 +189,13 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `git.commit` | `cwd`, `message`, `amend` | commit |
 | `git.push` | `cwd`, `force` | push |
 | `chat.open` | `cwd`, `session_id`, `options {model, effort, ultracode, rights}` | ouvre un chat (→ `chat_id`) |
-| `chat.list` | — | chats ouverts |
+| `chat.list` | — | chats ouverts (`chat_id`, `cwd`, `state`, `seq`, `session_id`, `path`, `title`, `pid`, `devices`…) |
 | `chat.attach` | `chat_id`, `since` | s'abonne (événements depuis `seq`) |
 | `chat.send` | `chat_id`, `text`, `images`, `uuid`, `shown`, `nonce` | envoie un message |
 | `chat.answer` | `chat_id`, `request_id`, `decision`, `message` | répond à une autorisation |
 | `chat.questions` | `chat_id`, `request_id`, `answers` | répond à des questions |
-| `chat.interrupt` / `chat.close` / `chat.context` | `chat_id` | interrompt, ferme, usage du contexte |
+| `chat.interrupt` / `chat.context` | `chat_id` | interrompt, usage du contexte |
+| `chat.close` | `chat_id`, `keep_if_shared` | ferme (→ `closed`) ; avec `keep_if_shared`, détache seulement l'appareil si un autre suit le chat (→ `closed: false`, `devices`) |
 | `chat.options` | `chat_id`, `options` | change modèle, effort, droits |
 | `chat.render` | `markdown` | rend du Markdown en HTML |
 | `chat.tags` | `session_id` | messages étiquetés |
@@ -375,6 +381,7 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 | `CCS_SERVER_ROOT` | racine des chemins du serveur (tests) |
 | `CCS_APP_ID` | identifiant d'application distinct (essais) |
 | `CCS_NO_VTE` | force le terminal externe (essais) |
+| `CCS_CHAT_IN_PROCESS` | `1` : chats du bureau dans l'application, sans le pont local (essais, tests) |
 | `CCS_PATH`, `CCS_OUTIL` | posées sur la machine distante par `distant lancer` |
 | `HOME`, `PATH`, `SHELL`, `TZ`, `USER`, `PYTHONPATH`, `GNUPGHOME`, `NO_COLOR`, `GIT_SSH`, `GIT_SSH_COMMAND` | usage habituel |
 | `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_RUNTIME_DIR`, `XDG_CURRENT_DESKTOP` | dossiers et bureau |

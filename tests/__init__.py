@@ -3,10 +3,14 @@
 Jamais sur le bureau réel : sans CCS_GUI_TESTS=1 (posé avec `xvfb-run`, voir `make
 unit`), l'affichage est retiré de l'environnement avant tout import de GTK, et les tests
 graphiques sont sautés. Wayland est toujours retiré : sous Xvfb, GTK ne peut rejoindre
-que l'affichage X de Xvfb."""
+que l'affichage X de Xvfb.
+
+Les chats du bureau ne passent jamais par le vrai pont local de la machine
+(`CCS_CHAT_IN_PROCESS=1`) : les tests du pont en lancent un, sur un socket temporaire."""
 
 import os
 
 os.environ.pop("WAYLAND_DISPLAY", None)
 if os.environ.get("CCS_GUI_TESTS") != "1":
     os.environ.pop("DISPLAY", None)
+os.environ["CCS_CHAT_IN_PROCESS"] = "1"

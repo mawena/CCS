@@ -10,7 +10,14 @@ attaché, et l'écrit dans le fil (`events.Notice`).
 
 Relance après une limite (`limit_resume`) : toutes les CHECK_S secondes, le pont fait avancer les
 marqueurs de limite et, pour chaque chat bloqué, écrit « relance prévue à HH:MM » dans le fil puis
-envoie « continue » quand la limite est levée (web, Android, iPhone et TUI passent tous par ici)."""
+envoie « continue » quand la limite est levée (web, Android, iPhone et TUI passent tous par ici).
+
+Mise en veille (réglage `chat.idle_suspend_min`) : au même passage, un chat au repos depuis ce
+délai voit son processus `claude` arrêté (état `suspended`) ; le prochain message le relance.
+
+Fermeture : `chat.close {keep_if_shared: true}` (onglet du bureau refermé) ne fait que détacher
+l'appareil si un autre appareil suit encore ce chat ; sinon le chat est fermé comme avant. À
+l'arrêt du pont (inactivité, relance après une mise à jour), tous les chats sont fermés."""
 
 import asyncio
 import base64
@@ -88,7 +95,8 @@ def _info(chat):
     journal et heure de début du tampon."""
     sid = chat.engine.session_id
     return {"options": dataclasses.asdict(chat.engine.options), "session_id": sid,
-            "path": transcript_of(chat.cwd, sid), "history_before": _history_before(chat)}
+            "path": transcript_of(chat.cwd, sid), "history_before": _history_before(chat),
+            "pid": chat.engine.pid, "devices": len(chat.conns)}
 
 
 def _uuid(raw):
@@ -118,6 +126,8 @@ class ChatHub:
         self._limited = False        # un chat attend la levée d'une limite : le pont reste ouvert
         bridge.busy_checks.append(self.busy)
         bridge.tick_hooks.append(self.limits_pass)
+        bridge.tick_hooks.append(self.suspend_pass)
+        getattr(bridge, "stop_hooks", []).append(self.close_all)
         bridge.close_hooks.append(self._forget)
         bridge.add_handlers({
             "chat.open": self.open, "chat.list": self.list, "chat.attach": self.attach,
@@ -297,16 +307,38 @@ class ChatHub:
         await asyncio.to_thread(self._get(params).engine.request_context)
         return {}
 
-    async def close(self, _conn, params):
+    async def close(self, conn, params):
         chat = self._get(params)
+        if params.get("keep_if_shared") is True:
+            others = [c for c in chat.conns if c is not conn and not getattr(c, "closed", False)]
+            if others:            # suivi ailleurs (web, téléphone) : on détache seulement cet appareil
+                chat.conns.discard(conn)
+                return {"closed": False, "devices": len(others)}
         del self.chats[chat.chat_id]
         await asyncio.to_thread(chat.engine.stop)
-        return {}
+        return {"closed": True}
 
     async def close_all(self):
         chats, self.chats = list(self.chats.values()), {}
         for chat in chats:
             await asyncio.to_thread(chat.engine.stop)
+
+    # ---- mise en veille --------------------------------------------------------------------
+
+    async def suspend_pass(self, now=None):
+        """Un passage (chaque minute) : les chats au repos depuis `chat.idle_suspend_min` minutes
+        arrêtent leur processus `claude` (le moteur dit lui-même s'il peut : rien en attente)."""
+        if not self.chats:
+            return
+        try:
+            minutes = int((await asyncio.to_thread(self._settings)).get("chat", {}).get("idle_suspend_min", 0))
+        except (TypeError, ValueError, AttributeError):
+            minutes = 0
+        if minutes <= 0:
+            return
+        now = time.time() if now is None else now
+        for chat in list(self.chats.values()):
+            await asyncio.to_thread(chat.engine.suspend_if_idle, now, minutes * 60)
 
     # ---- relance après une limite -------------------------------------------------------
 
