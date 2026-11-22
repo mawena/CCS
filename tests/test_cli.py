@@ -690,7 +690,7 @@ class RaccourcisCliTest(HomeTestCase):
             code, out = run("raccourcis", "status")
         self.assertEqual(code, 1)
         self.assertIn("seulement sous GNOME", out)
-        self.assertIn("/usr/bin/ccs next", out)
+        self.assertIn("/usr/bin/ccs suivant", out)
 
 
 class StatuslineHintCliTest(HomeTestCase):

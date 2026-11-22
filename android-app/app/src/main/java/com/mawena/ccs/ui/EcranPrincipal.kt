@@ -121,7 +121,12 @@ fun EcranPrincipal(modele: ModeleAppli) {
         }
     }
     val choixMachine by modele.choixMachine.collectAsStateWithLifecycle()
+    // commande lancée avec le mot de passe root gardé : avis discret
+    LaunchedEffect(Unit) {
+        modele.depot.root.usages.collect { avis.dire(com.mawena.ccs.logique.Root.texteUsage(it)) }
+    }
     CompositionLocalProvider(LocalAvis provides avis) {
+    FenetreRoot(modele)
     if (choixMachine) FeuilleMachines(modele, fermer = { modele.choixMachine.value = false })
     partage?.let { p ->
         FeuillePartage(modele, p, fermer = { modele.partage.value = null }) { dest ->
@@ -154,6 +159,7 @@ fun EcranPrincipal(modele: ModeleAppli) {
     ) { marges ->
         Column(Modifier.fillMaxSize().padding(marges).consumeWindowInsets(marges)) {
             BandeauMachine(modele, changer = { modele.choixMachine.value = true })
+            BandeauRoot(modele)
             BandeauConnexion(modele)
             NavHost(nav, startDestination = Onglet.Accueil.route, modifier = Modifier.weight(1f)) {
                 composable(Onglet.Accueil.route) {

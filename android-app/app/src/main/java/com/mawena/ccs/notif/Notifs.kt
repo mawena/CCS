@@ -30,6 +30,8 @@ object Notifs {
 
     const val ID_SERVICE = 1
     private const val ID_FIN = 2
+    private const val ID_ROOT = 3
+    private const val ETIQUETTE_ROOT = "root"
 
     const val ACTION_OUVRIR = "com.mawena.ccs.action.OUVRIR_CHAT"
     const val EXTRA_CHAT = "chat_id"
@@ -37,6 +39,9 @@ object Notifs {
     const val EXTRA_SESSION = "session_id"
     const val EXTRA_CHEMIN = "chemin"
     const val EXTRA_TITRE = "titre"
+
+    /** Ouvre l'appli sur la fenêtre du mot de passe root (notification, lien `ccs://root`). */
+    const val ACTION_ROOT = "com.mawena.ccs.action.ROOT"
 
     fun canaux(ctx: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -149,6 +154,36 @@ object Notifs {
         }
         return b.build()
     }
+
+    /**
+     * Demande du mot de passe root, sans la commande (écran verrouillé) : la toucher ouvre la
+     * fenêtre de saisie dans l'appli. Aucune action rapide : le mot de passe se tape dans l'appli.
+     */
+    @android.annotation.SuppressLint("MissingPermission")
+    fun root(ctx: Context, d: com.mawena.ccs.logique.DemandeRoot) {
+        if (!permises(ctx)) return
+        val i = Intent(ctx, MainActivity::class.java).apply {
+            action = ACTION_ROOT
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val ouvrir = PendingIntent.getActivity(ctx, ID_ROOT, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = NotificationCompat.Builder(ctx, CANAL_ATTENTE)
+            .setSmallIcon(R.drawable.ic_notif)
+            .setContentTitle("Mot de passe root")
+            .setContentText("${d.machine} demande le mot de passe root")
+            .setContentIntent(ouvrir)
+            .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setTimeoutAfter((d.echeanceMs - System.currentTimeMillis()).coerceAtLeast(1_000))
+            .setWhen(System.currentTimeMillis())
+            .setShowWhen(true)
+            .build()
+        NotificationManagerCompat.from(ctx).notify(ETIQUETTE_ROOT, ID_ROOT, n)
+    }
+
+    fun retirerRoot(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ETIQUETTE_ROOT, ID_ROOT)
 
     /** Notification persistante du service (canal à importance minimale). */
     fun service(ctx: Context, connecte: Boolean): android.app.Notification {

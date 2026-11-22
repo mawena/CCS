@@ -8,6 +8,18 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 Première version stable : les interfaces sont figées pour toute la 1.x (contrat dans
 `docs/interfaces.md`). Les anciens noms restent acceptés jusqu'à la 2.0.
 
+### Ajouté
+
+- **Mot de passe root depuis les appareils** : `ccs root -- <commande>` lance `sudo` sans
+  terminal. Si le mot de passe n'est pas connu, une fenêtre le demande sur tous les appareils
+  connectés (web, bureau, TUI, Android, iPhone) et ntfy prévient sans rien révéler ; toucher
+  l'avis ouvre la fenêtre de l'appli sur la bonne machine. Le premier qui répond l'emporte.
+  Le mot de passe est vérifié par sudo puis gardé **en mémoire seulement** pendant une heure,
+  jamais sur disque ni dans un journal. Chaque commande root est ensuite signalée, avec un
+  bouton « Révoquer » ; `ccs root etat` et `ccs root oublier`. Les chats de CCS reçoivent
+  `SUDO_ASKPASS` (`ccs-askpass`). Pont : `root.answer`, `root.status`, `root.forget`,
+  événements `root.ask`, `root.resolved`, `root.used`, `root.forgotten`.
+
 ### Modifié
 
 - **Commandes en français** : `liste`, `utiliser`, `suivant`, `ajouter`, `meilleur`, `appli`,

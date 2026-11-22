@@ -20,7 +20,7 @@ from .analysis_hub import AnalysisHub  # noqa: E402
 from .common import (ask_name, ask_title, cap, error_text, in_thread, install_css, load_state,  # noqa: E402
                      now_utc, refresh_data, run_ccs_async)
 from .doctor_dialog import show_doctor  # noqa: E402
-from . import phone_hub, style  # noqa: E402
+from . import phone_hub, root_prompt, style  # noqa: E402
 from .home_page import HomePage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
@@ -145,6 +145,11 @@ class Window(Adw.ApplicationWindow):
         self.add_breakpoint(self.narrow)
         self.set_size_request(360, 400)
         self.connect("close-request", self.on_close_request)
+        # Mot de passe root demandé aux appareils : dialogue, indicateur « root gardé, N min »
+        # près de la bascule auto ; même connexion au pont local que les chats.
+        self.root_guard = root_prompt.RootGuard(self, bridge=self.terminals.local_bridge)
+        header.pack_end(self.root_guard.button)
+        self.root_guard.start()
 
         state_file = Gio.File.new_for_path(str(daemon.state_path()))
         self.monitor = state_file.monitor_file(Gio.FileMonitorFlags.NONE, None)

@@ -4,9 +4,10 @@ import { clear, confirmSheet, el, toast } from "./dom.js";
 import { offerInstall } from "./install.js";
 import { showLogin } from "./login.js";
 import { machineName, machineSheet, otherMachines, pickMachine } from "./machines.js";
+import { RootWatch } from "./root.js";
 import { VIEWS } from "./views.js";
 
-const state = { api: null, user: null, cleanup: null, view: null, route: null, title: "CCS", waiting: 0 };
+const state = { api: null, user: null, cleanup: null, view: null, route: null, title: "CCS", waiting: 0, root: null };
 
 function banner(text, kind = "info") {
   const b = document.getElementById("banner");
@@ -108,6 +109,11 @@ function buildNav() {
   }
 }
 
+function stopRoot() {
+  state.root?.stop();
+  state.root = null;
+}
+
 function start(user) {
   state.user = user;
   document.getElementById("login").hidden = true;
@@ -126,10 +132,13 @@ function start(user) {
   });
   state.api.on("machine-down", (d) => banner(`${machineName(state.api)} injoignable : ${d.reason || "sans détail"}. `
     + "Nouvel essai bientôt ; ☁ en haut pour revenir au serveur.", "error"));
-  state.api.on("logged-out", () => { state.api.close(); showLogin(start); });
+  state.api.on("logged-out", () => { stopRoot(); state.api.close(); showLogin(start); });
   state.api.on("notice", (d) => banner(d.text, "info"));
   state.api.on("chat.event", soonRefreshWaiting);
   state.api.on("reconnected", soonRefreshWaiting);
+  // mot de passe root demandé par la machine pilotée : fenêtre au premier plan, bandeau « gardé »
+  stopRoot();
+  state.root = new RootWatch(state.api).start();
   state.api.connect();
   showMachine();
   buildNav();
@@ -167,6 +176,7 @@ document.getElementById("logout").addEventListener("click", async () => {
   if (!await confirmSheet({ title: "Se déconnecter ?", body: "Les chats continuent sur le serveur.",
     confirm: "Se déconnecter" })) return;
   const r = await post("/api/logout");
+  stopRoot();
   state.api?.close();
   state.api = null;
   if (r?.redirect) {                     // mode Portier : la déconnexion se fait sur Portier

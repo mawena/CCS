@@ -129,5 +129,108 @@ class TuiTest(unittest.TestCase):
             self.app.handle_key("q")
 
 
+ASK = {"id": "r1", "machine": "mawena-cloud", "command": "apt update", "expires_at": 4e9, "tries_left": 3}
+
+
+class RootClient(FakeClient):
+    """Faux pont : `root.answer` répond par `answer_result`, `root.status` par `status`."""
+
+    def __init__(self):
+        super().__init__()
+        self.answer_result = ({"ok": True}, None)
+        self.status = {"machine": "mawena-cloud", "kept": False, "remaining": 0, "pending": None}
+
+    def call(self, method, callback=None, **params):
+        if method == "root.answer":
+            self.calls.append((method, params))
+            callback and callback(*self.answer_result)
+        elif method == "root.status":
+            self.calls.append((method, params))
+            callback and callback(dict(self.status), None)
+        else:
+            super().call(method, callback, **params)
+
+
+class TuiRootTest(unittest.TestCase):
+    """Mot de passe root : fenêtre masquée, erreur, refus, indicateur, oubli, avis."""
+
+    def setUp(self):
+        self.client = RootClient()
+        self.app = TuiApp(self.client, "local")
+
+    def type(self, text):
+        for ch in text:
+            self.app.root.keypress(SIZE, ch)
+
+    def test_status_at_start(self):
+        self.assertIn("root.status", self.client.methods())
+
+    def test_ask_masks_and_sends_once(self):
+        self.app.on_event("root.ask", dict(ASK))
+        out = texts(self.app.root)
+        self.assertIn("mawena-cloud", out)
+        self.assertIn("apt update", out)
+        self.assertIn("3 essai(s)", out)
+        self.type("s3cret")
+        out = texts(self.app.root)
+        self.assertNotIn("s3cret", out)
+        self.assertIn("******", out)
+        self.app.root.keypress(SIZE, "enter")
+        method, params = self.client.calls[-2]          # puis root.status (mot de passe gardé)
+        self.assertEqual((method, params), ("root.answer", {"id": "r1", "password": "s3cret"}))
+        self.assertIsNone(self.app.root_guard.prompt)
+        self.assertIs(self.app.root.original_widget, self.app.frame)
+        self.assertIn("accepté", self.app.footer.text)
+
+    def test_wrong_password_keeps_prompt_with_error(self):
+        self.client.answer_result = ({"ok": False, "error": "Mot de passe incorrect."}, None)
+        self.app.on_event("root.ask", dict(ASK))
+        self.type("faux")
+        self.app.root.keypress(SIZE, "enter")
+        prompt = self.app.root_guard.prompt
+        self.assertIsNotNone(prompt)
+        self.assertEqual(prompt.edit.edit_text, "")     # champ vidé après l'envoi
+        self.app.on_event("root.ask", dict(ASK, tries_left=2, error="Mot de passe incorrect."))
+        self.assertIs(self.app.root_guard.prompt, prompt)
+        out = texts(self.app.root)
+        self.assertIn("Mot de passe incorrect.", out)
+        self.assertIn("2 essai(s)", out)
+
+    def test_escape_refuses_and_keys_stay_in_prompt(self):
+        self.app.on_event("root.ask", dict(ASK))
+        self.app.root.keypress(SIZE, "q")              # va dans la saisie, ne quitte pas
+        self.assertEqual(self.app.root_guard.prompt.edit.edit_text, "q")
+        self.app.root.keypress(SIZE, "esc")
+        self.assertEqual(self.client.calls[-1], ("root.answer", {"id": "r1", "cancel": True}))
+        self.assertIsNone(self.app.root_guard.prompt)
+
+    def test_resolved_elsewhere_and_expiry_close(self):
+        self.app.on_event("root.ask", dict(ASK))
+        self.app.on_event("root.resolved", {"id": "autre", "ok": True})
+        self.assertIsNotNone(self.app.root_guard.prompt)
+        self.app.on_event("root.resolved", {"id": "r1", "ok": False})
+        self.assertIsNone(self.app.root_guard.prompt)
+        self.app.on_event("root.ask", dict(ASK, id="r2", expires_at=100))
+        self.app.root_guard.tick(now=200)
+        self.assertIsNone(self.app.root_guard.prompt)
+
+    def test_kept_indicator_forget_and_notices(self):
+        self.client.status = {"machine": "mawena-cloud", "kept": True, "remaining": 2520, "pending": None}
+        self.app.root_guard.refresh()
+        self.assertIn("root gardé, 42 min", self.app.header.text)
+        self.app.on_event("root.used", {"machine": "mawena-cloud", "command": "apt upgrade", "at": 1})
+        self.assertIn("apt upgrade", self.app.footer.text)
+        self.app.handle_key("f8")
+        self.assertIn("root.forget", self.client.methods())
+        self.app.on_event("root.forgotten", {"machine": "mawena-cloud", "reason": "revoke"})
+        self.assertNotIn("root gardé", self.app.header.text)
+        self.assertIn("téléphone", self.app.footer.text)
+
+    def test_pending_from_status_opens_prompt(self):
+        self.client.status = dict(self.client.status, pending=dict(ASK))
+        self.app.root_guard.refresh()
+        self.assertEqual(self.app.root_guard.prompt.request_id, "r1")
+
+
 if __name__ == "__main__":
     unittest.main()
