@@ -480,6 +480,21 @@ dialog.sheet {
 dialog.sheet::backdrop { background: rgb(0 0 0 / 0.45); }
 dialog.sheet h2 { margin: 0 0 6px; font-size: 1.1em; }
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+/* ---- mot de passe root demandé aux appareils (root.js) ---- */
+.root-form { display: grid; gap: 10px; }
+.root-form input[type="password"] { width: 100%; }
+.root-command {
+  margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--soft); font-family: var(--mono);
+  font-size: 0.85em; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 9em; overflow: auto;
+}
+.root-error { margin: 0; color: var(--error); font-size: 0.9em; }
+.root-info { margin: 0; font-size: 0.9em; }
+.root-bar {
+  display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 14px;
+  background: color-mix(in srgb, var(--error) 14%, var(--card)); border-bottom: 1px solid var(--line);
+}
+.root-bar[hidden] { display: none; }
 .state { display: grid; justify-items: center; align-content: center; gap: 8px; padding: 24px 12px; text-align: center; color: var(--subtle); }
 .stage > .state { flex: 1; }                     /* aucun chat ouvert : centré dans la zone */
 .state p { margin: 0; }
