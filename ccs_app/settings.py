@@ -164,7 +164,8 @@ INTEGERS = {"alerts.weekly_report_hour", "alerts.monthly_report_hour", "advisor.
             "archive.max_age_days", "context_alert.threshold_tokens",
             "chat.idle_suspend_min", "git.fetch_minutes"}
 CHOICES = {
-    "chat.rights": launch_options.PERMISSION_MODE_VALUES,
+    # Mode de Claude Code, ou mot des droits de `ccs tache` (converti à la lecture).
+    "chat.rights": launch_options.PERMISSION_MODE_VALUES + launch_options.RIGHTS_WORDS,
     "files.layout": ("A", "B"),
     "git.layout": ("A", "B", "C"),
     "limit_resume.outside": ("notify", "resume"),

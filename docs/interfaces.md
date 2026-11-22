@@ -12,97 +12,107 @@ d'environnement · 6. Points à revoir avant le gel.
 
 ## 1. Commandes
 
-Deux points d'entrée :
+Règle (phase 33) : ce que Charles tape est en français. Les anciens noms (commandes, options,
+valeurs) restent acceptés pendant toute la 1.x, mais n'apparaissent plus dans l'aide ; ils sont
+notés ci-dessous entre parenthèses, après « anciens : ».
 
-- `ccs` (`bin/ccs`, Bash) : bascule entre profils elle-même, et passe le reste à
-  `claude-accounts`, parfois avec des alias ou des options en plus.
+Deux points d'entrée, une seule table des noms :
+
+- `ccs` (`bin/ccs`, Bash) : bascule entre profils elle-même (table `own_command`), et passe
+  tout le reste, tel quel et avec tous ses arguments, à `claude-accounts`.
 - `claude-accounts` (`bin/claude-accounts` → `ccs_app/cli.py`, argparse) : toutes les autres
-  commandes. Sans sous-commande, il ouvre l'application graphique (`gui`).
+  commandes et leurs anciens noms (`build_parser`, seule table). Sans sous-commande, il ouvre
+  l'application graphique (`appli`). Une commande inconnue donne « commande ou profil inconnu »
+  (code 1).
+
+`ccs <nom>` bascule sur le profil `<nom>`, sauf si `<nom>` est aussi une commande (nouveau ou
+ancien nom) : la commande l'emporte, et le profil se joint par `ccs utiliser <nom>`.
+`ccs enregistrer`, `ccs ajouter` et `ccs renommer` préviennent (sur la sortie d'erreur) quand le
+nom choisi est masqué ainsi.
 
 ### 1.1 Commandes propres à `ccs` (Bash)
 
-| Commande (alias) | Arguments, options | Rôle |
+| Commande (anciens noms) | Arguments, options | Rôle |
 |---|---|---|
-| `ccs` / `list` (`ls`) | — | liste les profils (● = actif) |
-| `ccs <nom>` | `[--notifier]` | bascule sur le profil `<nom>` (raccourci de `use`) |
-| `use` (`switch`, `sw`) | `<nom> [--notifier]` | bascule sur un profil |
-| `next` (`n`) | `[--notifier]` | profil suivant utilisable |
-| `save` | `<nom>` | enregistre le compte connecté |
-| `add` (`login`) | `<nom> [--email A] [--console] [--sso]` | `claude auth login` puis enregistrement |
-| `current` (`whoami`) | — | profil actif |
-| `rm` (`remove`, `delete`) | `<nom>` | supprime un profil |
-| `rename` (`mv`) | `<a> <b>` | renomme un profil |
-| `usage` (`u`) | — | → `claude-accounts print` |
-| `gui` (`app`) | — (arguments ignorés) | → `claude-accounts gui`, détaché |
-| `best` (`b`) | `[--notifier]` | → `claude-accounts best --switch` (bascule toujours) |
+| `ccs` / `liste` (`list`, `ls`) | — | liste les profils (● = actif) |
+| `ccs <nom>` | `[--notifier]` | bascule sur le profil `<nom>` (raccourci de `utiliser`) |
+| `utiliser` (`use`, `switch`, `sw`) | `<nom> [--notifier]` | bascule sur un profil |
+| `suivant` (`next`, `n`) | `[--notifier]` | profil suivant utilisable |
+| `enregistrer` (`save`) | `<nom>` | enregistre le compte connecté |
+| `ajouter` (`add`, `login`) | `<nom> [--email A] [--console] [--sso]` | `claude auth login` puis enregistrement |
+| `actuel` (`current`, `whoami`) | — | profil actif |
+| `supprimer` (`rm`, `remove`, `delete`) | `<nom>` | supprime un profil |
+| `renommer` (`rename`, `mv`) | `<a> <b>` | renomme un profil |
+| `appli` (`gui`, `app`) | tous les arguments de `claude-accounts appli` | application graphique, détachée du terminal |
 | `version` (`--version`, `-v`) | — | version |
-| `help` (`-h`, `--help`) | — | aide |
+| `aide` (`help`, `-h`, `--help`) | — | aide |
 
-Passées telles quelles à `claude-accounts` (alias Bash entre parenthèses) : `status` (`st`),
-`auto`, `pause`, `doctor` (`bilan`), `formule` (`conseil`), `semaine`, `mois`, `moment`,
-`silence` (`quiet`), `mise-a-jour` (`maj`), `journal`, `tui`, `serveur` (`server`), `totp`,
-`bridge`, `web-serve`, `auth-serve`, `shell-distant`, `projet`, `raccourcis` (`shortcuts`),
-`orch` (`orchestrateur`), `plan` (`planning`), `sessions` (`ps`), `tache` (`taches`, `tasks`),
-`distant`, `chat`, `budget`, `fiche`, `sauvegarde` (`backup`), `restaurer` (`restore`),
-`telephone` (`phone`), `conversations` (`conv`, `historique`), `resume` (`reprendre`),
-`title` (`titre`), `preview` (`apercu`, `aperçu`), `export` (`exporter`),
-`integrate` (`integration`, 1ᵉʳ argument seulement, `status` par défaut), `analyze` (`stats`).
-
-Non accessibles par `ccs` : `print`, `daemon`, `collect`, `notify`, `statusline`, `hook`, `tray`.
+Tout le reste (y compris les anciens noms) est passé tel quel à `claude-accounts`.
 
 ### 1.2 Sous-commandes de `claude-accounts`
 
-| Commande (alias argparse) | Arguments, options | Rôle |
+| Commande (anciens noms) | Arguments, options (anciens) | Rôle |
 |---|---|---|
-| `gui` (défaut) | `--session PID:ID`, `--page ONGLET`, `--task ID`, `--new-session` | application graphique |
-| `print` (ancien : `--print`) | — | usage de tous les comptes |
-| `status` | — | compte actif, meilleur compte, capacité |
-| `best` | `--switch`, `--notifier` | meilleur compte maintenant |
+| `appli` (défaut ; `gui`, `app`) | `--session PID:ID`, `--page ONGLET`, `--tache ID` (`--task`), `--nouvelle-session` (`--new-session`) | application graphique |
+| `usage` (`print`, `u` ; option `--print`) | — | usage de tous les comptes |
+| `etat` (`état`, `status`, `st`) | — | compte actif, meilleur compte, capacité |
+| `meilleur` (`best`, `b`) | `--voir`, `--notifier` (`--switch`, `--basculer` : sans effet) | bascule sur le meilleur compte ; `--voir` l'affiche seulement. Même comportement par `ccs` et `claude-accounts` |
 | `auto` | `on\|off` | bascule automatique |
-| `orch` | `on\|off` | orchestrateur |
-| `pause` | `[1h\|4h\|demain\|manuel\|off\|status]`, `--notifier` | suspend bascule et orchestrateur |
-| `silence` (`quiet`) | `[1h\|4h\|demain\|off\|reprendre\|status]`, `--notifier` | ne pas déranger |
-| `doctor` | — | bilan de santé (code 1 au moindre problème) |
+| `orchestrateur` (`orch`) | `on\|off` | orchestrateur |
+| `pause` | `[1h\|4h\|demain\|manuel\|off\|etat]` (`status`), `--notifier` | suspend bascule et orchestrateur |
+| `silence` (`quiet`) | `[1h\|4h\|demain\|off\|reprendre\|etat]` (`status`), `--notifier` | ne pas déranger |
+| `bilan` (`doctor`) | — | bilan de santé (code 1 au moindre problème) |
 | `formule` (`conseil`) | — | formule conseillée |
-| `semaine` | `--precedente N` | bilan hebdomadaire |
-| `mois` | `--precedent N` | rapport mensuel |
+| `semaine` | `--precedente N` (`--precedent`) | bilan hebdomadaire |
+| `mois` | `--precedent N` (`--precedente` accepté) | rapport mensuel |
 | `moment` | `--duree 3h`, `--sur 24h` | meilleur moment pour une grosse tâche |
 | `mise-a-jour` (`maj`) | `--verifier` | installe la dernière version |
-| `journal` | `--jours N` \| `--tout` | journal des bascules |
-| `plan` | — | planning des fenêtres de 5 h |
-| `sessions` | — | sessions Claude Code ouvertes |
+| `journal` | `--jours N` (`--days`) \| `--tout` | journal des bascules |
+| `plan` (`planning`) | — | planning des fenêtres de 5 h |
+| `sessions` (`ps`) | — | sessions Claude Code ouvertes |
 | `projet` | `[<dossier>] [<compte>\|aucun]` | compte par projet |
-| `raccourcis` (`shortcuts`) | `status\|on\|off [action…]\|set <action> <raccourci>` | raccourcis GNOME |
+| `raccourcis` (`shortcuts`) | `etat` (`status`) \| `on\|off [action…]` \| `definir <action> <raccourci>` (`set`) | raccourcis GNOME |
 | `tui` | `--serveur NOM` | plein écran dans le terminal |
-| `serveur ajouter` | `<cible> [--nom N]` | appairage avec un serveur CCS |
+| `serveur ajouter` (`server`) | `<cible> [--nom N]` | appairage avec un serveur CCS |
 | `serveur liste` / `retirer <cible>` | — | serveurs appairés |
 | `totp reinitialiser` | `<user>` | efface la double authentification (root) |
 | `distant machines` | `--vite` | machines Ricochet, charge, outils |
-| `distant lancer` | `--machine M`, `--outil O`, `--rapatrier CHEMIN`…, `--inclure CHEMIN`…, `--avec-git`, `--quand nuit\|HH:MM`, `--detache`, `--travail ID` (caché), `-- <commande>` | commande sur une autre machine |
+| `distant lancer` | `--machine M`, `--outil O`, `--rapatrier CHEMIN`…, `--inclure CHEMIN`…, `--avec-git`, `--quand nuit\|HH:MM`, `--detache`, `-- <commande>` | commande sur une autre machine |
 | `distant travaux` | — | travaux en attente, en cours, finis |
 | `distant arreter` / `journal` | `<id>` | arrêt ; sortie d'un travail détaché |
 | `chat effacer` | — | `/clear` à la fin du tour (appelé par Claude dans un chat CCS) |
-| `conversations` | `[mots…]`, `-p/--project`, `--vscode`\|`--terminal`, `-n/--limit N`, `--all`, `--json` | historique |
-| `resume` | `<ref>`, `--vscode`\|`--new-terminal`\|`--print`, `--dir D` | reprend une conversation |
-| `title` | `<ref> <titre…>` | renomme une conversation |
-| `preview` (`apercu`) | `<ref>` | aperçu d'une conversation |
-| `export` | `<ref> [fichier.md]` | export Markdown |
-| `integrate` | `on\|off\|status` | ligne d'état et hook dans Claude Code |
-| `analyze` | `--days N` | analyse des journaux locaux |
-| `tache` (`taches`, `tasks`) | `[liste\|list\|ls]`, `ajouter\|add "<msg>" [-C dossier] [--modele m] [--droits lecture\|modifications\|tout] [--quand quota\|nuit\|HH:MM]`, `voir\|suivre\|show <id>`, `annuler\|cancel <id>`, `supprimer\|remove\|rm <id>`, `aide` | file de tâches |
+| `conversations` (`conv`, `historique`) | `[mots…]`, `-p/--projet` (`--project`), `--vscode`\|`--terminal`, `-n/--limite N` (`--limit`), `--tous` (`--all`), `--json` | historique |
+| `reprendre` (`resume`) | `<ref>`, `--vscode`\|`--nouveau-terminal` (`--new-terminal`)\|`--afficher` (`--print`), `--dossier D` (`--dir`) | reprend une conversation |
+| `titre` (`title`) | `<ref> <titre…>` | renomme une conversation |
+| `apercu` (`aperçu`, `preview`) | `<ref>` | aperçu d'une conversation |
+| `exporter` (`export`) | `<ref> [fichier.md]` | export Markdown |
+| `integration` (`integrate`) | `[on\|off\|etat]` (`status`), tous les arguments transmis | ligne d'état et hook dans Claude Code |
+| `analyse` (`analyze`, `stats`) | `--jours N` (`--days`) | analyse des journaux locaux |
+| `tache` (`taches`, `tasks`) | `[liste]`, `ajouter "<msg>" [-C dossier] [--modele m] [--droits D] [--quand quota\|nuit\|HH:MM]`, `voir <id>`, `annuler <id>`, `supprimer <id>`, `aide` ; anciens : `list`, `ls`, `add`, `suivre`, `show`, `cancel`, `remove`, `rm` | file de tâches |
 | `budget` | `[<dossier> <montant>\|aucun]` | budget hebdomadaire par projet |
 | `fiche` | `<identifiant>` | fiche « où j'en étais » |
 | `sauvegarde` (`backup`) | `[fichier]` | sauvegarde chiffrée (gpg) |
 | `restaurer` (`restore`) | `<fichier> [--oui]` | restauration |
-| `telephone` (`phone`) | `[essai\|test]` | état ntfy, lien, message d'essai |
+| `telephone` (`phone`) | `[essai]` (`test`) | état ntfy, lien, message d'essai |
 | `--version` | — | version |
 
-*Internes* : `daemon` (service utilisateur `ccs-daemon`), `collect`, `notify <titre> [texte]`,
-`statusline`, `hook stop-failure`, `tray`, `bridge [--socket S] [--local]`, `web-serve`,
-`auth-serve`, `shell-distant <serveur> <cwd>` (les quatre derniers cachés de l'aide).
+*Internes*, acceptées mais absentes de l'aide et hors du gel : `daemon` (service `ccs-daemon`),
+`collect`, `notify <titre> [texte]`, `statusline`, `hook stop-failure`, `tray`,
+`bridge [--socket S] [--local]`, `web-serve`, `auth-serve`, `shell-distant <serveur> <cwd>`,
+`est-commande <nom>` (pour `bin/ccs`), et l'option `distant lancer --travail ID`.
 
-`--notifier` : `next`, `use`, `best`, `pause`, `silence` (notification bureau, bascule notée
-« raccourci » dans le journal).
+`--notifier` : `suivant`, `utiliser`, `meilleur`, `pause`, `silence` (notification bureau,
+bascule notée « raccourci » dans le journal).
+
+### 1.3 Droits (un seul vocabulaire)
+
+`tache --droits` et le réglage `chat.rights` (ainsi que le paramètre `rights` de `tasks.add` et
+de `chat.open`) acceptent les mêmes valeurs : les mots `lecture`, `modifications`, `tout`, ou un
+mode de Claude Code (`manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`),
+sans tenir compte de la casse. `launch_options.convert_rights` est la seule table de passage :
+`lecture` ↔ `plan` (et `manual`, `dontAsk` → `lecture` pour une tâche sans personne pour
+répondre), `modifications` ↔ `acceptEdits` (et `auto`), `tout` ↔ `bypassPermissions`.
+Une tâche garde le mot, un chat garde le mode.
 
 ---
 
@@ -343,6 +353,9 @@ Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012
 ## 6. Points à revoir avant le gel
 
 ### Commandes
+
+*Réglé en phase 33, tâche 1 : voir la section 1. Liste gardée pour mémoire ; les
+numéros de ligne sont ceux de la 0.37.0.*
 
 - Deux interfaces en couches : `bin/ccs` (Bash) redéclare les alias de `cli.py`, mais pas les
   mêmes. `conv`/`historique`, `reprendre`, `titre`, `aperçu`, `exporter`, `integration`,

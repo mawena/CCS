@@ -49,6 +49,34 @@ PERMISSION_HELP = {
 }
 DANGEROUS_MODES = frozenset({"bypassPermissions"})
 
+# Deux vocabulaires des droits : les mots de l'utilisateur (`ccs tache --droits`) et les modes
+# de Claude Code (`--permission-mode`, `chat.rights`). Partout, l'un et l'autre sont acceptés ;
+# `convert_rights` est la seule table de passage. « lecture » devient « plan » (analyse sans
+# rien modifier), le mode « lecture seule » que montrent tous les clients des chats.
+RIGHTS_WORDS = ("lecture", "modifications", "tout")
+_RIGHTS_TO_MODE = {"lecture": "plan", "modifications": "acceptEdits", "tout": "bypassPermissions"}
+# Sans personne pour répondre (tâche en `-p`), ce qui demanderait une permission est refusé :
+# « manual », « dontAsk » et « plan » ne font que lire.
+_MODE_TO_RIGHTS = {"manual": "lecture", "dontAsk": "lecture", "plan": "lecture",
+                   "acceptEdits": "modifications", "auto": "modifications", "bypassPermissions": "tout"}
+
+
+def convert_rights(value, to):
+    """`value` (mot des droits ou mode de Claude Code, casse indifférente) dans le vocabulaire
+    `to` : « droits » (lecture, modifications, tout) ou « mode » (valeur de --permission-mode).
+    ValueError si la valeur n'est d'aucun des deux."""
+    if to not in ("droits", "mode"):
+        raise ValueError(f"vocabulaire inconnu : {to!r}")
+    text = str(value).strip() if value is not None else ""
+    word = next((w for w in RIGHTS_WORDS if w == text.casefold()), None)
+    mode = next((m for m in PERMISSION_MODE_VALUES if m.casefold() == text.casefold()), None)
+    if word is None and mode is None:
+        raise ValueError(f"droits inconnus : {value!r} (lecture, modifications, tout, "
+                         f"ou {', '.join(PERMISSION_MODE_VALUES)})")
+    if to == "droits":
+        return word or _MODE_TO_RIGHTS[mode]
+    return mode or _RIGHTS_TO_MODE[word]
+
 DEFAULT_WORDS = {"default", "défaut", "par défaut"}
 # Alias ou nom complet (« claude-opus-5-5 », « claude-opus-5-5[1m] ») : jamais une option.
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@\-\[\]]*$")
@@ -69,8 +97,12 @@ def _permission_mode(mode):
     if not mode:
         return None
     if mode not in PERMISSION_MODE_VALUES:
-        raise ValueError(f"mode de permissions inconnu : {mode!r} "
-                         f"(valeurs : {', '.join(PERMISSION_MODE_VALUES)})")
+        try:  # mot des droits (« lecture », « modifications », « tout »)
+            return convert_rights(mode, "mode")
+        except ValueError:
+            raise ValueError(f"mode de permissions inconnu : {mode!r} "
+                             f"(valeurs : {', '.join(PERMISSION_MODE_VALUES)}, "
+                             f"{', '.join(RIGHTS_WORDS)})") from None
     return mode
 
 

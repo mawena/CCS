@@ -203,7 +203,7 @@ class CommandTest(HomeTestCase):
 
     def test_errors(self):
         self.assertEqual(self.run_cmd(str(self.app), "inconnu"),
-                         (1, "compte inconnu : inconnu (voir « ccs list »)"))
+                         (1, "compte inconnu : inconnu (voir « ccs liste »)"))
         self.assertEqual(self.run_cmd(str(self.home / "absent"), "pro"),
                          (1, "dossier introuvable : ~/absent"))
         self.assertEqual(self.run_cmd("ni-dossier-ni-compte")[0], 2)

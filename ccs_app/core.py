@@ -244,7 +244,7 @@ def access_token(name, force_refresh=False):
         oauth = live if active else stored
         if not oauth.get("refreshToken"):
             raise UsageError(f"connexion perdue : reconnecte ce compte avec "
-                             f"« ccs rm {name} » puis « ccs add {name} »")
+                             f"« ccs supprimer {name} » puis « ccs ajouter {name} »")
         fresh = oauth.get("expiresAt", 0) - time.time() * 1000 > EXPIRY_MARGIN_MS
         if fresh and not force_refresh:
             return oauth["accessToken"]

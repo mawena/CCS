@@ -335,6 +335,6 @@ def command(args, state=None, now=None):
         from . import daemon
         state = core.load_json(daemon.state_path())
     if not state or not state.get("accounts"):
-        return 1, "Aucun état : le service n'a pas encore relevé les comptes (ccs status)."
+        return 1, "Aucun état : le service n'a pas encore relevé les comptes (ccs etat)."
     now = now or datetime.now(timezone.utc)
     return 0, format_text(compute(state, parsed[0], parsed[1], now))

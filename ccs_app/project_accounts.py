@@ -289,7 +289,7 @@ def command(args, cwd=None, profiles=None, home=None):
         return 1, f"dossier introuvable : {where}"
     remove = account.lower() in NONE_WORDS
     if not remove and account not in profiles:
-        return 1, f"compte inconnu : {account} (voir « ccs list »)"
+        return 1, f"compte inconnu : {account} (voir « ccs liste »)"
     try:
         had = remove and folder in _read()
         set(folder, None if remove else account)

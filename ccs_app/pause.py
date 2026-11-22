@@ -173,14 +173,14 @@ def choices(now, hours=None):
 # Commande « ccs pause » (à brancher dans cli.py)
 # --------------------------------------------------------------------------
 
-USAGE = "usage : ccs pause [1h|4h|demain|manuel|off|status]"
+USAGE = "usage : ccs pause [1h|4h|demain|manuel|off|etat]"
 
 
 def command(choice="status", now=None, hours=None):
     """(code de sortie, message) ; le service doit ensuite être réveillé
     (daemon.request_refresh) pour que l'état partagé suive."""
     now = now or datetime.now(timezone.utc)
-    if choice in (None, "", "status"):
+    if choice in (None, "", "status", "etat", "état"):  # « status » : ancien mot, accepté
         st = pause_state(now)
         if st is None:
             return 0, "Pas de pause : bascule automatique et orchestrateur actifs selon les réglages."

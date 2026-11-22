@@ -840,10 +840,10 @@ def update_commands(backend=None):
 # --------------------------------------------------------------------------
 
 USAGE = (
-    "usage : ccs raccourcis [status]                   état des raccourcis clavier globaux\n"
-    "        ccs raccourcis on [action…]               active (toutes par défaut)\n"
-    "        ccs raccourcis off [action…]              retire (toutes celles de CCS par défaut)\n"
-    "        ccs raccourcis set <action> <raccourci>   ex. ccs raccourcis set suivant Super+Alt+B\n"
+    "usage : ccs raccourcis [etat]                         état des raccourcis clavier globaux\n"
+    "        ccs raccourcis on [action…]                   active (toutes par défaut)\n"
+    "        ccs raccourcis off [action…]                  retire (toutes celles de CCS par défaut)\n"
+    "        ccs raccourcis definir <action> <raccourci>   ex. ccs raccourcis definir suivant Super+Alt+B\n"
     f"actions : {', '.join(ACTION_IDS)}"
 )
 
@@ -877,13 +877,13 @@ def format_text(st):
     lines += [_line(i, width) for i in st.items]
     lines += ["",
               "Activer : ccs raccourcis on [action…] · retirer : ccs raccourcis off [action…]",
-              "Changer : ccs raccourcis set <action> <raccourci> (ex. Super+Alt+C)",
+              "Changer : ccs raccourcis definir <action> <raccourci> (ex. Super+Alt+C)",
               f"Actions : {', '.join(ACTION_IDS)}"]
     return "\n".join(lines) + "\n"
 
 
 def command(args=(), backend=None):
-    """`ccs raccourcis [status|on|off|set]` → (code de sortie, texte). 2 : usage,
+    """`ccs raccourcis [etat|on|off|definir]` (anciens : status, set) → (code de sortie, texte). 2 : usage,
     1 : bureau non pris en charge ou raccourci refusé."""
     args = list(args or [])
     sub = args[0] if args else "status"
@@ -906,7 +906,7 @@ def command(args=(), backend=None):
                 return 0, "Aucun raccourci de CCS installé : rien à retirer.\n"
             names = [_BY_ID[i].label if i in _BY_ID else i for i in removed]
             return 0, f"Raccourcis retirés : {', '.join(names)}.\n"
-        if sub == "set":
+        if sub in ("definir", "définir", "set"):
             if len(rest) != 2:
                 return 2, USAGE + "\n"
             item = set_binding(rest[0], rest[1], backend=backend)

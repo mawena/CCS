@@ -13,7 +13,7 @@ from . import __version__, core, procname
 def cmd_print(_args):
     profiles = core.list_profiles()
     if not profiles:
-        print("Aucun profil. Enregistre le compte actuel avec : ccs save <nom>")
+        print("Aucun profil. Enregistre le compte actuel avec : ccs enregistrer <nom>")
         return 0
     tty = sys.stdout.isatty()
     bold, dim, green, yellow, red, off = (
@@ -473,7 +473,7 @@ def cmd_pause(args):
     from . import daemon, pause
     now = datetime.now(timezone.utc)
     before = pause.pause_state(now)
-    code, message = pause.command(args.choice, now)
+    code, message = pause.command(_status_word(args.choice), now)
     if code != 0:
         print(message, file=sys.stderr)
         if args.notifier:
@@ -525,8 +525,8 @@ def cmd_best(args):
         if notifier:
             _notify(title, body)
     if not core.list_profiles():
-        print("Aucun profil. Enregistre le compte actuel avec : ccs save <nom>")
-        notice("Bascule impossible", "Aucun profil : enregistre le compte actuel avec « ccs save <nom> ».")
+        print("Aucun profil. Enregistre le compte actuel avec : ccs enregistrer <nom>")
+        notice("Bascule impossible", "Aucun profil : enregistre le compte actuel avec « ccs enregistrer <nom> ».")
         return 1
     from . import daemon, switch_log
     st = _state()
@@ -555,7 +555,7 @@ def cmd_best(args):
         return 1
     name = best["name"]
     print(f"Meilleur compte : {name} — {best['reason']}")
-    if not args.switch:
+    if getattr(args, "voir", False):  # `ccs meilleur --voir` : sans basculer
         notice(f"Meilleur compte : {name}", best["reason"])
         return 0
     if name == core.active_profile_name():
@@ -607,9 +607,9 @@ def cmd_plan(_args):
     st = _state()
     o = st.get("orchestrator")
     if not o:
-        print("Planning : aucune donnée pour l'instant (démarre le service : ccs status).")
+        print("Planning : aucune donnée pour l'instant (démarre le service : ccs etat).")
         return 0
-    head = "activé" if o.get("enabled") else "désactivé (ccs orch on)"
+    head = "activé" if o.get("enabled") else "désactivé (ccs orchestrateur on)"
     if o.get("period"):
         head += f" · plage {_hm(o['period'][0])} → {_hm(o['period'][1])}"
     elif o.get("enabled"):
@@ -725,9 +725,9 @@ def cmd_conversations(args):
                   f"{c.origin_label:<8} {c.title}  {dim}({n}){off}{flag}")
         print()
     if len(found) > len(shown):
-        print(f"{dim}… et {len(found) - len(shown)} de plus (--all pour tout afficher){off}")
+        print(f"{dim}… et {len(found) - len(shown)} de plus (--tous pour tout afficher){off}")
     where = f" dans {args.project}" if args.project else ""
-    print(f"{dim}{len(found)} conversation(s){where}. Reprendre : ccs resume <identifiant> "
+    print(f"{dim}{len(found)} conversation(s){where}. Reprendre : ccs reprendre <identifiant> "
           f"[--vscode]{off}".replace(home, "~"))
     return 0
 
@@ -746,7 +746,7 @@ def cmd_resume(args):
             c = conv.relocate(c, args.dir)
         elif not c.folder_exists:
             moved = conv.suggest_folder(c, convs)
-            hint = f"Indique son nouvel emplacement : ccs resume {args.ref} --dir <dossier>"
+            hint = f"Indique son nouvel emplacement : ccs reprendre {args.ref} --dossier <dossier>"
             if not moved:
                 print(f"Erreur : dossier introuvable : {c.cwd or '?'}\n{hint}", file=sys.stderr)
                 return 1
@@ -808,7 +808,7 @@ def cmd_title(args):
 
 
 def _conversation(ref):
-    """Conversation désignée comme pour `ccs resume` / `ccs title` ; None (erreur affichée) sinon."""
+    """Conversation désignée comme pour `ccs reprendre` / `ccs titre` ; None (erreur affichée) sinon."""
     from . import conversations as conv
     try:
         return conv.find(conv.scan(), ref)
@@ -837,7 +837,7 @@ def cmd_preview(args):
     try:
         sys.stdout.write(text)
         sys.stdout.flush()
-    except BrokenPipeError:  # `ccs preview … | head` : lecteur parti, pas de trace Python
+    except BrokenPipeError:  # `ccs apercu … | head` : lecteur parti, pas de trace Python
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
     return 0
 
@@ -932,7 +932,7 @@ def cmd_silence(args):
     from . import daemon, quiet
     now = datetime.now(timezone.utc)
     before = quiet.quiet_state(now)
-    code, message = quiet.command(args.args, now)
+    code, message = quiet.command([_status_word(a) for a in args.args[:1]] + list(args.args[1:]), now)
     if code != 0:
         print(message, file=sys.stderr)
         if args.notifier:
@@ -1103,7 +1103,7 @@ def cmd_raccourcis(args):
     from . import shortcuts
     code, text = shortcuts.command(args.args)
     # L'état sur un autre bureau (code 1) donne les commandes à associer : sortie normale.
-    status = not args.args or args.args[0] in ("status", "etat", "état")
+    status = not args.args or _status_word(args.args[0]) == "status"
     (sys.stdout if code == 0 or status else sys.stderr).write(text)
     return code
 
@@ -1155,38 +1155,206 @@ def cmd_integrate(args):
 NOTIFIER_HELP = ("notification bureau du résultat (raccourcis clavier) ; une bascule est notée "
                  "« raccourci » dans le journal")
 
+# Mot d'état des arguments (`pause`, `silence`, `raccourcis`, `integration`) : « etat » dans
+# l'aide, « status » (ancien) toujours accepté.
+STATUS_WORDS = ("etat", "état", "status")
+
+
+def _status_word(word):
+    """« etat » / « état » → « status », le mot des modules ; le reste inchangé."""
+    return "status" if word in STATUS_WORDS else word
+
+
+def _command(sub, name, help=None, old=(), **kw):
+    """Sous-commande `name`. `old` : anciens noms et doublons, acceptés mais absents de l'aide.
+    Sans `help`, la commande est interne : acceptée, absente de l'aide."""
+    if help is None:
+        return sub.add_parser(name, aliases=list(old), **kw)
+    parser = sub.add_parser(name, aliases=list(old), help=help, **kw)
+    shown = sub._choices_actions[-1]   # ligne de l'aide : le nom seul, sans les anciens
+    shown.metavar = shown.dest = name
+    return parser
+
+
+def _old_option(parser, *names, **kw):
+    """Ancien nom d'une option : accepté, absent de l'aide (la valeur par défaut vient de
+    l'option principale, de même `dest`)."""
+    kw.setdefault("default", argparse.SUPPRESS)
+    return parser.add_argument(*names, help=argparse.SUPPRESS, **kw)
+
+
+def _integration_action(text):
+    word = _status_word(text)
+    if word not in ("on", "off", "status"):
+        raise argparse.ArgumentTypeError(f"choix inconnu : « {text} » (on, off, etat)")
+    return word
+
+
+# Commandes qui analysent elles-mêmes leurs options (-C, --droits, --oui…) : argparse ne voit
+# pas leurs arguments. (nom, anciens noms, aide, fonction)
+SELF_PARSED = (
+    ("tache", ("taches", "tasks"), "file de tâches lancées par le service : ajouter, voir, annuler",
+     cmd_tache),
+    ("budget", (), "budget hebdomadaire par projet", cmd_budget),
+    ("fiche", (), "fiche « où j'en étais » d'une conversation", cmd_fiche),
+    ("sauvegarde", ("backup",), "sauvegarde chiffrée des profils et réglages", cmd_sauvegarde),
+    ("restaurer", ("restore",), "restaure une sauvegarde chiffrée", cmd_restaurer),
+    ("telephone", ("phone",), "notifications sur le téléphone : état, lien, essai", cmd_telephone),
+)
+DELEGATED = {n: func for name, old, _help, func in SELF_PARSED for n in (name, *old)}
+
 
 def build_parser():
+    """Toutes les commandes de `claude-accounts` et de `ccs` (hors bascule de profil, propre à
+    `bin/ccs`) : c'est la seule table des noms. Les noms affichés sont français ; les anciens
+    (anglais, doublons) restent acceptés sans paraître dans l'aide."""
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
         description="Usage, prévisions et bascule entre comptes Claude Code.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    sub = parser.add_subparsers(dest="command")
-    gui = sub.add_parser("gui", help="ouvre l'application (défaut)")
+    sub = parser.add_subparsers(dest="command", metavar="<commande>")
+
+    gui = _command(sub, "appli", "ouvre l'application (défaut)", old=["gui", "app"])
     gui.add_argument("--session", metavar="PID:ID",
                      help="affiche cette session Claude Code (pid, identifiant de conversation, "
                           "ou les deux) : clic sur une notification")
     gui.add_argument("--page", metavar="ONGLET", type=_page,
                      help="affiche cet onglet : accueil, sessions, analyse, ou une partie : "
                           "comptes, planning, historique, terminaux, reglages (fenêtre des réglages)")
-    gui.add_argument("--task", metavar="ID", type=_task_ref,
+    gui.add_argument("--tache", dest="task", metavar="ID", type=_task_ref,
                      help="affiche cette tâche dans la section Planning de l'Accueil : clic sur une notification")
-    gui.add_argument("--new-session", action="store_true",
+    _old_option(gui, "--task", dest="task", type=_task_ref)
+    gui.add_argument("--nouvelle-session", dest="new_session", action="store_true",
                      help="ouvre « Nouvelle session… » (dossier, compte, modèle, permissions)")
+    _old_option(gui, "--new-session", dest="new_session", action="store_true")
     gui.set_defaults(func=cmd_gui)
-    sub.add_parser("print", help="affiche l'usage de tous les comptes").set_defaults(func=cmd_print)
-    sub.add_parser("daemon", help="service de collecte (systemd)").set_defaults(func=cmd_daemon)
-    sub.add_parser("auth-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_auth_serve)
-    sub.add_parser("web-serve", help=argparse.SUPPRESS).set_defaults(func=cmd_web_serve)
-    sd = sub.add_parser("shell-distant", help=argparse.SUPPRESS)
-    sd.add_argument("serveur")
-    sd.add_argument("cwd")
-    sd.set_defaults(func=cmd_shell_distant)
-    tu = sub.add_parser("tui", help="CCS en plein écran dans le terminal")
+
+    _command(sub, "usage", "affiche l'usage de tous les comptes", old=["print", "u"]).set_defaults(
+        func=cmd_print)
+    _command(sub, "etat", "compte actif, meilleur compte, capacité", old=["état", "status", "st"]).set_defaults(
+        func=cmd_status)
+    best = _command(sub, "meilleur", "bascule sur le meilleur compte maintenant", old=["best", "b"])
+    best.add_argument("--voir", action="store_true", help="affiche seulement le meilleur compte, sans basculer")
+    _old_option(best, "--basculer", "--switch", dest="switch", action="store_true")   # bascule par défaut
+    best.add_argument("--notifier", action="store_true", help=NOTIFIER_HELP)
+    best.set_defaults(func=cmd_best)
+    auto = _command(sub, "auto", "bascule automatique on/off")
+    auto.add_argument("state", choices=["on", "off"])
+    auto.set_defaults(func=cmd_auto)
+    orch = _command(sub, "orchestrateur", "orchestrateur on/off", old=["orch"])
+    orch.add_argument("state", choices=["on", "off"])
+    orch.set_defaults(func=cmd_orch)
+    pa = _command(sub, "pause", "suspend la bascule automatique et l'orchestrateur")
+    pa.add_argument("choice", nargs="?", default="status", metavar="1h|4h|demain|manuel|off|etat",
+                    help="durée de la pause, « off » pour reprendre, « etat » (défaut) pour l'état")
+    pa.add_argument("--notifier", action="store_true", help=NOTIFIER_HELP)
+    pa.set_defaults(func=cmd_pause)
+    si = _command(sub, "silence", "ne pas déranger : retient les notifications", old=["quiet"])
+    si.add_argument("args", nargs="*", metavar="1h|4h|demain|off|reprendre|etat",
+                    help="durée du silence, « off » ou « reprendre » pour le lever, « etat » (défaut)")
+    si.add_argument("--notifier", action="store_true", help=NOTIFIER_HELP)
+    si.set_defaults(func=cmd_silence)
+    _command(sub, "plan", "planning des fenêtres de 5 h", old=["planning"]).set_defaults(func=cmd_plan)
+    _command(sub, "sessions", "sessions Claude Code ouvertes (mémoire, contexte lourd)",
+             old=["ps"]).set_defaults(func=cmd_sessions)
+    for name, old, helptext, func in SELF_PARSED:
+        p = _command(sub, name, helptext, old=old)
+        p.add_argument("args", nargs=argparse.REMAINDER, help="arguments de la commande")
+        p.set_defaults(func=func)
+
+    convs = _command(sub, "conversations", "historique des conversations Claude Code du PC",
+                     old=["conv", "historique"])
+    convs.add_argument("query", nargs="*", help="mots à chercher (titre, demandes, projet)")
+    convs.add_argument("-p", "--projet", dest="project", help="nom ou dossier du projet")
+    _old_option(convs, "--project", dest="project")
+    origin = convs.add_mutually_exclusive_group()
+    origin.add_argument("--vscode", action="store_true", help="seulement les conversations de VS Code")
+    origin.add_argument("--terminal", action="store_true", help="seulement celles du terminal")
+    convs.add_argument("-n", "--limite", dest="limit", type=int, default=30, metavar="N",
+                       help="nombre affiché (30 par défaut)")
+    _old_option(convs, "--limit", dest="limit", type=int)
+    convs.add_argument("--tous", dest="all", action="store_true", help="tout afficher")
+    _old_option(convs, "--all", dest="all", action="store_true")
+    convs.add_argument("--json", action="store_true", help="sortie JSON")
+    convs.set_defaults(func=cmd_conversations)
+    res = _command(sub, "reprendre", "reprend une conversation de l'historique", old=["resume"])
+    res.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
+    where = res.add_mutually_exclusive_group()
+    where.add_argument("--vscode", action="store_true", help="dans VS Code (extension Claude Code)")
+    where.add_argument("--nouveau-terminal", dest="new_terminal", action="store_true",
+                       help="dans un nouveau terminal")
+    _old_option(where, "--new-terminal", dest="new_terminal", action="store_true")
+    where.add_argument("--afficher", dest="print", action="store_true", help="affiche seulement la commande")
+    _old_option(where, "--print", dest="print", action="store_true")
+    res.add_argument("--dossier", dest="dir", metavar="DOSSIER", help="reprendre depuis ce dossier (projet déplacé)")
+    _old_option(res, "--dir", dest="dir")
+    res.set_defaults(func=cmd_resume)
+    ttl = _command(sub, "titre", "renomme une conversation de l'historique (comme /rename)", old=["title"])
+    ttl.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
+    ttl.add_argument("title", nargs="+", metavar="titre", help="nouveau titre")
+    ttl.set_defaults(func=cmd_title)
+    pv = _command(sub, "apercu", "affiche une conversation en Markdown, avec son coût",
+                  old=["aperçu", "preview"])
+    pv.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
+    pv.set_defaults(func=cmd_preview)
+    ex = _command(sub, "exporter", "exporte une conversation dans un fichier Markdown", old=["export"])
+    ex.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
+    ex.add_argument("file", nargs="?", metavar="fichier.md",
+                    help="fichier ou dossier de destination (défaut : <titre>.md dans le dossier courant)")
+    ex.set_defaults(func=cmd_export)
+    an = _command(sub, "analyse", "où part ton usage : projets, modèles, heures, conseils",
+                  old=["analyze", "stats"])
+    an.add_argument("--jours", dest="days", type=int, default=7, metavar="N", help="N derniers jours (7 par défaut)")
+    _old_option(an, "--days", dest="days", type=int)
+    an.set_defaults(func=cmd_analyze)
+    integ = _command(sub, "integration", "ligne d'état et bascule après blocage dans Claude Code",
+                     old=["integrate"])
+    integ.add_argument("action", nargs="?", default="status", type=_integration_action,
+                       metavar="on|off|etat", help="installe, retire, ou « etat » (défaut)")
+    integ.set_defaults(func=cmd_integrate)
+
+    fo = _command(sub, "formule", "conseiller de formule : combien de comptes Pro, Max ou Ultra pour ton usage",
+                  old=["conseil"])
+    fo.set_defaults(func=cmd_formule)
+    se = _command(sub, "semaine", "bilan de la semaine écoulée")
+    se.add_argument("--precedente", type=_weeks_back, default=0, metavar="N",
+                    help="bilan de N semaines plus tôt (0 : la semaine écoulée)")
+    _old_option(se, "--precedent", dest="precedente", type=_weeks_back)
+    se.set_defaults(func=cmd_semaine)
+    from . import monthly_report
+    mo = _command(sub, "mois", "rapport du mois écoulé")
+    monthly_report.add_arguments(mo)
+    mo.set_defaults(func=cmd_mois)
+    bt = _command(sub, "moment", "meilleur moment pour lancer une grosse tâche")
+    bt.add_argument("--duree", metavar="3h", help="durée de la tâche (3 h par défaut)")
+    bt.add_argument("--sur", metavar="24h", help="horizon cherché (24 h par défaut)")
+    bt.set_defaults(func=cmd_moment)
+    jo = _command(sub, "journal", "journal des bascules, avec leur raison")
+    period = jo.add_mutually_exclusive_group()
+    period.add_argument("--jours", type=int, default=7, metavar="N", help="N derniers jours (7 par défaut)")
+    _old_option(period, "--days", dest="jours", type=int)
+    period.add_argument("--tout", action="store_true", help="tout l'historique gardé")
+    jo.set_defaults(func=cmd_journal)
+    _command(sub, "bilan", "bilan de santé (code de sortie 1 au moindre problème)", old=["doctor"]).set_defaults(
+        func=cmd_doctor)
+    mj = _command(sub, "mise-a-jour", "installe la dernière version de CCS (paquet .deb de GitHub)",
+                  old=["maj"])
+    mj.add_argument("--verifier", action="store_true", help="indique seulement s'il y a une nouvelle version")
+    mj.set_defaults(func=cmd_mise_a_jour)
+    pr = _command(sub, "projet", "compte par projet : liste, compte d'un dossier, association")
+    pr.add_argument("args", nargs="*", metavar="<dossier>|<compte>|aucun",
+                    help="sans argument : liste ; un dossier : son compte ; un compte ou « aucun » : "
+                         "pour le dossier courant ; dossier puis compte")
+    pr.set_defaults(func=cmd_projet)
+    ra = _command(sub, "raccourcis", "raccourcis clavier globaux (GNOME)", old=["shortcuts"])
+    ra.add_argument("args", nargs="*", metavar="etat|on|off|definir",
+                    help="etat (défaut) ; on|off [action…] ; definir <action> <raccourci>")
+    ra.set_defaults(func=cmd_raccourcis)
+    tu = _command(sub, "tui", "CCS en plein écran dans le terminal")
     tu.add_argument("--serveur", help="nom ou adresse d'un serveur appairé (sinon : cette machine)")
     tu.set_defaults(func=cmd_tui)
-    sv = sub.add_parser("serveur", help="serveurs CCS distants (appairage, liste, retrait)")
-    sv_sub = sv.add_subparsers(dest="action", required=True)
+    sv = _command(sub, "serveur", "serveurs CCS distants (appairage, liste, retrait)", old=["server"])
+    sv_sub = sv.add_subparsers(dest="action", required=True, metavar="<action>")
     sva = sv_sub.add_parser("ajouter", help="appaire ce poste avec un serveur CCS")
     sva.add_argument("cible", help="adresse, par exemple ccs.mawena.cloud")
     sva.add_argument("--nom", help="nom de cet appareil sur le serveur")
@@ -1194,54 +1362,13 @@ def build_parser():
     svr = sv_sub.add_parser("retirer", help="oublie un serveur")
     svr.add_argument("cible")
     sv.set_defaults(func=cmd_serveur)
-    br = sub.add_parser("bridge", help=argparse.SUPPRESS)
-    br.add_argument("--socket")
-    br.add_argument("--local", action="store_true")
-    br.set_defaults(func=cmd_bridge)
-    tp = sub.add_parser("totp", help="double authentification du serveur CCS (root)")
-    tp_sub = tp.add_subparsers(dest="action", required=True)
+    tp = _command(sub, "totp", "double authentification du serveur CCS (root)")
+    tp_sub = tp.add_subparsers(dest="action", required=True, metavar="<action>")
     tr = tp_sub.add_parser("reinitialiser", help="efface le code d'un utilisateur")
-    tr.add_argument("user")
+    tr.add_argument("user", metavar="utilisateur")
     tp.set_defaults(func=cmd_totp)
-    sub.add_parser("collect", help="collecte immédiate").set_defaults(func=cmd_collect)
-    sub.add_parser("status", help="compte actif, meilleur compte, capacité").set_defaults(func=cmd_status)
-    sub.add_parser("doctor", help="bilan de santé (code de sortie 1 au moindre problème)").set_defaults(
-        func=cmd_doctor)
-    pa = sub.add_parser("pause", help="suspend la bascule automatique et l'orchestrateur")
-    pa.add_argument("choice", nargs="?", default="status", metavar="1h|4h|demain|manuel|off|status",
-                    help="durée de la pause, « off » pour reprendre, « status » (défaut) pour l'état")
-    pa.add_argument("--notifier", action="store_true", help=NOTIFIER_HELP)
-    pa.set_defaults(func=cmd_pause)
-    best = sub.add_parser("best", help="meilleur compte maintenant")
-    best.add_argument("--switch", action="store_true", help="bascule dessus")
-    best.add_argument("--notifier", action="store_true", help=NOTIFIER_HELP)
-    best.set_defaults(func=cmd_best)
-    fo = sub.add_parser("formule", aliases=["conseil"],
-                        help="conseiller de formule : combien de comptes Pro, Max ou Ultra pour ton usage")
-    fo.set_defaults(func=cmd_formule)
-    se = sub.add_parser("semaine", help="bilan de la semaine écoulée")
-    se.add_argument("--precedente", type=_weeks_back, default=0, metavar="N",
-                    help="bilan de N semaines plus tôt (0 : la semaine écoulée)")
-    se.set_defaults(func=cmd_semaine)
-    from . import monthly_report
-    mo = sub.add_parser("mois", help="rapport du mois écoulé")
-    monthly_report.add_arguments(mo)
-    mo.set_defaults(func=cmd_mois)
-    bt = sub.add_parser("moment", help="meilleur moment pour lancer une grosse tâche")
-    bt.add_argument("--duree", metavar="3h", help="durée de la tâche (3 h par défaut)")
-    bt.add_argument("--sur", metavar="24h", help="horizon cherché (24 h par défaut)")
-    bt.set_defaults(func=cmd_moment)
-    si = sub.add_parser("silence", aliases=["quiet"], help="ne pas déranger : retient les notifications")
-    si.add_argument("args", nargs="*", metavar="1h|4h|demain|off|reprendre|status",
-                    help="durée du silence, « off » ou « reprendre » pour le lever, « status » (défaut)")
-    si.add_argument("--notifier", action="store_true", help=NOTIFIER_HELP)
-    si.set_defaults(func=cmd_silence)
-    mj = sub.add_parser("mise-a-jour", aliases=["maj"],
-                        help="installe la dernière version de CCS (paquet .deb de GitHub)")
-    mj.add_argument("--verifier", action="store_true", help="indique seulement s'il y a une nouvelle version")
-    mj.set_defaults(func=cmd_mise_a_jour)
-    di = sub.add_parser("distant", help="calcul réparti : lancer une commande sur une autre machine (Ricochet)")
-    di_sub = di.add_subparsers(dest="action", required=True)
+    di = _command(sub, "distant", "calcul réparti : lancer une commande sur une autre machine (Ricochet)")
+    di_sub = di.add_subparsers(dest="action", required=True, metavar="<action>")
     dim = di_sub.add_parser("machines", help="machines du réseau, leur charge et leurs outils")
     dim.add_argument("--vite", action="store_true", help="sans interroger les machines (outils déjà connus)")
     dil = di_sub.add_parser("lancer", help="envoie le projet, lance la commande ailleurs, rapporte les fichiers",
@@ -1257,7 +1384,7 @@ def build_parser():
                      help="partir la nuit (plage des tâches) ou à cette heure")
     dil.add_argument("--detache", action="store_true",
                      help="en arrière-plan : rend la main tout de suite (journal : ccs distant journal <id>)")
-    dil.add_argument("--travail", help=argparse.SUPPRESS)
+    dil.add_argument("--travail", help=argparse.SUPPRESS)   # interne : travail programmé, relancé par le service
     dil.add_argument("commande", nargs=argparse.REMAINDER, help="la commande, après --")
     di_sub.add_parser("travaux", help="commandes lancées : en attente, en cours et finies")
     dia = di_sub.add_parser("arreter", help="arrête un travail (ou le retire de la file)")
@@ -1265,110 +1392,62 @@ def build_parser():
     dij = di_sub.add_parser("journal", help="sortie d'un travail détaché")
     dij.add_argument("id")
     di.set_defaults(func=cmd_distant)
-    ch = sub.add_parser("chat", help="chats de CCS (commandes pour Claude)")
-    ch_sub = ch.add_subparsers(dest="action", required=True)
+    ch = _command(sub, "chat", "chats de CCS (commandes pour Claude)")
+    ch_sub = ch.add_subparsers(dest="action", required=True, metavar="<action>")
     ch_sub.add_parser("effacer", help="vide la conversation (/clear) à la fin du tour en cours")
     ch.set_defaults(func=cmd_chat)
-    jo = sub.add_parser("journal", help="journal des bascules, avec leur raison")
-    period = jo.add_mutually_exclusive_group()
-    period.add_argument("--jours", type=int, default=7, metavar="N", help="N derniers jours (7 par défaut)")
-    period.add_argument("--tout", action="store_true", help="tout l'historique gardé")
-    jo.set_defaults(func=cmd_journal)
-    pr = sub.add_parser("projet", help="compte par projet : liste, compte d'un dossier, association")
-    pr.add_argument("args", nargs="*", metavar="<dossier>|<compte>|aucun",
-                    help="sans argument : liste ; un dossier : son compte ; un compte ou « aucun » : "
-                         "pour le dossier courant ; dossier puis compte")
-    pr.set_defaults(func=cmd_projet)
-    ra = sub.add_parser("raccourcis", aliases=["shortcuts"], help="raccourcis clavier globaux (GNOME)")
-    ra.add_argument("args", nargs="*", metavar="status|on|off|set",
-                    help="status (défaut) ; on|off [action…] ; set <action> <raccourci>")
-    ra.set_defaults(func=cmd_raccourcis)
-    nt = sub.add_parser("notify", help="notification bureau (pour ccs … --notifier)")
+
+    # Internes (services systemd, pont, hooks de Claude Code, `ccs … --notifier`) : absentes
+    # de l'aide, hors du gel de la 1.0.
+    _command(sub, "daemon").set_defaults(func=cmd_daemon)
+    _command(sub, "collect").set_defaults(func=cmd_collect)
+    _command(sub, "tray").set_defaults(func=cmd_tray)
+    _command(sub, "statusline").set_defaults(func=cmd_statusline)
+    hook = _command(sub, "hook")
+    hook.add_argument("event", choices=["stop-failure"])
+    hook.set_defaults(func=cmd_hook)
+    nt = _command(sub, "notify")
     nt.add_argument("title", metavar="titre")
     nt.add_argument("body", nargs="?", metavar="texte")
     nt.set_defaults(func=cmd_notify)
-    auto = sub.add_parser("auto", help="bascule automatique on/off")
-    auto.add_argument("state", choices=["on", "off"])
-    auto.set_defaults(func=cmd_auto)
-    orch = sub.add_parser("orch", help="orchestrateur on/off")
-    orch.add_argument("state", choices=["on", "off"])
-    orch.set_defaults(func=cmd_orch)
-    sub.add_parser("plan", help="planning des fenêtres de 5 h").set_defaults(func=cmd_plan)
-    sub.add_parser("sessions", help="sessions Claude Code ouvertes (mémoire, contexte lourd)").set_defaults(
-        func=cmd_sessions)
-    for names, helptext, func in (
-            (["tache", "taches", "tasks"], "file de tâches lancées par le service : ajouter, voir, annuler",
-             cmd_tache),
-            (["budget"], "budget hebdomadaire par projet", cmd_budget),
-            (["fiche"], "fiche « où j'en étais » d'une conversation", cmd_fiche),
-            (["sauvegarde", "backup"], "sauvegarde chiffrée des profils et réglages", cmd_sauvegarde),
-            (["restaurer", "restore"], "restaure une sauvegarde chiffrée", cmd_restaurer),
-            (["telephone", "phone"], "notifications sur le téléphone : état, lien, essai", cmd_telephone)):
-        p = sub.add_parser(names[0], aliases=names[1:], help=helptext)
-        p.add_argument("args", nargs=argparse.REMAINDER, help="arguments de la commande")
-        p.set_defaults(func=func)
-    convs = sub.add_parser("conversations", help="historique des conversations Claude Code du PC")
-    convs.add_argument("query", nargs="*", help="mots à chercher (titre, demandes, projet)")
-    convs.add_argument("-p", "--project", help="nom ou dossier du projet")
-    origin = convs.add_mutually_exclusive_group()
-    origin.add_argument("--vscode", action="store_true", help="seulement les conversations de VS Code")
-    origin.add_argument("--terminal", action="store_true", help="seulement celles du terminal")
-    convs.add_argument("-n", "--limit", type=int, default=30, help="nombre affiché (30 par défaut)")
-    convs.add_argument("--all", action="store_true", help="tout afficher")
-    convs.add_argument("--json", action="store_true", help="sortie JSON")
-    convs.set_defaults(func=cmd_conversations)
-    res = sub.add_parser("resume", help="reprend une conversation de l'historique")
-    res.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
-    where = res.add_mutually_exclusive_group()
-    where.add_argument("--vscode", action="store_true", help="dans VS Code (extension Claude Code)")
-    where.add_argument("--new-terminal", action="store_true", help="dans un nouveau terminal")
-    where.add_argument("--print", action="store_true", help="affiche seulement la commande")
-    res.add_argument("--dir", help="reprendre depuis ce dossier (projet déplacé)")
-    res.set_defaults(func=cmd_resume)
-    ttl = sub.add_parser("title", help="renomme une conversation de l'historique (comme /rename)")
-    ttl.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
-    ttl.add_argument("title", nargs="+", help="nouveau titre")
-    ttl.set_defaults(func=cmd_title)
-    pv = sub.add_parser("preview", aliases=["apercu"],
-                        help="affiche une conversation en Markdown, avec son coût")
-    pv.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
-    pv.set_defaults(func=cmd_preview)
-    ex = sub.add_parser("export", help="exporte une conversation dans un fichier Markdown")
-    ex.add_argument("ref", help="identifiant de la conversation (4 premiers caractères au moins)")
-    ex.add_argument("file", nargs="?", metavar="fichier.md",
-                    help="fichier ou dossier de destination (défaut : <titre>.md dans le dossier courant)")
-    ex.set_defaults(func=cmd_export)
-    sub.add_parser("statusline", help="ligne d'état pour Claude Code").set_defaults(func=cmd_statusline)
-    hook = sub.add_parser("hook", help="hooks Claude Code")
-    hook.add_argument("event", choices=["stop-failure"])
-    hook.set_defaults(func=cmd_hook)
-    integ = sub.add_parser("integrate", help="intégration dans Claude Code")
-    integ.add_argument("action", choices=["on", "off", "status"])
-    integ.set_defaults(func=cmd_integrate)
-    sub.add_parser("tray", help="indicateur de la barre du haut").set_defaults(func=cmd_tray)
-    an = sub.add_parser("analyze", help="analyse des journaux locaux")
-    an.add_argument("--days", type=int, default=7)
-    an.set_defaults(func=cmd_analyze)
+    _command(sub, "auth-serve").set_defaults(func=cmd_auth_serve)
+    _command(sub, "web-serve").set_defaults(func=cmd_web_serve)
+    sd = _command(sub, "shell-distant")
+    sd.add_argument("serveur")
+    sd.add_argument("cwd")
+    sd.set_defaults(func=cmd_shell_distant)
+    br = _command(sub, "bridge")
+    br.add_argument("--socket")
+    br.add_argument("--local", action="store_true")
+    br.set_defaults(func=cmd_bridge)
+    ec = _command(sub, "est-commande")   # pour `bin/ccs` : ce nom est-il une commande ?
+    ec.add_argument("name")
+    ec.set_defaults(func=lambda args: 0 if args.name in command_names() else 1)
     return parser
 
 
-DELEGATED = {"tache": cmd_tache, "taches": cmd_tache, "tasks": cmd_tache,
-             "budget": cmd_budget, "fiche": cmd_fiche,
-             "sauvegarde": cmd_sauvegarde, "backup": cmd_sauvegarde,
-             "restaurer": cmd_restaurer, "restore": cmd_restaurer,
-             "telephone": cmd_telephone, "phone": cmd_telephone}
+def command_names(parser=None):
+    """Tous les noms acceptés (principaux, anciens, internes) des commandes de `claude-accounts`."""
+    parser = parser or build_parser()
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return frozenset(action.choices)
+    return frozenset()
 
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     procname.setup(argv)
-    # Compatibilité avec l'ancienne option.
+    # Ancienne option, remplacée par la commande `usage` : acceptée, absente de l'aide.
     if argv[:1] == ["--print"]:
-        argv[0] = "print"
-    # Commandes qui analysent elles-mêmes leurs options (-C, --droits, --oui…) : argparse
-    # ne doit pas les voir.
+        argv[0] = "usage"
     if argv and argv[0] in DELEGATED:
         return DELEGATED[argv[0]](argparse.Namespace(args=argv[1:])) or 0
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    if argv and not argv[0].startswith("-") and argv[0] not in command_names(parser):
+        print(f"ccs : commande ou profil inconnu : {argv[0]} (commandes : ccs aide ; profils : ccs liste)",
+              file=sys.stderr)
+        return 1
+    args = parser.parse_args(argv)
     func = getattr(args, "func", cmd_gui)
     return func(args) or 0

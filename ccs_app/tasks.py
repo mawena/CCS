@@ -96,7 +96,9 @@ class Task:
         t = cls(tid, message, cwd, **{k: v for k, v in kw.items() if k in _TYPES and _ok(v, _TYPES[k])})
         if t.state not in STATES:
             t.state = QUEUED
-        if t.rights not in RIGHTS:
+        try:
+            t.rights = normalize_rights(t.rights)
+        except ValueError:
             t.rights = DEFAULT_RIGHTS
         if t.when != "quota" and t.when != "nuit" and not TIME_RE.match(str(t.when)):
             t.when = "quota"
@@ -215,6 +217,16 @@ def _local_tz():
     return local_tz()
 
 
+def normalize_rights(rights):
+    """Droits d'une tâche : « lecture », « modifications » ou « tout » ; un mode de Claude Code
+    (« acceptEdits », « manual »…, le vocabulaire des chats) est converti. Vide : les droits par
+    défaut. ValueError si inconnu."""
+    from . import launch_options
+    if rights is None or rights == "":
+        return DEFAULT_RIGHTS
+    return launch_options.convert_rights(rights, "droits")
+
+
 def add(message, cwd=None, model=None, rights=DEFAULT_RIGHTS, when="quota", now=None, tz=None,
         extra=None):
     """Ajoute une tâche en attente et la renvoie. Lève ValueError (message vide, droits ou
@@ -224,8 +236,7 @@ def add(message, cwd=None, model=None, rights=DEFAULT_RIGHTS, when="quota", now=
     message = (message or "").strip()
     if not message:
         raise ValueError("le message de la tâche est vide")
-    if rights not in RIGHTS:
-        raise ValueError(f"droits inconnus : {rights!r} (lecture, modifications, tout)")
+    rights = normalize_rights(rights)
     when = normalize_when(when)
     folder = os.path.normpath(os.path.abspath(os.path.expanduser(cwd or os.getcwd())))
     if not os.path.isdir(folder):

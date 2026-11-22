@@ -35,6 +35,12 @@ class ChatOptions:
     ultracode: bool = False
     rights: str = "manual"
 
+    def __post_init__(self):
+        # Mot des droits (« lecture », « modifications », « tout », celui de `ccs tache`) :
+        # converti en mode de Claude Code ; un mode reste tel quel.
+        if isinstance(self.rights, str) and self.rights.strip().casefold() in launch_options.RIGHTS_WORDS:
+            object.__setattr__(self, "rights", launch_options.convert_rights(self.rights, "mode"))
+
 
 def efforts_for(model, resolved=None):
     """Niveaux d'effort offerts par ce modèle. `resolved` : nom complet derrière un alias
@@ -112,6 +118,8 @@ def default_rights(settings):
         value = settings.get("chat", {}).get("rights", "manual")
     except AttributeError:
         return "manual"
+    if isinstance(value, str) and value.strip().casefold() in launch_options.RIGHTS_WORDS:
+        value = launch_options.convert_rights(value, "mode")
     return value if value in RIGHT_VALUES else "manual"
 
 
