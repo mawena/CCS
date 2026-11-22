@@ -155,9 +155,10 @@ final class ModeleChat {
         }
     }
 
-    /// Écran quitté : le brouillon est gardé.
+    /// Écran quitté : le brouillon est gardé, la lecture à voix haute s'arrête.
     func quitter() {
         sauverBrouillon()
+        Lecteur.partage.arreter()
     }
 
     /**
@@ -310,11 +311,12 @@ final class ModeleChat {
     // MARK: événements
 
     private func recevoir(_ d: JSON) {
-        traiter(d)
+        traiter(d, direct: true)
         publier()
     }
 
-    private func traiter(_ item: JSON) {
+    /// `direct` : événement reçu en direct (pas rejoué au rattachement), seul à lancer la lecture à voix haute.
+    private func traiter(_ item: JSON, direct: Bool = false) {
         guard let brut = item["event"], case .objet = brut else { return }
         let ev = EvChat.lire(brut)
         let numero = item.entier("seq")
@@ -337,6 +339,9 @@ final class ModeleChat {
                 demanderContexte()
             case .tourFini:
                 lireCout()
+                if direct, Prefs.lireReponses, case .tour(let ok, _, _, _, _, let interrompu, _) = ev, ok && !interrompu {
+                    lireDerniereReponse()
+                }
             case .mesureContexte:
                 if let c = fil.contexte { verifierContexte(c) }
             case .autorisationArrivee:
@@ -384,6 +389,17 @@ final class ModeleChat {
         }
         v.historiqueComplet = historique?.complet ?? true
         vue = v
+    }
+
+    /// Lit à voix haute la dernière réponse de Claude du tour (après le dernier message envoyé).
+    private func lireDerniereReponse() {
+        for e in fil.fil.elements.reversed() {
+            if case .toi = e { return }
+            if case .claude(let m) = e, !m.texte.isEmpty {
+                Lecteur.partage.lire(m.cle, m.texte)
+                return
+            }
+        }
     }
 
     func voirAgent(_ id: String?) {

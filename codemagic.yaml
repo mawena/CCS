@@ -43,3 +43,40 @@ workflows:
           (cd build && zip -qr CCS.ipa Payload)
     artifacts:
       - ios-app/build/CCS.ipa
+
+  # APK Android (android-app/) : toujours construit ici, plus sur pc-bureau. Signé avec la clé
+  # de débogage d'origine (celle de pc-bureau, variable secrète CCS_DEBUG_KEYSTORE du groupe
+  # android_signature) pour que la mise à jour s'installe par-dessus l'appli du Pixel.
+  android:
+    name: CCS Android
+    max_build_duration: 30
+    instance_type: mac_mini_m2   # seule machine de l'offre gratuite
+    environment:
+      java: 17
+      groups:
+        - android_signature
+    triggering:
+      events: [tag]
+      tag_patterns:
+        - pattern: 'v*'
+    scripts:
+      - name: Clé de signature
+        script: |
+          # Même clé que l'appli installée, sinon la mise à jour est refusée par Android.
+          printf '%s' "$CCS_DEBUG_KEYSTORE" | base64 --decode > "$CM_BUILD_DIR/ccs.keystore"
+          echo "CCS_KEYSTORE=$CM_BUILD_DIR/ccs.keystore" >> "$CM_ENV"
+          keytool -list -v -keystore "$CM_BUILD_DIR/ccs.keystore" -storepass android \
+            | grep -q '4F:DC:76:04:E6:46:96:96:A8:D3:C6:20:A6:F2:E6:A6:A6:F4:A7:D1:FA:B9:D0:52:3C:7D:74:7E:B7:9C:81:F5' \
+            || { echo "Clé de signature inattendue"; exit 1; }
+      - name: Tests unitaires
+        script: |
+          cd android-app && ./gradlew --no-daemon testDebugUnitTest
+      - name: APK de release
+        script: |
+          cd android-app && ./gradlew --no-daemon assembleRelease
+          APKSIGNER=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/ | tail -1)apksigner
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk \
+            | grep -q 4fdc7604e6469696a8d3c620a6f2e6a6a6f4a7d1fab9d0523c7d747eb79c81f5 \
+            || { echo "APK signé avec une autre clé"; exit 1; }
+    artifacts:
+      - android-app/app/build/outputs/apk/release/app-release.apk

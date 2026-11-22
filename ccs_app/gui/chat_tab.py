@@ -31,6 +31,7 @@ from ..server import events as bridge_events  # noqa: E402
 from .chat_bar import ChatBar  # noqa: E402
 from .chat_composer import Composer  # noqa: E402
 from . import phone_hub  # noqa: E402
+from . import chat_messages  # noqa: E402
 from .chat_messages import MessageList, PermissionCard, TodosBar, tool_label, tool_target  # noqa: E402
 from .common import in_thread  # noqa: E402
 
@@ -176,6 +177,7 @@ class ChatTab(Gtk.Box):
         in_thread(lambda: saved_messages.load(launch.cwd), self._set_saved)
         self.composer.connect("cycle-rights", lambda *_: self.bar.cycle_rights())
         self.composer.connect("stop", lambda *_: self.stop_turn())
+        self.composer.connect("voice-error", lambda _c, text: self.messages.add_notice(text, "warning"))
         self.composer.connect("queue-edit", lambda _c, i, text, old: self.edit_message(i, text, old))
         self.composer.connect("queue-move", lambda _c, i, d: self.move_message(i, d))
         self.composer.connect("queue-remove", lambda _c, i: self.remove_message(i))
@@ -270,6 +272,10 @@ class ChatTab(Gtk.Box):
             run.stop()
         engine = self.engine
         threading.Thread(target=engine.stop, daemon=True).start()
+        self.composer.cancel_dictation()
+        reading = chat_messages.SPEAKER.key
+        if reading is not None and reading.is_ancestor(self.messages):
+            chat_messages.SPEAKER.stop()
 
     def detach(self):
         """Fermeture de l'application : un chat tenu par le pont local continue d'y tourner (les
@@ -947,6 +953,9 @@ class ChatTab(Gtk.Box):
             new = "idle"
         if new == "busy" and previous != "busy":
             st.busy_since = now
+            self.messages.last_reply = None
+        elif previous == "busy" and ev.state == "idle":
+            self._read_reply()
         if new != previous or st.state_since is None:
             st.state_since = now
         st.state, st.waiting_for = new, waiting_for
@@ -960,6 +969,15 @@ class ChatTab(Gtk.Box):
             self.attention()
         self.owner.changed(self)
         self.owner.emit("tab-state-changed", self)
+
+    def _read_reply(self):
+        """Fin d'un tour : sa dernière réponse est lue à voix haute si le réglage le demande."""
+        seg, self.messages.last_reply = self.messages.last_reply, None
+        if seg is None or not seg.text.strip() or not chat_messages.voice.can_speak():
+            return
+        if not settings.load_settings().get("chat", {}).get("read_aloud", False):
+            return
+        chat_messages.read_aloud(seg.bubble)
 
     def _on_init(self, ev):
         if ev.session_id and ev.session_id != self.state.session_id:

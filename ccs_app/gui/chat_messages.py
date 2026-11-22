@@ -17,7 +17,7 @@ gi.require_version("Adw", "1")
 gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gdk, GLib, Graphene, Gtk, Pango  # noqa: E402
 
-from .. import chat_protocol as proto, chat_quote, message_tags, preview, token_use  # noqa: E402
+from .. import chat_protocol as proto, chat_quote, message_tags, preview, token_use, voice  # noqa: E402
 from ..conversations import fold  # noqa: E402
 from .markdown_view import MarkdownView  # noqa: E402
 
@@ -213,6 +213,27 @@ def tool_label(name):
     if name.startswith("mcp__"):
         return " · ".join(p for p in name.split("__")[1:] if p) or name
     return name
+
+
+SPEAKER = voice.Speaker()          # une seule lecture à voix haute à la fois, tous chats confondus
+
+
+def read_aloud(bubble):
+    """« Lire » une réponse de Claude ; sur celle qu'on lit déjà : arrêter."""
+    if bubble is None:
+        return
+    if SPEAKER.key is bubble and SPEAKER.speaking():
+        SPEAKER.stop()
+        return
+    button = getattr(bubble, "speak_button", None)
+
+    def mark(on):
+        if button is not None:
+            button.set_icon_name("media-playback-stop-symbolic" if on else "audio-speakers-symbolic")
+            button.set_tooltip_text("Arrêter la lecture" if on else "Lire à voix haute")
+    if SPEAKER.speak(getattr(bubble, "copy_text", "") or "", key=bubble,
+                     on_end=lambda: GLib.idle_add(lambda: (mark(False), False)[1])):
+        mark(True)
 
 
 def _clear(box):
@@ -953,6 +974,7 @@ class MessageList(Gtk.ScrolledWindow):
         self._dark = False
         self._views = []
         self._segs = {}           # msg_id -> segment courant
+        self.last_reply = None    # dernier segment de réponse fini (lecture à voix haute en fin de tour)
         self._tools = {}          # tool_id -> ToolCard
         self._run = None          # dernière action ajoutée (carte ou groupe) : la suite s'y regroupe
         self._perms = {}          # request_id -> PermissionCard
@@ -1207,6 +1229,11 @@ class MessageList(Gtk.ScrolledWindow):
         if self.on_tag is not None and msg_id:
             bubble.tag_hover = self._tag_button()
             actions.append(bubble.tag_hover)
+        if voice.can_speak():
+            bubble.speak_button = Gtk.Button(icon_name="audio-speakers-symbolic", tooltip_text="Lire à voix haute",
+                                             css_classes=["flat", "circular", "ccs-copy"], focus_on_click=False)
+            bubble.speak_button.connect("clicked", lambda btn: read_aloud(_owner(btn)))
+            actions.append(bubble.speak_button)
         actions.append(copy)
         row.append(actions)
         hover = Gtk.EventControllerMotion()
@@ -1522,6 +1549,7 @@ class MessageList(Gtk.ScrolledWindow):
         seg = self._segment(msg_id, create=bool(text and text.strip()))
         if seg is None:
             return
+        self.last_reply = seg
         if seg.timer:
             GLib.source_remove(seg.timer)
             seg.timer = 0

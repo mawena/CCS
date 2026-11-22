@@ -3,6 +3,16 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.1.0] — 2026-11-22
+
+### Ajouté
+
+- Vocal sur toutes les interfaces (web, bureau, Android, iPhone) : bouton micro pour dicter
+  un message dans la saisie, « Lire » sur chaque réponse de Claude, et réglage « Lire les
+  réponses à voix haute » (lecture automatique à la fin du tour, désactivé par défaut).
+- Bureau : dictée par Whisper en local (`faster-whisper`, facultatif), lecture par
+  speech-dispatcher ; nouvelle clé de réglage `chat.read_aloud`.
+
 ## [1.0.2] — 2026-11-22
 
 ### Corrigé

@@ -15,15 +15,27 @@ android {
         minSdk = 26
         targetSdk = 36
         // Toujours croissant (l'appli Flutter 0.26.1 avait le numéro 27).
-        versionCode = 35
-        versionName = "1.0.0"
+        versionCode = 36
+        versionName = "1.1.0"
+    }
+
+    // Clé d'origine (celle de l'appli déjà installée), fournie par Codemagic dans CCS_KEYSTORE ;
+    // sans elle, la clé de débogage de la machine qui construit.
+    val cleCcs = System.getenv("CCS_KEYSTORE")?.let { file(it) }?.takeIf { it.length() > 0 }
+    signingConfigs {
+        if (cleCcs != null) {
+            create("ccs") {
+                storeFile = cleCcs
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
         release {
-            // Signée avec la clé de débogage de la machine qui construit (~/.android/debug.keystore
-            // de pc-bureau), comme l'appli Flutter : l'installation par-dessus reste possible.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (cleCcs != null) "ccs" else "debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

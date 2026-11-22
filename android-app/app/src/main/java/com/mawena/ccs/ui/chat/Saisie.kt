@@ -1,10 +1,14 @@
 package com.mawena.ccs.ui.chat
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.speech.RecognizerIntent
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -30,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -73,6 +78,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mawena.ccs.logique.Citation
 import com.mawena.ccs.logique.Envoi
+import com.mawena.ccs.logique.Vocal
 import com.mawena.ccs.reseau.OptionsChat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -106,7 +112,7 @@ fun BandeauEtat(vue: VueChat) {
     }
 }
 
-/** Zone de saisie : citation, images, commandes `/`, texte multi-ligne, envoi ; pied : options, contexte, coût, Arrêter. */
+/** Zone de saisie : citation, images, commandes `/`, texte multi-ligne, dictée, envoi ; pied : options, contexte, coût, Arrêter. */
 @Composable
 fun Saisie(modele: ModeleChat, vue: VueChat, appli: com.mawena.ccs.ui.ModeleAppli? = null) {
     val saisie by modele.saisie.collectAsStateWithLifecycle()
@@ -128,6 +134,20 @@ fun Saisie(modele: ModeleChat, vue: VueChat, appli: com.mawena.ccs.ui.ModeleAppl
                 if (p == null) modele.dire("Image illisible ou trop lourde (5 Mo au plus).") else modele.joindre(p)
             }
         }
+    }
+    // dictée par la reconnaissance vocale du téléphone (pas de permission micro : c'est elle qui écoute) ;
+    // le texte reconnu s'ajoute à la saisie, sans envoyer
+    val dictee = remember {
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
+            .putExtra(RecognizerIntent.EXTRA_PROMPT, "Dicte ton message")
+    }
+    val dicteePossible = remember { dictee.resolveActivity(ctx.packageManager) != null }
+    val dicter = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val texte = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+        if (texte.isNotBlank()) modele.saisir(Vocal.ajouterDictee(modele.saisie.value, texte))
     }
     val travaille = vue.etat in setOf("busy", "permission", "starting") && vue.pret
     val proposees = remember(champ.text, commandes) { Envoi.completer(champ.text, commandes) }
@@ -190,6 +210,19 @@ fun Saisie(modele: ModeleChat, vue: VueChat, appli: com.mawena.ccs.ui.ModeleAppl
                     { champ = it; modele.saisir(it.text) },
                     Modifier.weight(1f).heightIn(min = 48.dp, max = 200.dp),
                     placeholder = { Text("Écris à Claude…") },
+                    trailingIcon = if (dicteePossible) {
+                        {
+                            IconButton(onClick = {
+                                try {
+                                    dicter.launch(dictee)
+                                } catch (e: ActivityNotFoundException) {
+                                    modele.dire("Pas de reconnaissance vocale sur ce téléphone : installe l'appli Google (ou une autre appli de dictée).")
+                                }
+                            }) { Icon(Icons.Filled.Mic, "Dicter") }
+                        }
+                    } else {
+                        null
+                    },
                     maxLines = 8,
                     shape = RoundedCornerShape(20.dp),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),

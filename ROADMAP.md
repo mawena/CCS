@@ -643,6 +643,23 @@ archive de l'ancien dépôt) vient après.
 - [x] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [x] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
+## Phase 35 — Vocal : dictée et lecture des réponses (1.1.0)
+
+Charles (22/11/2026) : chatter à la voix sur toutes les plateformes. Choix : **dictée** (bouton
+micro dans la saisie, le texte s'écrit, on relit puis on envoie) et **lecture à voix haute** des
+réponses de Claude (bouton « Lire » sur chaque réponse, et un réglage « Lire les réponses » qui
+lit automatiquement chaque nouvelle réponse terminée). Voix du système, en français.
+Moteurs : web = Web Speech API (bouton caché si le navigateur ne la connaît pas) ; Android =
+`RecognizerIntent` et `TextToSpeech` ; iPhone = `SFSpeechRecognizer` et `AVSpeechSynthesizer` ;
+bureau Linux = Whisper local (`faster-whisper`, facultatif : bouton caché s'il manque) pour la
+dictée et `spd-say` (speech-dispatcher) pour la lecture.
+
+- [x] 1. Web : micro dans la saisie, « Lire » sur les réponses, réglage de lecture automatique
+- [x] 2. Bureau (GTK) : dictée par Whisper local (enregistrement pw-record, parecord ou arecord), lecture par speech-dispatcher
+- [x] 3. Android : micro dans la saisie, lecture des réponses, réglage
+- [x] 4. iPhone : micro dans la saisie, lecture des réponses, réglage (permissions micro et reconnaissance)
+- [ ] 5. Tests, README, CHANGELOG ; release mineure 1.1.0 (APK et IPA sur Codemagic, installés sur le Pixel et l'iPhone)
+
 ## Phase 34 — Mot de passe root depuis les appareils (avant la 1.0.0)
 
 Charles (22/11/2026) : ne plus être bloqué par les commandes root. Quand Claude a besoin de `sudo`,
@@ -668,9 +685,9 @@ Conception :
 
 - [x] 1. Gardien en mémoire, socket Unix, `ccs-askpass`, `ccs root -- …` / `ccs root etat|oublier` ; tests
 - [x] 2. Pont : `root.ask`, `root.answer`, `root.resolved`, `root.used`, `root.forget` ; vérification `sudo -S -v`, délai, limite d'essais ; avis ntfy sans secret et bouton « Révoquer »
-- [ ] 3. `SUDO_ASKPASS` dans l'environnement des chats ; consignes de Claude (`~/.claude/CLAUDE.md`) : `ccs root -- …` au lieu de donner la commande à Charles
+- [x] 3. `SUDO_ASKPASS` dans l'environnement des chats ; consignes de Claude (`~/.claude/CLAUDE.md`) : `ccs root -- …` au lieu de donner la commande à Charles
 - [x] 4. Clients : popup de mot de passe d'abord sur Android et iPhone (Charles répond surtout du Pixel et de l'iPhone 14 Pro ; toucher l'avis ntfy ouvre la popup), puis web, bureau, TUI
-- [ ] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG
+- [ ] 5. Essai réel sur le VPS et pc-bureau ; README, `docs/interfaces.md`, CHANGELOG (VPS OK le 22/11 : popup sur le téléphone, mot de passe gardé 1 h ; reste pc-bureau)
 
 ## Phase 33 — Harmonisation des interfaces avant le gel (1.0.0)
 

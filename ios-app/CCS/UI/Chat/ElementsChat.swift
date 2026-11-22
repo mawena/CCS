@@ -93,12 +93,14 @@ private struct Pastilles: View {
     }
 }
 
-/// Menu d'un message (appui long) : Répondre, Citer un passage, Copier, Étiqueter.
+/// Menu d'un message (appui long) : Répondre, Citer un passage, Copier, Lire (réponses de Claude), Étiqueter.
 @MainActor
 private struct MenuMessage: View {
     @Environment(ModeleAppli.self) private var modele
     let m: MessageChoisi
     let actions: ActionsFil
+    /// Clé du message pour la lecture à voix haute (réponses de Claude seulement).
+    var cleLecture: String? = nil
 
     var body: some View {
         Button {
@@ -116,6 +118,18 @@ private struct MenuMessage: View {
             modele.avis.dire("Message copié.")
         } label: {
             Label("Copier", systemImage: "doc.on.doc")
+        }
+        if let c = cleLecture {
+            let lecteur = Lecteur.partage
+            Button {
+                lecteur.basculer(c, m.brut)
+            } label: {
+                if lecteur.lit(c) {
+                    Label("Arrêter la lecture", systemImage: "speaker.slash")
+                } else {
+                    Label("Lire", systemImage: "speaker.wave.2")
+                }
+            }
         }
         Button {
             actions.etiqueter(m)
@@ -193,7 +207,16 @@ private struct MessageClaude: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(UnevenRoundedRectangle(topLeadingRadius: 16, bottomLeadingRadius: 4, bottomTrailingRadius: 16, topTrailingRadius: 16)
                     .fill(Color.carte))
-                .contextMenu { MenuMessage(m: MessageChoisi(auteur: .claude, brut: m.texte, msgId: m.msgId), actions: actions) }
+                .contextMenu { MenuMessage(m: MessageChoisi(auteur: .claude, brut: m.texte, msgId: m.msgId), actions: actions, cleLecture: m.cle) }
+            if Lecteur.partage.lit(m.cle) {
+                Button {
+                    Lecteur.partage.arreter()
+                } label: {
+                    Label("Arrêter la lecture", systemImage: "speaker.wave.2.fill").font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+            }
             Pastilles(etiquettes: etiquettes, actions: actions, fin: false)
         }
     }
