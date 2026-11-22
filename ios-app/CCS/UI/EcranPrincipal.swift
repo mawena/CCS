@@ -78,6 +78,7 @@ struct EcranPrincipal: View {
         VStack(spacing: 0) {
             BandeauConnexion()
             BandeauMachine()
+            BandeauRoot()
             TabView(selection: $onglet) {
                 ForEach(Onglet.allCases, id: \.self) { o in
                     NavigationStack(path: pile(o)) {
@@ -108,7 +109,10 @@ struct EcranPrincipal: View {
             onglet = .sessions
         }
         .task(id: modele.client.etat.estConnecte) {
-            if modele.client.etat.estConnecte { await modele.rafraichirMachines() }
+            guard modele.client.etat.estConnecte else { return }
+            // connexion et reconnexion : demande root en attente, mot de passe gardé
+            await modele.root.lireEtat()
+            await modele.rafraichirMachines()
         }
         .onChange(of: modele.aOuvrir) { _, d in
             guard let d = d else { return }

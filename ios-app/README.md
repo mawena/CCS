@@ -25,6 +25,11 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
 - **Machines et travaux distants** (Plus) : machines du relais (charge, outils, places, limite),
   travaux `ccs distant` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
   commande » (maintenant, cette nuit ou à une heure), réglages du relais.
+- **Mot de passe root** : quand la machine pilotée demande le mot de passe root (`ccs root`,
+  `sudo -A` de Claude), une feuille s'ouvre au premier plan avec la commande, « Envoyer »,
+  « Refuser » ou « Plus tard » ; le mot de passe n'est jamais gardé sur le téléphone (il l'est
+  1 h en mémoire sur la machine). Bandeau « Root gardé, X min » avec « Oublier », avis à chaque
+  commande lancée en root. `ccs://root` rouvre la demande.
 - **Liens de fichiers** : dans le chat, les chemins cités par Claude (`chemin:ligne`) et les
   fichiers des diffs s'ouvrent d'un toucher.
 - **Notifications locales** : fin de tour, autorisation ou question en attente, rappel d'une

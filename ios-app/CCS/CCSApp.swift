@@ -38,9 +38,17 @@ struct Racine: View {
         }
         .onChange(of: phase) { _, nouvelle in
             // retour au premier plan : nouvel essai tout de suite, ou vérification de la connexion
-            if nouvelle == .active { modele.client.reessayer() }
+            if nouvelle == .active {
+                modele.client.reessayer()
+                // demande root faite pendant que l'appli dormait (avis ntfy touché, puis retour ici)
+                Task { await modele.root.lireEtat() }
+            }
             if nouvelle != .inactive { modele.veille.premierPlan(nouvelle == .active) }
         }
         .onOpenURL { u in modele.recevoir(u) }
+        // feuille du mot de passe root au premier plan, au-dessus de toute autre feuille
+        .onChange(of: modele.identifiants != nil && modele.root.suivi.aMontrer, initial: true) { _, montrer in
+            if montrer { PresentationRoot.montrer(modele) } else { PresentationRoot.cacher() }
+        }
     }
 }
