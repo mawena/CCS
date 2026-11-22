@@ -47,12 +47,13 @@ struct BandeauEtat: View {
     }
 }
 
-/// Zone de saisie : citation, images, commandes `/`, texte multi-ligne, envoi ; pied : options, contexte, coût, Arrêter.
+/// Zone de saisie : citation, images, commandes `/`, texte multi-ligne, dictée, envoi ; pied : options, contexte, coût, Arrêter.
 @MainActor
 struct Saisie: View {
     let mc: ModeleChat
     @State private var choix: [PhotosPickerItem] = []
     @State private var options = false
+    @State private var dictee = Dictee()
     @FocusState private var focus: Bool
 
     var body: some View {
@@ -144,6 +145,18 @@ struct Saisie: View {
                     .padding(.vertical, 8)
                     .background(RoundedRectangle(cornerRadius: 18).fill(Color.carte))
                 Button {
+                    let m = mc
+                    dictee.basculer(depuis: m.saisie, ecrire: { t in m.saisir(t) }, dire: { t in m.dire(t) })
+                } label: {
+                    Image(systemName: dictee.etat == .arretee ? "mic" : "mic.fill")
+                        .font(.title3)
+                        .foregroundStyle(dictee.etat == .ecoute ? Color.red : Color.accentCcs)
+                        .symbolEffect(.pulse, isActive: dictee.etat == .ecoute)
+                }
+                .accessibilityLabel(dictee.etat == .arretee ? "Dicter" : "Arrêter la dictée")
+                .padding(.bottom, 6)
+                Button {
+                    dictee.abandonner()
                     mc.envoyer()
                 } label: {
                     Image(systemName: "arrow.up.circle.fill").font(.system(size: 32))
@@ -192,6 +205,7 @@ struct Saisie: View {
         }
         .padding(.top, 4)
         .background(.bar)
+        .onDisappear { dictee.abandonner() }
         .onChange(of: choix) { _, nouveaux in
             guard !nouveaux.isEmpty else { return }
             choix = []

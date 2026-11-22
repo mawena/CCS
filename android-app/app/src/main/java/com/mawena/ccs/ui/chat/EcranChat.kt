@@ -114,8 +114,10 @@ fun EcranChat(
         cycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
             var vu: String? = null
             try {
+                mc.aLEcran = true
                 mc.idChat.collect { vu = it; modele.depot.veille.afficher(it) }
             } finally {
+                mc.aLEcran = false
                 modele.depot.veille.quitter(vu)
             }
         }
@@ -143,6 +145,8 @@ fun EcranChat(
             arreterShell = { mc.arreterShell(it) },
             reprendre = { mc.reprendre() },
             compacter = { mc.envoyerTexte("/compact") },
+            lu = mc.lecteur.lu,
+            arreterLecture = { mc.arreterLecture() },
             voirEtiquette = { filtreEtiquette = it; voletEtiquettes = true },
             nouvelleSession = {
                 ouvrirChat(DestChat(mc.cwd, titre = Format.base(mc.cwd), jeton = java.util.UUID.randomUUID().toString()))
@@ -287,11 +291,14 @@ fun EcranChat(
         }
     }
 
+    val lecture by mc.lecteur.lu.collectAsStateWithLifecycle()
     choisi?.let { m ->
         MenuMessage(
             m, fermer = { choisi = null },
             repondre = { Citation.de(m.auteur, m.brut)?.let(mc::citer); choisi = null },
             passage = { passage = m; choisi = null },
+            lire = if (m.auteur == Citation.Auteur.Claude) ({ mc.basculerLecture(m.cle, m.brut); choisi = null }) else null,
+            enLecture = m.cle.isNotEmpty() && lecture == m.cle,
             etiqueter = {
                 choisi = null
                 if (mc.sessionId == null || m.msgId.isEmpty()) avis.dire("Ce message ne peut pas encore être étiqueté : attends que Claude ait commencé la conversation.")

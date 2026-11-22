@@ -16,6 +16,7 @@ struct EcranReglages: View {
     @State private var adresse = ""
     @State private var deconnecter = false
     @State private var demandes = Demandes()
+    @State private var lireReponses = Prefs.lireReponses
 
     private var client: CcsClient { return modele.client }
 
@@ -29,6 +30,17 @@ struct EcranReglages: View {
                 Text("Apparence")
             } footer: {
                 Text("Propre à ce téléphone.")
+            }
+            Section {
+                Toggle("Lire les réponses à voix haute", isOn: $lireReponses)
+            } header: {
+                Text("Voix")
+            } footer: {
+                Text("Chaque réponse de Claude terminée est lue (voix française). Sinon : appui long sur une réponse → « Lire ». Micro de la saisie : dictée, ajoutée au texte sans l'envoyer.")
+            }
+            .onChange(of: lireReponses) { _, actif in
+                Prefs.lireReponses = actif
+                if !actif { Lecteur.partage.arreter() }
             }
             Section("Connexion") {
                 LabeledContent("Serveur", value: modele.identifiants?.serveur ?? modele.adresse)

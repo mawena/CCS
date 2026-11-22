@@ -386,7 +386,7 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | `context_alert` | `enabled`, `threshold_tokens`, `auto_compact` |
 | `limit_resume` | `enabled`, `outside` (`notify` ou `resume`) |
 | `budget` | `enabled`, `alert_pcts` |
-| `chat` | `idle_suspend_min`, `rights` (`manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`), `auto_clear` |
+| `chat` | `idle_suspend_min`, `rights` (`manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`), `auto_clear`, `read_aloud` (1.1.0) |
 | `files` | `layout` (`A`\|`B`), `show_ignored` |
 | `git` | `layout` (`A`\|`B`\|`C`), `fetch_minutes`, `avatars` |
 | `appearance` | `color_scheme` (`auto`\|`light`\|`dark` ; `clair`, `sombre` lus et convertis), `account_colors` |

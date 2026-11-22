@@ -17,9 +17,10 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("GtkSource", "5")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, GtkSource, Pango  # noqa: E402
 
-from .. import chat_quote  # noqa: E402
+from .. import chat_quote, voice  # noqa: E402
 from ..saved_messages import SCOPES, Saved  # noqa: E402
 from .chat_messages import install_css  # noqa: E402
+from .common import in_thread  # noqa: E402
 
 IMAGE_EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
              ".webp": "image/webp"}
@@ -49,6 +50,7 @@ def digit_key(keyval):
 HINT_QUESTION = "Claude te pose une question : 1, 2, 3… choisissent — ou écris ta réponse"
 HINT_BUSY = "Claude travaille — écris quand même, Entrée envoie · Échap arrête"
 SEND_TIP = "Envoyer (Entrée) · Maj+Entrée : nouvelle ligne"
+MIC_TIP = "Dicter (Whisper, sur cette machine)"
 
 
 def _command(item):
@@ -76,6 +78,8 @@ class Composer(Gtk.Box):
         "queue-send-now": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
         # messages enregistrés modifiés par l'utilisateur : la liste complète (`Saved`)
         "saved-changed": (GObject.SignalFlags.RUN_FIRST, None, (object,)),
+        # dictée impossible ou ratée : le message à montrer dans le fil
+        "voice-error": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
     }
 
     def __init__(self, base_dir=None):
@@ -151,6 +155,15 @@ class Composer(Gtk.Box):
         self.star_button.set_popover(self.star_popover)
         buttons.append(self.star_button)
         buttons.append(self.attach_button)
+        # Dictée par Whisper local : le bouton n'existe que si faster-whisper et un outil
+        # d'enregistrement sont là. Appui : enregistrer ; nouvel appui : transcrire dans la saisie.
+        self.recorder = None
+        self.mic_button = None
+        if voice.can_dictate():
+            self.mic_button = Gtk.Button(icon_name="audio-input-microphone-symbolic", css_classes=["circular", "flat"],
+                                         tooltip_text=MIC_TIP)
+            self.mic_button.connect("clicked", lambda *_: self.toggle_dictation())
+            buttons.append(self.mic_button)
         buttons.append(self.stop_button)
         buttons.append(self.send_button)
         self.input_row = Gtk.Box(spacing=6)
@@ -284,6 +297,71 @@ class Composer(Gtk.Box):
 
     def set_base_dir(self, base_dir):
         self.base_dir = base_dir
+
+    # -- dictée --
+
+    def toggle_dictation(self):
+        if self.mic_button is None or not self.mic_button.get_sensitive():
+            return
+        if self.recorder is not None:
+            self._end_dictation()
+            return
+        recorder = voice.Recorder()
+        try:
+            recorder.start()
+        except (OSError, RuntimeError) as e:
+            self.emit("voice-error", f"Dictée impossible : {e}")
+            return
+        self.recorder = recorder
+        self.mic_button.set_icon_name("media-record-symbolic")
+        self.mic_button.add_css_class("destructive-action")
+        self.mic_button.remove_css_class("flat")
+        self.mic_button.set_tooltip_text("Arrêter et écrire le texte dicté")
+
+    def cancel_dictation(self):
+        """Enregistrement abandonné (onglet fermé) : rien n'est transcrit."""
+        if self.recorder is not None:
+            self._end_dictation(keep=False)
+
+    def _end_dictation(self, keep=True):
+        recorder, self.recorder = self.recorder, None
+        button = self.mic_button
+        button.set_icon_name("audio-input-microphone-symbolic")
+        button.remove_css_class("destructive-action")
+        button.add_css_class("flat")
+        path = recorder.stop() if recorder else None
+        if not keep or not path:
+            button.set_tooltip_text(MIC_TIP)
+            if path:
+                os.unlink(path)
+            return
+        button.set_sensitive(False)
+        button.set_tooltip_text("Transcription en cours…")
+
+        def work():
+            try:
+                return voice.transcribe(path), None
+            except Exception as e:            # modèle absent, fichier illisible… : dit dans le fil
+                return "", str(e)
+            finally:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+
+        def done(result):
+            text, error = result
+            button.set_sensitive(True)
+            button.set_tooltip_text(MIC_TIP)
+            if error:
+                self.emit("voice-error", f"La dictée n'a pas pu être transcrite : {error}")
+            elif text:
+                before = self.text
+                sep = "" if not before or before[-1].isspace() else " "
+                self.buffer.place_cursor(self.buffer.get_end_iter())
+                self.insert_text(sep + text)
+                self.focus()
+        in_thread(work, done)
 
     def focus(self):
         GLib.idle_add(lambda: (self.view.grab_focus(), False)[1])

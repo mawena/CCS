@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit
 
 /** Objets partagés par toute l'appli (un seul client WebSocket). */
 class Depot(context: Context) {
+    /** Contexte de l'application (synthèse vocale du chat). */
+    val appli: Context = context.applicationContext
     val portee = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)

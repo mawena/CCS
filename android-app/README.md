@@ -33,6 +33,13 @@ Sessions, Fichiers, Git, Plus), notifications, partage vers CCS, raccourcis d'ap
   dans le fil (sans accents) ; options modèle / effort / droits ; contexte, alerte « Compacter »,
   coût de la conversation. Liste inversée : seul l'élément qui change se redessine, la vue est
   publiée au plus toutes les 40 ms pendant une réponse.
+- **Vocal** : micro dans la saisie du chat (dictée par la reconnaissance vocale du téléphone,
+  `RecognizerIntent` en français, sans permission micro ; le texte s'ajoute à la saisie sans
+  partir, caché si le téléphone n'en a pas) ; « Lire à voix haute » dans l'appui long sur une
+  réponse de Claude (`TextToSpeech`, voix française, Markdown nettoyé : blocs de code annoncés,
+  liens réduits à leur texte), « Arrêter » sous la réponse lue ; réglage **Lire les réponses à
+  voix haute** (Réglages > Vocal, désactivé par défaut) : chaque réponse terminée du chat affiché
+  est lue.
 
 - **Fichiers** (comme `web/files*.js`) : onglet Fichiers sur les dossiers permis du serveur
   (Personnel, /var/www, /srv), onglet Fichiers de l'écran Projet et bouton Fichiers du chat. Un
