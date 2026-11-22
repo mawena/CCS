@@ -1010,8 +1010,9 @@ def _job_line(job, now):
     when = job.get("ended") or job.get("started") or job.get("created") or now
     ago = max(int(now - when), 0)
     ago = f"{ago} s" if ago < 60 else f"{ago // 60} min" if ago < 3600 else f"{ago // 3600} h"
-    state = job.get("state", "?")
-    if job.get("code") is not None and state in ("fini", "échec"):
+    from . import distant_jobs
+    state = distant_jobs.label(job.get("state"))
+    if job.get("code") is not None and job.get("state") in ("done", "failed"):
         state += f" ({job['code']})"
     line = f"{job['id']}  {state:<12} {job.get('machine') or '-':<14} {job.get('text', '')}  (il y a {ago})"
     if job.get("why"):

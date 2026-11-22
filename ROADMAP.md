@@ -656,7 +656,7 @@ ne bloquent pas (corrections en 1.0.x). Règle de nommage (`docs/interfaces.md`,
 - `~/.claude-accounts/` garde son nom (profils et historique de Claude dedans : trop risqué).
 
 - [x] 1. Commandes : une seule table d'alias (`bin/ccs` délègue tout à `cli.py`), noms et options en français, anciens noms cachés ; `ccs gui` et `ccs integrate` transmettent leurs arguments, `best` identique des deux côtés, avertissement pour un profil masqué par une commande, commandes internes cachées, vocabulaire des droits unique
-- [ ] 2. Pont et HTTP : méthodes `machines.*`, séparateurs `.`, paramètres et réponses en anglais, états des travaux en anglais, `machine.ready` émis par le pont, version du protocole dans `hello`, anciens noms acceptés ; `/api/apptoken`, `/api/portier` en anglais ; vieux cache `distant-en-cours/` nettoyé
+- [x] 2. Pont et HTTP : méthodes `machines.*`, séparateurs `.`, paramètres et réponses en anglais, états des travaux en anglais, `machine.ready` émis par le pont, version du protocole dans `hello`, anciens noms acceptés ; `/api/apptoken`, `/api/portier` en anglais ; vieux cache `distant-en-cours/` nettoyé
 - [ ] 3. Fichiers et variables : noms en anglais avec migration, XDG respecté, `color_scheme` `light|dark`, schéma de `warmup`, `web.json` en anglais (anciennes clés lues), variables `CCS_*` en anglais (anciennes lues)
 - [ ] 4. Clients : web, bureau, TUI, Android, iPhone
 - [ ] 5. Suite complète, README, `docs/interfaces.md` (contrat 1.0), CHANGELOG ; release majeure 1.0.0 ; phase 29 close
