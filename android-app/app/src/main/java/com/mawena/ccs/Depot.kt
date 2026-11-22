@@ -32,6 +32,8 @@ class Depot(context: Context) {
     val client = CcsClient(http, portee, prefs = prefs)
     val terminaux = com.mawena.ccs.terminal.Terminaux(client)
     val veille = com.mawena.ccs.notif.Veille(context.applicationContext, client, portee)
+    /** Mot de passe root demandé par la machine pilotée (phase 34). */
+    val root = com.mawena.ccs.notif.SuiviRoot(context.applicationContext, client, portee)
 
     /** Ce qu'un partage Android remet à un chat (chat → saisie et images), pris par son écran. */
     val remises = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Remise>>(emptyMap())
