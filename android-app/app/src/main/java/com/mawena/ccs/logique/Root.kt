@@ -169,6 +169,21 @@ object Root {
         else -> "$n essais restants."
     }
 
+    /**
+     * Machine à piloter pour un lien `ccs://root?machine=<nom>` (avis ntfy) : `machine` est le nom
+     * donné par le gardien, cherché par identifiant puis par nom dans `machines.list` (« ce
+     * serveur » : identifiant vide). Rend (id, nom) s'il faut changer, null sinon (déjà pilotée,
+     * ou machine inconnue : on ne pilote pas au hasard).
+     */
+    fun cibleLien(machine: String?, courante: String, machines: List<com.mawena.ccs.reseau.Machine>): Pair<String, String>? {
+        val x = machine?.trim().orEmpty()
+        if (x.isEmpty()) return null
+        val m = machines.firstOrNull { it.id == x } ?: machines.firstOrNull { it.name.equals(x, ignoreCase = true) } ?: return null
+        val id = if (m.local) "" else m.id
+        if (id == courante) return null
+        return id to (if (m.local) "" else m.nom)
+    }
+
     fun texteUsage(u: UsageRoot): String =
         if (u.commande.isBlank()) "${u.machine} a lancé une commande root" else "${u.machine} a lancé en root : ${u.commande}"
 }

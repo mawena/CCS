@@ -152,4 +152,20 @@ class RootTest {
         assertEquals("message du pont", Root.texteErreur("autre", "message du pont"))
         assertEquals("Réponse non envoyée.", Root.texteErreur(null, null))
     }
+
+    @Test
+    fun machineDuLien() {
+        val ms = listOf(
+            com.mawena.ccs.reseau.Machine(id = "vps", name = "mawena-cloud", local = true),
+            com.mawena.ccs.reseau.Machine(id = "pc-bureau", name = "PC du bureau"),
+        )
+        assertEquals("pc-bureau" to "PC du bureau", Root.cibleLien("pc-bureau", "", ms))
+        assertEquals("pc-bureau" to "PC du bureau", Root.cibleLien("pc du bureau", "", ms))
+        assertNull(Root.cibleLien("pc-bureau", "pc-bureau", ms))
+        // ce serveur : identifiant vide
+        assertEquals("" to "", Root.cibleLien("vps", "pc-bureau", ms))
+        assertNull(Root.cibleLien("vps", "", ms))
+        assertNull(Root.cibleLien("inconnue", "", ms))
+        assertNull(Root.cibleLien(null, "", ms))
+    }
 }

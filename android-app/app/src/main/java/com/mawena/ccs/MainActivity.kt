@@ -85,9 +85,10 @@ class MainActivity : ComponentActivity() {
             // la fenêtre du mot de passe s'affiche d'elle-même au premier plan : relire l'état du pont
             Notifs.ACTION_ROOT, Intent.ACTION_VIEW -> {
                 val d = (application as CcsAppli).depot
-                if (i.action == Intent.ACTION_VIEW && i.data?.scheme != "ccs") return
+                if (i.action == Intent.ACTION_VIEW && (i.data?.scheme != "ccs" || i.data?.host != "root")) return
                 d.client.reessayer()
                 d.root.premierPlan(true)
+                modele.ouvrirRoot(i.data?.takeIf { it.host == "root" }?.getQueryParameter("machine"))
             }
             RACCOURCI_SESSIONS -> modele.demande.value = DemandeAppli.Sessions
             RACCOURCI_NOUVEAU -> modele.demande.value = DemandeAppli.NouveauChat
