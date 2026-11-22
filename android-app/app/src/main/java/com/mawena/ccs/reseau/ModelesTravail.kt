@@ -6,7 +6,7 @@ import kotlinx.serialization.json.JsonObject
 
 /**
  * Réponses des RPC de la feuille de route (`roadmap.*`), des tâches de fond (`tasks.*`), du
- * travail du chat (`work.changes`, `work.rewind_*`, `work.saved.*`), des terminaux (`term.*`) et
+ * travail du chat (`work.changes`, `rewind.*`, `saved.*`), des terminaux (`term.*`) et
  * de la route `/api/tokens`.
  */
 

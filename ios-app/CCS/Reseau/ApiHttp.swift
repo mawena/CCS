@@ -61,11 +61,11 @@ enum ApiHttp {
     }
 
     /**
-     * Jeton d'appareil durable pour une connexion par Portier (`POST /api/app-token`). Nil si le
+     * Jeton d'appareil durable pour une connexion par Portier (`POST /api/apptoken`). Nil si le
      * serveur ne connaît pas encore la route (404) ou refuse : on garde alors les cookies.
      */
     static func jetonAppli(_ i: Identifiants, nom: String) async -> String? {
-        guard var r = try? requete(i.serveur, "api/app-token", i) else { return nil }
+        guard var r = try? requete(i.serveur, "api/apptoken", i) else { return nil }
         corpsJson(&r, ["name": .chaine(String(nom.prefix(60)))])
         guard let res = try? await executer(r), (200..<300).contains(res.0) else { return nil }
         let t = JSON.lire(res.1)?.texteOuNul("token")

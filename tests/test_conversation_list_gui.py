@@ -75,5 +75,26 @@ class ConversationListEmptyTest(HomeTestCase):
         self.assertEqual(page.cleared, 1)
 
 
+@unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
+class BridgeConversationTest(unittest.TestCase):
+    """Conversation qui tourne dans le pont local (ouverte du web) : rejointe dans un onglet,
+    jamais reprise dans VS Code ni dans un terminal externe (deux processus la corrompraient)."""
+
+    def test_bridge_conversation_can_be_joined_in_the_app_only(self):
+        from types import SimpleNamespace
+        from ccs_app.gui.conversation_list import ConversationList
+        terms = SimpleNamespace(available=True)
+        page = SimpleNamespace(opened={"s1", "s2"}, in_bridge={"s1"}, suggestions={})
+        fake = SimpleNamespace(page=page, window=SimpleNamespace(terminals=terms))
+        conv = SimpleNamespace(session_id="s1", folder_exists=True)
+        self.assertIsNone(ConversationList.problem(fake, conv, target="terminal"))
+        self.assertIsNotNone(ConversationList.problem(fake, conv, target="vscode"))
+        self.assertIsNotNone(ConversationList.problem(fake, conv, target="external"))
+        other = SimpleNamespace(session_id="s2", folder_exists=True)   # dans un terminal : bloquée
+        self.assertIsNotNone(ConversationList.problem(fake, other, target="terminal"))
+        terms.available = False                                      # pas de terminal intégré
+        self.assertIsNotNone(ConversationList.problem(fake, conv, target="terminal"))
+
+
 if __name__ == "__main__":
     unittest.main()

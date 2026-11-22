@@ -178,7 +178,7 @@ def make_app(auth, bridges, config):
             await safe_call("logout", session=session)
             await close_all(session)
         # en mode Portier, la vraie déconnexion se fait sur Portier
-        redirect = portier_cfg["deconnexion"] if portier_user(request) else ""
+        redirect = portier_cfg["logout"] if portier_user(request) else ""
         resp = web.json_response({"redirect": redirect} if redirect else {})
         resp.del_cookie(SESSION, path="/")
         return resp
@@ -194,7 +194,7 @@ def make_app(auth, bridges, config):
 
     async def portier_info(_request):
         """Pour la page de connexion : bouton « Se connecter via Portier » si le mode est actif."""
-        enabled = bool(portier_cfg["actif"])
+        enabled = bool(portier_cfg["enabled"])
         login_url = portier.login_url(portier_cfg, config["origin"])
         # `actif`, `connexion` : compatibilité 1.x (applis mobiles), à retirer en 2.0
         return web.json_response({"enabled": enabled, "login": login_url,
@@ -401,5 +401,5 @@ async def serve():
     await runner.setup()
     await web.TCPSite(runner, host or "127.0.0.1", int(port)).start()
     log.info("ccs-web prêt sur %s (site %s%s)", config["listen"], config["origin"],
-             ", mode Portier" if config["portier"]["actif"] else "")
+             ", mode Portier" if config["portier"]["enabled"] else "")
     await asyncio.Event().wait()

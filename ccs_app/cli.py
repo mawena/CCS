@@ -185,7 +185,12 @@ def cmd_bridge(args):
         except OSError:
             print("ccs bridge : clé du pont absente (lancé hors de ccs-auth ?)", file=sys.stderr)
             return 1
-    asyncio.run(bridge.build(user, key, local=args.local).serve(sock))
+    b = bridge.build(user, key, local=args.local)
+    asyncio.run(b.serve(sock))
+    if b.restart:          # CCS mis à jour : même commande, nouveau code (même pid)
+        from . import core
+        exe = core.ccs_bin()
+        os.execv(exe, [exe, "bridge", "--local", "--socket", str(sock)])
     return 0
 
 
@@ -996,7 +1001,8 @@ def cmd_mise_a_jour(args):
 def cmd_chat(args):
     """Chats de CCS : `effacer` demande `/clear` à la fin du tour en cours (lancé par Claude)."""
     from . import chat_engine
-    token = os.environ.get(chat_engine.CLEAR_TOKEN_VAR, "")
+    token = (os.environ.get(chat_engine.CLEAR_TOKEN_VAR)
+             or os.environ.get(chat_engine.OLD_CLEAR_TOKEN_VAR, ""))
     if not token:
         print("Pas dans un chat de CCS (ou effacement automatique désactivé dans les réglages) : "
               "rien à effacer.", file=sys.stderr)

@@ -471,6 +471,81 @@ class RealChatTabTest(HomeTestCase):
         self.page.notifier = lambda alert: None
         self.page.phoner = lambda *a, **k: None
 
+    def fake_local_bridge(self, chats=()):
+        calls = []
+
+        class FakeClient:
+            def call_sync(self, method, timeout=30, **params):
+                calls.append(method)
+                return {"chats": list(chats)}
+
+        class FakeConn:
+            label, state, local, client = "local", "online", True, FakeClient()
+
+            def __init__(self):
+                self.listeners, self.tag_listeners, self.sent = set(), set(), []
+
+            def call(self, method, callback=None, **params):
+                self.sent.append((method, params))
+
+            def register(self, eng):
+                pass
+
+            def unregister(self, eng):
+                pass
+        return FakeConn(), calls
+
+    def test_local_chat_runs_in_the_local_bridge(self):
+        from ccs_app.remote import engine as remote_engine
+        conn, _calls = self.fake_local_bridge()
+        with mock.patch.object(self.page, "local_bridge", return_value=conn):
+            tab = self.page.open_chat(self.cwd, None, "Local", None, (), present=False)
+        self.assertIsInstance(tab.engine, remote_engine.RemoteChatEngine)
+        self.assertTrue(tab.engine.close_on_stop)
+        self.assertTrue(tab.bridged)
+        self.assertTrue(tab.state.bridged)
+        self.assertIsNone(tab.remote)
+        self.assertEqual(tab.display_title(), "Local")                  # pas de « · serveur »
+        self.assertIn(tab.remote_state, conn.listeners)
+        self.assertEqual(len(self.page.records()[0]), 1)               # rouvert au démarrage
+        tab.state.running, tab.state.state = True, "busy"
+        self.assertIsNone(self.page.close_question())                   # il continue dans le pont
+        tab.engine.chat_id = "c1"
+        self.page.hang_up_all()                                         # quitter : détacher
+        self.assertTrue(tab.engine._stopped)
+        self.assertNotIn(("chat.close", {"chat_id": "c1", "keep_if_shared": True}), conn.sent)
+
+    def test_closing_a_local_chat_tab_closes_it_in_the_bridge_unless_shared(self):
+        conn, _calls = self.fake_local_bridge()
+        with mock.patch.object(self.page, "local_bridge", return_value=conn):
+            tab = self.page.open_chat(self.cwd, None, "Local", None, (), present=False)
+        tab.engine.chat_id = "c1"
+        tab.engine.stop()
+        self.assertIn(("chat.close", {"chat_id": "c1", "keep_if_shared": True}), conn.sent)
+        tab._closed = True
+
+    def test_resumed_conversation_running_in_the_bridge_is_joined_not_read_only(self):
+        conn, calls = self.fake_local_bridge([{"chat_id": "c9", "session_id": "s-pont", "pid": 777}])
+        self.live = [sessions.Session(777, "s-pont", "x", self.cwd, "projet", "idle", None, 0, 0, "", "cli")]
+        with mock.patch.object(self.page, "local_bridge", return_value=conn):
+            tab = self.page.open_chat(self.cwd, "s-pont", "Reprise", None, (), present=False)
+            spin(lambda: "chat.list" in calls)
+            spin(lambda: False, 0.3)
+        self.assertIsNone(tab.elsewhere_pid)
+        tab._closed = True
+
+    def test_without_bridge_the_chat_stays_in_the_app_and_says_so(self):
+        from ccs_app import chat_engine
+        from ccs_app.gui.chat_tab import ChatTab
+        with mock.patch.object(self.page, "local_bridge", return_value=None), \
+                mock.patch.dict(os.environ, {"CCS_CHAT_IN_PROCESS": ""}), \
+                mock.patch.object(ChatTab, "show_notice") as notice:
+            tab = self.page.open_chat(self.cwd, None, "Local", None, (), present=False)
+        self.assertIsInstance(tab.engine, chat_engine.ChatSession)
+        self.assertFalse(tab.bridged)
+        notice.assert_called_once_with(terminals.NO_BRIDGE_TEXT)
+        tab._closed = True
+
     def test_remote_chat_tab_not_saved(self):
         from ccs_app.remote import engine as remote_engine, servers
 

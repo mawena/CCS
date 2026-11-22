@@ -12,7 +12,7 @@ class ServersTest(HomeTestCase):
     def test_servers_file_mode(self):
         servers.save([servers.Server("vps", "https://ccs.mawena.cloud", "alice", "APP-1")])
         p = servers.path()
-        self.assertEqual(p, self.store / "serveurs.json")
+        self.assertEqual(p, self.store / "servers.json")
         self.assertEqual(stat.S_IMODE(os.stat(p).st_mode), 0o600)
         self.assertEqual(servers.load()[0].url, "https://ccs.mawena.cloud")
 

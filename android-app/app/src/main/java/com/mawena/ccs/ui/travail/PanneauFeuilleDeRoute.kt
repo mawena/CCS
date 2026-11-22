@@ -181,7 +181,7 @@ fun PanneauFeuilleDeRoute(
                 val chemin = feuille?.path ?: return@FeuilleFaire
                 portee.launch {
                     val invitation = try {
-                        client.appeler("roadmap.task_prompt", InvitationTache.serializer(), buildJsonObject {
+                        client.appeler("roadmap.prompt", InvitationTache.serializer(), buildJsonObject {
                             put("path", chemin); put("text", t.text); put("phase", p.title)
                         }).prompt
                     } catch (e: Exception) {

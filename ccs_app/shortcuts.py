@@ -72,7 +72,7 @@ class Action:
 
     @property
     def display(self):
-        """Commande courte, pour l'affichage : « ccs next »."""
+        """Commande courte, pour l'affichage : « ccs suivant »."""
         return " ".join((self.program, *self.args))
 
     @property
@@ -94,13 +94,13 @@ class Action:
 # `update_commands`).
 NOTIFIER = "--notifier"
 ACTIONS = (
-    Action("ouvrir", "Ouvrir CCS", "claude-accounts", ("gui",), "<Super><Alt>c"),
-    Action("sessions", "Afficher les sessions", "claude-accounts", ("gui", "--page", "sessions"),
+    Action("ouvrir", "Ouvrir CCS", "claude-accounts", ("appli",), "<Super><Alt>c"),
+    Action("sessions", "Afficher les sessions", "claude-accounts", ("appli", "--page", "sessions"),
            "<Super><Alt>v"),
-    Action("nouvelle-session", "Nouvelle session", "claude-accounts", ("gui", "--new-session"),
+    Action("nouvelle-session", "Nouvelle session", "claude-accounts", ("appli", "--nouvelle-session"),
            "<Super><Alt>n"),
-    Action("suivant", "Basculer sur le compte suivant", "ccs", ("next", NOTIFIER), "<Super><Alt>b"),
-    Action("meilleur", "Basculer sur le meilleur compte", "ccs", ("best", NOTIFIER), "<Super><Alt>m"),
+    Action("suivant", "Basculer sur le compte suivant", "ccs", ("suivant", NOTIFIER), "<Super><Alt>b"),
+    Action("meilleur", "Basculer sur le meilleur compte", "ccs", ("meilleur", NOTIFIER), "<Super><Alt>m"),
     Action("pause", "Pause 1 h", "ccs", ("pause", "1h", NOTIFIER), "<Super><Alt>p"),
     Action("reprendre", "Reprendre (lever la pause)", "ccs", ("pause", "off", NOTIFIER),
            "<Super><Alt>r"),

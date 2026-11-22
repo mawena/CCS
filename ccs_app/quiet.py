@@ -8,7 +8,7 @@ Deux sources de silence se cumulent :
   l'échéance. Fichier illisible : pas de silence.
 
 `notify.send` interroge `should_hold` : pendant un silence les notifications sont retenues
-(comptées par genre dans `quiet_held.json`, partagé par le service et les hooks), sauf
+(comptées par genre dans `quiet-held.json`, partagé par le service et les hooks), sauf
 - « attend ta réponse » et son rappel quand `allow_waiting` (réglage, vrai par défaut) ;
 - `blocage:*` : une session bloquée par la limite d'usage, signalée par le hook StopFailure
   (rare, une seule fois pour toutes les sessions bloquées en même temps, et l'utilisateur doit
@@ -24,7 +24,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, time as dtime, timedelta, timezone
 
-from . import core, orchestrator, pause
+from . import core, migrate, orchestrator, pause
 
 CHOICES = ("1h", "4h", "demain")
 RESUME = ("off", "reprendre")
@@ -62,7 +62,7 @@ def quiet_path():
 
 
 def held_path():
-    return core.paths().store / "quiet_held.json"
+    return migrate.store_file("quiet-held.json", "quiet_held.json")
 
 
 @contextmanager

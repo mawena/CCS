@@ -2,7 +2,7 @@ import Foundation
 
 /**
  * Réponses des RPC de la feuille de route (`roadmap.*`), des tâches de fond (`tasks.*`), du
- * travail du chat (`work.changes`, `work.rewind_*`, `work.saved.*`), des réglages, du téléphone
+ * travail du chat (`work.changes`, `rewind.*`, `saved.*`), des réglages, du téléphone
  * (`phone.*`) et de la route `/api/tokens`.
  */
 

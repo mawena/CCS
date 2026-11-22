@@ -15,9 +15,9 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
-from . import chat_options, chat_protocol as proto, distant, root_keeper, sessions, task_runner, token_use
+from . import (chat_options, chat_protocol as proto, core, distant, migrate, root_keeper, sessions,
+               task_runner, token_use)
 from .chat_options import ChatOptions
 
 log = logging.getLogger(__name__)
@@ -39,7 +39,8 @@ SETTLE_S = 3.0
 # dépose une demande au nom du jeton de son chat ; au retour au repos, le moteur envoie `/clear`.
 CLEAR_COMMAND = "/clear"
 CLEAR_TRIGGER = "ccs_auto"
-CLEAR_TOKEN_VAR = "CCS_CHAT_JETON"
+CLEAR_TOKEN_VAR = "CCS_CHAT_TOKEN"
+OLD_CLEAR_TOKEN_VAR = "CCS_CHAT_JETON"   # lue encore (chats lancés avant la 1.0.0), à retirer en 2.0
 CLEAR_HINT = (
     "Effacement automatique : ce chat tourne dans CCS. Quand un sujet est vraiment terminé "
     "(travail commité, poussé et publié, mémoire et feuille de route à jour) et que l'utilisateur "
@@ -53,8 +54,8 @@ CLEAR_HINT = (
 
 def clear_requests_dir():
     """Dossier des demandes d'effacement (une par jeton de chat)."""
-    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    return Path(base) / "ccs" / "effacer"
+    cache = core.ccs_dir("cache")
+    return migrate.renamed(cache / "clear", cache / "effacer")
 
 
 def request_clear(token):
@@ -269,6 +270,7 @@ class ChatSession:
         if askpass:
             env["SUDO_ASKPASS"] = askpass
         env.pop(CLEAR_TOKEN_VAR, None)
+        env.pop(OLD_CLEAR_TOKEN_VAR, None)
         if self._auto_clear_on():
             env[CLEAR_TOKEN_VAR] = self._clear_token     # pour `ccs chat effacer`
         return env

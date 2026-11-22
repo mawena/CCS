@@ -1,7 +1,7 @@
 # CCS pour iPhone
 
 Application iPhone native (Swift + SwiftUI, iOS 17) de CCS. Elle parle directement à l'API du
-serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws` pour la RPC et les
+serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` (protocole 1 du pont) pour la RPC et les
 événements, routes HTTP pour la connexion. Même périmètre que l'appli Android
 (`android-app/`, qui sert de référence).
 

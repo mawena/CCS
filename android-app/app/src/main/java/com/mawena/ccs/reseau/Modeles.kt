@@ -8,7 +8,7 @@ import kotlinx.serialization.json.JsonElement
 data class Sante(val ok: Boolean = false, val version: String = "")
 
 @Serializable
-data class InfoPortier(val actif: Boolean = false, val connexion: String = "")
+data class InfoPortier(val enabled: Boolean = false, val login: String = "")
 
 @Serializable
 data class JetonAppli(val token: String? = null)

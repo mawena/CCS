@@ -1,6 +1,6 @@
 """Serveurs CCS connus de cette machine (bureau GTK, `ccs tui`) : adresse, utilisateur et jeton
 d'application obtenu par appairage (mot de passe Ubuntu + code, une seule fois). Le mot de passe
-n'est jamais gardé. Fichier `~/.claude-accounts/serveurs.json`, en 0600."""
+n'est jamais gardé. Fichier `~/.claude-accounts/servers.json` (ancien nom `serveurs.json`, migré), en 0600."""
 
 import json
 import os
@@ -23,7 +23,8 @@ class Server:
 
 
 def path():
-    return core.paths().store / "serveurs.json"
+    from .. import migrate
+    return migrate.store_file("servers.json", "serveurs.json")
 
 
 def normalize_url(url):

@@ -20,11 +20,11 @@ struct Sante: LisibleJSON {
 }
 
 struct InfoPortier: LisibleJSON, Equatable {
-    var actif = false
-    var connexion = ""
+    var enabled = false
+    var login = ""
     init(json j: JSON) {
-        actif = j.bool("actif")
-        connexion = j.texte("connexion")
+        enabled = j.bool("enabled")
+        login = j.texte("login")
     }
 }
 

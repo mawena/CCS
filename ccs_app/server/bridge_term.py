@@ -28,7 +28,7 @@ from .bridge_data import safe_path
 CHUNK = 64 * 1024
 KEEP = 64 * 1024
 ABANDON = 12 * 3600
-COMMANDS = ("ccs add",)
+COMMANDS = ("ccs ajouter", "ccs add")   # « ccs add » : pages d'avant la 1.0.0
 _NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 
@@ -65,6 +65,7 @@ class TermHub:
         bridge.close_hooks.append(self._forget)
         bridge.tick_hooks.append(self.sweep)
         bridge.tick_hooks.append(self.limits_pass)
+        getattr(bridge, "restart_checks", []).append(lambda: any(not t.closed for t in self.terms.values()))
         self._resumes = {}           # session_id → instants des relances après une limite
         bridge.add_handlers({
             "term.open": self.open, "term.input": self.input, "term.resize": self.resize,

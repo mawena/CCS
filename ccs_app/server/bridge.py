@@ -7,6 +7,13 @@ la session par la clé du pont) est vérifié ; en mode local, le socket est en 
 dossier de l'utilisateur et `hello` suffit. `hello {protocol}` déclare la version du protocole que
 le client connaît (absente : ancien client) ; la réponse donne celle du pont et la version de CCS.
 Les anciens noms de méthode et de paramètre sont acceptés (`protocol.py`).
+
+Mise à jour de CCS : un pont local (`--local`) relit chaque minute la version installée ; si elle
+a changé et qu'aucun travail ne tourne (chat au travail, relais, limite attendue, terminal ou
+commande `!` du pont), il ferme ses
+chats (les conversations sont enregistrées) et se relance sur le nouveau code (`restart`, repris
+par `ccs bridge`). Les appareils se reconnectent seuls et rouvrent leurs conversations. Le service
+`ccs-bridge@` du serveur, lui, est relancé par le postinst du paquet `ccs-serveur`.
 """
 
 import asyncio
@@ -16,6 +23,7 @@ import hashlib
 import hmac
 import logging
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -27,11 +35,24 @@ from . import protocol, rpc
 log = logging.getLogger("ccs.bridge")
 
 IDLE_STOP = 12 * 3600
+_VERSION_LINE = re.compile(r"""^__version__\s*=\s*["']([^"']+)["']""", re.M)
+
+
+def installed_version(path=None):
+    """Version de CCS écrite sur le disque (celle qu'un nouveau processus chargerait), ou None."""
+    path = path or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "__init__.py")
+    try:
+        with open(path, encoding="utf-8") as f:
+            m = _VERSION_LINE.search(f.read(4096))
+    except OSError:
+        return None
+    return m.group(1) if m else None
 
 
 class Bridge:
     def __init__(self, user, key, local=False, clock=time.time, start_daemon=True,
-                 install_claude=True, popen=subprocess.Popen, daemon_pid=None, installer=None):
+                 install_claude=True, popen=subprocess.Popen, daemon_pid=None, installer=None,
+                 version_on_disk=installed_version):
         self.user = user
         self.key = key
         self.local = local
@@ -47,7 +68,10 @@ class Bridge:
         self.close_hooks = []        # appelées à la fermeture d'une connexion
         self.tick_hooks = []         # coroutines appelées chaque minute (ménage)
         self.prepare_hooks = []      # coroutines appelées au démarrage (`prepare`)
-        self.stop_hooks = []         # coroutines appelées à l'arrêt (`stop`)
+        self.stop_hooks = []         # coroutines appelées à l'arrêt du pont (chats fermés, gardien root)
+        self.restart_checks = []     # « on perdrait ceci à une relance » (terminaux, commandes)
+        self._version_on_disk = version_on_disk
+        self.restart = False         # arrêté pour se relancer sur le code mis à jour
         self.last_activity = clock()
         self._server = None
         self._handlers = {}
@@ -165,6 +189,14 @@ class Bridge:
             return False
         return self.clock() - self.last_activity > IDLE_STOP
 
+    def should_restart(self):
+        """Pont local dont CCS a été mis à jour (version sur le disque différente de celle chargée)
+        et qui ne fait rien qu'on perdrait : il peut se relancer sur le nouveau code."""
+        if not self.local or any(check() for check in self.busy_checks + self.restart_checks):
+            return False
+        found = self._version_on_disk()
+        return bool(found) and found != __version__
+
     async def serve(self, socket_path):
         await self.start(socket_path)
         await self.prepare()
@@ -178,6 +210,11 @@ class Bridge:
                         await hook()
                     except Exception:
                         log.exception("ménage du pont")
+                if self.should_restart():
+                    log.info("pont de %s relancé : CCS mis à jour (%s → %s)", self.user, __version__,
+                             self._version_on_disk())
+                    self.restart = True
+                    break
                 if self.should_stop():
                     log.info("pont de %s arrêté : inactif depuis 12 h", self.user)
                     break
@@ -267,7 +304,7 @@ class Bridge:
 
 def remove_old_cache():
     """Retire une fois l'ancien dossier `~/.cache/ccs/distant-en-cours/` (abandonné en 0.32.0)."""
-    old = core.paths().home / ".cache" / "ccs" / "distant-en-cours"
+    old = core.ccs_dir("cache") / "distant-en-cours"
     if old.is_dir() and not old.is_symlink():
         shutil.rmtree(old, ignore_errors=True)
 

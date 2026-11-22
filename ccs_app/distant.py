@@ -9,8 +9,9 @@ le reste est du `ssh` et du `rsync` ordinaires. `ccs distant lancer -- <commande
 4. rapporte les fichiers demandés (`--rapatrier`).
 
 Réglages : `~/.config/ricochet/client.toml` (adresse du relais et jeton des tunnels, lu aussi par
-`ricochet-agent tunnel`) et, si besoin, `~/.config/ccs/distant.toml` (utilisateur et port SSH
-par machine).
+`ricochet-agent tunnel`) et, si besoin, `~/.config/ccs/machines.toml` (`[machines.<id>]` : `user`,
+`port` SSH et `limit` de commandes simultanées ; `~/.config` suit `XDG_CONFIG_HOME`). Avant la
+1.0.0 : `distant.toml` avec `utilisateur` et `limite`, renommé tout seul et encore lu.
 """
 
 import hashlib
@@ -31,7 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import core, distant_jobs
+from . import core, distant_jobs, migrate
 
 # Outils cherchés d'office sur chaque machine (les autres le sont à la demande).
 TOOLS = ("flutter", "dart", "cargo", "node", "npm", "pnpm", "yarn", "bun", "go", "java",
@@ -89,20 +90,21 @@ class Machine:
 
 # ------------------------------------------------------------------ réglages
 
-def _config_home():
-    return core.paths().home / ".config"
-
-
 def client_path():
-    return _config_home() / "ricochet" / "client.toml"
+    return core.xdg_home("config") / "ricochet" / "client.toml"
 
 
 def overrides_path():
-    return _config_home() / "ccs" / "distant.toml"
+    d = core.ccs_dir("config")
+    return migrate.renamed(d / "machines.toml", d / "distant.toml")
+
+
+# anciennes clés de `[machines.<id>]` (avant la 1.0.0), lues encore : à retirer en 2.0
+OLD_OVERRIDE_KEYS = {"utilisateur": "user", "limite": "limit"}
 
 
 def _cache_dir():
-    d = core.paths().home / ".cache" / "ccs"
+    d = core.ccs_dir("cache")
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -138,7 +140,8 @@ def load_client():
 
 
 def load_overrides():
-    """Réglages par machine : `[machines.<id>]` avec `utilisateur` et `port`."""
+    """Réglages par machine : `[machines.<id>]` avec `user`, `port` et `limit` (anciennes clés
+    françaises converties)."""
     try:
         data = tomllib.loads(overrides_path().read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -146,7 +149,14 @@ def load_overrides():
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise DistantError(f"{overrides_path()} illisible : {e}") from None
     machines = data.get("machines", {})
-    return machines if isinstance(machines, dict) else {}
+    if not isinstance(machines, dict):
+        return {}
+    for conf in machines.values():
+        if isinstance(conf, dict):
+            for old, new in OLD_OVERRIDE_KEYS.items():
+                if old in conf:
+                    conf.setdefault(new, conf.pop(old))
+    return machines
 
 
 # ------------------------------------------------------------------ machines
@@ -189,7 +199,7 @@ def ssh_port(machine, overrides):
 
 
 def target(machine, overrides):
-    user = (overrides.get(machine.id) or {}).get("utilisateur")
+    user = (overrides.get(machine.id) or {}).get("user")
     return f"{user}@{machine.id}" if user else machine.id
 
 
@@ -220,7 +230,8 @@ def _ssh(machine, overrides, command, run=None, **kw):
 # ------------------------------------------------------------------ inventaire
 
 def _inventory_file():
-    return _cache_dir() / "distant.json"
+    d = _cache_dir()
+    return migrate.renamed(d / "machines.json", d / "distant.json")
 
 
 def _load_inventory():
@@ -248,8 +259,8 @@ def parse_inventory(text):
         line = line.strip()
         if line.startswith("CCS_PATH="):
             path = line[len("CCS_PATH="):]
-        elif line.startswith("CCS_OUTIL="):
-            name, _, where = line[len("CCS_OUTIL="):].partition("=")
+        elif line.startswith(("CCS_TOOL=", "CCS_OUTIL=")):   # CCS_OUTIL : avant la 1.0.0
+            name, _, where = line.partition("=")[2].partition("=")
             if name and where:
                 tools[name] = where
     return path, tools
@@ -266,7 +277,7 @@ def inventory(machine, overrides, run=None, now=time.time, refresh=False):
         if inv:
             return inv
     probe = ("echo CCS_PATH=$PATH; for o in " + " ".join(TOOLS) +
-             "; do p=$(type -P $o) && echo CCS_OUTIL=$o=$p; done")
+             "; do p=$(type -P $o) && echo CCS_TOOL=$o=$p; done")
     path, tools = "", {}
     for shell in ("bash -lic", "bash -lc"):
         try:
@@ -363,8 +374,8 @@ def choose(machines, overrides, tool=None, wanted=None, run=None, now=time.time)
 
 
 def limit_for(machine_id, overrides):
-    """Nombre de commandes lancées en même temps sur la machine (`limite`, 2 par défaut)."""
-    value = (overrides.get(machine_id) or {}).get("limite")
+    """Nombre de commandes lancées en même temps sur la machine (`limit`, 2 par défaut)."""
+    value = (overrides.get(machine_id) or {}).get("limit")
     if isinstance(value, int) and not isinstance(value, bool) and \
             LIMIT_RANGE[0] <= value <= LIMIT_RANGE[1]:
         return value
@@ -752,7 +763,7 @@ def client_settings():
         overrides = {}
     limits = {}
     for mid, conf in overrides.items():
-        value = conf.get("limite") if isinstance(conf, dict) else None
+        value = conf.get("limit") if isinstance(conf, dict) else None
         if isinstance(value, int) and not isinstance(value, bool) and \
                 LIMIT_RANGE[0] <= value <= LIMIT_RANGE[1]:
             limits[mid] = value
@@ -783,7 +794,7 @@ def save_client(relay=None, token=None):
 
 
 def set_limit(machine_id, limit):
-    """Écrit `limite` dans `[machines.<id>]` de `~/.config/ccs/distant.toml`."""
+    """Écrit `limit` dans `[machines.<id>]` de `~/.config/ccs/machines.toml`."""
     if not isinstance(machine_id, str) or not MACHINE_ID.match(machine_id):
         raise DistantError("Machine invalide.")
     if isinstance(limit, bool) or not isinstance(limit, int) or \
@@ -797,7 +808,8 @@ def set_limit(machine_id, limit):
     conf = machines.get(machine_id)
     if not isinstance(conf, dict):
         conf = machines[machine_id] = {}
-    conf["limite"] = limit
+    conf.pop("limite", None)
+    conf["limit"] = limit
     _write_private(path, toml_dump(data))
 
 
