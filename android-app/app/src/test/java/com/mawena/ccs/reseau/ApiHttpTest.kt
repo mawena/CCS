@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-/** Jeton d'appareil après Portier (`/api/app-token`), liste et révocation des accès. */
+/** Jeton d'appareil après Portier (`/api/apptoken`), liste et révocation des accès. */
 class ApiHttpTest {
     private val serveur = MockWebServer()
     private val api = ApiHttp(OkHttpClient())
@@ -28,7 +28,7 @@ class ApiHttpTest {
         serveur.enqueue(MockResponse().setBody("""{"token":"APP-1"}"""))
         assertEquals("APP-1", api.jetonAppli(portier(), "Pixel 4 XL"))
         val r = serveur.takeRequest()
-        assertEquals("/api/app-token", r.path)
+        assertEquals("/api/apptoken", r.path)
         assertEquals("POST", r.method)
         assertEquals("portier=abc", r.getHeader("Cookie"))
         assertEquals("""{"name":"Pixel 4 XL"}""", r.body.readUtf8())

@@ -79,7 +79,7 @@ class CcsClientTest {
         assertEquals("bonjour", evenement.await()["texte"]!!.jsonPrimitive.content)
         assertEquals(EtatConnexion.Connecte, client.etat.value)
         val requete = serveur.takeRequest()
-        assertEquals("/api/ws", requete.path)
+        assertEquals("/api/ws?protocol=1", requete.path)
         assertEquals("Bearer tok", requete.getHeader("Authorization"))
         val e = runCatching { client.appeler("boum") }.exceptionOrNull() as RpcException
         assertEquals("invalide", e.code)
@@ -139,13 +139,13 @@ class CcsClientTest {
         val client = CcsClient(http, portee, prefs = PrefsMemoire())
         client.demarrer(identifiants())
         withTimeout(5_000) { client.etat.first { it is EtatConnexion.Connecte } }
-        assertEquals("/api/ws", serveur.takeRequest().path)
+        assertEquals("/api/ws?protocol=1", serveur.takeRequest().path)
         val enAttente = async { runCatching { client.appeler("lent") }.exceptionOrNull() }
         kotlinx.coroutines.delay(300)     // l'appel est parti sur la première connexion
         client.changerMachine("pc-bureau")
         val e = withTimeout(5_000) { enAttente.await() } as RpcException
         assertEquals("hors_ligne", e.code)
-        assertEquals("/api/ws?machine=pc-bureau", withTimeout(5_000) { serveur.takeRequest().path })
+        assertEquals("/api/ws?protocol=1&machine=pc-bureau", withTimeout(5_000) { serveur.takeRequest().path })
         val r = withTimeout(5_000) { client.appeler("sessions.list") }
         assertEquals("sessions.list", r.jsonObject["echo"]!!.jsonPrimitive.content)
         client.arreter()
@@ -167,8 +167,8 @@ class CcsClientTest {
         assertTrue(etat.machineInjoignable)
         assertEquals("pc-bureau est hors ligne.", etat.raison)
         withTimeout(5_000) { client.etat.first { it is EtatConnexion.Connecte } }
-        assertEquals("/api/ws?machine=pc-bureau", serveur.takeRequest().path)
-        assertEquals("/api/ws?machine=pc-bureau", serveur.takeRequest().path)
+        assertEquals("/api/ws?protocol=1&machine=pc-bureau", serveur.takeRequest().path)
+        assertEquals("/api/ws?protocol=1&machine=pc-bureau", serveur.takeRequest().path)
         client.arreter()
     }
 

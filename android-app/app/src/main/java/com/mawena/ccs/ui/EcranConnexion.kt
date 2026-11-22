@@ -102,10 +102,10 @@ fun EcranConnexion(modele: ModeleAppli) {
         }
     }
 
-    if (vuePortier && portier?.actif == true) {
+    if (vuePortier && portier?.enabled == true) {
         EcranPortier(
             adresse = adresse,
-            connexion = portier!!.connexion,
+            connexion = portier!!.login,
             fermer = { vuePortier = false },
             reussi = { cookies ->
                 vuePortier = false
@@ -263,7 +263,7 @@ fun EcranConnexion(modele: ModeleAppli) {
                         Text("Annuler")
                     }
                 }
-                if (portier?.actif == true && enAttente == null) {
+                if (portier?.enabled == true && enAttente == null) {
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
                     OutlinedButton(onClick = { vuePortier = true }, Modifier.fillMaxWidth(), enabled = !occupe) {
                         Text("Se connecter via Portier")

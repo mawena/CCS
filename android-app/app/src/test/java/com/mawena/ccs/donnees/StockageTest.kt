@@ -37,9 +37,9 @@ class StockageTest {
 
     @Test
     fun webSocketVersUneMachine() {
-        assertEquals("https://ccs.mawena.cloud/api/ws", Adresse.ws("https://ccs.mawena.cloud").toString())
-        assertEquals("https://ccs.mawena.cloud/api/ws?machine=pc-bureau", Adresse.ws("https://ccs.mawena.cloud", "pc-bureau").toString())
-        assertEquals("https://hote.fr/ccs/api/ws?machine=pc%20de%20Charles", Adresse.ws("https://hote.fr/ccs/", "pc de Charles").toString())
+        assertEquals("https://ccs.mawena.cloud/api/ws?protocol=1", Adresse.ws("https://ccs.mawena.cloud").toString())
+        assertEquals("https://ccs.mawena.cloud/api/ws?protocol=1&machine=pc-bureau", Adresse.ws("https://ccs.mawena.cloud", "pc-bureau").toString())
+        assertEquals("https://hote.fr/ccs/api/ws?protocol=1&machine=pc%20de%20Charles", Adresse.ws("https://hote.fr/ccs/", "pc de Charles").toString())
     }
 
     @Test

@@ -82,12 +82,12 @@ data class Cout(val short: String = "", val text: String = "", val dollars: Doub
 data class Renomme(val title: String = "")
 
 @Serializable
-data class MiseCorbeille(val tid: String = "")
+data class MiseCorbeille(@SerialName("trash_id") val trashId: String = "")
 
 @Serializable
 data class ElementCorbeille(
-    val tid: String = "",
-    val id: String? = null,
+    @SerialName("trash_id") val trashId: String = "",
+    @SerialName("session_id") val sessionId: String? = null,
     val cwd: String? = null,
     val title: String? = null,
     @SerialName("trashed_at") val supprimeLe: Double? = null,
@@ -118,7 +118,7 @@ data class Depots(val folders: List<DepotGit> = emptyList(), val truncated: Bool
 @Serializable
 data class ProjetAjoute(val cwd: String = "")
 
-/** Un message de `conversation.messages` (`Message` de `preview.py`). */
+/** Un message de `conversations.messages` (`Message` de `preview.py`). */
 @Serializable
 data class MessageHistorique(
     val role: String = "",
