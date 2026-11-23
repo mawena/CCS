@@ -650,7 +650,7 @@ machines, travaux), pour des ordres comme « tue le premier sous-agent de la ses
 utiliser Claude (comptes CCS) comme cerveau d'appoint quand les données ne sont pas sensibles, le
 cerveau local de laptop-maison prenant le relais quand plus aucun compte n'a de quota.
 
-- [ ] 1. Outils de Jarvis côté CCS : méthodes du pont exposées à Jarvis (lister sessions et sous-agents, arrêter, lancer, état des machines et travaux), avec confirmation vocale pour les actions destructrices
+- [x] 1. Outils de Jarvis côté CCS (CCS 1.8.0 : `jarvis.*` ; côté Jarvis : branche feature/outils-ccs) : méthodes du pont exposées à Jarvis (lister sessions et sous-agents, arrêter, lancer, état des machines et travaux), avec confirmation vocale pour les actions destructrices
 - [ ] 2. Routage du cerveau : Claude (`ccs meilleur`) si la demande n'est pas sensible et qu'un compte a du quota, sinon le cerveau local ; règle de sensibilité à fixer avec Charles
 - [ ] 3. Oreilles partout (iPhone, Pixel, lp-work, lp-home) avec dédoublonnage quand plusieurs entendent la même phrase
 

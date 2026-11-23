@@ -3,7 +3,15 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
-## [1.7.1] — 2026-11-23
+## [1.8.0] — 2026-11-23
+
+### Ajouté
+
+- Jarvis pilote tout le réseau CCS par le pont : `jarvis.state` (vue d'ensemble lisible à voix
+  haute), `jarvis.sessions`, `jarvis.subagents`, `jarvis.stop_subagent`, `jarvis.stop_session`
+  (avec `confirme`, sinon la cible résolue et la question à poser), `jarvis.start_session` ;
+  noms approchés (« la session GliGli ») et rangs (« le premier sous-agent ») ; protocole dans
+  `docs/jarvis.md`. Les sous-agents des chats sont suivis et s'arrêtent un par un.
 
 ### Modifié
 

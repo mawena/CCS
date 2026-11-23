@@ -5,7 +5,7 @@ options:
     iOS: "17.0"
 settings:
   base:
-    MARKETING_VERSION: "1.7.1"
+    MARKETING_VERSION: "1.8.0"
     CURRENT_PROJECT_VERSION: "42"
     SWIFT_VERSION: "5.9"
 packages:
