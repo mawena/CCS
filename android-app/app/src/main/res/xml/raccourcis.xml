@@ -2,6 +2,17 @@
 <!-- Raccourcis d'appli (appui long sur l'icône) : traités par MainActivity.recevoir. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
+        android:shortcutId="jarvis"
+        android:enabled="true"
+        android:icon="@drawable/ic_raccourci_jarvis"
+        android:shortcutShortLabel="@string/raccourci_jarvis_court"
+        android:shortcutLongLabel="@string/raccourci_jarvis_long">
+        <intent
+            android:action="com.mawena.ccs.action.JARVIS"
+            android:targetPackage="com.mawena.ccs"
+            android:targetClass="com.mawena.ccs.MainActivity" />
+    </shortcut>
+    <shortcut
         android:shortcutId="nouveau-chat"
         android:enabled="true"
         android:icon="@drawable/ic_raccourci_nouveau"

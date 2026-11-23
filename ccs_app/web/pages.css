@@ -266,3 +266,20 @@ h2.job-cmd { font-size: 1em; white-space: normal; overflow-wrap: anywhere; }
   .net-hero-top { flex-wrap: wrap; }
   .net-grid { grid-template-columns: 1fr; }
 }
+/* ---- Jarvis (#/jarvis) : gros bouton « parler », fil des échanges ---- */
+.jarvis-center { display: grid; justify-items: center; gap: 10px; padding: 18px 0 6px; }
+.jarvis-talk { width: 156px; height: 156px; border-radius: 50%; display: grid; place-content: center; gap: 4px;
+  font-weight: 700; background: var(--accent); color: var(--accent-fg); border: none; touch-action: none;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; box-shadow: var(--shadow);
+  transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.jarvis-talk .jarvis-mic { font-size: 2.4em; line-height: 1; }
+.jarvis-talk.listening { transform: scale(1.06); background: var(--error);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--error) 25%, transparent); animation: jarvis-pulse 1.2s ease-in-out infinite; }
+@keyframes jarvis-pulse { 50% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--error) 12%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .jarvis-talk, .jarvis-talk.listening { transition: none; animation: none; } }
+.jarvis-state { min-height: 1.4em; margin: 0; text-align: center; }
+.jarvis-log { display: grid; gap: 6px; }
+.jarvis-line { padding: 8px 10px; border-radius: var(--radius); background: var(--soft); overflow-wrap: anywhere; }
+.jarvis-line.jarvis { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.jarvis-settings summary { cursor: pointer; font-weight: 600; }
+.jarvis-settings form { margin-top: 10px; }

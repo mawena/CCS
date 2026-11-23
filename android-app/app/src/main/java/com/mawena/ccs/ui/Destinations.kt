@@ -11,6 +11,7 @@ object Routes {
     const val REGLAGES = "reglages"
     const val TERMINAUX = "terminaux"
     const val TERMINAL = "terminal?id={id}"
+    const val JARVIS = "jarvis"
 
     const val FICHIER = "fichier?chemin={chemin}&ligne={ligne}"
     const val FICHIERS_PROJET = "fichiers-projet?cwd={cwd}"
@@ -31,7 +32,7 @@ object Routes {
         route.startsWith("fichier") -> Onglet.Fichiers.route
         route.startsWith("git") -> Onglet.Git.route
         route == ANALYSE -> Onglet.Accueil.route
-        route == REGLAGES || route.startsWith("terminal") -> Onglet.Plus.route
+        route == REGLAGES || route == JARVIS || route.startsWith("terminal") -> Onglet.Plus.route
         else -> route
     }
 }

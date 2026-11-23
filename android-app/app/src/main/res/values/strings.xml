@@ -4,4 +4,6 @@
     <string name="raccourci_nouveau_long">Nouveau chat dans un dossier</string>
     <string name="raccourci_sessions_court">Sessions</string>
     <string name="raccourci_sessions_long">Sessions et chats en cours</string>
+    <string name="raccourci_jarvis_court">Jarvis</string>
+    <string name="raccourci_jarvis_long">Parler à Jarvis</string>
 </resources>

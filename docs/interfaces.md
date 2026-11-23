@@ -231,6 +231,11 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `root.answer` | `id`, `password` (ou `cancel: true`) | réponse à `root.ask` : mot de passe vérifié par `sudo -k -S -v` puis gardé en mémoire 1 h → `ok`, `error` ; erreurs `introuvable` (demande inconnue ou réglée), `conflit` (autre appareil en cours de vérification), `invalide` |
 | `root.status` | — | `machine, kept, expires_at, remaining` (s), `pending` (dernier `root.ask` ou `null`) ; jamais le mot de passe |
 | `root.forget` | — | efface le mot de passe gardé et abandonne la demande en cours → `had` |
+| `jarvis.settings` | — | `machine, port, fingerprint, fingerprint_short` (cerveau de Jarvis) |
+| `jarvis.configure` | `machine`, `port` | réglages du cerveau → comme `jarvis.settings` |
+| `jarvis.open` | `fingerprint` (facultatif), `first` | *interne* (`/api/jarvis/oreille`) : tunnel Ricochet, TLS épinglé, WebSocket vers le cerveau, envoi de `first` → `machine, port, fingerprint_short` ; erreur `introuvable` si Jarvis est injoignable |
+| `jarvis.send` | `text` ou `binary` (base64) | *interne* : message suivant de l'oreille (64 Kio de texte, une trame de son au plus) |
+| `jarvis.close` | — | *interne* : ferme le lien et le tunnel |
 
 ### 2.2 Événements
 
@@ -246,6 +251,8 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `root.resolved` | `id, ok` | pont, à tous : demande réglée, les autres fenêtres se ferment |
 | `root.used` | `machine, command, at` | pont, à tous : commande lancée avec le mot de passe gardé |
 | `root.forgotten` | `machine, reason` (`expired`, `forget`, `revoke`, `stop`) | pont, à tous : mot de passe effacé |
+| `jarvis.message` | `text` ou `binary` (base64) | pont, à la connexion de l'oreille : message du cerveau |
+| `jarvis.closed` | `reason` | pont, à la connexion de l'oreille : le cerveau a fermé ou le lien est tombé |
 
 Gardien du mot de passe root (`ccs_app/root_keeper.py`, `server/bridge_root.py`) : un seul pont
 par utilisateur le tient (socket `root.sock`, voir 4.3) ; un autre pont du même utilisateur relaie
@@ -330,10 +337,11 @@ en-tête `X-Portier-Utilisateur` (venant de nginx en local seulement). Les POST 
 | `POST /api/revoke` | `token_id` | révoque un jeton |
 | `POST /api/apptoken` | `name` | jeton durable pour les applications mobiles (ancienne route `/api/app-token` acceptée en 1.x) |
 | `GET /api/ws` | `?protocol=1`, `?machine=ID` (facultatifs) | WebSocket du pont (§ 2) |
+| `GET /api/jarvis/oreille` | `?fp=` (empreinte du cerveau, facultative) | WebSocket d'une oreille de Jarvis : premier message `pair` ou `hello` dès l'ouverture, puis relais texte et binaire avec le cerveau ; `relay_error` puis 4011 si Jarvis est injoignable |
 | `GET /` et fichiers statiques | — | interface web (`ccs_app/web`) |
 
 Codes de fermeture de la WebSocket : 4001 (session expirée ou révoquée), 1012 (pont perdu),
-1011 (pont injoignable), 4010 (machine injoignable). Avec `?machine=`, l'événement
+1011 (pont injoignable), 4010 (machine injoignable), 4011 (Jarvis injoignable, `/api/jarvis/oreille`). Avec `?machine=`, l'événement
 `machines.ready` (`machine.ready` pour un client sans `?protocol=`) arrive avant tout autre.
 
 *Interne* : `ccs-auth` (`/run/ccs/auth.sock`, même protocole) : `login`, `enroll`, `pair`,
@@ -386,6 +394,7 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | `sessions` | `idle_hours` |
 | `context_alert` | `enabled`, `threshold_tokens`, `auto_compact` |
 | `limit_resume` | `enabled`, `outside` (`notify` ou `resume`) |
+| `jarvis` | `machine` (relais Ricochet), `port`, `fingerprint` (base64url, 43 caractères, ou vide) |
 | `budget` | `enabled`, `alert_pcts` |
 | `chat` | `idle_suspend_min`, `rights` (`manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`), `auto_clear`, `read_aloud` (1.1.0) |
 | `files` | `layout` (`A`\|`B`), `show_ignored` |

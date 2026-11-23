@@ -40,6 +40,15 @@ Sessions, Fichiers, Git, Plus), notifications, partage vers CCS, raccourcis d'ap
   liens réduits à leur texte), « Arrêter » sous la réponse lue ; réglage **Lire les réponses à
   voix haute** (Réglages > Vocal, désactivé par défaut) : chaque réponse terminée du chat affiché
   est lue.
+- **Parler à Jarvis** (Plus > Parler à Jarvis, raccourci d'appli « Jarvis », lien `ccs://jarvis`) :
+  l'assistant vocal de la maison, par le relais du serveur CCS (`/api/jarvis/oreille`, même jeton
+  que l'appli). Appairage une fois : scanner le QR code de `jarvis pair` avec l'appareil photo
+  (lien `jarvis://pair?…`, qui ouvre CCS), coller l'adresse, ou saisir code et empreinte ; jeton
+  et identifiant d'oreille chiffrés par le Keystore. Puis un bouton : maintenir pour parler (fin
+  au relâché), ou toucher une fois (fin au silence) ; micro `AudioRecord` (permission
+  `RECORD_AUDIO` demandée au premier appui) rééchantillonné en 16 kHz, texte et voix de la
+  réponse (`AudioTrack`), écoute relancée seule si Jarvis pose une question. Le raccourci ouvre
+  l'écran déjà en écoute.
 
 - **Fichiers** (comme `web/files*.js`) : onglet Fichiers sur les dossiers permis du serveur
   (Personnel, /var/www, /srv), onglet Fichiers de l'écran Projet et bouton Fichiers du chat. Un
@@ -225,6 +234,10 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
     `Outils.kt`, `Envoi.kt` (commandes `/` et `!`, recherche, étiquettes, alerte de contexte).
   - `ui/` : thème CCS, navigation (`Destinations.kt`), composants communs (`Commun.kt`), écrans
     (connexion, Portier, accueil, bilan, analyse, sessions, projet, plus).
+  - `logique/Jarvis.kt` : oreille de Jarvis sans Android (adresse d'appairage, messages du
+    protocole des oreilles, trames de son, rééchantillonnage, phrase en cours) ; `jarvis/` :
+    `LienJarvis.kt` (WebSocket du relais), `OreilleJarvis.kt` (micro, lien, voix) ;
+    `ui/jarvis/EcranJarvis.kt` (appairage, bouton).
   - `ui/chat/` : `ModeleChat.kt` (ViewModel : RPC et événements du chat), `EcranChat.kt`,
     `ElementsChat.kt`, `MarkdownVue.kt`, `Saisie.kt` (saisie, options, images), `Feuilles.kt`.
 - `app/src/main/res/` : icône adaptative (motif dans la zone sûre, fond uni, version monochrome),
@@ -234,7 +247,7 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
   coloration, diff, citation, envoi, chemins et liens de fichiers, réponses de `files.*` et `git.*`,
   feuille de route, tâches, diff unifié, réglages, touches, émulateur du terminal sur la JVM,
   `/api/apptoken`, `/api/tokens` et `/api/revoke` contre un faux serveur, décision des
-  notifications et rappel, analyse du partage, barre des sous-agents).
+  notifications et rappel, analyse du partage, barre des sous-agents, oreille de Jarvis).
 
 ## Licence
 

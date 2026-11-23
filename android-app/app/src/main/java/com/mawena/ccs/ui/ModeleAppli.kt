@@ -17,6 +17,8 @@ sealed interface DemandeAppli {
     data class OuvrirChat(val dest: DestChat) : DemandeAppli
     data object Sessions : DemandeAppli
     data object NouveauChat : DemandeAppli
+    /** Écran « Parler à Jarvis » (raccourci, `ccs://jarvis`, QR code `jarvis://pair?…`). */
+    data object Jarvis : DemandeAppli
 }
 
 /** État de l'appli : adresse du serveur, identifiants gardés, connexion. */
@@ -176,6 +178,7 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
     }
 
     private fun oublier() {
+        depot.jarvis.fermer()
         depot.terminaux.oublier()
         depot.client.arreter()
         depot.coffre.ecrire(null)

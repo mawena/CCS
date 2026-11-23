@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <!-- Bouton « Parler à Jarvis » : le son du micro part vers Jarvis par le serveur CCS. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- Texte en clair permis : l'adresse du serveur peut être un http:// du réseau local.
          Pas de sauvegarde : le jeton est chiffré par une clé du Keystore qui ne se restaure pas. -->
@@ -46,6 +48,19 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ccs" android:host="root" />
+            </intent-filter>
+            <!-- ccs://jarvis (écran Jarvis en écoute) et jarvis://pair?… (QR code de « jarvis pair ») -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ccs" android:host="jarvis" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="jarvis" android:host="pair" />
             </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/raccourcis" />
         </activity>

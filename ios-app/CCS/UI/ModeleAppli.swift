@@ -14,6 +14,8 @@ final class ModeleAppli {
     let veille: Veille
     /// Mot de passe root demandé par la machine pilotée (`root.*`) : feuille, bandeau, avis.
     let root: GardienRoot
+    /// Oreille « bouton » de Jarvis (Plus → Jarvis, raccourci « Parler à Jarvis »).
+    let jarvis: OreilleJarvis
     /// Partage reçu (« Ouvrir dans CCS », `ccs://partager`) : la feuille de partage s'ouvre.
     var partage: Partage? = nil
     /// Chat à ouvrir (toucher sur une notification, partage livré).
@@ -41,6 +43,7 @@ final class ModeleAppli {
         terminaux = Terminaux(client: c, dire: { m in av.dire(m) })
         veille = Veille(client: c)
         root = GardienRoot(client: c, dire: { m in av.dire(m) })
+        jarvis = OreilleJarvis()
         let a = Prefs.adresse
         adresse = a
         theme = Prefs.theme
@@ -51,6 +54,7 @@ final class ModeleAppli {
             self?.avisConnexion = raison + " Reconnecte-toi."
         }
         veille.ouvrir = { [weak self] d in self?.aOuvrir = d }
+        jarvis.identifiants = { [weak self] in self?.identifiants }
         if let i = identifiants { demarrer(i) }
     }
 
@@ -132,6 +136,7 @@ final class ModeleAppli {
         terminaux.oublier()
         veille.arreter()
         root.vider()
+        jarvis.fermer()
     }
 
     /// Coût court d'une conversation (« 0,42 $ ») ; le coût est un plus : un échec est tu.

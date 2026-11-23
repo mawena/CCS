@@ -146,6 +146,15 @@ extension ModeleAppli {
             root.afficher()
             return
         }
+        // ccs://jarvis : écran Jarvis en écoute ; jarvis://pair?… : QR code d'appairage scanné
+        if u.scheme?.lowercased() == "ccs", u.host?.lowercased() == "jarvis" {
+            DemandeJarvis.partage.demanderEcoute()
+            return
+        }
+        if u.scheme?.lowercased() == "jarvis" {
+            DemandeJarvis.partage.demanderAppairage(u.absoluteString)
+            return
+        }
         if u.isFileURL {
             var p = partage ?? Partage(texte: "", fichiers: [])
             if !p.fichiers.contains(u) { p.fichiers.append(u) }

@@ -37,6 +37,12 @@ class Depot(context: Context) {
     /** Mot de passe root demandé par la machine pilotée (phase 34). */
     val root = com.mawena.ccs.notif.SuiviRoot(context.applicationContext, client, portee)
 
+    /** Oreille « bouton » de Jarvis (Plus → Parler à Jarvis, raccourci d'appli). */
+    val jarvis = com.mawena.ccs.jarvis.OreilleJarvis(
+        http, com.mawena.ccs.donnees.CoffreJarvis(prefs, ChiffreurKeystore("ccs-jarvis")),
+        identifiants = { coffre.lire()?.takeIf { it.serveur == adresse.lire() } },
+    )
+
     /** Ce qu'un partage Android remet à un chat (chat → saisie et images), pris par son écran. */
     val remises = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Remise>>(emptyMap())
 

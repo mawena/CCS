@@ -72,6 +72,17 @@ class MainActivity : ComponentActivity() {
 
     /** Notification touchée, raccourci d'appli ou partage depuis une autre appli. */
     private fun recevoir(i: Intent?) {
+        // ccs://jarvis : écran Jarvis en écoute ; jarvis://pair?… : QR code de « jarvis pair » scanné
+        val lien = i?.data?.takeIf { i.action == Intent.ACTION_VIEW }
+        if (lien?.scheme == "jarvis") {
+            (application as CcsAppli).depot.jarvis.adresseRecue.value = lien.toString()
+            modele.demande.value = DemandeAppli.Jarvis
+            return
+        }
+        if (lien?.scheme == "ccs" && lien.host == "jarvis") {
+            ouvrirJarvis()
+            return
+        }
         when (i?.action) {
             Notifs.ACTION_OUVRIR -> {
                 val cwd = i.getStringExtra(Notifs.EXTRA_CWD) ?: return
@@ -82,6 +93,7 @@ class MainActivity : ComponentActivity() {
                     ),
                 )
             }
+            RACCOURCI_JARVIS -> ouvrirJarvis()
             // la fenêtre du mot de passe s'affiche d'elle-même au premier plan : relire l'état du pont
             Notifs.ACTION_ROOT, Intent.ACTION_VIEW -> {
                 val d = (application as CcsAppli).depot
@@ -97,6 +109,11 @@ class MainActivity : ComponentActivity() {
                 if (!p.vide) modele.partage.value = p
             }
         }
+    }
+
+    private fun ouvrirJarvis() {
+        (application as CcsAppli).depot.jarvis.demandeEcoute.value = true
+        modele.demande.value = DemandeAppli.Jarvis
     }
 
     private fun lirePartage(i: Intent): Partage {
@@ -121,5 +138,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val RACCOURCI_SESSIONS = "com.mawena.ccs.action.SESSIONS"
         const val RACCOURCI_NOUVEAU = "com.mawena.ccs.action.NOUVEAU_CHAT"
+        const val RACCOURCI_JARVIS = "com.mawena.ccs.action.JARVIS"
     }
 }
