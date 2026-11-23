@@ -657,10 +657,10 @@ domaine en anglais : `network.mawena.cloud`, noms des machines en `<machine>.mes
 - [ ] 2. CCS : `ccs reseau` (fait en 1.3.0 : état, machines, chemin LAN/direct/relais, clé d'inscription jetable) ; le lien « Ajouter un PC » installe aussi tailscale et inscrit la machine
 - [ ] 3. Page Machines (web, bureau, Android, iPhone) : interfaces, IP du réseau, chemin réel et latence de chaque liaison
 - [ ] 4. Fusion de Ricochet dans le dépôt CCS (crates Rust, paquets) ; `ccs distant`, root et travaux passent par les IP du réseau maillé
-- [ ] 5. Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
+- [ ] 5. (Le Pixel est sur le même réseau local que pc-bureau : leur liaison doit passer par le LAN, à vérifier avec `ccs reseau etat`.) Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
 - [ ] 6. Tests, README, CHANGELOG, releases
 - [x] 7. Root : mot de passe gardé pour toujours, chiffré (AES-256-GCM, `root_vault`), revérifié après redémarrage ; web sans compte à rebours (1.3.0)
-- [ ] 8. Root « pour toujours » dans le bureau, Android et iPhone : afficher « gardé (chiffré) » au lieu de « encore 60 min » (champ `forever` de `root.status`)
+- [x] 8. Root « pour toujours » : plus de bandeau rouge nulle part (Charles, 23/11) ; `root.status` rend `kept: false, stored: true`, donc rien à reconstruire dans les applis (1.3.1)
 
 ## Phase 37 — Ajouter un PC en une ligne (1.2.0, Ricochet 0.6.0)
 
