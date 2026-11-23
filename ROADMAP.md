@@ -475,7 +475,7 @@ Un cinquième onglet « Fichiers » dans la navigation du web : parcourir les do
 - [x] 1. Paquet `ccs` : plus de source `ccs.sources` ni de clé `ccs.gpg`, `Depends: mawena-depot`, retrait de l'ancienne source (`rm_conffile`, `debian/ccs.maintscript`)
 - [x] 2. README, site (`index.html`, `installer.sh` qui lance l'installateur de https://apt.mawena.cloud), pages de manuel, architecture
 - [x] 3. Release corrective 0.20.1, publiée aussi avec `mawena-depot` dans l'ancien dépôt (gardé jusqu'à mai 2027)
-- [ ] 4. Mai 2027 : archiver l'ancien dépôt (page d'accueil qui renvoie au dépôt unique)
+- [x] 4. Ancien dépôt archivé le 23/11/2026, avant mai 2027 à la demande de Charles : tag `archive/ancien-depot-apt`, `apt/` de gh-pages remplacé par une page qui renvoie au dépôt unique ; `make apt`, `publier-apt.sh` et `data/apt` retirés (1.7.0)
 
 ## Phase 21 — Calcul réparti par Ricochet (0.21.0 et suivantes)
 
@@ -500,7 +500,7 @@ Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ou
 - [x] 12. Tests, documentation, release mineure
 
 Étape C — à décider après essai
-- [ ] 13. Sessions Claude entières sur une autre machine (le pont de CCS lancé là-bas par le tunnel) : à étudier, demande Claude Code et un compte sur chaque machine
+- [x] 13. Sessions Claude entières sur une autre machine : faites par la phase 26 (le pont du serveur relaie le web jusqu'au pont CCS de la machine, lancé là-bas s'il manque), aujourd'hui par le réseau maillé avec Ricochet en secours ; il faut CCS, Claude Code et un compte sur la machine
 
 ## Phase 22 — Sous-agents dans le chat web (0.22.0)
 

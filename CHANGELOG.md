@@ -40,6 +40,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   `ccs distant`, nom de machine de `ccs root`, et la connexion au cerveau de Jarvis (connexion
   directe sur son adresse 100.64.x, tunnel Ricochet si elle échoue).
 
+- Ancien dépôt APT de GitHub Pages archivé (tag `archive/ancien-depot-apt`) : `make apt`, `scripts/publier-apt.sh` et `data/apt` retirés ; CCS se publie seulement dans le dépôt unique https://apt.mawena.cloud.
 ### Corrigé
 
 - Onglet « Réseau » : la fiche du serveur s'appelait « Cet appareil » même vue depuis un
