@@ -50,8 +50,13 @@ Sessions, Fichiers, Git, Plus), notifications, partage vers CCS, raccourcis d'ap
   réponse (`AudioTrack`), écoute relancée seule si Jarvis pose une question. Le raccourci ouvre
   l'écran déjà en écoute.
 
-- **Fichiers** (comme `web/files*.js`) : onglet Fichiers sur les dossiers permis du serveur
-  (Personnel, /var/www, /srv), onglet Fichiers de l'écran Projet et bouton Fichiers du chat. Un
+- **Fichiers** (comme `web/files*.js`) : onglet Fichiers sur les dossiers permis (Personnel,
+  /var/www, /srv) du serveur et de chaque PC du réseau maillé. En haut, une puce par appareil
+  (« Serveur CCS », puis les machines de `machines.list`, défilables) ; un PC hors ligne ou sans
+  réseau maillé ni tunnel est grisé avec la raison. Choisir un PC ouvre une connexion à part
+  (`/api/ws?machine=<id>`) sans changer la machine pilotée ; elle est fermée en quittant l'onglet,
+  le dernier appareil choisi est gardé, et « <nom> injoignable : … » s'affiche avec Réessayer.
+  Aussi : onglet Fichiers de l'écran Projet et bouton Fichiers du chat. Un
   dossier à la fois (fil d'Ariane, retour : dossier parent), marques git, recherche par nom ;
   nouveau fichier ou dossier, envoi depuis le sélecteur d'Android (par morceaux de 1 Mo, 200 Mo au
   plus, « Remplacer ? » si le nom existe), télécharger vers Téléchargements, partager (feuille de
@@ -214,6 +219,8 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
     états des chats, dossiers proposés par « Nouvelle session »).
   - `donnees/Recents.kt` : derniers dossiers ouverts.
   - `reseau/ModelesFichiers.kt` : réponses de `files.*`, `work.files` et `git.*`.
+  - `logique/Appareils.kt` (appareils de l'onglet Fichiers, joignables ou non) et
+    `reseau/ConnexionFichiers.kt` (seconde connexion fixée sur un appareil).
   - `logique/Fichiers.kt` (chemins, fil d'Ariane, familles, tailles, morceaux), `LiensFichiers.kt`
     (chemins cités dans le chat), `Git.kt` (groupes de fichiers, suivi, diffs en lignes, refs).
   - `ui/Demandes.kt` : confirmations et saisies de nom attendues par une coroutine.

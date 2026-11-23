@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mawena.ccs.logique.Fichiers
+import com.mawena.ccs.reseau.CcsClient
 import com.mawena.ccs.reseau.EtatConnexion
 import com.mawena.ccs.reseau.FichierEcrit
 import com.mawena.ccs.reseau.FichierLu
@@ -103,10 +104,16 @@ private const val CLE_RETOUR = "fichiers:retour-ligne"
  * signalé, télécharger, partager. Quitter avec des modifications non enregistrées est confirmé.
  */
 @Composable
-fun EcranFichier(modele: ModeleAppli, chemin: String, ligne: Int?, retour: () -> Unit) {
-    val client = modele.depot.client
+fun EcranFichier(
+    modele: ModeleAppli,
+    chemin: String,
+    ligne: Int?,
+    retour: () -> Unit,
+    /** Connexion à utiliser : la principale, ou celle d'un appareil de l'onglet Fichiers. */
+    client: CcsClient = modele.depot.client,
+) {
     val prefs = modele.depot.prefs
-    val etat by modele.etat.collectAsStateWithLifecycle()
+    val etat by client.etat.collectAsStateWithLifecycle()
     val connecte = etat is EtatConnexion.Connecte
     val avis = LocalAvis.current
     val contexte = LocalContext.current

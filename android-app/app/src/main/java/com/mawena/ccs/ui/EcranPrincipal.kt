@@ -125,6 +125,10 @@ fun EcranPrincipal(modele: ModeleAppli) {
             launchSingleTop = true
         }
     }
+    // onglet Fichiers quitté : la connexion à part de son appareil est fermée (rouverte au retour)
+    LaunchedEffect(route) {
+        if (route != Onglet.Fichiers.route) modele.fichiers.fermer()
+    }
     // commande lancée avec le mot de passe root gardé : avis discret
     LaunchedEffect(Unit) {
         modele.depot.root.usages.collect { avis.dire(com.mawena.ccs.logique.Root.texteUsage(it)) }
@@ -208,15 +212,21 @@ fun EcranPrincipal(modele: ModeleAppli) {
                     )
                 }
                 composable(Onglet.Reseau.route) { EcranReseau(modele) }
-                composable(Onglet.Fichiers.route) { EcranFichiersOnglet(modele, ouvrirFichier = { nav.navigate(Routes.fichier(it)) }) }
+                composable(Onglet.Fichiers.route) {
+                    EcranFichiersOnglet(modele, ouvrirFichier = { chemin, appareil -> nav.navigate(Routes.fichier(chemin, appareil = appareil)) })
+                }
                 composable(Routes.FICHIERS_PROJET, arguments = listOf(argument("cwd"))) { e ->
                     EcranFichiersProjet(modele, e.arguments?.getString("cwd").orEmpty(), retour = { nav.popBackStack() },
                         ouvrirFichier = { nav.navigate(Routes.fichier(it)) })
                 }
-                composable(Routes.FICHIER, arguments = listOf(argument("chemin"), argument("ligne"))) { e ->
+                composable(Routes.FICHIER, arguments = listOf(argument("chemin"), argument("ligne"), argument("appareil"))) { e ->
+                    // ouvert depuis l'onglet Fichiers : sur la connexion de l'appareil choisi
+                    val appareil = com.mawena.ccs.logique.Appareils.deRoute(e.arguments?.getString("appareil"))
+                    val client = remember(appareil) { appareil?.let { modele.fichiers.clientPour(it) } ?: modele.depot.client }
                     EcranFichier(
                         modele, e.arguments?.getString("chemin").orEmpty(), e.arguments?.getString("ligne")?.toIntOrNull(),
                         retour = { nav.popBackStack() },
+                        client = client,
                     )
                 }
                 composable(Onglet.Git.route) { EcranGitOnglet(modele, ouvrirGit = { nav.navigate(Routes.gitProjet(it)) }) }

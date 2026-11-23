@@ -74,6 +74,22 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
     /** Machine pilotée (vide : ce serveur) ; tout l'appli la suit, notifications comprises. */
     val machine: StateFlow<String> = depot.client.machine
 
+    /**
+     * Connexion de l'onglet Fichiers à un appareil (serveur ou PC du réseau maillé), à part de la
+     * machine pilotée : elle n'en change pas. Fermée en quittant l'onglet.
+     */
+    val fichiers = com.mawena.ccs.reseau.ConnexionFichiers(
+        principal = depot.client,
+        fabrique = { m -> com.mawena.ccs.reseau.CcsClient(depot.http, depot.portee).also { it.changerMachine(m) } },
+        identifiants = { _identifiants.value },
+        prefs = depot.prefs,
+    )
+
+    override fun onCleared() {
+        fichiers.fermer()
+        super.onCleared()
+    }
+
     /** Autres machines connues (dernière liste reçue, gardée si la connexion est coupée). */
     private val _machines = MutableStateFlow(lireMachines())
     val machines: StateFlow<List<com.mawena.ccs.reseau.Machine>> = _machines.asStateFlow()
@@ -182,6 +198,7 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
     private fun oublier() {
         depot.jarvis.fermer()
         depot.terminaux.oublier()
+        fichiers.fermer()
         depot.client.arreter()
         depot.coffre.ecrire(null)
         _identifiants.value = null
