@@ -84,6 +84,27 @@ stop();
         self.assertIn("Réseau local", out["text"])
         self.assertEqual(out["tabs"], 3)
 
+    def test_refresh_keeps_add_tab(self):
+        # Le rafraîchissement ne doit ni ramener l'onglet sur « PC Linux » ni effacer la ligne générée.
+        out = run(r"""
+const status = { url: "https://network.mawena.cloud", installed: true, server: true, state: "Running",
+  self: { name: "mawena-cloud", os: "linux", ips: ["100.64.0.1"], online: true, path: "self", addrs: [] }, peers: [], nodes: [] };
+const api = { call: async (m) => m === "network.key" ? { linux: ["echo inscrire"] } : status };
+const root = document.createElement("div");
+const stop = R.mountReseau(root, api);
+await settle();
+root.querySelector(".net-tab-body .primary").click();
+await settle();
+const line = root.querySelector(".net-code") !== null;
+root.querySelectorAll(".net-tab")[1].click();
+document.dispatchEvent(new Event("visibilitychange"));
+await settle();
+out = { line, selected: [...root.querySelectorAll(".net-tab")].map((b) => b.getAttribute("aria-selected")) };
+stop();
+""")
+        self.assertTrue(out["line"])
+        self.assertEqual(out["selected"], ["false", "true", "false"])
+
 
 if __name__ == "__main__":
     unittest.main()

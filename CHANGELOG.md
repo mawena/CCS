@@ -3,6 +3,13 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.5.1] — 2026-11-23
+
+### Corrigé
+
+- Onglet « Réseau » (web) : le rafraîchissement automatique ramenait l'ajout d'appareil sur
+  « PC Linux » et effaçait la ligne d'inscription générée. La section n'est plus reconstruite.
+
 ## [1.5.0] — 2026-11-23
 
 ### Ajouté

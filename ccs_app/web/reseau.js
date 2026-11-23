@@ -322,7 +322,13 @@ export function mountReseau(root, api) {
     listBox.append(...all.map(([d, self]) => card(d, self)));
   }
 
+  // Construit une seule fois : le rafraîchissement périodique ne doit pas ramener l'onglet sur
+  // « PC Linux » ni effacer une ligne d'inscription déjà générée ou une clé en cours de saisie.
+  let addBuiltFor = null;
   function renderAdd() {
+    const server = Boolean(st.server);
+    if (addBuiltFor === server) return;
+    addBuiltFor = server;
     clear(addBox);
     addBox.append(el("h2", { class: "net-h2" }, icon("plus", 20), "Ajouter un appareil"));
     if (!st.server) {
