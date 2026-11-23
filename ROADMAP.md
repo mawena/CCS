@@ -662,7 +662,7 @@ accéder à tous les dossiers de tous les appareils du réseau maillé.
 - [x] 1. Skills UI/UX installés pour Claude Code
 - [x] 2. Fichiers : choix de l'appareil (serveur CCS, PC du réseau maillé), navigation par SSH sur le réseau maillé, Ricochet en secours (1.7.0, web, Android, iPhone)
 - [x] 3. Refonte UX de l'onglet (web, puis Android et iPhone)
-- [ ] 4. (En attente, Charles 23/11 : pas besoin de la PS5 pour l'instant) Appareils sans client (PS5, imprimante…) : routeur de sous-réseau sur un PC du LAN — essayé et fonctionnel : laptop-maison annonce 192.168.0.0/24 ; pour réactiver : `headscale nodes approve-routes -i 5 -r 192.168.0.0/24` et `tailscale set --accept-routes` sur le VPS
+- [x] 4. Appareils sans client (PS5, imprimante…) : routeur de sous-réseau sur un PC du LAN (`--advertise-routes`), activé dans Headscale — laptop-maison annonce 192.168.0.0/24 (route validée le 23/11), le VPS l'accepte (`tailscale set --accept-routes`) ; iPhone et Pixel : « Use Tailscale subnets » dans l'appli
 
 ## Phase 38 — Réseau maillé de tous les appareils (network.mawena.cloud)
 
