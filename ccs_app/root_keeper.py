@@ -205,7 +205,7 @@ class Keeper:
     `root.resolved`, `root.used`, `root.forgotten`) ; elles peuvent rendre une coroutine."""
 
     def __init__(self, machine=None, clock=time.time, verify=verify_password, keep_s=KEEP_S,
-                 ask_timeout=ASK_TIMEOUT_S, max_tries=MAX_TRIES):
+                 ask_timeout=ASK_TIMEOUT_S, max_tries=MAX_TRIES, vault=None):
         self.machine = machine or machine_name()
         if machine is None:
             # Le nom Ricochet est cherché à part (appel réseau) ; le nom d'hôte sert en attendant.
@@ -224,6 +224,20 @@ class Keeper:
         self._expires_at = 0.0
         self._expiry = None
         self._request = None
+        # Coffre chiffré (`root_vault`) : avec lui, le mot de passe est gardé pour toujours
+        # (`keep_s` ignoré), relu au démarrage et revérifié une fois avant le premier usage.
+        self.vault = vault
+        self._unverified = False
+        if vault is not None:
+            secret = vault.load(Secret)
+            if secret is not None:
+                self._secret = secret
+                self._unverified = True
+                log.info("root : mot de passe relu dans le coffre chiffré")
+
+    @property
+    def forever(self):
+        return self.vault is not None
 
     # ---- événements -------------------------------------------------------------------
 
@@ -247,7 +261,7 @@ class Keeper:
 
     def kept(self):
         """Vrai si un mot de passe est gardé ; l'efface s'il a expiré."""
-        if self._secret is not None and self.clock() >= self._expires_at:
+        if self._secret is not None and not self.forever and self.clock() >= self._expires_at:
             self._drop("expired")
         return self._secret is not None
 
@@ -257,6 +271,12 @@ class Keeper:
     def status(self):
         kept = self.kept()
         req = self._request
+        if self.forever:
+            # Anciennes interfaces : une heure glissante, renouvelée à chaque lecture de l'état.
+            return {"machine": self.machine, "kept": kept, "forever": kept,
+                    "expires_at": self.clock() + KEEP_S if kept else None,
+                    "remaining": KEEP_S if kept else 0,
+                    "pending": self._ask_data(req) if req is not None else None}
         return {"machine": self.machine, "kept": kept,
                 "expires_at": self._expires_at if kept else None,
                 "remaining": max(0, int(self._expires_at - self.clock())) if kept else 0,
@@ -266,6 +286,10 @@ class Keeper:
         """Garde `secret` (le gardien en devient le seul propriétaire) pour `keep_s` secondes."""
         self._drop(None)
         self._secret = secret
+        self._unverified = False
+        if self.forever:
+            self.vault.save(secret)
+            return
         self._expires_at = self.clock() + self.keep_s
         try:
             self._expiry = asyncio.get_running_loop().call_later(self.keep_s, self.kept)
@@ -282,6 +306,8 @@ class Keeper:
         self._secret.wipe()
         self._secret = None
         self._expires_at = 0.0
+        if self.forever and reason not in (None, "stop"):
+            self.vault.delete()
         if reason:
             log.info("root : mot de passe effacé (%s)", reason)
             self._emit("root.forgotten", {"machine": self.machine, "reason": reason})
@@ -333,6 +359,14 @@ class Keeper:
         ou None (refusé, trois mauvais essais, délai, oublié). Sans mot de passe gardé, attend la
         réponse des appareils à la demande en cours (ouverte s'il n'y en a pas)."""
         command = clean_command(command)
+        if self.kept() and self._unverified:
+            # Relu du coffre : le mot de passe a pu changer depuis (passwd).
+            ok = await asyncio.to_thread(self.verify, self._secret)
+            if ok:
+                self._unverified = False
+            elif self._unverified:            # pas remplacé pendant la vérification
+                log.info("root : mot de passe du coffre refusé par sudo, redemandé")
+                self._drop("changed")
         if self.kept():
             self._used(command)
             return self._secret.copy()
@@ -804,7 +838,10 @@ def _minutes(seconds):
 
 def status_text(st):
     machine = st.get("machine") or "cette machine"
-    if st.get("kept"):
+    if st.get("kept") and st.get("forever"):
+        lines = [f"Mot de passe root gardé (chiffré) sur {machine}, sans limite de durée. "
+                 "Pour l'effacer : ccs root oublier."]
+    elif st.get("kept"):
         lines = [f"Mot de passe root gardé en mémoire sur {machine} : encore {_minutes(st.get('remaining', 0))}."]
     else:
         lines = [f"Aucun mot de passe root gardé sur {machine}."]

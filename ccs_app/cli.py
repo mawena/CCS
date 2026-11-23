@@ -1094,6 +1094,30 @@ def cmd_distant(args):
         return 130
 
 
+def cmd_reseau(args):
+    """Réseau maillé (Headscale) : appareils, chemin de chaque liaison, clés d'inscription."""
+    from . import network
+    try:
+        action = args.action or "etat"
+        if action == "etat":
+            print("\n".join(network.describe(network.status())))
+        elif action == "ping":
+            print(network.ping(args.machine))
+        elif action == "cle":
+            key = network.auth_key(args.utilisateur, args.duree)
+            print(f"Clé jetable (une machine, {args.duree}). Sur la machine, en root :\n")
+            print("\n".join("  " + line for line in network.join_lines(key, args.nom)))
+        elif action == "serveur":
+            for n in network.server_nodes():
+                state = "en ligne" if n["online"] else "hors ligne"
+                print(f"{n['name']:<20} {(n['ips'] or ['-'])[0]:<16} {state:<10} "
+                      f"{', '.join(n['endpoints']) or '-'}")
+        return 0
+    except network.NetworkError as e:
+        print(e, file=sys.stderr)
+        return 1
+
+
 def cmd_journal(args):
     from . import switch_log
     try:
@@ -1418,6 +1442,17 @@ def build_parser():
     dij = di_sub.add_parser("journal", help="sortie d'un travail détaché")
     dij.add_argument("id")
     di.set_defaults(func=cmd_distant)
+    nw = _command(sub, "reseau", "réseau maillé de tous les appareils (network.mawena.cloud)")
+    nw_sub = nw.add_subparsers(dest="action", metavar="<action>")
+    nw_sub.add_parser("etat", help="appareils et chemin de chaque liaison (LAN, direct, relais)")
+    nwp = nw_sub.add_parser("ping", help="chemin et latence réels vers un appareil")
+    nwp.add_argument("machine")
+    nwc = nw_sub.add_parser("cle", help="clé d'inscription jetable (sur le serveur)")
+    nwc.add_argument("--utilisateur", default="charles", help="utilisateur Headscale")
+    nwc.add_argument("--duree", default="15m", help="validité (15m, 1h…)")
+    nwc.add_argument("--nom", help="nom de la machine dans le réseau")
+    nw_sub.add_parser("serveur", help="appareils connus du serveur et leurs adresses publiées")
+    nw.set_defaults(func=cmd_reseau)
     ch = _command(sub, "chat", "chats de CCS (commandes pour Claude)")
     ch_sub = ch.add_subparsers(dest="action", required=True, metavar="<action>")
     ch_sub.add_parser("effacer", help="vide la conversation (/clear) à la fin du tour en cours")

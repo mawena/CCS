@@ -52,7 +52,8 @@ export function triesText(n) {
   return n === 1 ? "Dernier essai." : `${n} essais restants.`;
 }
 
-export function keptText(machine, ms) {
+export function keptText(machine, ms, forever = false) {
+  if (forever) return machine ? `Root gardé sur ${machine} (chiffré)` : "Root gardé (chiffré)";
   const m = minutes(ms);
   return machine ? `Root gardé sur ${machine}, ${m} min` : `Root gardé, ${m} min`;
 }
@@ -158,7 +159,7 @@ export class RootWatch {
     if (r.kept) {
       const left = Number(r.remaining);
       const until = left > 0 ? now + Math.min(left, KEEP_MS / 1000) * 1000 : deadline(r.expires_at, now, KEEP_MS);
-      this.kept = { machine: text(r.machine), until };
+      this.kept = { machine: text(r.machine), until: r.forever ? Infinity : until, forever: Boolean(r.forever) };
     } else {
       this.kept = null;
     }
@@ -337,7 +338,7 @@ export class RootWatch {
       if (view) host.insertBefore(this.bar, view); else host.append(this.bar);
     }
     this.bar.hidden = false;
-    this.bar.querySelector(".root-bar-text").textContent = keptText(kept.machine, kept.until - this.now());
+    this.bar.querySelector(".root-bar-text").textContent = keptText(kept.machine, kept.until - this.now(), kept.forever);
     setBarHeight(this.bar.offsetHeight);
   }
 }

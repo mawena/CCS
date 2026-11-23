@@ -551,11 +551,16 @@ ccs root oublier    # l'effacer tout de suite
   version web, application de bureau, TUI, Android, iPhone. Une notification ntfy prévient
   (sans aucun secret) ; la toucher ouvre la fenêtre dans l'appli, sur la bonne machine. Le premier
   appareil qui répond l'emporte, les autres fenêtres se ferment. « Refuser » abandonne la commande.
-- Le mot de passe est vérifié par `sudo`, puis gardé **en mémoire seulement** une heure, par le
-  pont de la machine (socket Unix réservé à ton utilisateur). Jamais sur disque ni dans un journal.
-  3 essais par demande ; une demande sans réponse abandonne après 5 minutes.
-- Pendant l'heure, chaque commande root est signalée sur tes appareils, avec un bouton
-  « Révoquer » qui efface le mot de passe.
+- Le mot de passe est vérifié par `sudo`, puis gardé **pour toujours, chiffré** (AES-256-GCM) par
+  le pont de la machine : clé dans `~/.config/ccs/root.key`, chiffré dans
+  `~/.local/state/ccs/root.vault` (0600 tous les deux, dossiers séparés), lié à la machine
+  (`/etc/machine-id`) et au compte. Il survit aux redémarrages ; relu, il est revérifié par `sudo`
+  avant le premier usage (redemandé s'il a changé). Jamais en clair sur disque ni dans un journal.
+  Limite : un programme lancé sous ton compte peut lire la clé ; le chiffrement protège le disque,
+  les sauvegardes et les copies. 3 essais par demande ; une demande sans réponse abandonne après
+  5 minutes.
+- Chaque commande root est signalée sur tes appareils, avec un bouton « Révoquer » qui efface le
+  mot de passe et le coffre (`ccs root oublier` aussi).
 - Chaque machine (VPS, PC…) garde son propre mot de passe. Les chats lancés par CCS ont
   `SUDO_ASKPASS` : `sudo -A` y marche aussi, mais `ccs root` reste préférable (chaque commande
   y est signalée).
