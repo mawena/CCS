@@ -3,6 +3,21 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.3.0] — 2026-11-23
+
+### Ajouté
+
+- `ccs reseau` : réseau maillé de tous les appareils (WireGuard, Headscale sur
+  `network.mawena.cloud`) ; `etat` (chemin de chaque liaison : réseau local, direct par internet
+  ou relais du VPS), `ping`, `cle` (clé d'inscription jetable), `serveur` (adresses publiées).
+
+### Modifié
+
+- Mot de passe root gardé pour toujours, chiffré sur le disque (AES-256-GCM, clé et chiffré
+  séparés, liés à la machine et au compte), au lieu d'une heure en mémoire. Revérifié par `sudo`
+  après un redémarrage ; « Révoquer » et `ccs root oublier` effacent le coffre. Nouvelle
+  dépendance : `python3-cryptography`.
+
 ## [1.2.0] — 2026-11-22
 
 ### Ajouté
