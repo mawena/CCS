@@ -4,7 +4,9 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,11 +17,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as itemsGrille
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.ContentCopy
@@ -60,9 +69,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -124,6 +135,7 @@ fun PanneauFichiers(
     var choisie by remember { mutableStateOf<EntreeFichier?>(null) }   // chemin `path` absolu
     var travail by remember { mutableStateOf<String?>(null) }
     var progres by remember { mutableStateOf<Float?>(null) }
+    var grille by remember { mutableStateOf(modele.depot.reglages.fichiersEnGrille) }
 
     BackHandler(enabled = recherche != null) { recherche = null }
     BackHandler(enabled = recherche == null && dossier != base && Fichiers.sous(dossier, base)) { dossier = Fichiers.parent(dossier) }
@@ -259,6 +271,10 @@ fun PanneauFichiers(
             IconButton(onClick = { recherche = if (recherche == null) "" else null }) {
                 Icon(if (recherche == null) Icons.Filled.Search else Icons.Filled.Close, "Chercher un fichier")
             }
+            IconButton(onClick = { grille = !grille; modele.depot.reglages.fichiersEnGrille = grille }) {
+                Icon(if (grille) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
+                    if (grille) "Afficher en liste" else "Afficher en grille")
+            }
             Box {
                 IconButton(onClick = { menuDossier = true }) { Icon(Icons.Filled.MoreVert, "Actions sur ce dossier") }
                 DropdownMenu(menuDossier, { menuDossier = false }) {
@@ -310,7 +326,20 @@ fun PanneauFichiers(
         } else {
             PullToRefreshBox(isRefreshing = charge && liste != null, onRefresh = { portee.launch { charger() } }, modifier = Modifier.fillMaxSize()) {
                 val l = liste
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                if (grille && l != null && l.entries.isNotEmpty()) LazyVerticalGrid(
+                    GridCells.Adaptive(104.dp), Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    itemsGrille(l.entries, key = { it.path }) { e ->
+                        val abs = Fichiers.joindre(base, e.path)
+                        TuileEntree(e.copy(path = abs),
+                            surToucher = { if (e.dir) dossier = abs else ouvrirFichier(abs) },
+                            surMenu = { choisie = e.copy(path = abs) })
+                    }
+                    if (l.truncated) item(span = { GridItemSpan(maxLineSpan) }) { EtatVide("(dossier trop long : liste coupée)") }
+                } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
                     when {
                         l == null && erreur != null -> item { EtatErreur(erreur!!) { portee.launch { charger() } } }
                         l == null -> item { Chargement() }
@@ -369,6 +398,37 @@ fun PanneauFichiers(
         }
     }
     VueDemandes(demandes)
+}
+
+/** Tuile de l'affichage en grille : grande icône, nom sur deux lignes ; appui long ou « ⋮ » = actions. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun TuileEntree(e: EntreeFichier, surToucher: () -> Unit, surMenu: () -> Unit) {
+    val g = Fichiers.genre(e.name, e.dir)
+    Box(
+        Modifier.fillMaxWidth().heightIn(min = 120.dp)
+            .clip(MaterialTheme.shapes.medium)
+            .combinedClickable(
+                onClickLabel = if (e.dir) "Entrer dans le dossier" else "Ouvrir",
+                onLongClickLabel = "Actions",
+                onLongClick = surMenu,
+                onClick = surToucher,
+            ),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 14.dp, bottom = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(icone(g), null, Modifier.size(48.dp), tint = teinte(g))
+            Text(e.name, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        if (e.mark.isNotEmpty()) Text(e.mark, Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 6.dp),
+            color = couleurMarque(e.mark), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+        IconButton(onClick = surMenu, modifier = Modifier.align(Alignment.TopEnd).size(48.dp)) {
+            Icon(Icons.Filled.MoreVert, "Actions sur ${e.name}", Modifier.size(20.dp))
+        }
+    }
 }
 
 @Composable

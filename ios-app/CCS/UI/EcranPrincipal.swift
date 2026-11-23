@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Onglets de l'appli, comme l'appli Android.
 enum Onglet: String, CaseIterable, Hashable {
-    case accueil, sessions, reseau, fichiers, git, plus
+    case accueil, sessions, reseau, fichiers, plus
 
     var titre: String {
         switch self {
@@ -10,7 +10,6 @@ enum Onglet: String, CaseIterable, Hashable {
         case .sessions: return "Sessions"
         case .reseau: return "Réseau"
         case .fichiers: return "Fichiers"
-        case .git: return "Git"
         case .plus: return "Plus"
         }
     }
@@ -21,7 +20,6 @@ enum Onglet: String, CaseIterable, Hashable {
         case .sessions: return "bubble.left.and.bubble.right"
         case .reseau: return "point.3.connected.trianglepath.dotted"
         case .fichiers: return "folder"
-        case .git: return "arrow.triangle.branch"
         case .plus: return "ellipsis"
         }
     }
@@ -156,7 +154,6 @@ struct EcranPrincipal: View {
         case .sessions: EcranSessions()
         case .reseau: EcranReseau()
         case .fichiers: EcranFichiersOnglet()
-        case .git: EcranGitOnglet()
         case .plus: EcranPlus()
         }
     }

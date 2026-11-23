@@ -30,9 +30,8 @@ object Routes {
     /** Onglet à allumer pour une route (Projet et Chat sont sous Sessions, Analyse sous Accueil). */
     fun onglet(route: String?): String? = when {
         route == null -> null
-        route.startsWith("projet") || route.startsWith("chat") -> Onglet.Sessions.route
+        route.startsWith("projet") || route.startsWith("chat") || route.startsWith("git") -> Onglet.Sessions.route
         route.startsWith("fichier") -> Onglet.Fichiers.route
-        route.startsWith("git") -> Onglet.Git.route
         route == ANALYSE -> Onglet.Accueil.route
         route == REGLAGES || route == JARVIS || route.startsWith("terminal") -> Onglet.Plus.route
         else -> route

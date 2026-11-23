@@ -33,7 +33,7 @@ import uuid as uuidlib
 from pathlib import Path
 
 from .. import chat_engine, chat_options, conversations, chat_protocol as proto, context_alert, limit_events, \
-    limit_resume, markdown_render, message_tags, notify, sessions, settings
+    limit_resume, markdown_render, message_tags, notify, sessions, settings, subagents
 from ..chat_engine import ChatSession
 from . import events, rpc
 from .bridge_data import safe_path
@@ -54,6 +54,7 @@ class _Chat:
         self.conns = set()
         self.auto = context_alert.AutoCompact()
         self.follower = limit_resume.Follower()     # relance après une limite
+        self.agents = subagents.Subagents()         # sous-agents lancés (Jarvis)
 
 
 def transcript_of(cwd, session_id):
@@ -163,6 +164,7 @@ class ChatHub:
             ev = dataclasses.replace(ev, auto_compact=True)     # les appareils ne proposent rien
         if isinstance(ev, proto.TurnResult) and ev.is_limit:
             chat.follower.limit_hit()
+        chat.agents.feed(ev)
         chat.seq += 1
         item = {"seq": chat.seq, "ts": time.time(), "event": events.to_json(ev)}
         chat.buf.append(item)

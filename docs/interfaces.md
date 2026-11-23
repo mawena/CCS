@@ -237,6 +237,13 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `jarvis.open` | `fingerprint` (facultatif), `first` | *interne* (`/api/jarvis/oreille`) : tunnel Ricochet, TLS épinglé, WebSocket vers le cerveau, envoi de `first` → `machine, port, fingerprint_short` ; erreur `introuvable` si Jarvis est injoignable |
 | `jarvis.send` | `text` ou `binary` (base64) | *interne* : message suivant de l'oreille (64 Kio de texte, une trame de son au plus) |
 | `jarvis.close` | — | *interne* : ferme le lien et le tunnel |
+| `jarvis.state` | — | vue de tout le réseau pour Jarvis : `summary, machines, sessions, jobs, errors` (voir `docs/jarvis.md`) |
+| `jarvis.sessions` | `machine?` | sessions de toutes les machines (chats et terminaux), sous-agents compris |
+| `jarvis.subagents` | `session`, `machine?` | sous-agents d'une session dans l'ordre de lancement |
+| `jarvis.stop_subagent` | `session`, `machine?`, `index` \| `tool_id`, `confirme` | arrête un sous-agent ; sans `confirme: true` → `confirm_needed, target, question` |
+| `jarvis.stop_session` | `session`, `machine?`, `confirme` | arrête une session ; même confirmation |
+| `jarvis.start_session` | `project`, `machine?`, `message?`, `options?` | ouvre un chat dans un projet (→ `chat_id, machine`) |
+| `jarvis.local` / `jarvis.projects` | — | *interne* : sessions, projets de cette machine (appelés par le serveur) |
 
 ### 2.2 Événements
 

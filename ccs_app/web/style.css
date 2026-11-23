@@ -354,6 +354,26 @@ a.button.portier[hidden] { display: none; }
 .file-empty.root { display: grid; justify-items: center; gap: 4px; padding: 32px 12px; text-align: center; color: var(--subtle); }
 .file-empty.root p { margin: 0; }
 
+/* grille de tuiles (gestionnaire de fichiers) */
+.tree.file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.file-grid > .file-empty { grid-column: 1 / -1; }
+.file-tile { position: relative; min-width: 0; border-radius: 12px; }
+.file-tile:hover { background: var(--soft); }
+.file-tile.current { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 2px var(--accent); }
+.tile-main { width: 100%; min-height: 112px; display: grid; justify-items: center; align-content: start; gap: 6px;
+  padding: 14px 6px 10px; background: transparent; font-weight: 400; border-radius: 12px; text-align: center; }
+.tile-main:hover { filter: none; }
+.tile-main > .ico { width: 40px; height: 40px; }
+.file-tile.dir .tile-name { font-weight: 600; }
+.tile-name { max-width: 100%; font-size: 0.86em; line-height: 1.3; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.file-tile .mark { position: absolute; top: 6px; left: 6px; }
+.file-tile .tree-more { position: absolute; top: 2px; right: 2px; width: 36px; min-width: 36px; min-height: 36px; }
+@media (hover: hover) {
+  .file-tile .tree-more { opacity: 0; }
+  .file-tile:hover .tree-more, .file-tile .tree-more:focus-visible { opacity: 1; }
+}
+
 /* résultats de recherche */
 .file-results { display: grid; gap: 2px; }
 .tree-row.found { width: 100%; min-height: 48px; }

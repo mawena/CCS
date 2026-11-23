@@ -47,6 +47,8 @@ const ICONS = {
   paste: "M9 3h6v4H9z M9 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3",
   more: "M5 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2z M12 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2z M19 11a1 1 0 1 0 0 2a1 1 0 1 0 0-2z",
   chevron: "M9 6l6 6-6 6",
+  grid: "M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z",
+  list: "M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01",
   back: "M15 5l-7 7 7 7",
   search: "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z M20 20l-4-4",
   home: "M4 11l8-7 8 7 M6 9.5V20h12V9.5",

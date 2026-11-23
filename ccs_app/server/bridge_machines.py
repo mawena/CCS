@@ -238,12 +238,10 @@ class MachinesApi:
             *argv, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE, limit=rpc.MAX_LINE + 1)
 
-    async def attach(self, conn, params):
-        mid = params.get("machine")
-        if not isinstance(mid, str) or not MACHINE_ID.match(mid):
-            raise rpc.RpcError("invalide", "Machine invalide.")
-        if conn in self.links:
-            raise rpc.RpcError("conflit", "Connexion déjà relayée.")
+    async def connect(self, mid, timeout=HELLO_TIMEOUT):
+        """Lien vers le pont CCS de la machine `mid` (ssh, puis `hello`) → (machine, Link,
+        réponse de `hello`). Lève `RpcError` si la machine est inconnue, ce serveur, hors ligne
+        ou injoignable. Sert au relais (`attach`) et à Jarvis (`bridge_pilot`)."""
         machine = next((m for m in await self._machines() if m.id == mid), None)
         if machine is None:
             raise rpc.RpcError("introuvable", f"{mid} : machine inconnue (Ricochet et réseau maillé).")
@@ -261,13 +259,22 @@ class MachinesApi:
         client.attach(proc.stdout, proc.stdin)
         link = Link(mid, proc, client)
         try:
-            remote = await asyncio.wait_for(client.call("hello", protocol=protocol.PROTOCOL),
-                                            HELLO_TIMEOUT)
+            remote = await asyncio.wait_for(client.call("hello", protocol=protocol.PROTOCOL), timeout)
         except (rpc.RpcError, asyncio.TimeoutError, ConnectionError) as e:
             why = await self._why(proc) or (str(e) if isinstance(e, rpc.RpcError) else "délai dépassé")
             await link.close()
             log.warning("relais vers %s refusé : %s", mid, why)
             raise rpc.RpcError("introuvable", f"{mid} injoignable : {why}") from None
+        return machine, link, remote
+
+    async def attach(self, conn, params):
+        mid = params.get("machine")
+        if not isinstance(mid, str) or not MACHINE_ID.match(mid):
+            raise rpc.RpcError("invalide", "Machine invalide.")
+        if conn in self.links:
+            raise rpc.RpcError("conflit", "Connexion déjà relayée.")
+        machine, link, remote = await self.connect(mid)
+        client = link.client
         if conn.closed:
             await link.close()
             raise rpc.RpcError("interne", "Connexion fermée.")

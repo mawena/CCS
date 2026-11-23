@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Forum
@@ -58,7 +57,6 @@ import com.mawena.ccs.ui.fichiers.EcranFichier
 import com.mawena.ccs.ui.fichiers.EcranFichiersOnglet
 import com.mawena.ccs.ui.fichiers.EcranFichiersProjet
 import com.mawena.ccs.ui.git.EcranCommit
-import com.mawena.ccs.ui.git.EcranGitOnglet
 import com.mawena.ccs.ui.git.EcranGitProjet
 
 enum class Onglet(val route: String, val titre: String, val icone: ImageVector) {
@@ -66,7 +64,6 @@ enum class Onglet(val route: String, val titre: String, val icone: ImageVector) 
     Sessions("sessions", "Sessions", Icons.Filled.Forum),
     Reseau("reseau", "Réseau", Icons.Filled.Hub),
     Fichiers("fichiers", "Fichiers", Icons.Filled.Folder),
-    Git("git", "Git", Icons.Filled.AccountTree),
     Plus("plus", "Plus", Icons.Filled.MoreHoriz),
 }
 
@@ -229,7 +226,6 @@ fun EcranPrincipal(modele: ModeleAppli) {
                         client = client,
                     )
                 }
-                composable(Onglet.Git.route) { EcranGitOnglet(modele, ouvrirGit = { nav.navigate(Routes.gitProjet(it)) }) }
                 composable(Routes.GIT_PROJET, arguments = listOf(argument("cwd"))) { e ->
                     val cwd = e.arguments?.getString("cwd").orEmpty()
                     EcranGitProjet(modele, cwd, retour = { nav.popBackStack() }, ouvrirCommit = { nav.navigate(Routes.commit(cwd, it)) })
