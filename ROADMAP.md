@@ -661,7 +661,7 @@ domaine en anglais : `network.mawena.cloud`, noms des machines en `<machine>.mes
   - [x] iPhone (1.5.0)
   - [x] Web : l'ajout d'appareil ne revient plus sur « PC Linux » au rafraîchissement (1.5.1)
 - [ ] 4. Fusion de Ricochet dans le dépôt CCS (crates Rust, paquets) ; `ccs distant`, root et travaux passent par les IP du réseau maillé
-- [ ] 5. Pixel inscrit le 23/11 (`pixel-4-xl`, 100.64.0.3, appli Tailscale par adb) : pc-bureau ↔ Pixel passe par le LAN (10.228.2.44, 18 ms) ; VPS ↔ Pixel par relais DERP. Reste l'iPhone. (Le Pixel est sur le même réseau local que pc-bureau : leur liaison doit passer par le LAN, à vérifier avec `ccs reseau etat`.) Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
+- [ ] 5. Pixel inscrit le 23/11 (`pixel-4-xl`, 100.64.0.3, appli Tailscale par adb) : pc-bureau ↔ Pixel passe par le LAN (10.228.2.44, 18 ms) ; VPS ↔ Pixel par relais DERP. iPhone inscrit le 23/11 (`iphone`, 100.64.0.4). Reste le retrait de l'ancien transport du relais. (Le Pixel est sur le même réseau local que pc-bureau : leur liaison doit passer par le LAN, à vérifier avec `ccs reseau etat`.) Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
 - [ ] 6. Tests, README, CHANGELOG, releases
 - [x] 7. Root : mot de passe gardé pour toujours, chiffré (AES-256-GCM, `root_vault`), revérifié après redémarrage ; web sans compte à rebours (1.3.0)
 - [x] 8. Root « pour toujours » : plus de bandeau rouge nulle part (Charles, 23/11) ; `root.status` rend `kept: false, stored: true`, donc rien à reconstruire dans les applis (1.3.1)
