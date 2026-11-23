@@ -37,7 +37,13 @@ class PrefsAppli(private val prefs: Preferences) {
         get() = prefs.lire(PERMISSION) == "1"
         set(v) = prefs.ecrire(PERMISSION, if (v) "1" else null)
 
+    /** Onglet Fichiers affiché en grille plutôt qu'en liste (la liste reste le défaut). */
+    var fichiersEnGrille: Boolean
+        get() = prefs.lire(GRILLE) == "1"
+        set(v) = prefs.ecrire(GRILLE, if (v) "1" else null)
+
     companion object {
+        private const val GRILLE = "fichiers-grille"
         private const val THEME = "theme"
         private const val NOTIFS = "notifications"
         private const val PERMISSION = "notifications-demandees"
