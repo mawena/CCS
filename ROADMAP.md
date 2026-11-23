@@ -662,7 +662,7 @@ accéder à tous les dossiers de tous les appareils du réseau maillé.
 - [x] 1. Skills UI/UX installés pour Claude Code
 - [x] 2. Fichiers : choix de l'appareil (serveur CCS, PC du réseau maillé), navigation par SSH sur le réseau maillé, Ricochet en secours (1.7.0, web, Android, iPhone)
 - [x] 3. Refonte UX de l'onglet (web, puis Android et iPhone)
-- [ ] 4. Appareils sans client (PS5, imprimante…) : routeur de sous-réseau sur un PC du LAN (`--advertise-routes`), activé dans Headscale
+- [x] 4. Appareils sans client (PS5, imprimante…) : routeur de sous-réseau sur un PC du LAN (`--advertise-routes`), activé dans Headscale — laptop-maison annonce 192.168.0.0/24 (route validée le 23/11), le VPS l'accepte (`tailscale set --accept-routes`)
 
 ## Phase 38 — Réseau maillé de tous les appareils (network.mawena.cloud)
 
@@ -674,7 +674,7 @@ tout seul : LAN, puis direct par internet (percement de NAT), puis relais DERP d
 domaine en anglais : `network.mawena.cloud`, noms des machines en `<machine>.mesh.mawena.cloud`.
 
 - [x] 1. VPS : Headscale 0.29.7 (`network.mawena.cloud` derrière nginx, DERP intégré, STUN UDP 3478), VPS inscrit (100.64.0.1)
-- [ ] 1b. Inscrire pc-bureau et laptop-maison (`ccs reseau cle --nom <machine>`, puis les deux lignes en root) — pc-bureau inscrit (`lp-work`, 100.64.0.2) ; reste laptop-maison
+- [x] 1b. Inscrire pc-bureau et laptop-maison (`ccs reseau cle --nom <machine>`, puis les deux lignes en root) — pc-bureau (`lp-work`, 100.64.0.2), laptop-maison (100.64.0.5, 23/11)
 - [x] 2. CCS : `ccs reseau` (fait en 1.3.0 : état, machines, chemin LAN/direct/relais, clé d'inscription jetable) ; le lien « Ajouter un PC » installe aussi tailscale et inscrit la machine (1.6.0)
 - [x] 3. Onglet « Réseau » à droite de Sessions (Charles, 23/11 : jolie DA, icônes ; web d'abord, installé, puis Android, puis iPhone)
   - [x] Web : carte du réseau, fiches (adresses publiées, trafic, ping réel, renommer, retirer), ajout PC / Android / iPhone (1.4.0)
