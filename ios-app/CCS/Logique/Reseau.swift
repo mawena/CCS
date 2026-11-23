@@ -27,7 +27,7 @@ enum Reseau {
             case .relais: return "Relais du VPS"
             case .veille: return "En veille"
             case .horsLigne: return "Hors ligne"
-            case .ricochet: return "Relais Ricochet (secours)"
+            case .ricochet: return "Par Ricochet"
             }
         }
 
