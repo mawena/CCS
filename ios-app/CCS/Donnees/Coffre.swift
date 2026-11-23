@@ -37,10 +37,23 @@ struct Identifiants: Codable, Equatable {
 
 /// Identifiants gardés dans le trousseau d'iOS (élément « mot de passe générique »). Illisibles = absents.
 enum Coffre {
-    private static let service = "com.mawena.ccs"
-    private static let compte = "identifiants"
+    static func lire() -> Identifiants? { return Trousseau.lire("identifiants") }
 
-    private static func requete() -> [String: Any] {
+    static func ecrire(_ identifiants: Identifiants?) { Trousseau.ecrire("identifiants", identifiants) }
+}
+
+/// Appairage de l'oreille de Jarvis (identifiant d'oreille, jeton, empreinte du cerveau), à part.
+enum CoffreJarvis {
+    static func lire() -> AppairageJarvis? { return Trousseau.lire("jarvis") }
+
+    static func ecrire(_ appairage: AppairageJarvis?) { Trousseau.ecrire("jarvis", appairage) }
+}
+
+/// Valeurs JSON dans le trousseau, une par compte, propres à ce téléphone (non synchronisées).
+enum Trousseau {
+    private static let service = "com.mawena.ccs"
+
+    private static func requete(_ compte: String) -> [String: Any] {
         return [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -48,20 +61,20 @@ enum Coffre {
         ]
     }
 
-    static func lire() -> Identifiants? {
-        var q = requete()
+    static func lire<T: Decodable>(_ compte: String) -> T? {
+        var q = requete(compte)
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
         var resultat: CFTypeRef?
         let statut = SecItemCopyMatching(q as CFDictionary, &resultat)
         guard statut == errSecSuccess, let donnees = resultat as? Data else { return nil }
-        return try? JSONDecoder().decode(Identifiants.self, from: donnees)
+        return try? JSONDecoder().decode(T.self, from: donnees)
     }
 
-    static func ecrire(_ identifiants: Identifiants?) {
-        SecItemDelete(requete() as CFDictionary)
-        guard let i = identifiants, let donnees = try? JSONEncoder().encode(i) else { return }
-        var q = requete()
+    static func ecrire<T: Encodable>(_ compte: String, _ valeur: T?) {
+        SecItemDelete(requete(compte) as CFDictionary)
+        guard let v = valeur, let donnees = try? JSONEncoder().encode(v) else { return }
+        var q = requete(compte)
         q[kSecValueData as String] = donnees
         q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(q as CFDictionary, nil)

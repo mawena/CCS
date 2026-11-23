@@ -351,8 +351,8 @@ Dans la **version web**, le volet Fichiers sert aussi à gérer les fichiers du 
 - **+ Fichier**, **+ Dossier** et **Envoyer** (un ou plusieurs fichiers du téléphone ou du PC)
   agissent à la racine du projet ;
 - le bouton **⋯** d'un fichier propose Télécharger, Renommer et Supprimer ; celui d'un dossier
-  propose d'y créer un fichier ou un dossier, d'y envoyer un fichier, de le renommer ou de le
-  supprimer ;
+  propose d'y créer un fichier ou un dossier, d'y envoyer un fichier, de le télécharger en entier
+  (.zip), de le renommer ou de le supprimer ;
 - chaque fichier de l'arbre, et le fichier ouvert, a son bouton **⤓** pour le télécharger d'un appui ;
 - **Copier** ou **Couper** dans le menu **⋯**, puis **Coller ici** sur le dossier de destination
   (ou le bouton **Coller** en haut) : copie ou déplace un fichier ou un dossier.
@@ -361,6 +361,13 @@ L'onglet **Fichiers** de la barre de navigation est un **gestionnaire de fichier
 ton dossier personnel et les dossiers web du serveur (`/var/www`, `/srv`) avec les mêmes actions,
 sans passer par un projet. Le bouton **Ajouter aux projets** (ou « Ajouter aux projets de CCS »
 dans le menu **⋯** d'un dossier) met un dossier dans la liste des projets de CCS.
+
+**Tous les appareils** : en haut de l'onglet, une puce par appareil — le serveur CCS et chaque PC
+du réseau maillé où CCS est installé (grisé s'il est hors ligne). Choisir un PC ouvre ses dossiers
+par une connexion à part, relayée par le serveur (SSH par le réseau maillé, Ricochet en secours),
+sans changer la machine pilotée. Le dernier appareil choisi est gardé ; adresse
+`#/fichiers/@<machine>/<chemin>`. Les téléphones n'ont pas de CCS : on n'y parcourt pas de
+dossiers. Le trafic est chiffré de bout en bout (WireGuard, puis SSH ou TLS par-dessus).
 
 Un transfert va jusqu'à 200 Mo. Une suppression demande toujours confirmation et elle est
 définitive (pas de corbeille) ; le dossier du projet lui-même ne peut être ni renommé ni
@@ -828,6 +835,36 @@ pont CCS local du PC (celui de l'application de bureau, lancé s'il ne tourne pa
 sont donc les mêmes qu'au bureau. Il faut le PC allumé, CCS installé dessus et le tunnel SSH
 du calcul réparti. Si le PC ne répond pas, un bandeau donne la raison et le web réessaie seul.
 
+### Parler à Jarvis
+
+La page **Jarvis** (🎙) de la version web parle à [Jarvis](https://github.com/mawena/Jarvis),
+l'assistant vocal de la maison, d'où qu'on soit : le pont du serveur ouvre le tunnel Ricochet
+vers la machine du cerveau (`laptop-maison`, port 7341 par défaut) et relaie le son.
+
+1. Sur la machine de Jarvis : le port 7341 autorisé dans le `[tunnel]` de l'agent Ricochet,
+   puis `jarvis pair`.
+2. Dans la page Jarvis : colle l'adresse `jarvis://pair?…` affichée (ou le code et l'empreinte),
+   puis **Appairer**. Le jeton reste dans ce navigateur ; l'empreinte est gardée sur le serveur.
+3. **Parler à Jarvis** : maintiens le bouton pendant que tu parles, ou touche-le une fois
+   (l'écoute s'arrête quand tu te tais). La réponse s'affiche et la voix de Jarvis est jouée.
+
+Machine et port du cerveau : « Où est le cerveau de Jarvis ? » en bas de la page (réglages
+`jarvis.machine` et `jarvis.port`). Retirer un appareil : `jarvis unpair <nom>` sur la machine
+de Jarvis.
+
+Dans les applis **Android** et **iPhone** : Plus → **Parler à Jarvis** (même bouton, même
+relais, jeton de l'appli). L'appareil photo du téléphone ouvre directement CCS sur le QR code de
+`jarvis pair` (lien `jarvis://pair?…`) ; un raccourci « Parler à Jarvis » (raccourci d'appli
+Android, App Intent sur iPhone) ouvre l'écran déjà en écoute.
+
+Pour une autre oreille : WebSocket `wss://<serveur>/api/jarvis/oreille?fp=<empreinte>`
+avec la session CCS ou `Authorization: Bearer <jeton d'application>`. Le premier message
+(`pair` ou `hello` du protocole des oreilles de Jarvis) doit partir dès l'ouverture ; tout est
+ensuite relayé tel quel dans les deux sens (texte JSON, trames de son binaires `0x01` + phrase
+u32 + PCM 16 kHz i16, 16 000 échantillons au plus par trame). Une oreille « bouton » envoie
+`wake` avec `score: 2.0`, `level_db: 0`, `muted: false`, le son, puis `listen_end`. Jarvis
+injoignable : message `{"type": "relay_error", "message": …}` puis fermeture 4011.
+
 ### Limites à connaître
 
 - Retirer un serveur dans le bureau **ne révoque pas** son jeton sur le serveur : fais-le dans la version web, Réglages → Appareils.
@@ -924,13 +961,15 @@ ccs distant arreter <id>                          # arrêt (la commande distante
 Le registre des travaux est dans `~/.cache/ccs/machines/jobs/` (les 30 derniers finis et ceux
 de moins de 24 h sont gardés).
 
-**Page « Machines ».** Dans le web (Réglages → « Gérer les machines », ou la feuille « Machine
-pilotée ») et dans l'appli du PC (Réglages → Machines) : machines en ligne, charge, mémoire,
-outils, places et limite ; travaux avec « Journal » et « Arrêter » ; lancer une commande (dossier,
-machine, maintenant / cette nuit / à une heure) ; adresse et jeton du relais (le jeton n'est
-jamais réaffiché). La page se recharge toutes les 5 s tant qu'elle est visible.
+**Calcul dans l'onglet « Réseau ».** Dans le web et les applis (l'ancienne page « Machines » y est
+fondue ; `#/machines` y mène) : chaque fiche d'appareil montre sa charge, sa mémoire, ses outils,
+ses places et sa limite ; sous les appareils, les travaux avec « Journal » et « Arrêter », le
+formulaire pour lancer une commande (dossier, machine, maintenant / cette nuit / à une heure) et,
+replié, « Secours Ricochet » (adresse et jeton du relais, le jeton n'est jamais réaffiché). Le
+calcul se recharge toutes les 5 s tant que la page est visible. Dans l'appli du PC : Réglages →
+Machines.
 
-**Ajouter un PC au réseau** (le plus simple) : page Machines → « Ajouter un PC » (identifiant,
+**Ajouter un PC au réseau** (le plus simple) : onglet Réseau → Ajouter un appareil → « PC Linux » (identifiant,
 ton compte sur ce PC), ou
 
 ```sh

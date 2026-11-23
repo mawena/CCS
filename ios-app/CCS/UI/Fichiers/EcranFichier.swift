@@ -10,6 +10,7 @@ import UIKit
 struct EcranFichier: View {
     @Environment(ModeleAppli.self) private var modele
     @Environment(\.dismiss) private var fermer
+    @Environment(\.appareilFichiers) private var appareilFichiers
     let chemin: String
     let ligne: Int?
 
@@ -28,7 +29,8 @@ struct EcranFichier: View {
     @State private var local: FichierLocal? = nil
     @State private var abandon = false
 
-    private var client: CcsClient { return modele.client }
+    /// Connexion de l'appareil ouvert dans l'onglet Fichiers, sinon celle de la machine pilotée.
+    private var client: CcsClient { return modele.fichiers.clientPour(appareilFichiers) }
     private var nom: String { return Fichiers.nom(chemin) }
     private var modifie: Bool { return edition && champ != original }
     private var estTexte: Bool { return lu?.kind == "text" }

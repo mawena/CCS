@@ -40,9 +40,23 @@ Sessions, Fichiers, Git, Plus), notifications, partage vers CCS, raccourcis d'ap
   liens réduits à leur texte), « Arrêter » sous la réponse lue ; réglage **Lire les réponses à
   voix haute** (Réglages > Vocal, désactivé par défaut) : chaque réponse terminée du chat affiché
   est lue.
+- **Parler à Jarvis** (Plus > Parler à Jarvis, raccourci d'appli « Jarvis », lien `ccs://jarvis`) :
+  l'assistant vocal de la maison, par le relais du serveur CCS (`/api/jarvis/oreille`, même jeton
+  que l'appli). Appairage une fois : scanner le QR code de `jarvis pair` avec l'appareil photo
+  (lien `jarvis://pair?…`, qui ouvre CCS), coller l'adresse, ou saisir code et empreinte ; jeton
+  et identifiant d'oreille chiffrés par le Keystore. Puis un bouton : maintenir pour parler (fin
+  au relâché), ou toucher une fois (fin au silence) ; micro `AudioRecord` (permission
+  `RECORD_AUDIO` demandée au premier appui) rééchantillonné en 16 kHz, texte et voix de la
+  réponse (`AudioTrack`), écoute relancée seule si Jarvis pose une question. Le raccourci ouvre
+  l'écran déjà en écoute.
 
-- **Fichiers** (comme `web/files*.js`) : onglet Fichiers sur les dossiers permis du serveur
-  (Personnel, /var/www, /srv), onglet Fichiers de l'écran Projet et bouton Fichiers du chat. Un
+- **Fichiers** (comme `web/files*.js`) : onglet Fichiers sur les dossiers permis (Personnel,
+  /var/www, /srv) du serveur et de chaque PC du réseau maillé. En haut, une puce par appareil
+  (« Serveur CCS », puis les machines de `machines.list`, défilables) ; un PC hors ligne ou sans
+  réseau maillé ni tunnel est grisé avec la raison. Choisir un PC ouvre une connexion à part
+  (`/api/ws?machine=<id>`) sans changer la machine pilotée ; elle est fermée en quittant l'onglet,
+  le dernier appareil choisi est gardé, et « <nom> injoignable : … » s'affiche avec Réessayer.
+  Aussi : onglet Fichiers de l'écran Projet et bouton Fichiers du chat. Un
   dossier à la fois (fil d'Ariane, retour : dossier parent), marques git, recherche par nom ;
   nouveau fichier ou dossier, envoi depuis le sélecteur d'Android (par morceaux de 1 Mo, 200 Mo au
   plus, « Remplacer ? » si le nom existe), télécharger vers Téléchargements, partager (feuille de
@@ -138,9 +152,19 @@ client se reconnecte seul (1 s, 2 s… 30 s ; tout de suite quand le réseau rev
 
 L'adresse du serveur se change sur l'écran de connexion (**Changer**).
 
+**Onglet Réseau** : tout ce qui touche aux machines y est réuni (plus d'écran Machines à part).
+Une fiche par appareil du réseau maillé ; celle d'une machine de calcul (`machines.list`) montre
+aussi sa charge, sa mémoire, ses outils, ses places et sa limite de travaux, avec le bouton
+**Piloter**. Rattachement : la fiche du serveur ↔ la machine locale ; sinon l'adresse `mesh_ip`
+parmi les IP de l'appareil, ou `mesh`, `id` ou `host` égal au nom ou à l'hôte de l'appareil. Les
+machines joignables seulement par Ricochet ont leur fiche « Par Ricochet ». Suivent les
+**Travaux**, **Lancer une commande**, l'ajout d'un appareil (PC Linux par `machines.add` quand le
+relais et ses jetons sont réglés, sinon par la clé du réseau maillé) et, replié, le **Secours
+Ricochet** (réglages du relais).
+
 **Machine pilotée** : comme le web, l'appli peut piloter une autre machine (le PC, joint par le
-tunnel Ricochet) au lieu du serveur : puce en haut de **Sessions** ou **Plus → Machine pilotée**
-(cachées s'il n'y a pas d'autre machine). Le WebSocket passe alors par `/api/ws?protocol=1&machine=<id>` ; un
+réseau maillé ou le tunnel Ricochet) au lieu du serveur : bouton **Piloter** de sa fiche, dans
+l'onglet **Réseau**. Le WebSocket passe alors par `/api/ws?protocol=1&machine=<id>` ; un
 bandeau d'accent rappelle la machine pilotée ; si elle est injoignable (fermeture 4010), l'appli
 retente comme après une coupure. Les notifications suivent la machine choisie.
 
@@ -195,6 +219,8 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
     états des chats, dossiers proposés par « Nouvelle session »).
   - `donnees/Recents.kt` : derniers dossiers ouverts.
   - `reseau/ModelesFichiers.kt` : réponses de `files.*`, `work.files` et `git.*`.
+  - `logique/Appareils.kt` (appareils de l'onglet Fichiers, joignables ou non) et
+    `reseau/ConnexionFichiers.kt` (seconde connexion fixée sur un appareil).
   - `logique/Fichiers.kt` (chemins, fil d'Ariane, familles, tailles, morceaux), `LiensFichiers.kt`
     (chemins cités dans le chat), `Git.kt` (groupes de fichiers, suivi, diffs en lignes, refs).
   - `ui/Demandes.kt` : confirmations et saisies de nom attendues par une coroutine.
@@ -225,6 +251,10 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
     `Outils.kt`, `Envoi.kt` (commandes `/` et `!`, recherche, étiquettes, alerte de contexte).
   - `ui/` : thème CCS, navigation (`Destinations.kt`), composants communs (`Commun.kt`), écrans
     (connexion, Portier, accueil, bilan, analyse, sessions, projet, plus).
+  - `logique/Jarvis.kt` : oreille de Jarvis sans Android (adresse d'appairage, messages du
+    protocole des oreilles, trames de son, rééchantillonnage, phrase en cours) ; `jarvis/` :
+    `LienJarvis.kt` (WebSocket du relais), `OreilleJarvis.kt` (micro, lien, voix) ;
+    `ui/jarvis/EcranJarvis.kt` (appairage, bouton).
   - `ui/chat/` : `ModeleChat.kt` (ViewModel : RPC et événements du chat), `EcranChat.kt`,
     `ElementsChat.kt`, `MarkdownVue.kt`, `Saisie.kt` (saisie, options, images), `Feuilles.kt`.
 - `app/src/main/res/` : icône adaptative (motif dans la zone sûre, fond uni, version monochrome),
@@ -234,7 +264,7 @@ adb -s 10.228.2.44:5555 install -r app-release.apk
   coloration, diff, citation, envoi, chemins et liens de fichiers, réponses de `files.*` et `git.*`,
   feuille de route, tâches, diff unifié, réglages, touches, émulateur du terminal sur la JVM,
   `/api/apptoken`, `/api/tokens` et `/api/revoke` contre un faux serveur, décision des
-  notifications et rappel, analyse du partage, barre des sous-agents).
+  notifications et rappel, analyse du partage, barre des sous-agents, oreille de Jarvis).
 
 ## Licence
 

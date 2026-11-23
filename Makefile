@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: test unit e2e deb apt clean
+.PHONY: test unit e2e deb clean
 
 test: unit e2e
 
@@ -18,10 +18,6 @@ e2e:
 
 deb:
 	bash scripts/build-deb.sh
-
-# Publie dist/*.deb dans le dépôt APT signé (branche gh-pages)
-apt:
-	scripts/publier-apt.sh dist/*.deb
 
 clean:
 	rm -rf dist build debian/ccs debian/.debhelper debian/files debian/*.substvars debian/*.debhelper debian/debhelper-build-stamp

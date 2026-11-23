@@ -66,7 +66,7 @@ enum Destination: Hashable {
     case reglages
     case terminaux
     case terminal(String)
-    case machines
+    case jarvis
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
@@ -88,6 +88,8 @@ struct EcranPrincipal: View {
                             .navigationDestination(for: Destination.self) { d in destination(d) }
                     }
                     .environment(\.naviguer, Naviguer { d in ajouter(d, dans: o) })
+                    // l'onglet Fichiers (et les fichiers qu'il ouvre) lit l'appareil choisi
+                    .environment(\.appareilFichiers, o == .fichiers ? modele.fichiers.appareil : nil)
                     .tabItem { Label(o.titre, systemImage: o.icone) }
                     .tag(o)
                 }
@@ -110,11 +112,21 @@ struct EcranPrincipal: View {
             piles = [:]
             onglet = .sessions
         }
+        // connexion de l'appareil des Fichiers : fermée en quittant l'onglet, rouverte en y revenant
+        .onChange(of: onglet) { avant, apres in
+            if apres == .fichiers { modele.fichiers.ouvrir() } else if avant == .fichiers { modele.fichiers.fermer() }
+        }
         .task(id: modele.client.etat.estConnecte) {
             guard modele.client.etat.estConnecte else { return }
             // connexion et reconnexion : demande root en attente, mot de passe gardé
             await modele.root.lireEtat()
             await modele.rafraichirMachines()
+        }
+        // raccourci « Parler à Jarvis », ccs://jarvis, QR code d'appairage : Plus → Jarvis
+        .onChange(of: DemandeJarvis.partage.compteur, initial: true) { _, _ in
+            guard DemandeJarvis.partage.prendreOuverture() else { return }
+            onglet = .plus
+            if piles[.plus]?.last != .jarvis { piles[.plus] = [.jarvis] }
         }
         .onChange(of: modele.aOuvrir) { _, d in
             guard let d = d else { return }
@@ -162,7 +174,7 @@ struct EcranPrincipal: View {
         case .reglages: EcranReglages()
         case .terminaux: EcranTerminaux()
         case .terminal(let id): EcranTerminal(id: id)
-        case .machines: EcranMachines()
+        case .jarvis: EcranJarvis()
         }
     }
 }
@@ -240,14 +252,18 @@ struct EcranPlus: View {
                 }
             }
             Section {
+                NavigationLink(value: Destination.jarvis) {
+                    Label("Parler à Jarvis", systemImage: "waveform")
+                }
+            } footer: {
+                Text("Jarvis, l'assistant vocal de la maison, joint par le serveur CCS et le relais Ricochet. Aussi dans Raccourcis : « Parler à Jarvis ».")
+            }
+            Section {
                 NavigationLink(value: Destination.reglages) {
                     Label("Réglages", systemImage: "gearshape")
                 }
                 NavigationLink(value: Destination.terminaux) {
                     Label("Terminaux", systemImage: "terminal")
-                }
-                NavigationLink(value: Destination.machines) {
-                    Label("Machines et travaux distants", systemImage: "server.rack")
                 }
                 NavigationLink(value: Destination.analyse) {
                     Label("Analyse", systemImage: "chart.bar")
@@ -258,7 +274,7 @@ struct EcranPlus: View {
                     }
                 }
             } footer: {
-                Text("Réglages : notifications, serveur, téléphone (ntfy), appareils. Terminaux : un shell sur la machine pilotée. Machines : travaux lancés sur les autres machines (ccs distant). Analyse : usage par projet, modèle, compte et heure.")
+                Text("Réglages : notifications, serveur, téléphone (ntfy), appareils. Terminaux : un shell sur la machine pilotée. Analyse : usage par projet, modèle, compte et heure.")
             }
             Section("Connexion") {
                 LabeledContent("Serveur", value: modele.adresse.replacingOccurrences(of: "https://", with: ""))

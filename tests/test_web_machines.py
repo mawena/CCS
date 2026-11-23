@@ -42,7 +42,7 @@ def run(body):
         shutil.copy(Path(__file__).with_name("web_dom.mjs"), tmp / "web_dom.mjs")
         (tmp / "package.json").write_text('{"type": "module"}')
         script = tmp / "scenario.mjs"
-        script.write_text(PRELUDE + body + "\nconsole.log(JSON.stringify(out));\n", encoding="utf-8")
+        script.write_text(PRELUDE + body + "\nconsole.log(JSON.stringify(out));\nprocess.exit(0);\n", encoding="utf-8")
         r = subprocess.run([NODE, str(script)], capture_output=True, text=True, timeout=60, cwd=tmp)
         if r.returncode:
             raise AssertionError(r.stderr[-1500:])
@@ -125,12 +125,17 @@ const intervals = [];
 const realSetInterval = globalThis.setInterval;
 globalThis.setInterval = (fn, ms) => { intervals.push({ fn, ms, on: true }); return intervals.length; };
 globalThis.clearInterval = (id) => { if (intervals[id - 1]) intervals[id - 1].on = false; };
-const { mountMachines } = await import("./pages-machines.js");
+const { mountReseau } = await import("./reseau.js");
+const mountMachines = mountReseau;
+const NET = { url: "https://network.mawena.cloud", domain: "mesh.mawena.cloud", installed: true, server: true, state: "Running",
+  self: { name: "mawena-cloud", os: "linux", ips: ["100.64.0.1"], online: true, path: "self", addrs: [] },
+  peers: [{ name: "lp-work", host: "lp-work", os: "linux", ips: ["100.64.0.2"], online: true, path: "lan", addrs: [] }],
+  nodes: [] };
 const MACHINES = { configured: true, message: "", machines: [
   { id: "vps", name: "VPS", online: true, local: true, cores: 6, load: 1.2, mem_used: 4 * 2 ** 30, mem_total: 11 * 2 ** 30,
     tunnel: true, tools: ["python3"], limit: 2, running: 0, waiting: 0 },
   { id: "pc-bureau", name: "PC du bureau", online: true, local: false, cores: 14, load: 7, mem_used: 2 ** 33, mem_total: 2 ** 35,
-    tunnel: true, tools: ["flutter", "gradle"], limit: 2, running: 1, waiting: 1 },
+    tunnel: true, tools: ["flutter", "gradle"], limit: 2, running: 1, waiting: 1, mesh: "", mesh_ip: "100.64.0.2", host: "pc-bureau" },
   { id: "portable", name: "Portable", online: false, local: false, cores: 0, load: 0, mem_used: 0, mem_total: 0,
     tunnel: true, tools: [], limit: 3, running: 0, waiting: 0 }] };
 const now = Date.now() / 1000;
@@ -147,6 +152,7 @@ function fakeApi(machine = "") {
   const calls = [];
   return { machine, calls, on: () => () => {}, async call(m, p = {}) {
     calls.push([m, p]);
+    if (m === "network.status") return NET;
     if (m === "machines.list") return MACHINES;
     if (m === "machines.jobs") return JOBS;
     if (m === "machines.settings") return SETTINGS;
@@ -172,7 +178,7 @@ class MachinesPageWebTest(unittest.TestCase):
 const api = fakeApi();
 const stop = mountMachines(root, api);
 await settle();
-out = { cards: text(".machine-card"), jobs: text(".job"), h3: text("h3"), note: text(".machines-note"),
+out = { cards: text(".net-card"), blocks: root.querySelectorAll(".net-compute").length, jobs: text(".job"), h3: text(".stack h3"), note: text(".machines-note"),
         stops: root.querySelectorAll(".job").map((j) => Boolean(button("Arrêter", j))),
         targets: root.querySelectorAll('select[aria-label="Machine"] option').map((o) => o.textContent),
         intervals: intervals.map((i) => i.ms) };
@@ -185,13 +191,15 @@ out.visibleCalls = api.calls.map((c) => c[0]);
 stop();
 out.stopped = !intervals[0].on;
 """)
-        self.assertEqual(len(out["cards"]), 3)
-        self.assertIn("ce serveur", out["cards"][0])
+        self.assertEqual(len(out["cards"]), 3)               # serveur, lp-work (= pc-bureau), portable (Ricochet seul)
+        self.assertEqual(out["blocks"], 3)
+        self.assertIn("Serveur CCS", out["cards"][0])
+        self.assertIn("PC du bureau", out["cards"][1])          # rattaché par son adresse du réseau maillé
         self.assertIn("0,50/cœur", out["cards"][1])             # 7 sur 14 cœurs
         self.assertIn("8,0/32 Go", out["cards"][1])
         self.assertIn("flutter", out["cards"][1])
         self.assertIn("Places : 1/2 · 1 en attente", out["cards"][1])
-        self.assertIn("hors ligne", out["cards"][2])
+        self.assertIn("Hors ligne", out["cards"][2])
         self.assertIn("outils pas encore inventoriés", out["cards"][2])
         self.assertEqual(out["h3"], ["En cours et à venir (2)", "Finis (1)"])
         self.assertIn("1 min 15 s", out["jobs"][0])
@@ -215,7 +223,7 @@ out = { note: text(".machines-note"), folder: root.querySelector('input[aria-lab
         methods: [...new Set(api.calls.map((c) => c[0]))] };
 """)
         self.assertEqual(len(out["note"]), 1)
-        self.assertIn("Machines vues depuis ce serveur", out["note"][0])
+        self.assertIn("vus depuis le serveur CCS", out["note"][0])
         self.assertEqual(out["folder"], "/home/u")              # tiré du chemin du relais, pas de files.roots
         self.assertNotIn("files.roots", out["methods"])         # relayé à la machine pilotée : pas utilisé
         self.assertNotIn("projects.list", out["methods"])
@@ -292,7 +300,7 @@ localStorage.setItem("ccs.project.last", JSON.stringify({ machine: "pc-bureau", 
 const api = fakeApi();
 mountMachines(root, api);
 await settle();
-const sel = root.querySelectorAll(".machine-card")[1].querySelector("select");
+const sel = root.querySelectorAll(".net-compute")[1].querySelector("select");
 out = { folder: root.querySelector('[aria-label="Dossier"]').value, limit: sel.value };
 sel.value = "3"; sel.dispatchEvent(new Event("change")); await settle();
 out.calls = api.calls.filter((c) => c[0] === "machines.limit").map((c) => c[1]);
@@ -325,9 +333,9 @@ out.after = root.querySelector('input[type="password"]').value;
         out = run(PAGE + r"""
 mountMachines(root, fakeApi());
 await settle();
-out = root.querySelectorAll("section").find((n) => n.getAttribute("aria-label") === "Ajouter un PC").textContent;
+out = root.querySelectorAll("section").find((n) => n.getAttribute("aria-label") === "Ajouter un appareil").textContent;
 """)
-        self.assertIn("jeton_operateur", out)
+        self.assertIn("Créer la ligne d'inscription", out)    # sans jeton opérateur : clé du réseau maillé
 
     def test_add_a_pc_gives_the_command(self):
         out = run(PAGE + r"""
@@ -335,7 +343,7 @@ SETTINGS.operator_set = true;
 const api = fakeApi();
 mountMachines(root, api);
 await settle();
-const box = root.querySelectorAll("section").find((n) => n.getAttribute("aria-label") === "Ajouter un PC");
+const box = root.querySelectorAll("section").find((n) => n.getAttribute("aria-label") === "Ajouter un appareil");
 const inputs = box.querySelectorAll("input");
 inputs[0].value = "pc-salon"; inputs[1].value = "charles";
 button("Créer le lien", box).click(); await settle();
@@ -346,17 +354,13 @@ out = { calls: api.calls.filter((c) => c[0] === "machines.add").map((c) => c[1])
         self.assertEqual(out["pre"], "curl -fsSL https://r/rejoindre/x | sudo sh")
         self.assertEqual(out["id"], "")
 
-    def test_page_is_reachable_but_not_in_the_nav(self):
+    def test_old_page_now_lives_in_the_network_tab(self):
         views = (WEB / "views.js").read_text(encoding="utf-8")
-        self.assertIn('machines: { title: "Machines"', views)
-        self.assertIn("hidden: true", views)
-        self.assertIn("if (v.hidden) continue;", (WEB / "app.js").read_text(encoding="utf-8"))
-        for name in ("settings.js", "machines.js"):
-            text = (WEB / name).read_text(encoding="utf-8")
-            self.assertIn('"#/machines"', text, name)
-            self.assertIn("Gérer les machines", text, name)
+        self.assertNotIn("machines:", views)
+        self.assertIn('if (name === "machines") name = "reseau";', (WEB / "app.js").read_text(encoding="utf-8"))
+        self.assertIn('"#/reseau"', (WEB / "machines.js").read_text(encoding="utf-8"))
+        self.assertNotIn("#/machines", (WEB / "settings.js").read_text(encoding="utf-8"))
         self.assertIn("rememberProject(api, cwd)", (WEB / "sessions.js").read_text(encoding="utf-8"))
-
 
 if __name__ == "__main__":
     unittest.main()

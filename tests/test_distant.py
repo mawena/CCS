@@ -155,6 +155,32 @@ class TestMesh(DistantCase):
         self.assertEqual(distant.mesh_address(portable, {}, {"portable": "100.64.0.9"}), "100.64.0.9")
 
 
+    def test_list_merges_relay_and_mesh(self):
+        over = {"pc-bureau": {"reseau": "lp-work"}, "laptop-maison": {"reseau": "lp-home"},
+                "vieux": {"reseau": "vieux-pc"}}
+        peers = {"lp-home": "100.64.0.5", "vieux-pc": "100.64.0.7"}
+        ms = {m.id: m for m in distant.list_machines(opener=opener(), peers=peers, overrides=over)}
+        self.assertTrue(ms["vieux"].online)               # déconnecté de Ricochet, vu par le maillé
+        self.assertTrue(ms["laptop-maison"].online)       # inconnu de Ricochet, ajouté
+        self.assertEqual(ms["laptop-maison"].host, "lp-home")
+        self.assertTrue(ms["pc-bureau"].online)
+
+    def test_list_without_relay(self):
+        def down(req, timeout=0):
+            raise OSError("relais éteint")
+        over = {"laptop-maison": {"reseau": "lp-home"}}
+        ms = distant.list_machines(opener=down, peers={"lp-home": "100.64.0.5"}, overrides=over)
+        self.assertEqual([(m.id, m.online) for m in ms], [("laptop-maison", True)])
+        with self.assertRaises(distant.DistantError):
+            distant.list_machines(opener=down, peers={}, overrides={})
+        (self.home / ".config/ricochet/client.toml").unlink()
+        self.assertFalse(distant.configured())
+        ms = distant.list_machines(peers={}, overrides=over)
+        self.assertEqual([(m.id, m.online) for m in ms], [("laptop-maison", False)])
+        write(self.home / ".config/ccs/machines.toml", '[machines.laptop-maison]\nreseau = "lp-home"\n')
+        self.assertTrue(distant.available())
+
+
 class TestChoice(DistantCase):
     def test_inventory_is_parsed_and_cached(self):
         run = FakeRun()

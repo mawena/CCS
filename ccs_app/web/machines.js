@@ -57,7 +57,7 @@ export function machineSheet(api, onPick) {
   list.append(item("", "Ce serveur", "le VPS, toujours là", true));
   dlg.append(el("h2", {}, "Machine pilotée"), list, note,
     el("div", { class: "sheet-actions" },
-      el("button", { type: "button", class: "manage-machines", onclick: () => { close(); location.hash = "#/machines"; } }, "Gérer les machines"),
+      el("button", { type: "button", class: "manage-machines", onclick: () => { close(); location.hash = "#/reseau"; } }, "Gérer les machines"),
       el("button", { type: "button", onclick: close }, "Fermer")));
   dlg.addEventListener("cancel", (e) => { e.preventDefault(); close(); });
   document.body.append(dlg);

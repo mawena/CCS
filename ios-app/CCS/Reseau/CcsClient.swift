@@ -44,7 +44,11 @@ final class CcsClient {
      * Machine pilotée (vide : ce serveur), gardée dans les préférences ; la connexion passe alors
      * par le pont du serveur jusqu'à celui de l'autre machine (`?machine=<id>`), comme le web.
      */
-    private(set) var machine: String = Prefs.lire(CcsClient.cleMachine) ?? ""
+    private(set) var machine: String
+
+    /// Connexion fixée sur une machine (onglet Fichiers d'un autre appareil) : la machine pilotée
+    /// gardée dans les préférences n'est ni lue ni modifiée.
+    let fixe: Bool
 
     /// Nom affiché de la machine pilotée : « Ce serveur », ou son nom gardé au choix.
     var nomMachine: String {
@@ -92,7 +96,10 @@ final class CcsClient {
     private let delegue: DelegueWebSocket
     private let session: URLSession
 
-    init(delaiAppel: Double = 30, attenteMin: Double = 1, attenteMax: Double = 30) {
+    /// `machineFixe` : connexion fixée sur cette machine (vide : le serveur), sans toucher à la machine pilotée.
+    init(delaiAppel: Double = 30, attenteMin: Double = 1, attenteMax: Double = 30, machineFixe: String? = nil) {
+        self.machine = machineFixe ?? (Prefs.lire(CcsClient.cleMachine) ?? "")
+        self.fixe = machineFixe != nil
         self.delaiAppel = delaiAppel
         self.attenteMin = attenteMin
         self.attenteMax = attenteMax
@@ -132,9 +139,9 @@ final class CcsClient {
      * l'ancienne : ils sont rejetés (`hors_ligne`) et la connexion repart tout de suite.
      */
     func changerMachine(_ id: String, nom: String = "") {
-        Prefs.ecrire(CcsClient.cleNomMachine, id.isEmpty || nom.isEmpty ? nil : nom)
+        if !fixe { Prefs.ecrire(CcsClient.cleNomMachine, id.isEmpty || nom.isEmpty ? nil : nom) }
         if id == machine { return }
-        Prefs.ecrire(CcsClient.cleMachine, id.isEmpty ? nil : id)
+        if !fixe { Prefs.ecrire(CcsClient.cleMachine, id.isEmpty ? nil : id) }
         machine = id
         // arrêté ou refusé : le choix sert à la prochaine connexion
         guard identifiants != nil else { return }
@@ -332,7 +339,7 @@ final class CcsClient {
             // la cause exacte (fermeture, refus) arrive aussi par le délégué ; sinon : connexion perdue
             let code = t.closeCode.rawValue
             if code != 0 && code != URLSessionWebSocketTask.CloseCode.invalid.rawValue {
-                let f = CcsClient.fermeture(code, "")
+                let f = CcsClient.fermeture(code, "", fixe: fixe)
                 fin(t, refus: f.refus, raison: f.raison)
             } else if let statut = (t.response as? HTTPURLResponse)?.statusCode, statut >= 400 {
                 let f = CcsClient.refusHttp(statut)
@@ -403,7 +410,7 @@ final class CcsClient {
     }
 
     fileprivate func ferme(_ t: URLSessionWebSocketTask, code: Int, raison: String) {
-        let f = CcsClient.fermeture(code, raison)
+        let f = CcsClient.fermeture(code, raison, fixe: fixe)
         fin(t, refus: f.refus, raison: f.raison)
     }
 
@@ -440,11 +447,12 @@ final class CcsClient {
         }
     }
 
-    private static func fermeture(_ code: Int, _ raison: String) -> (refus: Bool, raison: String) {
+    private static func fermeture(_ code: Int, _ raison: String, fixe: Bool = false) -> (refus: Bool, raison: String) {
         switch code {
         case fermeParAuth: return (true, "Session terminée.")
         case machineInjoignable:
-            return (false, raison.trimmingCharacters(in: .whitespaces).isEmpty ? "La machine pilotée est injoignable." : raison)
+            let defaut = fixe ? "Machine injoignable." : "La machine pilotée est injoignable."
+            return (false, raison.trimmingCharacters(in: .whitespaces).isEmpty ? defaut : raison)
         case 1011: return (false, "Pont injoignable sur le serveur.")
         case 1012: return (false, "Connexion au pont perdue.")
         default: return (false, raison.trimmingCharacters(in: .whitespaces).isEmpty ? "Connexion fermée." : raison)

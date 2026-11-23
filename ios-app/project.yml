@@ -5,8 +5,8 @@ options:
     iOS: "17.0"
 settings:
   base:
-    MARKETING_VERSION: "1.5.0"
-    CURRENT_PROJECT_VERSION: "40"
+    MARKETING_VERSION: "1.7.0"
+    CURRENT_PROJECT_VERSION: "41"
     SWIFT_VERSION: "5.9"
 packages:
   # émulateur de terminal (VT100/xterm) du terminal intégré
@@ -27,8 +27,8 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         ITSAppUsesNonExemptEncryption: false
-        # dictée dans la saisie du chat (micro + reconnaissance vocale fr-FR)
-        NSMicrophoneUsageDescription: "CCS utilise le micro pour dicter tes messages à Claude."
+        # dictée dans la saisie du chat (micro + reconnaissance vocale fr-FR), bouton « Parler à Jarvis »
+        NSMicrophoneUsageDescription: "CCS utilise le micro pour dicter tes messages à Claude et pour parler à Jarvis."
         NSSpeechRecognitionUsageDescription: "CCS transcrit ta voix en texte dans la saisie du chat ; rien n'est envoyé sans que tu touches « Envoyer »."
         # « Ouvrir dans CCS » depuis la feuille de partage d'iOS (fichiers de tout type)
         LSSupportsOpeningDocumentsInPlace: false
@@ -37,10 +37,11 @@ targets:
             CFBundleTypeRole: Viewer
             LSHandlerRank: Alternate
             LSItemContentTypes: [public.data, public.content, public.item]
-        # ccs://partager?texte=… (raccourci « Partager vers CCS » pour le texte et les liens)
+        # ccs://partager?texte=… (raccourci « Partager vers CCS » pour le texte et les liens),
+        # ccs://jarvis (écran Jarvis en écoute), jarvis://pair?… (QR code de « jarvis pair »)
         CFBundleURLTypes:
           - CFBundleURLName: com.mawena.ccs
-            CFBundleURLSchemes: [ccs]
+            CFBundleURLSchemes: [ccs, jarvis]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mawena.ccs

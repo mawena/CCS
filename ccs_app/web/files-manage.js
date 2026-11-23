@@ -102,11 +102,12 @@ export function kindOf(name, dir = false) {
 }
 
 // Tout le fichier, morceau par morceau ; `progress(reçu, total)` après chaque morceau.
-export async function fetchFile(api, path, progress = null) {
+// `archive` : jeton d'une archive préparée par `files.archive` (au lieu d'un chemin).
+export async function fetchFile(api, path, progress = null, { archive = null } = {}) {
   const parts = [];
   let got = 0;
   for (;;) {
-    const r = await api.call("files.download", { path, offset: got });
+    const r = await api.call("files.download", archive ? { archive, offset: got } : { path, offset: got });
     const bytes = fromBase64(r.data);
     parts.push(bytes);
     got += bytes.length;
@@ -145,6 +146,21 @@ export async function download(api, path) {
   try {
     saveBlob(await fetchFile(api, path), name);
     toast(`« ${name} » téléchargé.`);
+  } catch (e) {
+    toast(e.message, { kind: "error" });
+  } finally {
+    note();
+  }
+}
+
+// Un dossier entier : le pont en fait une archive .zip, téléchargée comme un fichier.
+export async function downloadFolder(api, path) {
+  const name = path.split("/").pop() || "dossier";
+  const note = toast(`Archive de « ${name} » en préparation…`, { timeout: 600000 });
+  try {
+    const a = await api.call("files.archive", { path });
+    saveBlob(await fetchFile(api, null, null, { archive: a.archive }), a.name);
+    toast(`« ${a.name} » téléchargé.`);
   } catch (e) {
     toast(e.message, { kind: "error" });
   } finally {
@@ -296,12 +312,13 @@ export class FileManager {
     const extra = entry.dir && this.extra ? this.extra.actions(entry) : [];
     const actions = entry.dir
       ? [["file", "Nouveau fichier ici"], ["dir", "Nouveau dossier ici"], ["upload", "Envoyer un fichier ici"],
-        ...(clip ? [["paste", `Coller « ${clip.name} » ici`]] : []), ...extra, ...own]
+        ...(clip ? [["paste", `Coller « ${clip.name} » ici`]] : []), ...extra, ["zip", "Télécharger (.zip)"], ...own]
       : [["download", "Télécharger"], ...own];
     const pick = await actionSheet(entry.name, actions);
     if (extra.some(([key]) => key === pick)) return this.extra.run(pick, entry);
     if (pick === "copy" || pick === "move") { this.hold(entry, pick); return { changed: false, clip: true }; }
     if (pick === "paste") { const moved = clip?.mode === "move"; const changed = await this.paste(entry.path); return { changed, inside: true, all: changed && moved }; }
+    if (pick === "zip") { await downloadFolder(this.api, this.abs(entry.path)); return { changed: false }; }
     if (pick === "download") { await download(this.api, this.abs(entry.path)); return { changed: false }; }
     if (pick === "file" || pick === "dir") return { changed: await this.create(entry.path, pick), inside: true };
     if (pick === "upload") return { changed: await this.upload(entry.path), inside: true };

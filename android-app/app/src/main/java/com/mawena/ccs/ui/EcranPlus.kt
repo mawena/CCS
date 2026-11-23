@@ -11,8 +11,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
@@ -32,9 +32,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mawena.ccs.BuildConfig
 
-/** Plus : machine pilotée, réglages, terminaux, analyse, serveur, compte, version, version web, déconnexion. */
+/** Plus : machine pilotée, Jarvis, réglages, terminaux, analyse, serveur, compte, version, version web, déconnexion. */
 @Composable
-fun EcranPlus(modele: ModeleAppli, ouvrirAnalyse: () -> Unit, ouvrirReglages: () -> Unit = {}, ouvrirTerminaux: () -> Unit = {}) {
+fun EcranPlus(
+    modele: ModeleAppli,
+    ouvrirAnalyse: () -> Unit,
+    ouvrirReglages: () -> Unit = {},
+    ouvrirTerminaux: () -> Unit = {},
+    ouvrirJarvis: () -> Unit = {},
+) {
     val identifiants by modele.identifiants.collectAsStateWithLifecycle()
     val contexte = LocalContext.current
     var confirmer by remember { mutableStateOf(false) }
@@ -44,15 +50,6 @@ fun EcranPlus(modele: ModeleAppli, ouvrirAnalyse: () -> Unit, ouvrirReglages: ()
             supportingContent = { Text(identifiants?.serveur.orEmpty()) },
             leadingContent = { Icon(Icons.Filled.Dns, null) },
         )
-        if (choixMachinePossible(modele)) {
-            val machine by modele.machine.collectAsStateWithLifecycle()
-            ListItem(
-                headlineContent = { Text("Machine pilotée") },
-                supportingContent = { Text(modele.depot.client.nomMachine + if (machine.isEmpty()) "" else " · toucher pour changer") },
-                leadingContent = { Icon(Icons.Filled.Computer, null) },
-                modifier = Modifier.clickable { modele.choixMachine.value = true },
-            )
-        }
         ListItem(
             headlineContent = { Text("Compte") },
             supportingContent = {
@@ -63,6 +60,12 @@ fun EcranPlus(modele: ModeleAppli, ouvrirAnalyse: () -> Unit, ouvrirReglages: ()
                 })
             },
             leadingContent = { Icon(Icons.Filled.Person, null) },
+        )
+        ListItem(
+            headlineContent = { Text("Parler à Jarvis") },
+            supportingContent = { Text("L'assistant vocal de la maison, par le serveur CCS et le relais Ricochet") },
+            leadingContent = { Icon(Icons.Filled.GraphicEq, null) },
+            modifier = Modifier.clickable(onClick = ouvrirJarvis),
         )
         ListItem(
             headlineContent = { Text("Réglages") },

@@ -4,6 +4,8 @@ import Foundation
 enum Reseau {
     enum Chemin: String {
         case ici, lan, direct, relais, veille, horsLigne
+        /// Machine de calcul hors du réseau maillé, joignable seulement par le relais Ricochet.
+        case ricochet
 
         static func de(_ path: String) -> Chemin {
             switch path {
@@ -12,13 +14,14 @@ enum Reseau {
             case "direct": return .direct
             case "relay": return .relais
             case "offline": return .horsLigne
+            case "ricochet": return .ricochet
             default: return .veille
             }
         }
 
         var libelle: String {
             switch self {
-            case .ici: return "Cet appareil"
+            case .ici: return "Serveur CCS"
             case .lan: return "Réseau local"
             case .direct: return "Direct par internet"
             case .relais: return "Relais du VPS"
@@ -123,6 +126,101 @@ enum Reseau {
             liste.append((a, false))
         }
         return liste
+    }
+
+    // MARK: calcul réparti (machines.list) dans les fiches
+
+    /// La machine de calcul d'une fiche du réseau : ce serveur pour sa propre fiche, sinon par
+    /// l'adresse du réseau maillé, puis par le nom (`reseau` des réglages, identifiant, nom d'hôte)
+    /// comparé sans casse au nom ou à l'hôte de l'appareil (`matchMachine` du web).
+    static func machine(pour a: Appareil, ici: Bool, parmi machines: [Machine]) -> Machine? {
+        if ici { return machines.first { $0.local } }
+        let cles = Set([a.name, a.host].filter { !$0.isEmpty }.map { $0.lowercased() })
+        return machines.first { m in
+            if m.local { return false }
+            if let ip = m.meshIp, !ip.isEmpty, a.ips.contains(ip) { return true }
+            return [m.mesh, m.id, m.host].contains { k in
+                guard let k = k, !k.isEmpty else { return false }
+                return cles.contains(k.lowercased())
+            }
+        }
+    }
+
+    /// Une fiche de l'onglet : un appareil (ou une machine joignable seulement par Ricochet) et
+    /// sa machine de calcul éventuelle.
+    struct Fiche: Identifiable {
+        let appareil: Appareil
+        let ici: Bool
+        let machine: Machine?
+        /// Machine hors du réseau maillé : ni adresse, ni ping, ni renommer, ni retirer.
+        let ricochet: Bool
+
+        var id: String { return ricochet ? "ricochet:" + (machine?.id ?? appareil.name) : appareil.name }
+    }
+
+    /// Les appareils du réseau, chacun avec sa machine de calcul, puis une fiche pour chaque
+    /// machine non rattachée (hors ce serveur), marquée « Par Ricochet ».
+    static func fiches(_ e: EtatReseau, machines: [Machine]) -> [Fiche] {
+        var utilisees = Set<String>()
+        var liste: [Fiche] = appareils(e).map { paire in
+            let m = machine(pour: paire.0, ici: paire.1, parmi: machines)
+            if let m = m { utilisees.insert(m.id) }
+            return Fiche(appareil: paire.0, ici: paire.1, machine: m, ricochet: false)
+        }
+        for m in machines where !m.local && !utilisees.contains(m.id) {
+            let a = Appareil(name: m.nom, host: m.id, online: m.online, path: m.online ? "ricochet" : "offline")
+            liste.append(Fiche(appareil: a, ici: false, machine: m, ricochet: true))
+        }
+        return liste
+    }
+
+    /// Une barre du bloc « calcul » : « Charge » ou « Mémoire ».
+    struct Barre: Equatable {
+        let libelle: String
+        /// Remplissage, entre 0 et 1.
+        let part: Double
+        let valeur: String
+        /// 90 % ou plus : affichée en rouge.
+        var chaude: Bool { return part >= 0.9 }
+    }
+
+    private static func nombre(_ x: Double, _ chiffres: Int) -> String {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "fr_FR")
+        f.numberStyle = .decimal
+        f.usesGroupingSeparator = false
+        f.minimumFractionDigits = chiffres
+        f.maximumFractionDigits = chiffres
+        return f.string(from: NSNumber(value: x)) ?? String(x)
+    }
+
+    /// Charge par cœur et mémoire, seulement pour une machine en ligne qui les publie.
+    static func barres(_ m: Machine) -> [Barre] {
+        guard m.online else { return [] }
+        var b: [Barre] = []
+        if m.cores > 0 {
+            let parCoeur = m.load / Double(m.cores)
+            b.append(Barre(libelle: "Charge", part: min(1, max(0, parCoeur)), valeur: "\(nombre(parCoeur, 2))/cœur"))
+        }
+        if let total = m.memTotal, total > 0 {
+            let used = m.memUsed ?? 0
+            let go = 1_073_741_824.0
+            b.append(Barre(libelle: "Mémoire", part: min(1, max(0, used / total)),
+                           valeur: "\(nombre(used / go, 1))/\(nombre(total / go, 0)) Go"))
+        }
+        return b
+    }
+
+    /// Ni réseau maillé ni tunnel SSH Ricochet : la machine ne peut pas recevoir de travaux.
+    static func injoignable(_ m: Machine) -> Bool {
+        return !m.local && !m.tunnel && (m.meshIp ?? "").isEmpty
+    }
+
+    /// « PC Linux » de l'ajout d'appareil par un lien Ricochet (`machines.add`) : il faut le relais,
+    /// son jeton et le jeton opérateur. Sinon, la clé jetable du réseau maillé.
+    static func ajoutParRicochet(_ r: ReglagesRelais?) -> Bool {
+        guard let r = r else { return false }
+        return !r.relais.isEmpty && r.jetonDefini && r.operateurDefini
     }
 
     static func octets(_ n: Double) -> String {

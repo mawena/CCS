@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mawena.ccs.logique.Fichiers
+import com.mawena.ccs.reseau.CcsClient
 import com.mawena.ccs.reseau.CheminRendu
 import com.mawena.ccs.reseau.EntreeFichier
 import com.mawena.ccs.reseau.EtatConnexion
@@ -103,9 +104,10 @@ fun PanneauFichiers(
     home: String = "",
     protege: String? = base,
     entete: @Composable () -> Unit = {},
+    /** Connexion à utiliser : la principale, ou celle d'un appareil de l'onglet Fichiers. */
+    client: CcsClient = modele.depot.client,
 ) {
-    val client = modele.depot.client
-    val etat by modele.etat.collectAsStateWithLifecycle()
+    val etat by client.etat.collectAsStateWithLifecycle()
     val connecte = etat is EtatConnexion.Connecte
     val avis = LocalAvis.current
     val contexte = LocalContext.current

@@ -16,8 +16,21 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
 - **Vocal** : bouton micro de la saisie (dictée fr-FR, résultats en direct, arrêt après ~2 s de
   silence ; le texte s'ajoute sans être envoyé) ; « Lire » dans le menu d'une réponse de Claude
   (voix française, markdown retiré) ; réglage « Lire les réponses à voix haute » (Réglages → Voix).
+- **Parler à Jarvis** (Plus → Parler à Jarvis, raccourci « Parler à Jarvis » de l'appli
+  Raccourcis / Siri / bouton Action, lien `ccs://jarvis`) : l'assistant vocal de la maison, par le
+  relais du serveur CCS (`/api/jarvis/oreille`, même jeton que l'appli). Appairage une fois :
+  scanner le QR code de `jarvis pair` avec l'appareil photo (lien `jarvis://pair?…`, qui ouvre
+  CCS), coller l'adresse, ou saisir code et empreinte ; jeton et identifiant d'oreille dans le
+  trousseau. Puis un bouton : maintenir pour parler (fin au relâché), ou toucher une fois (fin au
+  silence) ; micro `AVAudioEngine` rééchantillonné en 16 kHz, texte et voix de la réponse,
+  écoute relancée seule si Jarvis pose une question. Le raccourci ouvre l'écran déjà en écoute.
 - **Fichiers** et **Git** : navigation, lecture colorée, édition, envoi et téléchargement ;
-  état, diff, indexation par morceau, commit, journal, pull/push.
+  état, diff, indexation par morceau, commit, journal, pull/push. L'onglet Fichiers parcourt
+  tous les appareils : barre défilante « Serveur CCS » puis chaque PC de `machines.list`
+  (grisé avec « hors ligne » ou « ni réseau maillé ni tunnel » s'il est injoignable). Un autre
+  appareil que la machine pilotée a sa propre connexion (`/api/ws?protocol=1&machine=<id>`),
+  sans changer la machine pilotée, fermée en quittant l'onglet ; le dernier appareil choisi est
+  gardé ; « <nom> injoignable : … » avec Réessayer si la connexion échoue.
 - **Terminal** (Plus → Terminaux, bouton du projet, menu du chat) : émulateur SwiftTerm
   (couleurs, écran alternatif, curseur application), barre de touches (Échap, Tab, Ctrl et Alt
   collants, flèches, symboles, Début/Fin, pages), coller, copier tout, taille du texte ; les
@@ -25,9 +38,12 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
 - **Machine pilotée** (bouton des Sessions, Plus, bandeau « Machine pilotée : … ») : le PC
   ou toute machine du relais Ricochet joignable par le tunnel ; toute l'appli la suit (sessions,
   fichiers, Git, terminal, notifications). Retour à « Ce serveur » d'un toucher.
-- **Machines et travaux distants** (Plus) : machines du relais (charge, outils, places, limite),
-  travaux `ccs distant` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
-  commande » (maintenant, cette nuit ou à une heure), réglages du relais.
+- **Réseau** (onglet) : le réseau maillé (carte, fiche de chaque appareil, ping, renommer,
+  retirer, ajout d'un PC ou d'un téléphone) et le calcul réparti au même endroit : chaque fiche
+  qui est une machine de calcul porte sa charge, sa mémoire, ses outils, ses places et sa limite ;
+  les machines joignables seulement par Ricochet ont leur fiche « Par Ricochet ». Travaux
+  `ccs distant` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
+  commande » (maintenant, cette nuit ou à une heure), secours Ricochet (réglages du relais).
 - **Mot de passe root** : quand la machine pilotée demande le mot de passe root (`ccs root`,
   `sudo -A` de Claude), une feuille s'ouvre au premier plan avec la commande, « Envoyer »,
   « Refuser » ou « Plus tard » ; le mot de passe n'est jamais gardé sur le téléphone (il l'est
@@ -92,6 +108,7 @@ ios-app/
 │   ├── Notif/            veille des chats et notifications locales
 │   ├── Terminal/         sessions SwiftTerm, liste et écran des terminaux
 │   ├── Partage/          feuille « Partager vers CCS »
+│   ├── Jarvis/           oreille de Jarvis : lien du relais, micro et voix, écran, raccourci (App Intent)
 │   └── UI/               écrans SwiftUI (accueil, sessions, chat, fichiers, git, réglages…)
 └── CCSTests/             tests XCTest de la logique
 ```

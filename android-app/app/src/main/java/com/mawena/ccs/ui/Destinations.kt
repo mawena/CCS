@@ -11,14 +11,17 @@ object Routes {
     const val REGLAGES = "reglages"
     const val TERMINAUX = "terminaux"
     const val TERMINAL = "terminal?id={id}"
+    const val JARVIS = "jarvis"
 
-    const val FICHIER = "fichier?chemin={chemin}&ligne={ligne}"
+    const val FICHIER = "fichier?chemin={chemin}&ligne={ligne}&appareil={appareil}"
     const val FICHIERS_PROJET = "fichiers-projet?cwd={cwd}"
     const val GIT_PROJET = "git-projet?cwd={cwd}"
     const val COMMIT = "git-commit?cwd={cwd}&id={id}"
 
     fun projet(cwd: String) = "projet?cwd=${Uri.encode(cwd)}"
-    fun fichier(chemin: String, ligne: Int? = null) = "fichier?chemin=${Uri.encode(chemin)}&ligne=${ligne ?: ""}"
+    /** `appareil` : appareil de l'onglet Fichiers ("" : le serveur) ; null : connexion principale. */
+    fun fichier(chemin: String, ligne: Int? = null, appareil: String? = null) =
+        "fichier?chemin=${Uri.encode(chemin)}&ligne=${ligne ?: ""}&appareil=${Uri.encode(com.mawena.ccs.logique.Appareils.versRoute(appareil))}"
     fun fichiersProjet(cwd: String) = "fichiers-projet?cwd=${Uri.encode(cwd)}"
     fun gitProjet(cwd: String) = "git-projet?cwd=${Uri.encode(cwd)}"
     fun terminal(id: String) = "terminal?id=${Uri.encode(id)}"
@@ -31,7 +34,7 @@ object Routes {
         route.startsWith("fichier") -> Onglet.Fichiers.route
         route.startsWith("git") -> Onglet.Git.route
         route == ANALYSE -> Onglet.Accueil.route
-        route == REGLAGES || route.startsWith("terminal") -> Onglet.Plus.route
+        route == REGLAGES || route == JARVIS || route.startsWith("terminal") -> Onglet.Plus.route
         else -> route
     }
 }
