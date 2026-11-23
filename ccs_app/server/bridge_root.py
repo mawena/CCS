@@ -27,7 +27,7 @@ import secrets
 import threading
 import urllib.parse
 
-from .. import phone, phone_reply, root_keeper, settings
+from .. import root_vault, phone, phone_reply, root_keeper, settings
 from . import rpc
 
 log = logging.getLogger("ccs.root")
@@ -39,7 +39,7 @@ class RootApi:
     def __init__(self, bridge, keeper=None, path=None, run=None, urlopen=None,
                  listener_factory=None, load_settings=None):
         self.bridge = bridge
-        self.keeper = keeper or root_keeper.Keeper(clock=bridge.clock)
+        self.keeper = keeper or root_keeper.Keeper(clock=bridge.clock, vault=root_vault)
         self.keeper.listeners.append(self._on_event)
         self.server = root_keeper.KeeperServer(self.keeper, path)
         self.owner = False
