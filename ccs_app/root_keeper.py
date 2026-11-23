@@ -272,10 +272,10 @@ class Keeper:
         kept = self.kept()
         req = self._request
         if self.forever:
-            # Anciennes interfaces : une heure glissante, renouvelée à chaque lecture de l'état.
-            return {"machine": self.machine, "kept": kept, "forever": kept,
-                    "expires_at": self.clock() + KEEP_S if kept else None,
-                    "remaining": KEEP_S if kept else 0,
+            # Gardé pour toujours : pas de bandeau « root gardé » dans les interfaces (elles ne
+            # l'affichent que si `kept`) ; `stored` dit qu'il est dans le coffre.
+            return {"machine": self.machine, "kept": False, "stored": kept, "forever": True,
+                    "expires_at": None, "remaining": 0,
                     "pending": self._ask_data(req) if req is not None else None}
         return {"machine": self.machine, "kept": kept,
                 "expires_at": self._expires_at if kept else None,
@@ -838,7 +838,7 @@ def _minutes(seconds):
 
 def status_text(st):
     machine = st.get("machine") or "cette machine"
-    if st.get("kept") and st.get("forever"):
+    if st.get("stored"):
         lines = [f"Mot de passe root gardé (chiffré) sur {machine}, sans limite de durée. "
                  "Pour l'effacer : ccs root oublier."]
     elif st.get("kept"):

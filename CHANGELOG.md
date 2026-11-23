@@ -3,6 +3,14 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.3.1] — 2026-11-23
+
+### Modifié
+
+- Mot de passe root gardé pour toujours : plus de bandeau « Root gardé » en haut des interfaces
+  (web, bureau, TUI, Android, iPhone). Chaque commande root reste signalée avec « Révoquer » ;
+  `ccs root etat` dit s'il est au coffre, `ccs root oublier` l'efface.
+
 ## [1.3.0] — 2026-11-23
 
 ### Ajouté
