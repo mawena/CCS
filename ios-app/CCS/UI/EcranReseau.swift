@@ -3,8 +3,10 @@ import SwiftUI
 /**
  * Onglet « Réseau », comme celui du web (`reseau.js`) et d'Android : le réseau maillé de tous les
  * appareils (Headscale sur network.mawena.cloud). Carte du réseau, fiche de chaque appareil
- * (adresses publiées, trafic, ping réel, renommer, retirer), ajout d'un appareil. Méthodes
- * `network.*`, toujours traitées par le serveur. Rechargé toutes les 10 s tant qu'il est affiché.
+ * (adresses publiées, trafic, ping réel, renommer, retirer) avec son bloc « calcul » s'il est une
+ * machine de calcul (`machines.list`, voir `Calcul.swift`), travaux distants, « Lancer une
+ * commande », ajout d'un appareil et, replié en bas, le secours Ricochet. Méthodes `network.*` et
+ * `machines.*`, toujours traitées par le serveur. Réseau relu toutes les 10 s, calcul toutes les 5 s.
  */
 @MainActor
 struct EcranReseau: View {
@@ -16,6 +18,7 @@ struct EcranReseau: View {
     @State private var aRenommer: Appareil? = nil
     @State private var nouveauNom = ""
     @State private var aRetirer: Appareil? = nil
+    @State private var calcul = Calcul()
 
     private var client: CcsClient { return modele.client }
 
@@ -25,37 +28,52 @@ struct EcranReseau: View {
                 EnteteReseau(etat: etat, erreur: erreur)
                 if let e = etat {
                     if e.ici != nil || !e.peers.isEmpty { CarteReseau(etat: e) }
-                    HStack(spacing: 8) {
-                        Image(systemName: "point.3.connected.trianglepath.dotted")
-                        Text("Appareils").font(.title2.bold())
-                        Spacer()
+                    TitreReseau(titre: "Appareils", icone: "point.3.connected.trianglepath.dotted")
+                    let fiches = Reseau.fiches(e, machines: calcul.machines)
+                    if fiches.isEmpty {
+                        Text("Aucun appareil pour l'instant : ajoute le premier ci-dessous.")
+                            .font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(.top, 4)
-                    ForEach(Reseau.appareils(e), id: \.0.name) { paire in
+                    ForEach(fiches) { f in
                         FicheAppareil(
-                            appareil: paire.0, ici: paire.1, etat: e, ping: pings[paire.0.name],
-                            lancerPing: { Task { await ping(paire.0) } },
-                            renommer: { nouveauNom = paire.0.name; aRenommer = paire.0 },
-                            retirer: { aRetirer = paire.0 })
-                    }
-                    if e.server {
-                        AjoutAppareil(etat: e, creerCle: creerCle, valider: valider)
+                            fiche: f, etat: e, calcul: calcul, ping: pings[f.appareil.name],
+                            lancerPing: { Task { await ping(f.appareil) } },
+                            renommer: { nouveauNom = f.appareil.name; aRenommer = f.appareil },
+                            retirer: { aRetirer = f.appareil })
                     }
                 } else if erreur == nil {
                     ProgressView().padding()
                 }
+                // le calcul ne dépend pas du réseau maillé : visible même si `network.status` échoue
+                TitreReseau(titre: "Travaux", icone: "cpu")
+                SectionTravaux(calcul: calcul)
+                TitreReseau(titre: "Lancer une commande", icone: "play.circle")
+                SectionLancer(calcul: calcul)
+                if let e = etat, e.server {
+                    AjoutAppareil(etat: e, calcul: calcul, creerCle: creerCle, valider: valider)
+                }
+                SecoursRicochet(calcul: calcul)
             }
             .padding(14)
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Réseau")
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await recharger() }
+        .refreshable {
+            await recharger()
+            await calcul.lireReglages(client)
+            await calcul.rafraichir(client)
+        }
         .task(id: client.etat.estConnecte) {
             guard client.etat.estConnecte else { return }
+            await calcul.preparer(client)
+            // calcul toutes les 5 s, réseau une fois sur deux (toutes les 10 s)
+            var tour = 0
             while !Task.isCancelled {
-                await recharger()
-                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if tour % 2 == 0 { await recharger() }
+                await calcul.rafraichir(client)
+                tour += 1
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
             }
         }
         .alert("Renommer \(aRenommer?.name ?? "")", isPresented: Binding(get: { aRenommer != nil }, set: { if !$0 { aRenommer = nil } })) {
@@ -147,7 +165,7 @@ extension Reseau.Chemin {
         case .direct: return Color(red: 0.21, green: 0.52, blue: 0.89)
         case .relais: return Color(red: 0.90, green: 0.65, blue: 0.04)
         case .ici: return Color(red: 0.57, green: 0.25, blue: 0.67)
-        case .veille, .horsLigne: return Color(red: 0.60, green: 0.60, blue: 0.64)
+        case .veille, .horsLigne, .ricochet: return Color(red: 0.60, green: 0.60, blue: 0.64)
         }
     }
 }
@@ -299,14 +317,17 @@ private struct CarteReseau: View {
 
 @MainActor
 private struct FicheAppareil: View {
-    let appareil: Appareil
-    let ici: Bool
+    let fiche: Reseau.Fiche
     let etat: EtatReseau
+    let calcul: Calcul
     let ping: PingReseau?
     let lancerPing: () -> Void
     let renommer: () -> Void
     let retirer: () -> Void
     @Environment(ModeleAppli.self) private var modele
+
+    private var appareil: Appareil { return fiche.appareil }
+    private var ici: Bool { return fiche.ici }
 
     var body: some View {
         let a = appareil
@@ -334,15 +355,17 @@ private struct FicheAppareil: View {
                     }
                     Spacer(minLength: 0)
                 }
-                let ip = a.ips.first ?? ""
-                HStack(spacing: 6) {
-                    Text(ip.isEmpty ? "—" : ip).font(.body.monospaced().weight(.semibold))
-                    if !ip.isEmpty {
-                        Button { copier(ip); modele.avis.dire("Copié.") } label: { Image(systemName: "doc.on.doc") }
-                            .buttonStyle(.borderless).font(.footnote)
+                if !fiche.ricochet {
+                    let ip = a.ips.first ?? ""
+                    HStack(spacing: 6) {
+                        Text(ip.isEmpty ? "—" : ip).font(.body.monospaced().weight(.semibold))
+                        if !ip.isEmpty {
+                            Button { copier(ip); modele.avis.dire("Copié.") } label: { Image(systemName: "doc.on.doc") }
+                                .buttonStyle(.borderless).font(.footnote)
+                        }
                     }
+                    Text("\(a.name).\(etat.domain)").font(.caption.monospaced()).foregroundStyle(.secondary)
                 }
-                Text("\(a.name).\(etat.domain)").font(.caption.monospaced()).foregroundStyle(.secondary)
                 if !a.endpoint.isEmpty && !ici {
                     Label(a.endpoint, systemImage: "arrow.left.arrow.right").font(.caption).foregroundStyle(.secondary)
                 }
@@ -374,16 +397,21 @@ private struct FicheAppareil: View {
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
                 }
-                HStack(spacing: 14) {
-                    if !ici && a.online { Button(action: lancerPing) { Label("Ping", systemImage: "waveform.path.ecg") } }
-                    if etat.server {
-                        Button(action: renommer) { Label("Renommer", systemImage: "pencil") }
-                        if !ici { Button(role: .destructive, action: retirer) { Label("Retirer", systemImage: "trash") } }
-                    }
+                if let m = fiche.machine {
+                    BlocCalcul(machine: m, calcul: calcul)
                 }
-                .font(.subheadline.weight(.semibold))
-                .buttonStyle(.borderless)
-                .padding(.top, 2)
+                if !fiche.ricochet {
+                    HStack(spacing: 14) {
+                        if !ici && a.online { Button(action: lancerPing) { Label("Ping", systemImage: "waveform.path.ecg") } }
+                        if etat.server {
+                            Button(action: renommer) { Label("Renommer", systemImage: "pencil") }
+                            if !ici { Button(role: .destructive, action: retirer) { Label("Retirer", systemImage: "trash") } }
+                        }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.borderless)
+                    .padding(.top, 2)
+                }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -394,8 +422,8 @@ private struct FicheAppareil: View {
     }
 }
 
-/// Étiquettes qui passent à la ligne (adresses publiées).
-private struct FlowLayout: Layout {
+/// Étiquettes qui passent à la ligne (adresses publiées, outils d'une machine).
+struct FlowLayout: Layout {
     var espacement: CGFloat = 6
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -428,6 +456,7 @@ private struct FlowLayout: Layout {
 @MainActor
 private struct AjoutAppareil: View {
     let etat: EtatReseau
+    let calcul: Calcul
     let creerCle: (String) async -> CleReseau?
     let valider: (String) async -> Bool
     @Environment(ModeleAppli.self) private var modele
@@ -447,7 +476,9 @@ private struct AjoutAppareil: View {
                 Text("iPhone").tag(2)
             }
             .pickerStyle(.segmented)
-            if onglet == 0 {
+            if onglet == 0 && Reseau.ajoutParRicochet(calcul.reglages) {
+                FormulairePcRicochet(calcul: calcul)
+            } else if onglet == 0 {
                 etapes(["Choisis un nom pour la machine, puis crée la ligne.",
                         "Colle-la dans un terminal du PC : elle installe le client et l'inscrit.",
                         "Il apparaît ici en quelques secondes."])

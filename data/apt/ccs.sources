@@ -1,5 +1,0 @@
-Types: deb
-URIs: https://mawena.github.io/CCS/apt
-Suites: stable
-Components: main
-Signed-By: /usr/share/keyrings/ccs.gpg

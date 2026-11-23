@@ -37,6 +37,9 @@ const api = {
       case "files.info": return { dir: false, count: 0, size: 3 };
       case "files.roots": return { home: "/home/u", roots: ["/home/u", "/srv"] };
       case "projects.add": return { cwd: p.cwd };
+      case "machines.list": return { machines: [{ id: "vps", local: true, online: true },
+        { id: "pc-bureau", name: "PC du bureau", online: true, mesh_ip: "100.64.0.2", tunnel: false },
+        { id: "portable", name: "Portable", online: false }] };
       default: return {};
     }
   },
@@ -226,6 +229,41 @@ out.refused = named("files.list").at(-1);
         self.assertEqual(out["current"], {"cwd": "/home/u/src"})
         self.assertEqual(out["refused"], {"root": "/home/u", "rel": ""})
 
+
+    def test_browser_opens_other_devices_of_the_mesh(self):
+        out = run("""
+const sockets = [];
+globalThis.WebSocket = class {
+  static OPEN = 1;
+  constructor(url) { this.url = url; this.readyState = 0; sockets.push(this); setTimeout(() => { this.readyState = 1; this.onopen?.(); }); }
+  send(raw) { const q = JSON.parse(raw); const result = q.method === "files.roots" ? { home: "/home/c", roots: ["/home/c"] }
+    : { entries: [], truncated: false }; setTimeout(() => this.onmessage?.({ data: JSON.stringify({ id: q.id, result }) })); }
+  close() { this.readyState = 3; }
+};
+globalThis.location = { hash: "", protocol: "https:", host: "ccs.exemple" };
+const F = await import("./files-browser.js");
+out = { parse: [F.parseSub("@pc-bureau/%2Fhome%2Fc%2Fx"), F.parseSub("%2Fsrv"), F.parseSub("")],
+        addr: F.address("/home/c", "pc-bureau") };
+const view = F.mountFiles(root, api, { sub: "" });
+await settle();
+out.devices = root.querySelectorAll(".file-device").map((b) => [b.textContent, b.getAttribute("disabled") !== null && b.getAttribute("disabled") !== "false"]);
+view.route("@pc-bureau/" + encodeURIComponent("/home/c")); await settle(); await new Promise((r) => setTimeout(r, 20)); await settle();
+out.url = sockets.map((s) => s.url);
+out.selected = root.querySelectorAll(".file-device").map((b) => b.getAttribute("aria-selected"));
+out.crumb = root.querySelector(".crumbs").textContent;
+out.remembered = localStorage.getItem("ccs.files.device");
+view.cleanup();
+out.closed = sockets[0].readyState;
+""")
+        self.assertEqual(out["parse"], [{"device": "pc-bureau", "path": "/home/c/x"}, {"device": "", "path": "/srv"},
+                                        {"device": "", "path": ""}])
+        self.assertEqual(out["addr"], "#/fichiers/@pc-bureau/%2Fhome%2Fc")
+        self.assertEqual(out["devices"], [["Serveur CCS", False], ["PC du bureau", False], ["Portablehors ligne", True]])
+        self.assertEqual(out["url"], ["wss://ccs.exemple/api/ws?protocol=1&machine=pc-bureau"])
+        self.assertEqual(out["selected"], ["false", "true", "false"])
+        self.assertIn("Personnel", out["crumb"])
+        self.assertEqual(out["remembered"], "pc-bureau")
+        self.assertEqual(out["closed"], 3)
 
 if __name__ == "__main__":
     unittest.main()

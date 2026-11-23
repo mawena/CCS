@@ -37,6 +37,75 @@ final class ReseauTests: XCTestCase {
         XCTAssertEqual(Reseau.ligneLinux(["a", "b"]), "sudo sh -c 'a && b'")
     }
 
+    private func machine(_ id: String, local: Bool = false, host: String? = nil, mesh: String? = nil, meshIp: String? = nil) -> Machine {
+        var m = Machine(id: id, online: true, local: local)
+        m.host = host
+        m.mesh = mesh
+        m.meshIp = meshIp
+        return m
+    }
+
+    func testRattachement() {
+        let machines = [
+            machine("vps", local: true),
+            machine("bureau", meshIp: "100.64.0.3"),
+            machine("salon", mesh: "PC-Salon"),
+            machine("laptop", host: ""),
+            machine("autre", host: "Mon-Portable"),
+        ]
+        // la fiche du serveur ↔ la machine locale
+        XCTAssertEqual(Reseau.machine(pour: Appareil(name: "mawena-cloud"), ici: true, parmi: machines)?.id, "vps")
+        // par l'adresse du réseau maillé
+        XCTAssertEqual(Reseau.machine(pour: Appareil(name: "pc-bureau", ips: ["100.64.0.3", "fd7a::3"]), ici: false, parmi: machines)?.id, "bureau")
+        // par `mesh`, sans casse
+        XCTAssertEqual(Reseau.machine(pour: Appareil(name: "pc-salon"), ici: false, parmi: machines)?.id, "salon")
+        // par l'identifiant
+        XCTAssertEqual(Reseau.machine(pour: Appareil(name: "laptop"), ici: false, parmi: machines)?.id, "laptop")
+        // par l'hôte de la machine comparé à l'hôte de l'appareil
+        XCTAssertEqual(Reseau.machine(pour: Appareil(name: "x", host: "mon-portable"), ici: false, parmi: machines)?.id, "autre")
+        // jamais la machine locale pour un autre appareil ; chaînes vides ignorées
+        XCTAssertNil(Reseau.machine(pour: Appareil(name: "vps"), ici: false, parmi: machines))
+        XCTAssertNil(Reseau.machine(pour: Appareil(name: "", host: ""), ici: false, parmi: machines))
+        XCTAssertNil(Reseau.machine(pour: Appareil(name: "iphone"), ici: true, parmi: [machine("pc")]))
+    }
+
+    func testFichesAvecRicochet() {
+        let e = EtatReseau(
+            ici: Appareil(name: "mawena-cloud", online: true, path: "self"),
+            peers: [Appareil(name: "pc-bureau", ips: ["100.64.0.3"], online: true, path: "lan"), Appareil(name: "iphone", path: "offline")])
+        var hors = Machine(id: "pc-salon", name: "PC du salon", online: false)
+        hors.tunnel = true
+        let f = Reseau.fiches(e, machines: [machine("vps", local: true), machine("bureau", meshIp: "100.64.0.3"), hors])
+        XCTAssertEqual(f.map { $0.appareil.name }, ["mawena-cloud", "pc-bureau", "iphone", "PC du salon"])
+        XCTAssertEqual(f.map { $0.machine?.id }, ["vps", "bureau", nil, "pc-salon"])
+        XCTAssertEqual(f.map { $0.ricochet }, [false, false, false, true])
+        XCTAssertEqual(f[3].id, "ricochet:pc-salon")
+        XCTAssertEqual(f[3].appareil.path, "offline")
+        XCTAssertTrue(f[3].appareil.ips.isEmpty)
+        XCTAssertEqual(Reseau.Chemin.de("ricochet").libelle, "Par Ricochet")
+        XCTAssertEqual(Reseau.Chemin.de("self").libelle, "Serveur CCS")
+        // en ligne par Ricochet
+        XCTAssertEqual(Reseau.fiches(EtatReseau(), machines: [machine("pc-salon")]).first?.appareil.path, "ricochet")
+    }
+
+    func testBarresEtAjout() {
+        var m = Machine(id: "pc", online: true, cores: 8, load: 1.25)
+        m.memUsed = 3.5 * 1_073_741_824
+        m.memTotal = 16 * 1_073_741_824
+        let b = Reseau.barres(m)
+        XCTAssertEqual(b.map { $0.libelle }, ["Charge", "Mémoire"])
+        XCTAssertEqual(b[0].valeur, "0,16/cœur")
+        XCTAssertEqual(b[1].valeur, "3,5/16 Go")
+        XCTAssertFalse(b[1].chaude)
+        XCTAssertEqual(Reseau.barres(Machine(id: "x", online: false, cores: 4, load: 9)), [])
+        XCTAssertTrue(Reseau.barres(Machine(id: "x", online: true, cores: 2, load: 4)).first?.chaude ?? false)
+        XCTAssertTrue(Reseau.injoignable(Machine(id: "x")))
+        XCTAssertFalse(Reseau.injoignable(machine("x", meshIp: "100.64.0.9")))
+        XCTAssertFalse(Reseau.ajoutParRicochet(nil))
+        XCTAssertFalse(Reseau.ajoutParRicochet(ReglagesRelais(relais: "https://r.ex", jetonDefini: true)))
+        XCTAssertTrue(Reseau.ajoutParRicochet(ReglagesRelais(relais: "https://r.ex", jetonDefini: true, operateurDefini: true)))
+    }
+
     func testLectureJson() {
         let e = EtatReseau(json: JSON.lire("""
         {"url":"https://network.mawena.cloud","self":{"name":"vps","path":"self","online":true},"peers":[],"state":"Running"}

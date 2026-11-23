@@ -19,7 +19,8 @@ function banner(text, kind = "info") {
 // Adresse « #/<page>/<sous-adresse> » : la sous-adresse (un chat ouvert…) va à la page sans la
 // remonter ; ainsi le bouton Retour du téléphone ferme le chat au lieu de quitter CCS.
 function route() {
-  const [name, ...rest] = location.hash.replace(/^#\/?/, "").split("/");
+  let [name, ...rest] = location.hash.replace(/^#\/?/, "").split("/");
+  if (name === "machines") name = "reseau";          // ancienne page, fondue dans l'onglet Réseau
   return { name: VIEWS[name] ? name : "accueil", sub: rest.join("/") };
 }
 

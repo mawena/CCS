@@ -164,9 +164,6 @@ fun EcranSessions(
             modifier = Modifier.fillMaxSize(),
         ) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
-                item(key = "machine") {
-                    PuceMachine(modele, Modifier.padding(start = 16.dp, top = 8.dp)) { modele.choixMachine.value = true }
-                }
                 item {
                     OutlinedTextField(
                         recherche, { recherche = it }, singleLine = true,

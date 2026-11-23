@@ -4,7 +4,7 @@ import { mountAnalysis } from "./analysis.js";
 import { el } from "./dom.js";
 import { mountFiles } from "./files-browser.js";
 import { mountHome } from "./home.js";
-import { mountMachines } from "./pages-machines.js";
+import { mountJarvis } from "./jarvis.js";
 import { mountReseau } from "./reseau.js";
 import { mountSessions } from "./sessions.js";
 import { mountSettings } from "./settings.js";
@@ -19,7 +19,6 @@ export const VIEWS = {
   reseau: { title: "Réseau", icon: "🌐", mount: mountReseau },
   fichiers: { title: "Fichiers", icon: "📁", mount: mountFiles },
   analyse: { title: "Analyse", icon: "▤", mount: mountAnalysis },
+  jarvis: { title: "Jarvis", icon: "🎙", mount: mountJarvis },
   reglages: { title: "Réglages", icon: "⚙", mount: mountSettings },
-  // hors de la barre de navigation : ouverte depuis Réglages et la feuille « Machine pilotée »
-  machines: { title: "Machines", icon: "🖥", mount: mountMachines, hidden: true, parent: "reglages" },
 };

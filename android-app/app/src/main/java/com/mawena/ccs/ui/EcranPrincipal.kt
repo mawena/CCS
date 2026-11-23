@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
@@ -41,6 +42,7 @@ import androidx.navigation.navArgument
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -106,6 +108,7 @@ fun EcranPrincipal(modele: ModeleAppli) {
             is DemandeAppli.OuvrirChat -> nav.navigate(d.dest.route()) { launchSingleTop = true }
             DemandeAppli.Sessions -> versSessions()
             DemandeAppli.NouveauChat -> { modele.nouvelleSession.value = true; versSessions() }
+            DemandeAppli.Jarvis -> nav.navigate(Routes.JARVIS) { launchSingleTop = true }
         }
     }
     val partage by modele.partage.collectAsStateWithLifecycle()
@@ -122,14 +125,16 @@ fun EcranPrincipal(modele: ModeleAppli) {
             launchSingleTop = true
         }
     }
-    val choixMachine by modele.choixMachine.collectAsStateWithLifecycle()
+    // onglet Fichiers quitté : la connexion à part de son appareil est fermée (rouverte au retour)
+    LaunchedEffect(route) {
+        if (route != Onglet.Fichiers.route) modele.fichiers.fermer()
+    }
     // commande lancée avec le mot de passe root gardé : avis discret
     LaunchedEffect(Unit) {
         modele.depot.root.usages.collect { avis.dire(com.mawena.ccs.logique.Root.texteUsage(it)) }
     }
     CompositionLocalProvider(LocalAvis provides avis) {
     FenetreRoot(modele)
-    if (choixMachine) FeuilleMachines(modele, fermer = { modele.choixMachine.value = false })
     partage?.let { p ->
         FeuillePartage(modele, p, fermer = { modele.partage.value = null }) { dest ->
             modele.partage.value = null
@@ -160,7 +165,14 @@ fun EcranPrincipal(modele: ModeleAppli) {
         },
     ) { marges ->
         Column(Modifier.fillMaxSize().padding(marges).consumeWindowInsets(marges)) {
-            BandeauMachine(modele, changer = { modele.choixMachine.value = true })
+            // la machine pilotée se choisit sur sa fiche, dans l'onglet Réseau
+            BandeauMachine(modele, changer = {
+                nav.navigate(Onglet.Reseau.route) {
+                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            })
             BandeauRoot(modele)
             BandeauConnexion(modele)
             NavHost(nav, startDestination = Onglet.Accueil.route, modifier = Modifier.weight(1f)) {
@@ -200,15 +212,21 @@ fun EcranPrincipal(modele: ModeleAppli) {
                     )
                 }
                 composable(Onglet.Reseau.route) { EcranReseau(modele) }
-                composable(Onglet.Fichiers.route) { EcranFichiersOnglet(modele, ouvrirFichier = { nav.navigate(Routes.fichier(it)) }) }
+                composable(Onglet.Fichiers.route) {
+                    EcranFichiersOnglet(modele, ouvrirFichier = { chemin, appareil -> nav.navigate(Routes.fichier(chemin, appareil = appareil)) })
+                }
                 composable(Routes.FICHIERS_PROJET, arguments = listOf(argument("cwd"))) { e ->
                     EcranFichiersProjet(modele, e.arguments?.getString("cwd").orEmpty(), retour = { nav.popBackStack() },
                         ouvrirFichier = { nav.navigate(Routes.fichier(it)) })
                 }
-                composable(Routes.FICHIER, arguments = listOf(argument("chemin"), argument("ligne"))) { e ->
+                composable(Routes.FICHIER, arguments = listOf(argument("chemin"), argument("ligne"), argument("appareil"))) { e ->
+                    // ouvert depuis l'onglet Fichiers : sur la connexion de l'appareil choisi
+                    val appareil = com.mawena.ccs.logique.Appareils.deRoute(e.arguments?.getString("appareil"))
+                    val client = remember(appareil) { appareil?.let { modele.fichiers.clientPour(it) } ?: modele.depot.client }
                     EcranFichier(
                         modele, e.arguments?.getString("chemin").orEmpty(), e.arguments?.getString("ligne")?.toIntOrNull(),
                         retour = { nav.popBackStack() },
+                        client = client,
                     )
                 }
                 composable(Onglet.Git.route) { EcranGitOnglet(modele, ouvrirGit = { nav.navigate(Routes.gitProjet(it)) }) }
@@ -224,8 +242,10 @@ fun EcranPrincipal(modele: ModeleAppli) {
                         modele, ouvrirAnalyse = { nav.navigate(Routes.ANALYSE) },
                         ouvrirReglages = { nav.navigate(Routes.REGLAGES) },
                         ouvrirTerminaux = { nav.navigate(Routes.TERMINAUX) },
+                        ouvrirJarvis = { nav.navigate(Routes.JARVIS) },
                     )
                 }
+                composable(Routes.JARVIS) { com.mawena.ccs.ui.jarvis.EcranJarvis(modele, retour = { nav.popBackStack() }) }
                 composable(Routes.REGLAGES) { com.mawena.ccs.ui.reglages.EcranReglages(modele, retour = { nav.popBackStack() }) }
                 composable(Routes.TERMINAUX) {
                     com.mawena.ccs.ui.terminal.EcranTerminaux(modele, retour = { nav.popBackStack() }, ouvrir = { nav.navigate(Routes.terminal(it)) })
@@ -240,6 +260,27 @@ fun EcranPrincipal(modele: ModeleAppli) {
 }
 
 /** Bandeau discret tant que le WebSocket n'est pas ouvert. */
+/** Bandeau d'accent, sur tous les écrans, tant qu'on pilote une autre machine que ce serveur. */
+@Composable
+fun BandeauMachine(modele: ModeleAppli, changer: () -> Unit) {
+    val machine by modele.machine.collectAsStateWithLifecycle()
+    if (machine.isEmpty()) return
+    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(Icons.Filled.Computer, null, Modifier.size(18.dp))
+            Text(
+                "Machine pilotée : ${modele.depot.client.nomMachine}", Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+            )
+            TextButton(onClick = changer) { Text("Changer") }
+        }
+    }
+}
+
 @Composable
 fun BandeauConnexion(modele: ModeleAppli) {
     val etat by modele.etat.collectAsStateWithLifecycle()

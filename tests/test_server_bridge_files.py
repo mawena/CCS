@@ -59,6 +59,29 @@ class FileOpsTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(bridge_files, "MAX_TRANSFER", 2):
             self.assertEqual(await self.code("files.download", path=str(self.project / "a.txt")), "trop_gros")
 
+    async def test_folder_archive_downloaded_then_deleted(self):
+        import io
+        import zipfile
+        (self.project / "src" / "b.py").write_text("print(1)\n")
+        (self.project / "vide").mkdir()
+        (self.project / "lien").symlink_to("/etc/passwd")
+        with mock.patch.object(bridge_files.tempfile, "gettempdir", return_value=self.tmp):
+            a = await self.c.call("files.archive", path=str(self.project))
+            self.assertEqual(a["name"], "projet.zip")
+            stored = Path(self.tmp) / f"ccs-archives-{os.getuid()}" / f"{a['archive']}.zip"
+            self.assertTrue(stored.exists())
+            r = await self.c.call("files.download", archive=a["archive"], offset=0)
+            self.assertTrue(r["done"])
+            self.assertFalse(stored.exists())          # effacée une fois livrée
+            names = set(zipfile.ZipFile(io.BytesIO(base64.b64decode(r["data"]))).namelist())
+            self.assertEqual(names, {"projet/a.txt", "projet/src/b.py", "projet/vide/"})
+            self.assertEqual(await self.code("files.download", archive="../../etc/passwd"), "invalide")
+            self.assertEqual(await self.code("files.archive", path="/etc"), "refuse")
+            self.assertEqual(await self.code("files.archive", path=str(self.project / "a.txt")), "introuvable")
+            with mock.patch.object(bridge_files, "MAX_TRANSFER", 10):
+                self.assertEqual(await self.code("files.archive", path=str(self.project)), "trop_gros")
+            self.assertEqual(list(stored.parent.iterdir()), [])
+
     async def test_upload_in_chunks_then_rename(self):
         d = str(self.project)
         r = await self.c.call("files.upload", dir=d, name="n.bin", data=b64(b"abc"), offset=0)

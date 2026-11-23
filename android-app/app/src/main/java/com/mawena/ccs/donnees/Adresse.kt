@@ -38,6 +38,14 @@ object Adresse {
         .addQueryParameter("protocol", PROTOCOLE.toString())
         .apply { if (machine.isNotEmpty()) addQueryParameter("machine", machine) }
         .build()
+
+    /**
+     * WebSocket de l'oreille de Jarvis (`api/jarvis/oreille?fp=<empreinte>`), jamais relayé vers une
+     * machine pilotée : le cerveau est réglé sur le serveur. OkHttp passe lui-même en ws/wss.
+     */
+    fun oreilleJarvis(base: String, empreinte: String): HttpUrl = api(base, "api/jarvis/oreille").newBuilder()
+        .addQueryParameter("fp", empreinte)
+        .build()
 }
 
 /** Petit magasin clé → texte, pour tester le stockage sans Android. */

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Travaux distants (`ccs distant`) : mêmes mots que la page Machines du web (`pages-machines.js`).
+/// Travaux distants (`ccs distant`) : mêmes mots que le calcul réparti de l'onglet Réseau du web (`calcul.js`).
 enum Travaux {
     /// États du protocole 1 (`waiting`, `scheduled`, `sending`, `running`, `done`, `failed`, `stopped`).
     static let actifs: Set<String> = ["waiting", "scheduled", "sending", "running"]

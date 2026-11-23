@@ -31,10 +31,43 @@ final class MachinesTests: XCTestCase {
         XCTAssertEqual(Machine(id: "x").description, "hors ligne")
     }
 
+    func testChampsDuReseauEtMemoire() {
+        let l = ListeMachines(json: json("""
+        {"machines": [
+          {"id": "pc-bureau", "online": true, "mem_used": 1073741824, "mem_total": 17179869184,
+           "host": "Bureau", "mesh": "pc-bureau", "mesh_ip": "100.64.0.3"},
+          {"id": "ancien", "online": true}
+        ]}
+        """))
+        let pc = l.machines[0]
+        XCTAssertEqual(pc.memUsed, 1_073_741_824)
+        XCTAssertEqual(pc.memTotal, 17_179_869_184)
+        XCTAssertEqual(pc.host, "Bureau")
+        XCTAssertEqual(pc.mesh, "pc-bureau")
+        XCTAssertEqual(pc.meshIp, "100.64.0.3")
+        // anciens serveurs : champs absents
+        XCTAssertNil(l.machines[1].meshIp)
+        XCTAssertNil(l.machines[1].memTotal)
+    }
+
+    func testReglagesEtAjoutParRicochet() {
+        let r = ReglagesRelais(json: json(#"{"relay": "https://r.ex", "token_set": true, "operator_set": true, "path": "/h/x.toml"}"#))
+        XCTAssertTrue(r.operateurDefini)
+        XCTAssertFalse(ReglagesRelais(json: json(#"{"relay": "https://r.ex", "token_set": true}"#)).operateurDefini)
+        let a = AjoutMachine(json: json(#"{"id": "pc-salon", "command": "curl … | sudo sh", "mesh": true, "expires_s": 600}"#))
+        XCTAssertEqual(a.id, "pc-salon")
+        XCTAssertTrue(a.mesh)
+        XCTAssertEqual(a.expiresS, 600)
+    }
+
     func testMachineGardeeEnCache() throws {
-        let m = Machine(id: "pc", name: "PC", online: true, cores: 4, load: 0.5, tunnel: true)
+        var m = Machine(id: "pc", name: "PC", online: true, cores: 4, load: 0.5, tunnel: true)
+        m.meshIp = "100.64.0.3"
         let d = try JSONEncoder().encode([m])
         XCTAssertEqual(try JSONDecoder().decode([Machine].self, from: d), [m])
+        // cache écrit par une version sans les champs du réseau : toujours lisible
+        let ancien = #"[{"id":"pc","name":"PC","online":true,"local":false,"cores":4,"load":0.5,"tunnel":true,"tools":[],"limit":2,"running":0,"waiting":0}]"#
+        XCTAssertEqual(try JSONDecoder().decode([Machine].self, from: Data(ancien.utf8)).first?.id, "pc")
     }
 
     func testDureeEtLigne() {

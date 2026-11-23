@@ -457,7 +457,7 @@ Poser un ou plusieurs mots-clés sur un message (« important », « à revoir �
 - [x] 3 bis. 0.19.1 : bouton « ⤓ » direct sur chaque fichier de l'arbre (le téléchargement n'était visible que dans le menu « ⋯ ») ; affichage vérifié dans Chromium sans tête
 - [x] 3 ter. 0.19.2 : seuil par défaut du contexte lourd et du compactage automatique doublé (300 000 tokens)
 - [x] 4. Essai réel : envoyer, télécharger, renommer, supprimer (19/11, Chromium en taille téléphone : envoi et téléchargement de 3 Mo identiques, renommer, copier, couper, coller, supprimer)
-- [ ] 5. Plus tard, si utile : télécharger un dossier entier (archive), même gestion sur le bureau
+- [x] 5. Télécharger un dossier entier : « Télécharger (.zip) » dans le menu ⋯ d'un dossier (web), `files.archive` au pont ; rien à faire sur le bureau, qui ouvre les fichiers sur place (1.7.0)
 
 ## Phase 20 — Gestionnaire de fichiers du web (0.20.0)
 
@@ -475,7 +475,7 @@ Un cinquième onglet « Fichiers » dans la navigation du web : parcourir les do
 - [x] 1. Paquet `ccs` : plus de source `ccs.sources` ni de clé `ccs.gpg`, `Depends: mawena-depot`, retrait de l'ancienne source (`rm_conffile`, `debian/ccs.maintscript`)
 - [x] 2. README, site (`index.html`, `installer.sh` qui lance l'installateur de https://apt.mawena.cloud), pages de manuel, architecture
 - [x] 3. Release corrective 0.20.1, publiée aussi avec `mawena-depot` dans l'ancien dépôt (gardé jusqu'à mai 2027)
-- [ ] 4. Mai 2027 : archiver l'ancien dépôt (page d'accueil qui renvoie au dépôt unique)
+- [x] 4. Ancien dépôt archivé le 23/11/2026, avant mai 2027 à la demande de Charles : tag `archive/ancien-depot-apt`, `apt/` de gh-pages remplacé par une page qui renvoie au dépôt unique ; `make apt`, `publier-apt.sh` et `data/apt` retirés (1.7.0)
 
 ## Phase 21 — Calcul réparti par Ricochet (0.21.0 et suivantes)
 
@@ -500,7 +500,7 @@ Choix (17/11/2026, Charles : « fais les meilleurs choix ») : Ricochet 0.3.0 ou
 - [x] 12. Tests, documentation, release mineure
 
 Étape C — à décider après essai
-- [ ] 13. Sessions Claude entières sur une autre machine (le pont de CCS lancé là-bas par le tunnel) : à étudier, demande Claude Code et un compte sur chaque machine
+- [x] 13. Sessions Claude entières sur une autre machine : faites par la phase 26 (le pont du serveur relaie le web jusqu'au pont CCS de la machine, lancé là-bas s'il manque), aujourd'hui par le réseau maillé avec Ricochet en secours ; il faut CCS, Claude Code et un compte sur la machine
 
 ## Phase 22 — Sous-agents dans le chat web (0.22.0)
 
@@ -643,6 +643,27 @@ archive de l'ancien dépôt) vient après.
 - [x] 4. Suite de tests complète, README et documentation à jour (mise à jour, pont, config)
 - [x] 5. Release majeure 1.0.0, mise à jour du VPS et du PC
 
+## Phase 40 — Jarvis maître de tout le réseau CCS
+
+Charles (23/11/2026) : Jarvis doit avoir un accès global au réseau CCS (sessions, sous-agents,
+machines, travaux), pour des ordres comme « tue le premier sous-agent de la session GliGli ». Et
+utiliser Claude (comptes CCS) comme cerveau d'appoint quand les données ne sont pas sensibles, le
+cerveau local de laptop-maison prenant le relais quand plus aucun compte n'a de quota.
+
+- [ ] 1. Outils de Jarvis côté CCS : méthodes du pont exposées à Jarvis (lister sessions et sous-agents, arrêter, lancer, état des machines et travaux), avec confirmation vocale pour les actions destructrices
+- [ ] 2. Routage du cerveau : Claude (`ccs meilleur`) si la demande n'est pas sensible et qu'un compte a du quota, sinon le cerveau local ; règle de sensibilité à fixer avec Charles
+- [ ] 3. Oreilles partout (iPhone, Pixel, lp-work, lp-home) avec dédoublonnage quand plusieurs entendent la même phrase
+
+## Phase 39 — Fichiers de tout le réseau maillé, onglet Fichiers revu
+
+Charles (23/11/2026) : installer des skills d'UI et d'UX, améliorer l'onglet Fichiers et y
+accéder à tous les dossiers de tous les appareils du réseau maillé.
+
+- [x] 1. Skills UI/UX installés pour Claude Code
+- [x] 2. Fichiers : choix de l'appareil (serveur CCS, PC du réseau maillé), navigation par SSH sur le réseau maillé, Ricochet en secours (1.7.0, web, Android, iPhone)
+- [x] 3. Refonte UX de l'onglet (web, puis Android et iPhone)
+- [ ] 4. Appareils sans client (PS5, imprimante…) : routeur de sous-réseau sur un PC du LAN (`--advertise-routes`), activé dans Headscale
+
 ## Phase 38 — Réseau maillé de tous les appareils (network.mawena.cloud)
 
 Charles (23/11/2026) : fusionner Ricochet dans CCS et relier tous ses appareils par internet comme
@@ -665,6 +686,7 @@ domaine en anglais : `network.mawena.cloud`, noms des machines en `<machine>.mes
   - [ ] 4b. Déplacer le code de Ricochet dans le dépôt (à décider avec Charles : coût de construction Rust à chaque release)
 - [ ] 5. Pixel inscrit le 23/11 (`pixel-4-xl`, 100.64.0.3, appli Tailscale par adb) : pc-bureau ↔ Pixel passe par le LAN (10.228.2.44, 18 ms) ; VPS ↔ Pixel par relais DERP. iPhone inscrit le 23/11 (`iphone`, 100.64.0.4). Reste le retrait de l'ancien transport du relais. (Le Pixel est sur le même réseau local que pc-bureau : leur liaison doit passer par le LAN, à vérifier avec `ccs reseau etat`.) Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
 - [ ] 6. Tests, README, CHANGELOG, releases
+- [x] 9. Tout par le réseau maillé, Ricochet en secours (liste des machines, `ccs distant`, Jarvis) ; fiche du serveur nommée « Serveur CCS » ; page Machines fondue dans l'onglet Réseau (1.7.0)
 - [x] 7. Root : mot de passe gardé pour toujours, chiffré (AES-256-GCM, `root_vault`), revérifié après redémarrage ; web sans compte à rebours (1.3.0)
 - [x] 8. Root « pour toujours » : plus de bandeau rouge nulle part (Charles, 23/11) ; `root.status` rend `kept: false, stored: true`, donc rien à reconstruire dans les applis (1.3.1)
 
@@ -679,6 +701,27 @@ le relais garde 15 min, pour une seule lecture, le script d'installation de la m
 - [x] 3. Releases Ricochet 0.7.0 et CCS 1.2.0, relais mis à jour, `jeton_operateur` dans `client.toml` du VPS
 - [ ] 4. Essai réel par Charles sur un nouveau PC
 - [ ] 5. Plus tard : « Ajouter un PC » dans l'appli du bureau, Android et iPhone ; option qui installe aussi CCS et Claude Code (sessions entières sur la machine, piste 13 de la phase 21)
+## Phase 36 — Oreilles de Jarvis
+
+Charles (22/11/2026) : CCS devient le transport des « oreilles » de Jarvis (assistant vocal,
+projet voisin `~/Work/perso/Jarvis`, plan `docs/oreilles-ccs.md` de Jarvis) : parler à Jarvis
+avec un bouton depuis la version web, puis depuis les applis, même hors de la maison. Le cerveau
+tourne sur `laptop-maison` (port 7341, WebSocket sur TLS épinglé) ; le pont du serveur l'atteint
+par le tunnel Ricochet. CCS ne fait que relayer : le cerveau garde l'appairage, le jeton et la
+vérification de la voix.
+
+- [x] 1. Pont : `jarvis_link` (tunnel `ricochet-agent tunnel`, TLS 1.3 épinglé sur l'empreinte SHA-256 du certificat, client WebSocket) et `bridge_jarvis` (`jarvis.open`, `send`, `close`, `settings`, `configure` ; événements `jarvis.message`, `jarvis.closed`), réglages `jarvis.machine`, `jarvis.port`, `jarvis.fingerprint`
+- [x] 2. ccs-web : `/api/jarvis/oreille` (mêmes contrôles que `/api/ws` : origine, session, jeton d'application ou Portier, revérification, déconnexion), relais texte et binaire, limites de taille, erreur claire (`relay_error`, code 4011)
+- [x] 3. Web : page « Jarvis » (appairage par l'adresse `jarvis://pair?…` ou code + empreinte, jeton gardé dans le navigateur ; bouton maintenir / toucher pour parler, micro rééchantillonné en 16 kHz, texte et voix de la réponse)
+- [x] 4. Tests (faux cerveau TLS local, faux `ricochet-agent`, ccs-web de bout en bout, page dans node), README, CHANGELOG
+- [ ] 5. Essai réel par Charles : port 7341 autorisé dans le `[tunnel]` de l'agent Ricochet de laptop-maison (aujourd'hui refusé : « port non autorisé »), `jarvis pair`, une phrase depuis le téléphone hors du Wi-Fi
+- [ ] 6. Bureau (GTK) : il ne réutilise pas la version web ; bouton Jarvis à faire (ou ouvrir la page web)
+- [x] 7. Applis Android et iPhone : bouton Jarvis sur le même relais (voir README, « Parler à Jarvis »)
+  - [x] 7a. Logique commune testée (`logique/Jarvis.kt`, `Logique/Jarvis.swift`) : adresse `jarvis://pair?…`, messages `pair` / `hello` / `wake` / `listen_start` / `listen_end`, lecture des réponses du cerveau et du relais, trames `0x01`, rééchantillonnage 16 kHz, phrase (14 s, silence, rien dit)
+  - [x] 7b. Android : écran Plus → Parler à Jarvis (appairage, bouton maintenir / toucher), `AudioRecord` + `AudioTrack`, coffre chiffré, permission micro, raccourci d'appli et liens `ccs://jarvis`, `jarvis://pair`
+  - [x] 7c. iPhone : même écran, `AVAudioEngine` + `AVAudioPlayer`, trousseau, App Intent « Parler à Jarvis », liens `ccs://jarvis`, `jarvis://pair`
+  - [ ] 7d. Construire sur Codemagic (workflows `android` et `ios-natif`, jamais compilé ici) et essayer sur le Pixel et l'iPhone
+- [ ] 8. Release (version mineure) après l'essai réel
 
 ## Phase 35 — Vocal : dictée et lecture des réponses (1.1.0)
 

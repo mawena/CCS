@@ -43,6 +43,26 @@ class StockageTest {
     }
 
     @Test
+    fun oreilleDeJarvis() {
+        val fp = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde"
+        assertEquals("https://ccs.mawena.cloud/api/jarvis/oreille?fp=$fp", Adresse.oreilleJarvis("https://ccs.mawena.cloud/", fp).toString())
+        assertEquals("http://192.168.1.5:8420/api/jarvis/oreille?fp=$fp", Adresse.oreilleJarvis("http://192.168.1.5:8420", fp).toString())
+    }
+
+    @Test
+    fun appairageJarvisChiffre() {
+        val prefs = PrefsMemoire()
+        val c = CoffreJarvis(prefs, ChiffreurXor())
+        assertNull(c.lire())
+        val a = com.mawena.ccs.logique.AppairageJarvis("e1", "jeton", "f".repeat(43), "Maison", "b")
+        c.ecrire(a)
+        assertEquals(a, c.lire())
+        assertEquals(false, prefs.valeurs["jarvis"]!!.contains("jeton"))
+        c.ecrire(null)
+        assertNull(c.lire())
+    }
+
+    @Test
     fun cheminsDeLApi() {
         assertEquals("https://ccs.mawena.cloud/api/ws", Adresse.api("https://ccs.mawena.cloud", "api/ws").toString())
         assertEquals("https://hote.fr/ccs/api/health", Adresse.api("https://hote.fr/ccs", "/api/health").toString())

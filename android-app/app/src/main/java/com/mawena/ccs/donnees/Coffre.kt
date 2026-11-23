@@ -92,6 +92,30 @@ class Coffre(private val prefs: Preferences, private val chiffreur: Chiffreur) {
     }
 }
 
+/** Appairage de l'oreille de Jarvis (identifiant d'oreille, jeton, empreinte du cerveau), chiffré à part. */
+class CoffreJarvis(private val prefs: Preferences, private val chiffreur: Chiffreur) {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    fun lire(): com.mawena.ccs.logique.AppairageJarvis? = runCatching {
+        val brut = prefs.lire(CLE) ?: return null
+        val clair = chiffreur.dechiffrer(Base64.getDecoder().decode(brut))
+        json.decodeFromString(com.mawena.ccs.logique.AppairageJarvis.serializer(), clair.decodeToString())
+    }.getOrNull()
+
+    fun ecrire(appairage: com.mawena.ccs.logique.AppairageJarvis?) {
+        if (appairage == null) {
+            prefs.ecrire(CLE, null)
+            return
+        }
+        val clair = json.encodeToString(com.mawena.ccs.logique.AppairageJarvis.serializer(), appairage).encodeToByteArray()
+        prefs.ecrire(CLE, Base64.getEncoder().encodeToString(chiffreur.chiffrer(clair)))
+    }
+
+    private companion object {
+        const val CLE = "jarvis"
+    }
+}
+
 class PreferencesAndroid(private val sp: SharedPreferences) : Preferences {
     override fun lire(cle: String): String? = sp.getString(cle, null)
     override fun ecrire(cle: String, valeur: String?) {
