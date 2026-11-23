@@ -27,6 +27,8 @@ struct PanneauFichiers: View {
     @State private var choisir = false
     @State private var local: FichierLocal? = nil
     @State private var demandes = Demandes()
+    /// Affichage du dossier en grille (tuiles) plutôt qu'en liste ; mémorisé, liste par défaut.
+    @AppStorage("fichiers.grille") private var grille = false
     private var presse: Presse { return Presse.partage }
 
     /// `proteger` : le dossier de base (le projet) ne peut être ni renommé ni supprimé d'ici.
@@ -118,6 +120,13 @@ struct PanneauFichiers: View {
             }
             .accessibilityLabel("Chercher un fichier")
             .padding(.horizontal, 6)
+            Button {
+                grille.toggle()
+            } label: {
+                Image(systemName: grille ? "list.bullet" : "square.grid.2x2")
+            }
+            .accessibilityLabel(grille ? "Afficher en liste" : "Afficher en grille")
+            .padding(.horizontal, 6)
             Menu {
                 actionsDossier(dossier, courant: true)
             } label: {
@@ -149,6 +158,11 @@ struct PanneauFichiers: View {
 
     @ViewBuilder
     private var contenu: some View {
+        if grille { contenuGrille } else { contenuListe }
+    }
+
+    @ViewBuilder
+    private var contenuListe: some View {
         List {
             if dossier != base && Fichiers.sous(dossier, base) {
                 Button {
@@ -177,6 +191,83 @@ struct PanneauFichiers: View {
         }
         .listStyle(.plain)
         .refreshable { await charger() }
+    }
+
+    // MARK: grille
+
+    private var contenuGrille: some View {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
+                if dossier != base && Fichiers.sous(dossier, base) {
+                    Button {
+                        dossier = Fichiers.parent(dossier)
+                    } label: {
+                        tuileCorps(icone: "arrow.turn.left.up", teinte: Color.secondary, nom: "Dossier parent", marque: "")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Dossier parent")
+                }
+                if let l = liste {
+                    ForEach(l.entries) { e in
+                        tuile(e.avec(chemin: Fichiers.joindre(base, e.path)))
+                    }
+                }
+            }
+            .padding(12)
+            if let l = liste {
+                if l.entries.isEmpty {
+                    EtatVide("Ce dossier est vide.") {
+                        Menu("Créer ou envoyer un fichier") { actionsDossier(dossier, courant: true) }
+                    }
+                }
+                if l.truncated { EtatVide("(dossier trop long : liste coupée)") }
+            } else if let m = erreur {
+                EtatErreur(message: m) { Task { await charger() } }
+            } else {
+                Chargement()
+            }
+        }
+        .refreshable { await charger() }
+    }
+
+    private func tuile(_ e: EntreeFichier) -> some View {
+        let g = Fichiers.genre(e.name, dossier: e.dir)
+        return Button {
+            ouvrir(e, depuisRecherche: false)
+        } label: {
+            tuileCorps(icone: g.icone, teinte: g.teinte, nom: e.name, marque: e.mark)
+        }
+        .buttonStyle(.plain)
+        .contextMenu { actionsEntree(e) }
+        .accessibilityLabel(e.mark.isEmpty ? e.name : "\(e.name), \(Fichiers.marque(e.mark))")
+        .accessibilityHint(e.dir ? "Ouvre le dossier" : "Ouvre le fichier")
+    }
+
+    private func tuileCorps(icone: String, teinte: Color, nom: String, marque: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icone)
+                .font(.system(size: 40))
+                .foregroundStyle(teinte)
+                .frame(height: 48)
+                .overlay(alignment: .topTrailing) {
+                    if !marque.isEmpty {
+                        Text(marque).font(.caption.weight(.bold)).foregroundStyle(couleurMarque(marque))
+                            .padding(.horizontal, 4)
+                            .background(Capsule().fill(Color(.systemBackground)))
+                            .offset(x: 10, y: -4)
+                    }
+                }
+            Text(nom)
+                .font(.caption)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity, minHeight: 100, alignment: .top)
+        .contentShape(RoundedRectangle(cornerRadius: 10))
     }
 
     @ViewBuilder
