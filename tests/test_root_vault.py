@@ -57,7 +57,8 @@ class ForeverTest(VaultCase):
         self.clock.t += 365 * 86400
         self.assertTrue(k.kept())
         st = k.status()
-        self.assertTrue(st["forever"])
+        self.assertTrue(st["stored"])
+        self.assertFalse(st["kept"])                # pas de bandeau dans les interfaces
         self.assertIn("sans limite", rk.status_text(st))
         k.close()                                   # arrêt du pont : le coffre reste
         k2 = self.make()
