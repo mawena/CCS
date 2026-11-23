@@ -12,6 +12,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   (avec `confirme`, sinon la cible résolue et la question à poser), `jarvis.start_session` ;
   noms approchés (« la session GliGli ») et rangs (« le premier sous-agent ») ; protocole dans
   `docs/jarvis.md`. Les sous-agents des chats sont suivis et s'arrêtent un par un.
+- Onglet Fichiers (web, Android, iPhone) : affichage en grille au choix (bouton Liste/Grille,
+  choix mémorisé) ; toucher un dossier y entre, « ⋯ » ou appui long garde toutes les actions.
 
 ### Modifié
 
