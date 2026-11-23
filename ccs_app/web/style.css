@@ -125,7 +125,7 @@ a.button.portier[hidden] { display: none; }
     background: var(--card); border-top: 1px solid var(--line);
     padding: 4px 4px max(4px, env(safe-area-inset-bottom));
   }
-  .nav a { flex-direction: column; gap: 0; padding: 4px 6px; font-size: 0.75em; min-width: 56px; }
+  .nav a { flex-direction: column; gap: 0; padding: 4px 6px; font-size: 0.75em; min-width: 50px; }
   .nav-icon { font-size: 1.3em; line-height: 1.2; }
   .view { padding: 10px; padding-bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom)); }
   .view[data-view="sessions"] { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }

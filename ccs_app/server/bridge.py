@@ -124,7 +124,7 @@ class Bridge:
     def keeps_local(method):
         """Sur une connexion relayée vers une autre machine, ce qui reste traité ici (noms déjà
         ramenés aux nouveaux par `protocol.normalize`)."""
-        return method == "hello" or method.startswith("machines.")
+        return method == "hello" or method.startswith(("machines.", "network."))
 
     def _on_connect(self, conn):
         self.clients.add(conn)
@@ -316,11 +316,13 @@ def build(user, key, local=False, chat=None, **kwargs):
     (projets, fichiers, feuille de route, tâches, analyse) et terminaux. `chat` : options du
     moteur de chat (`claude`, `environ`), pour le banc d'essai."""
     from . import (bridge_admin, bridge_chat, bridge_data, bridge_files, bridge_git,
-                   bridge_machines, bridge_root, bridge_term, bridge_work)
+                   bridge_machines, bridge_network, bridge_root, bridge_term,
+                   bridge_work)
     b = Bridge(user, key, local=local, **kwargs)
     b.hubs = {"chat": bridge_chat.ChatHub(b, **(chat or {})), "data": bridge_data.DataApi(b),
               "term": bridge_term.TermHub(b), "work": bridge_work.WorkApi(b),
               "admin": bridge_admin.AdminApi(b), "git": bridge_git.GitApi(b),
               "files": bridge_files.FileOps(b), "machines": bridge_machines.MachinesApi(b),
-              "root": bridge_root.RootApi(b)}
+              "root": bridge_root.RootApi(b),
+              "network": bridge_network.NetworkApi(b)}
     return b

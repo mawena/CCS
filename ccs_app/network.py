@@ -11,6 +11,7 @@ d'inscription jetables (`headscale preauthkeys create`).
 """
 
 import ipaddress
+import re
 import json
 import shutil
 import subprocess
@@ -139,10 +140,15 @@ def describe(st):
 
 
 def ping(name, run=None):
-    """Chemin et latence réels vers un appareil (`tailscale ping`)."""
-    r = _run(["tailscale", "ping", "--c", "3", name], run=run, timeout=20)
-    out = (r.stdout or r.stderr).strip().splitlines()
-    return out[-1] if out else "pas de réponse"
+    """Chemin et latence réels vers un appareil (`tailscale ping`) : {ok, path, via, ms} ou {ok, error}."""
+    r = _run(["tailscale", "ping", "--c", "5", name], run=run, timeout=25)
+    return parse_ping((r.stdout or "") + "\n" + (r.stderr or ""))
+
+
+def ping_text(res):
+    if not res.get("ok"):
+        return res.get("error", "pas de réponse")
+    return f"{PATH_LABELS.get(res['path'], res['path'])} ({res['via']}) : {res['ms']:g} ms"
 
 
 # --- Côté serveur (VPS) : clés d'inscription ---------------------------------------------------
@@ -190,10 +196,65 @@ def server_nodes(run=None):
     out = []
     for n in nodes:
         out.append({
+            "id": n.get("id"),
             "name": n.get("given_name") or n.get("name", "?"),
+            "host": n.get("name", ""),
             "ips": list(n.get("ip_addresses") or []),
             "online": bool(n.get("online")),
-            "endpoints": list(n.get("endpoints") or []),
             "last_seen": (n.get("last_seen") or {}).get("seconds"),
+            "created": (n.get("created_at") or {}).get("seconds"),
         })
     return out
+
+
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+
+
+def _node_id(name, run=None):
+    for n in server_nodes(run=run):
+        if name in (n["name"], n["host"]):
+            return str(n["id"])
+    raise NetworkError(f"Appareil « {name} » inconnu du serveur.")
+
+
+def rename(name, new, run=None):
+    if not NAME_RE.match(new or ""):
+        raise NetworkError("Nom invalide : lettres minuscules, chiffres et tirets.")
+    _headscale(["nodes", "rename", "--identifier", _node_id(name, run), new], run=run)
+
+
+def remove(name, run=None):
+    _headscale(["nodes", "delete", "--identifier", _node_id(name, run), "--force"], run=run)
+
+
+PING_RE = re.compile(r"pong from (?P<name>\S+) \((?P<ip>[^)]+)\) via (?P<via>.+?) in (?P<ms>[\d.]+)\s*ms")
+
+
+def parse_ping(text):
+    """Dernière ligne « pong from x (ip) via 192.168.1.5:41641 in 3ms » → {path, via, ms}."""
+    for line in reversed((text or "").splitlines()):
+        m = PING_RE.search(line)
+        if not m:
+            continue
+        via = m["via"]
+        if via.startswith("DERP("):
+            path = "relay"
+        else:
+            path = "lan" if is_local(_host(via)) else "direct"
+        return {"ok": True, "path": path, "via": via, "ms": float(m["ms"])}
+    return {"ok": False, "error": (text or "pas de réponse").strip().splitlines()[-1][:200]
+            if (text or "").strip() else "pas de réponse"}
+
+
+REG_KEY_RE = re.compile(r"^[A-Za-z0-9:_-]{8,200}$")
+
+
+def register(key, user=DEFAULT_USER, run=None):
+    """Valide un appareil qui s'est connecté depuis l'appli Tailscale (Android, iPhone) : la clé
+    affichée par la page https://network.mawena.cloud/register/<clé>."""
+    key = (key or "").strip().rsplit("/", 1)[-1]
+    if not REG_KEY_RE.match(key):
+        raise NetworkError("Clé d'inscription invalide.")
+    data = _headscale(["auth", "register", "--user", user, "--auth-id", key], run=run) or {}
+    return data.get("given_name") or data.get("name") or "appareil"
+

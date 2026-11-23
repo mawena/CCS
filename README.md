@@ -835,6 +835,41 @@ du calcul réparti. Si le PC ne répond pas, un bandeau donne la raison et le we
 
 Fonctionnement et sécurité : [docs/architecture.md](docs/architecture.md) ; pas à pas : [docs/utilisation.md](docs/utilisation.md).
 
+## Réseau : tous les appareils comme sur un réseau local
+
+Tous les appareils (VPS, PC, téléphones) sont reliés par un réseau maillé WireGuard. Le serveur de
+coordination est **Headscale**, sur le VPS (`https://network.mawena.cloud`), et chaque appareil
+fait tourner le client `tailscale`. Chacun reçoit une adresse fixe (100.64.x.x) et un nom
+`<appareil>.mesh.mawena.cloud`.
+
+Chaque liaison prend toute seule le meilleur chemin, et le revoit quand un appareil change de
+réseau :
+1. **réseau local**, si les deux appareils y sont ensemble ;
+2. sinon **direct par internet** (percement de NAT) ;
+3. sinon le **relais** du VPS (DERP, STUN sur UDP 3478).
+
+**Onglet « Réseau »** (version web, à droite de Sessions) :
+- une carte du réseau, avec un trait par liaison coloré selon le chemin ;
+- une fiche par appareil : adresse, adresses publiées (locales, publiques, IPv6), trafic, ping
+  réel (chemin et latence), renommer, retirer ;
+- « Ajouter un appareil » :
+  - **PC Linux** : une ligne à coller, avec une clé jetable valable 15 min ;
+  - **Android et iPhone** : l'appli Tailscale avec le serveur personnalisé
+    `https://network.mawena.cloud`, puis la clé `hskey-authreq-…` affichée, à valider dans
+    l'onglet.
+
+**En ligne de commande** :
+
+```bash
+ccs reseau                 # appareils et chemin de chaque liaison
+ccs reseau ping pc-bureau  # chemin et latence réels
+ccs reseau cle --nom pc-x  # clé jetable et lignes d'inscription (sur le VPS)
+ccs reseau serveur         # appareils connus du serveur
+```
+
+Sur le VPS, le compte qui fait tourner CCS doit être dans le groupe `headscale` (clés, renommage,
+retrait).
+
 ## Calcul réparti : lancer un travail sur une autre machine
 
 Avec [Ricochet](https://github.com/mawena/Ricochet) (0.3.0 ou plus), CCS se sert des autres

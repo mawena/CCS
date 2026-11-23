@@ -1,3 +1,9 @@
+ccs (1.4.0) unstable; urgency=medium
+
+  * Onglet Réseau de la version web : carte, appareils, ping, ajout d'appareils.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 23 Nov 2026 14:00:00 +0100
+
 ccs (1.3.1) unstable; urgency=medium
 
   * Plus de bandeau « Root gardé » : le mot de passe est au coffre pour toujours.
