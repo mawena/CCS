@@ -857,6 +857,9 @@ relais, jeton de l'appli). L'appareil photo du téléphone ouvre directement CCS
 `jarvis pair` (lien `jarvis://pair?…`) ; un raccourci « Parler à Jarvis » (raccourci d'appli
 Android, App Intent sur iPhone) ouvre l'écran déjà en écoute.
 
+Dans l'appli du **bureau** : menu principal → **Parler à Jarvis…** ouvre cette page web sur le
+premier serveur CCS appairé (le micro passe par le navigateur).
+
 Pour une autre oreille : WebSocket `wss://<serveur>/api/jarvis/oreille?fp=<empreinte>`
 avec la session CCS ou `Authorization: Bearer <jeton d'application>`. Le premier message
 (`pair` ou `hello` du protocole des oreilles de Jarvis) doit partir dès l'ouverture ; tout est

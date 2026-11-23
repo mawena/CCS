@@ -63,6 +63,7 @@ class Window(Adw.ApplicationWindow):
         header.pack_start(add_btn)
         menu = Gio.Menu()
         menu.append("Nouvelle session…", "win.new-session")
+        menu.append("Parler à Jarvis…", "win.jarvis")
         menu.append("Bilan de santé…", "win.doctor")
         menu.append("Réglages", "win.prefs")
         header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, primary=True,
@@ -88,6 +89,7 @@ class Window(Adw.ApplicationWindow):
         header.pack_end(self.auto_box)
         for name, handler in (("new-session", lambda *_: self.new_session()),
                               ("doctor", lambda *_: self.show_doctor()),
+                              ("jarvis", lambda *_: self.open_jarvis()),
                               ("prefs", lambda *_: self.show_prefs())):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", handler)
@@ -285,6 +287,15 @@ class Window(Adw.ApplicationWindow):
         if title:
             self.doctor_banner.set_title(title)
         self.doctor_banner.set_revealed(bool(title))
+
+    def open_jarvis(self):
+        """Jarvis se parle par la version web du serveur CCS (micro du navigateur, même relais)."""
+        from ..remote import servers
+        url = servers.jarvis_url()
+        if not url:
+            self.toast("Ajoute d'abord un serveur CCS (Réglages) : Jarvis passe par sa version web")
+            return
+        Gtk.UriLauncher.new(url).launch(self, None, None)
 
     def show_doctor(self):
         self.doctor_banner.set_revealed(False)

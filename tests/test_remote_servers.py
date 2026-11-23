@@ -23,6 +23,11 @@ class ServersTest(HomeTestCase):
         self.assertTrue(servers.remove("vps"))
         self.assertFalse(servers.remove("vps"))
 
+    def test_jarvis_url_uses_first_server(self):
+        self.assertIsNone(servers.jarvis_url([]))
+        a = servers.Server(name="vps", url="https://ccs.example.org/", user="u", token="t")
+        self.assertEqual(servers.jarvis_url([a]), "https://ccs.example.org/#/jarvis")
+
     def test_corrupt_file_is_empty(self):
         servers.path().parent.mkdir(parents=True, exist_ok=True)
         servers.path().write_text("{pas du json")

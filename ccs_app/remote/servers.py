@@ -54,6 +54,12 @@ def load():
         return []
 
 
+def jarvis_url(items=None):
+    """Page « Parler à Jarvis » de la version web du premier serveur CCS appairé (None sans serveur)."""
+    items = load() if items is None else items
+    return f"{items[0].url.rstrip('/')}/#/jarvis" if items else None
+
+
 def save(items):
     p = path()
     p.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
