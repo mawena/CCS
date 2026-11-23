@@ -5,6 +5,7 @@ import { el } from "./dom.js";
 import { mountFiles } from "./files-browser.js";
 import { mountHome } from "./home.js";
 import { mountMachines } from "./pages-machines.js";
+import { mountReseau } from "./reseau.js";
 import { mountSessions } from "./sessions.js";
 import { mountSettings } from "./settings.js";
 
@@ -15,6 +16,7 @@ function placeholder(title) {
 export const VIEWS = {
   accueil: { title: "Accueil", icon: "⌂", mount: mountHome },
   sessions: { title: "Sessions", icon: "💬", mount: mountSessions },
+  reseau: { title: "Réseau", icon: "🌐", mount: mountReseau },
   fichiers: { title: "Fichiers", icon: "📁", mount: mountFiles },
   analyse: { title: "Analyse", icon: "▤", mount: mountAnalysis },
   reglages: { title: "Réglages", icon: "⚙", mount: mountSettings },

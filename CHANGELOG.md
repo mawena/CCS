@@ -3,6 +3,20 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.4.0] — 2026-11-23
+
+### Ajouté
+
+- Onglet « Réseau » de la version web, à droite de Sessions :
+  - carte du réseau maillé, un trait par liaison coloré selon le chemin (réseau local, direct,
+    relais du VPS) ;
+  - fiche de chaque appareil : adresses publiées, trafic, ping réel (chemin et latence),
+    renommer, retirer ;
+  - ajout d'un appareil : ligne d'inscription pour un PC Linux (clé jetable), validation d'un
+    téléphone connecté par l'appli Tailscale.
+- Méthodes `network.status`, `network.ping`, `network.key`, `network.rename`, `network.remove`
+  et `network.register` du pont, toujours traitées sur le serveur.
+
 ## [1.3.1] — 2026-11-23
 
 ### Modifié
