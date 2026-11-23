@@ -1,3 +1,9 @@
+ccs (1.9.0) unstable; urgency=medium
+
+  * Bureau : « Parler à Jarvis… » ouvre la page web Jarvis.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 23 Nov 2026 23:45:00 +0100
+
 ccs (1.8.1) unstable; urgency=medium
 
   * Appli iPhone : libellé Ricochet corrigé (tests iOS).

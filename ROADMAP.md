@@ -651,7 +651,7 @@ utiliser Claude (comptes CCS) comme cerveau d'appoint quand les données ne sont
 cerveau local de laptop-maison prenant le relais quand plus aucun compte n'a de quota.
 
 - [x] 1. Outils de Jarvis côté CCS (CCS 1.8.0 : `jarvis.*` ; côté Jarvis : branche feature/outils-ccs) : méthodes du pont exposées à Jarvis (lister sessions et sous-agents, arrêter, lancer, état des machines et travaux), avec confirmation vocale pour les actions destructrices
-- [ ] 2. Routage du cerveau : Claude (`ccs meilleur`) si la demande n'est pas sensible et qu'un compte a du quota, sinon le cerveau local ; règle de sensibilité à fixer avec Charles
+- [x] 2. (Jarvis 0.6.0 : `routage = local` par défaut tant que la règle n'est pas validée ; famille, adresse, micros de la maison sans ordre explicite restent locaux) Routage du cerveau : Claude (`ccs meilleur`) si la demande n'est pas sensible et qu'un compte a du quota, sinon le cerveau local ; règle de sensibilité à fixer avec Charles
 - [ ] 3. Oreilles partout (iPhone, Pixel, lp-work, lp-home) avec dédoublonnage quand plusieurs entendent la même phrase
 
 ## Phase 39 — Fichiers de tout le réseau maillé, onglet Fichiers revu
@@ -715,12 +715,12 @@ vérification de la voix.
 - [x] 3. Web : page « Jarvis » (appairage par l'adresse `jarvis://pair?…` ou code + empreinte, jeton gardé dans le navigateur ; bouton maintenir / toucher pour parler, micro rééchantillonné en 16 kHz, texte et voix de la réponse)
 - [x] 4. Tests (faux cerveau TLS local, faux `ricochet-agent`, ccs-web de bout en bout, page dans node), README, CHANGELOG
 - [ ] 5. Essai réel par Charles : port 7341 autorisé dans le `[tunnel]` de l'agent Ricochet de laptop-maison (aujourd'hui refusé : « port non autorisé »), `jarvis pair`, une phrase depuis le téléphone hors du Wi-Fi
-- [ ] 6. Bureau (GTK) : il ne réutilise pas la version web ; bouton Jarvis à faire (ou ouvrir la page web)
+- [x] 6. Bureau (GTK) : menu principal → « Parler à Jarvis… » ouvre la page web Jarvis du serveur appairé
 - [x] 7. Applis Android et iPhone : bouton Jarvis sur le même relais (voir README, « Parler à Jarvis »)
   - [x] 7a. Logique commune testée (`logique/Jarvis.kt`, `Logique/Jarvis.swift`) : adresse `jarvis://pair?…`, messages `pair` / `hello` / `wake` / `listen_start` / `listen_end`, lecture des réponses du cerveau et du relais, trames `0x01`, rééchantillonnage 16 kHz, phrase (14 s, silence, rien dit)
   - [x] 7b. Android : écran Plus → Parler à Jarvis (appairage, bouton maintenir / toucher), `AudioRecord` + `AudioTrack`, coffre chiffré, permission micro, raccourci d'appli et liens `ccs://jarvis`, `jarvis://pair`
   - [x] 7c. iPhone : même écran, `AVAudioEngine` + `AVAudioPlayer`, trousseau, App Intent « Parler à Jarvis », liens `ccs://jarvis`, `jarvis://pair`
-  - [ ] 7d. Construire sur Codemagic (workflows `android` et `ios-natif`, jamais compilé ici) et essayer sur le Pixel et l'iPhone
+  - [ ] 7d. Construire sur Codemagic (workflows `android` et `ios-natif`, jamais compilé ici) et essayer sur le Pixel et l'iPhone — construit et installé (1.8.0 Pixel, 1.8.1 iPhone par SideStore) ; reste l'essai avec laptop-maison
 - [ ] 8. Release (version mineure) après l'essai réel
 
 ## Phase 35 — Vocal : dictée et lecture des réponses (1.1.0)
