@@ -27,6 +27,7 @@ enum Reseau {
             case .relais: return "Relais du VPS"
             case .veille: return "En veille"
             case .horsLigne: return "Hors ligne"
+            case .ricochet: return "Relais Ricochet (secours)"
             }
         }
 
@@ -37,6 +38,7 @@ enum Reseau {
             case .direct: return "bolt.fill"
             case .relais: return "arrow.triangle.swap"
             case .veille, .horsLigne: return "waveform.path.ecg"
+            case .ricochet: return "lifepreserver"
             }
         }
     }

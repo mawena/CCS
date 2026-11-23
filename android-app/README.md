@@ -66,7 +66,7 @@ Sessions, Fichiers, Git, Plus), notifications, partage vers CCS, raccourcis d'ap
   enregistrer (conflit signalé si le fichier a changé), départ confirmé s'il reste des
   modifications. Dans le chat, les chemins du projet cités par Claude (`chemin` ou `chemin:ligne`)
   et les chemins des diffs ouvrent le fichier (à la ligne).
-- **Git** (comme `web/git.js`) : onglet Git (choix d'un projet), onglet Git de l'écran Projet et
+- **Git** (comme `web/git.js`) : onglet Git de l'écran Projet et
   bouton Git du chat. Branche et suivi (↑ ↓), Fetch / Pull / Push confirmés (Push forcé à part),
   fichiers indexés, modifiés, non suivis, diff dépliable avec numéros (affichage du chat),
   indexer / désindexer par fichier, tout, ou par morceau ; commit (message proposé, amend
