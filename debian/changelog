@@ -1,3 +1,10 @@
+ccs (1.7.0) unstable; urgency=medium
+
+  * Fichiers de tous les PC du réseau maillé ; page Machines fondue dans l'onglet Réseau ;
+    réseau maillé d'abord partout (Jarvis compris), Ricochet en secours.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 23 Nov 2026 22:00:00 +0100
+
 ccs (1.6.0) unstable; urgency=medium
 
   * ccs distant par le réseau maillé ; Ajouter un PC inscrit aussi au réseau.

@@ -362,6 +362,13 @@ ton dossier personnel et les dossiers web du serveur (`/var/www`, `/srv`) avec l
 sans passer par un projet. Le bouton **Ajouter aux projets** (ou « Ajouter aux projets de CCS »
 dans le menu **⋯** d'un dossier) met un dossier dans la liste des projets de CCS.
 
+**Tous les appareils** : en haut de l'onglet, une puce par appareil — le serveur CCS et chaque PC
+du réseau maillé où CCS est installé (grisé s'il est hors ligne). Choisir un PC ouvre ses dossiers
+par une connexion à part, relayée par le serveur (SSH par le réseau maillé, Ricochet en secours),
+sans changer la machine pilotée. Le dernier appareil choisi est gardé ; adresse
+`#/fichiers/@<machine>/<chemin>`. Les téléphones n'ont pas de CCS : on n'y parcourt pas de
+dossiers. Le trafic est chiffré de bout en bout (WireGuard, puis SSH ou TLS par-dessus).
+
 Un transfert va jusqu'à 200 Mo. Une suppression demande toujours confirmation et elle est
 définitive (pas de corbeille) ; le dossier du projet lui-même ne peut être ni renommé ni
 supprimé d'ici.
@@ -954,13 +961,15 @@ ccs distant arreter <id>                          # arrêt (la commande distante
 Le registre des travaux est dans `~/.cache/ccs/machines/jobs/` (les 30 derniers finis et ceux
 de moins de 24 h sont gardés).
 
-**Page « Machines ».** Dans le web (Réglages → « Gérer les machines », ou la feuille « Machine
-pilotée ») et dans l'appli du PC (Réglages → Machines) : machines en ligne, charge, mémoire,
-outils, places et limite ; travaux avec « Journal » et « Arrêter » ; lancer une commande (dossier,
-machine, maintenant / cette nuit / à une heure) ; adresse et jeton du relais (le jeton n'est
-jamais réaffiché). La page se recharge toutes les 5 s tant qu'elle est visible.
+**Calcul dans l'onglet « Réseau ».** Dans le web et les applis (l'ancienne page « Machines » y est
+fondue ; `#/machines` y mène) : chaque fiche d'appareil montre sa charge, sa mémoire, ses outils,
+ses places et sa limite ; sous les appareils, les travaux avec « Journal » et « Arrêter », le
+formulaire pour lancer une commande (dossier, machine, maintenant / cette nuit / à une heure) et,
+replié, « Secours Ricochet » (adresse et jeton du relais, le jeton n'est jamais réaffiché). Le
+calcul se recharge toutes les 5 s tant que la page est visible. Dans l'appli du PC : Réglages →
+Machines.
 
-**Ajouter un PC au réseau** (le plus simple) : page Machines → « Ajouter un PC » (identifiant,
+**Ajouter un PC au réseau** (le plus simple) : onglet Réseau → Ajouter un appareil → « PC Linux » (identifiant,
 ton compte sur ce PC), ou
 
 ```sh

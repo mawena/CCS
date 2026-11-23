@@ -3,9 +3,20 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
-## [Non publié]
+## [1.7.0] — 2026-11-23
 
 ### Ajouté
+
+- Onglet « Fichiers » : choix de l'appareil en haut (serveur CCS et chaque PC du réseau maillé où
+  CCS est installé). Chaque appareil s'ouvre par sa propre connexion, relayée par le pont du
+  serveur (SSH par le réseau maillé, Ricochet en secours), sans changer la machine pilotée.
+  Adresse `#/fichiers/@<machine>/<chemin>`. Web, Android et iPhone.
+- L'ancienne page « Machines » est fondue dans l'onglet « Réseau », sans information en double :
+  charge, mémoire, outils, places et limite dans la fiche de chaque appareil ; sections Travaux,
+  Lancer une commande et, repliée, Secours Ricochet ; l'ajout d'un PC par Ricochet devient
+  l'onglet « PC Linux » de l'ajout d'appareil quand le jeton opérateur est réglé. `#/machines`
+  mène à l'onglet Réseau. Web, Android et iPhone.
+- `machines.list` donne `host`, `mesh` et `mesh_ip` pour rattacher une machine à sa fiche.
 
 - Oreilles de Jarvis (assistant vocal, projet voisin) : page « Jarvis » de la version web, pour
   appairer le navigateur (adresse `jarvis://pair?…` de `jarvis pair`, ou code et empreinte) puis
@@ -21,6 +32,18 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   Android, App Intent iPhone) et lien `ccs://jarvis` qui ouvrent l'écran déjà en écoute.
 - Pont : méthodes `jarvis.*` et réglages `jarvis.machine`, `jarvis.port` (par défaut
   `laptop-maison:7341`) et `jarvis.fingerprint`.
+
+### Modifié
+
+- Tout passe d'abord par le réseau maillé, Ricochet restant le secours : liste des machines
+  (machines du réseau déclarées par `reseau` dans `machines.toml` même sans Ricochet),
+  `ccs distant`, nom de machine de `ccs root`, et la connexion au cerveau de Jarvis (connexion
+  directe sur son adresse 100.64.x, tunnel Ricochet si elle échoue).
+
+### Corrigé
+
+- Onglet « Réseau » : la fiche du serveur s'appelait « Cet appareil » même vue depuis un
+  téléphone ; elle s'appelle maintenant « Serveur CCS » (web, Android, iPhone).
 
 ## [1.6.0] — 2026-11-23
 
