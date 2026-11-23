@@ -11,6 +11,7 @@ import UniformTypeIdentifiers
 struct PanneauFichiers: View {
     @Environment(ModeleAppli.self) private var modele
     @Environment(\.naviguer) private var naviguer
+    @Environment(\.appareilFichiers) private var appareilFichiers
     let base: String
     var home: String = ""
     var protege: String?
@@ -37,7 +38,8 @@ struct PanneauFichiers: View {
         _dossier = State(initialValue: base)
     }
 
-    private var client: CcsClient { return modele.client }
+    /// Connexion de l'appareil ouvert dans l'onglet Fichiers, sinon celle de la machine pilotée.
+    private var client: CcsClient { return modele.fichiers.clientPour(appareilFichiers) }
     private var requete: String { return recherche?.trimmingCharacters(in: .whitespaces) ?? "" }
 
     var body: some View {

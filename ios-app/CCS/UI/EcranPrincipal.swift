@@ -88,6 +88,8 @@ struct EcranPrincipal: View {
                             .navigationDestination(for: Destination.self) { d in destination(d) }
                     }
                     .environment(\.naviguer, Naviguer { d in ajouter(d, dans: o) })
+                    // l'onglet Fichiers (et les fichiers qu'il ouvre) lit l'appareil choisi
+                    .environment(\.appareilFichiers, o == .fichiers ? modele.fichiers.appareil : nil)
                     .tabItem { Label(o.titre, systemImage: o.icone) }
                     .tag(o)
                 }
@@ -109,6 +111,10 @@ struct EcranPrincipal: View {
         .onChange(of: modele.client.machine) { _, _ in
             piles = [:]
             onglet = .sessions
+        }
+        // connexion de l'appareil des Fichiers : fermée en quittant l'onglet, rouverte en y revenant
+        .onChange(of: onglet) { avant, apres in
+            if apres == .fichiers { modele.fichiers.ouvrir() } else if avant == .fichiers { modele.fichiers.fermer() }
         }
         .task(id: modele.client.etat.estConnecte) {
             guard modele.client.etat.estConnecte else { return }
