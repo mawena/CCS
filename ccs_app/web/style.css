@@ -566,3 +566,14 @@ body.resizing { user-select: none; cursor: col-resize; }
 .file-device.off { opacity: .55; cursor: not-allowed; }
 .file-device small { font-size: .78em; }
 .file-device:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Fichiers au doigt : cibles de 44 px (règle tactile), en-tête qui reste visible en descendant */
+@media (pointer: coarse) {
+  .tree-line, .tree-row, .crumb, .file-tools .file-tool { min-height: 44px; }
+  .tree-more, .tree-save { width: 44px; min-width: 44px; min-height: 44px; }
+  .tree .tree { margin-left: 12px; }
+}
+.browser-head { position: sticky; top: 0; z-index: 2; background: var(--card); padding-block: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .twisty, .file-device { transition: none !important; }
+}
