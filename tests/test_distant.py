@@ -30,6 +30,9 @@ API = [
 PROBE = "bienvenue\nCCS_PATH=/home/c/flutter/bin:/usr/bin\nCCS_OUTIL=flutter=/home/c/flutter/bin/flutter\n"
 
 
+REAL_MESH_PEERS = distant.mesh_peers
+
+
 class FakeRun:
     """Remplace subprocess.run : note les commandes, répond comme les machines."""
 
@@ -71,7 +74,8 @@ class DistantCase(HomeTestCase):
         write(self.home / ".config/ricochet/client.toml",
               'relais = "https://r.example/"\njeton = "secret"\n')
         for name, value in (("shutil.which", lambda n: "/usr/bin/" + n),
-                            ("socket.gethostname", lambda: "ici")):
+                            ("socket.gethostname", lambda: "ici"),
+                            ("mesh_peers", lambda *a, **k: {})):
             p = mock.patch(f"ccs_app.distant.{name}", value)
             p.start()
             self.addCleanup(p.stop)
@@ -120,6 +124,35 @@ class TestSettings(DistantCase):
         self.assertEqual(distant.target(portable, over), "portable")
         with self.assertRaisesRegex(distant.DistantError, "tunnel"):
             distant.ssh_options(self.machines()[0], {})
+
+
+class TestMesh(DistantCase):
+    STATUS = {"BackendState": "Running", "Self": {"DNSName": "vps.mesh.mawena.cloud."}, "Peer": {
+        "a": {"DNSName": "lp-work.mesh.mawena.cloud.", "HostName": "lp-work", "Online": True,
+              "TailscaleIPs": ["100.64.0.2", "fd7a::2"]},
+        "b": {"DNSName": "portable.mesh.mawena.cloud.", "HostName": "portable", "Online": False,
+              "TailscaleIPs": ["100.64.0.9"]}}}
+
+    def test_peers_from_status(self):
+        out = json.dumps(self.STATUS)
+        run = lambda argv, **kw: subprocess.CompletedProcess(argv, 0, out, "")  # noqa: E731
+        self.assertEqual(REAL_MESH_PEERS(run=run), {"lp-work": "100.64.0.2"})
+        fail = lambda argv, **kw: subprocess.CompletedProcess(argv, 1, "", "absent")  # noqa: E731
+        self.assertEqual(REAL_MESH_PEERS(run=fail), {})
+
+    def test_ssh_goes_through_mesh(self):
+        pc, portable = self.machines()[1:3]
+        peers = {"lp-work": "100.64.0.2"}
+        self.assertIsNone(distant.mesh_address(pc, {}, peers))
+        over = {"pc-bureau": {"reseau": "lp-work"}}
+        self.assertEqual(distant.mesh_address(pc, over, peers), "100.64.0.2")
+        opts = distant.ssh_options(pc, over, peers)
+        self.assertIn("HostName=100.64.0.2", opts)
+        self.assertIn("Port=22", opts)
+        self.assertIn("HostKeyAlias=ricochet-pc-bureau", opts)
+        self.assertFalse(any(o.startswith("ProxyCommand") for o in opts))
+        self.assertIsNone(distant.mesh_address(pc, {"pc-bureau": {"reseau": False}}, {"pc-bureau": "100.64.0.2"}))
+        self.assertEqual(distant.mesh_address(portable, {}, {"portable": "100.64.0.9"}), "100.64.0.9")
 
 
 class TestChoice(DistantCase):

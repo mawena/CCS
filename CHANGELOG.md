@@ -3,6 +3,15 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.6.0] — 2026-11-23
+
+### Ajouté
+
+- `ccs distant` passe par le réseau maillé quand la machine y est en ligne : SSH direct sur son
+  adresse 100.64.x (réseau local quand c'est possible), le tunnel Ricochet restant le secours.
+  Réglage `reseau` dans `machines.toml` ; `ccs distant machines` affiche le chemin.
+- « Ajouter un PC » : la ligne à coller inscrit aussi le PC au réseau maillé.
+
 ## [1.5.1] — 2026-11-23
 
 ### Corrigé

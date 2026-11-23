@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import core, distant_jobs, migrate
+from . import core, distant_jobs, migrate, network
 
 # Outils cherchés d'office sur chaque machine (les autres le sont à la demande).
 TOOLS = ("flutter", "dart", "cargo", "node", "npm", "pnpm", "yarn", "bun", "go", "java",
@@ -203,7 +203,62 @@ def target(machine, overrides):
     return f"{user}@{machine.id}" if user else machine.id
 
 
-def ssh_options(machine, overrides):
+# ------------------------------------------------------------------ réseau maillé
+
+MESH_TTL_S = 30
+_mesh_cache = {"at": 0.0, "peers": None}
+
+
+def mesh_peers(run=None, now=time.time):
+    """Appareils en ligne du réseau maillé : {nom (minuscules) : IPv4}, vide sans tailscale. Gardé
+    30 s : un lancement ouvre plusieurs connexions SSH."""
+    t = now()
+    if run is None and _mesh_cache["peers"] is not None and t - _mesh_cache["at"] < MESH_TTL_S:
+        return _mesh_cache["peers"]
+    peers = {}
+    try:
+        st = network.status(run=run)
+    except Exception:  # noqa: BLE001 — pas de réseau maillé : on passe par Ricochet
+        st = {"state": "", "peers": []}
+    if st.get("state") == "Running":
+        for d in st["peers"]:
+            ip = next((i for i in d["ips"] if ":" not in i), None)
+            if d["online"] and ip:
+                for key in (d["name"], d["host"]):
+                    if key:
+                        peers.setdefault(key.lower(), ip)
+    if run is None:
+        _mesh_cache.update(at=t, peers=peers)
+    return peers
+
+
+def mesh_address(machine, overrides, peers=None):
+    """Adresse de la machine dans le réseau maillé, ou None (Ricochet sert alors de tunnel).
+    Nom cherché : `reseau` de `[machines.<id>]` (false pour toujours passer par Ricochet), puis
+    l'identifiant Ricochet, puis le nom d'hôte."""
+    conf = overrides.get(machine.id) or {}
+    if conf.get("reseau") is False:
+        return None
+    peers = mesh_peers() if peers is None else peers
+    for key in (conf.get("reseau"), machine.id, machine.host):
+        if isinstance(key, str) and key and key.lower() in peers:
+            return peers[key.lower()]
+    return None
+
+
+def ssh_options(machine, overrides, peers=None):
+    common = {
+        "HostKeyAlias": f"ricochet-{machine.id}",
+        "StrictHostKeyChecking": "accept-new", "BatchMode": "yes",
+        "ControlMaster": "auto", "ControlPath": str(_cache_dir() / "distant-%C"),
+        "ControlPersist": "120", "ServerAliveInterval": "30", "LogLevel": "ERROR",
+    }
+    ip = mesh_address(machine, overrides, peers)
+    if ip:
+        # Réseau maillé : SSH direct sur l'adresse 100.64.x (réseau local quand c'est possible),
+        # même clé d'hôte qu'à travers Ricochet.
+        opts = {"HostName": ip, "Port": str(ssh_port(machine, overrides) or 22), **common}
+        return [x for k, v in opts.items() for x in ("-o", f"{k}={v}")]
     agent = shutil.which("ricochet-agent")
     if not agent:
         raise DistantError("ricochet-agent (0.3.0 ou plus) n'est pas installé sur cette machine")
@@ -213,12 +268,7 @@ def ssh_options(machine, overrides):
             f"{machine.id} n'accepte pas de tunnel : ajoute [tunnel] ports = [22] à son "
             "/etc/ricochet/agent.toml (agent 0.3.0 ou plus)")
     proxy = f"{agent} tunnel %h --port {port} --config {client_path()}"
-    opts = {
-        "ProxyCommand": proxy, "HostKeyAlias": f"ricochet-{machine.id}",
-        "StrictHostKeyChecking": "accept-new", "BatchMode": "yes",
-        "ControlMaster": "auto", "ControlPath": str(_cache_dir() / "distant-%C"),
-        "ControlPersist": "120", "ServerAliveInterval": "30", "LogLevel": "ERROR",
-    }
+    opts = {"ProxyCommand": proxy, **common}
     return [x for k, v in opts.items() for x in ("-o", f"{k}={v}")]
 
 
@@ -852,7 +902,22 @@ def operator_token():
     return token
 
 
-def add_machine(machine_id, name=None, user=None, limit=None, ports=(22,), opener=None, run=None):
+def mesh_join(machine_id, key=None):
+    """Suite de la ligne « Ajouter un PC » : installe tailscale et inscrit la machine au réseau
+    maillé sous le nom `machine_id`. None si cette machine n'est pas le serveur Headscale."""
+    if key is None:
+        if not shutil.which("headscale"):
+            return None
+        try:
+            key = network.auth_key()
+        except network.NetworkError:
+            return None
+    host = re.sub(r"[^a-z0-9-]", "-", machine_id.lower()).strip("-")[:63] or "machine"
+    return host, "sudo sh -c " + shlex.quote(" && ".join(network.join_lines(key, host)))
+
+
+def add_machine(machine_id, name=None, user=None, limit=None, ports=(22,), opener=None, run=None,
+                mesh=None):
     """Déclare une machine dans Ricochet et renvoie la commande à coller sur elle (lien à usage
     unique, 15 min) : elle installe l'agent, le serveur SSH et la clé de cette machine, ouvre les
     ports aux tunnels et démarre l'agent. L'utilisateur et la limite vont dans `machines.toml`."""
@@ -901,8 +966,13 @@ def add_machine(machine_id, name=None, user=None, limit=None, ports=(22,), opene
     conf["user"] = user
     if limit is not None:
         conf["limit"] = limit
+    command = f"curl -fsSL {client['relais']}{link} | sudo sh"
+    joined = (mesh or mesh_join)(machine_id)
+    if joined:
+        conf["reseau"] = joined[0]
+        command += " && " + joined[1]
     _write_private(path, toml_dump(data))
-    return {"id": machine_id, "command": f"curl -fsSL {client['relais']}{link} | sudo sh",
+    return {"id": machine_id, "command": command, "mesh": bool(joined),
             "expires_s": int(created.get("expire_s") or 900)}
 
 
@@ -919,10 +989,11 @@ def describe(machines, overrides, probe=True, run=None):
         if m.local:
             lines.append(head + " — cette machine")
             continue
-        if ssh_port(m, overrides) is None:
+        mesh = mesh_address(m, overrides)
+        if mesh is None and ssh_port(m, overrides) is None:
             lines.append(head + " — tunnel non activé ([tunnel] dans son agent.toml)")
             continue
-        lines.append(head)
+        lines.append(head + (f" — par le réseau maillé ({mesh})" if mesh else " — par Ricochet"))
         try:
             inv = inventory(m, overrides, run=run) if probe else cached_inventory(m.id)
         except DistantError as e:
