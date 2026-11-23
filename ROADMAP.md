@@ -652,7 +652,7 @@ cerveau local de laptop-maison prenant le relais quand plus aucun compte n'a de 
 
 - [x] 1. Outils de Jarvis côté CCS (CCS 1.8.0 : `jarvis.*` ; côté Jarvis : branche feature/outils-ccs) : méthodes du pont exposées à Jarvis (lister sessions et sous-agents, arrêter, lancer, état des machines et travaux), avec confirmation vocale pour les actions destructrices
 - [x] 2. (Jarvis 0.6.0 : `routage = local` par défaut tant que la règle n'est pas validée ; famille, adresse, micros de la maison sans ordre explicite restent locaux) Routage du cerveau : Claude (`ccs meilleur`) si la demande n'est pas sensible et qu'un compte a du quota, sinon le cerveau local ; règle de sensibilité à fixer avec Charles
-- [ ] 3. Oreilles partout (iPhone, Pixel, lp-work, lp-home) avec dédoublonnage quand plusieurs entendent la même phrase
+- [ ] 3. Oreilles partout (iPhone, Pixel, lp-work, lp-home) avec dédoublonnage quand plusieurs entendent la même phrase — dédoublonnage fait côté cerveau (Jarvis 0.6.1 : une phrase traitée une fois, le bouton gagne toujours) ; reste les oreilles sur chaque appareil
 
 ## Phase 39 — Fichiers de tout le réseau maillé, onglet Fichiers revu
 
