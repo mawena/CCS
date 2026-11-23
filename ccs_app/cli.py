@@ -1045,7 +1045,8 @@ def cmd_distant(args):
             print(f"« {r['id']} » est déclarée. Sur la nouvelle machine, colle dans un terminal "
                   f"(lien valable {r['expires_s'] // 60} min, une seule fois) :\n\n  {r['command']}\n\n"
                   "Elle installe l'agent Ricochet et le serveur SSH, autorise la clé SSH de ce "
-                  "serveur et la rend joignable par `ccs distant`.")
+                  "serveur et la rend joignable par `ccs distant`"
+                  + (" ; elle rejoint aussi le réseau maillé." if r.get("mesh") else "."))
             return 0
         if args.action == "travaux":
             now = time.time()

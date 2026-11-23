@@ -1,3 +1,9 @@
+ccs (1.6.0) unstable; urgency=medium
+
+  * ccs distant par le réseau maillé ; Ajouter un PC inscrit aussi au réseau.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 23 Nov 2026 20:00:00 +0100
+
 ccs (1.5.1) unstable; urgency=medium
 
   * Onglet Réseau (web) : l'ajout d'appareil ne revient plus sur PC Linux.

@@ -893,6 +893,13 @@ ccs distant lancer --machine pc-bureau --rapatrier build/app/outputs -- flutter 
    la sortie s'affiche au fil de l'eau et le code de retour est celui de la commande ;
 4. rapporte ici chaque `--rapatrier <chemin>` si la commande a réussi.
 
+**Par le réseau maillé d'abord** : si la machine est en ligne dans le réseau maillé (voir
+« Réseau » plus haut), SSH va directement à son adresse 100.64.x, par le réseau local quand les
+deux machines y sont ensemble ; sinon le tunnel Ricochet sert comme avant. Nom cherché dans le
+réseau : `reseau = "lp-work"` dans `[machines.<id>]` de `machines.toml` (`reseau = false` pour
+toujours passer par Ricochet), puis l'identifiant de la machine. `ccs distant machines` affiche
+le chemin pris.
+
 Interrompre `ccs distant lancer` (Ctrl+C, arrêt de Claude, connexion perdue) arrête aussi la
 commande sur l'autre machine, avec tout ce qu'elle a lancé : signal TERM, puis KILL 5 s plus
 tard. Le code de retour est alors 130.
@@ -934,7 +941,9 @@ CCS déclare la machine dans Ricochet et donne **une ligne à coller** dans un t
 (Ubuntu ou Debian) : `curl -fsSL https://<relais>/rejoindre/<code> | sudo sh`. Elle installe
 l'agent Ricochet et le serveur SSH, autorise la clé SSH de ce serveur pour ce compte, ouvre le
 port 22 aux tunnels, active terminal et fichiers, puis démarre l'agent : la machine apparaît en
-ligne et `ccs distant` peut s'en servir tout de suite. Le lien ne sert qu'une fois, pendant
+ligne et `ccs distant` peut s'en servir tout de suite. Lancée depuis le serveur du réseau
+maillé (le VPS), la ligne inscrit aussi le PC au réseau maillé sous son identifiant (clé jetable,
+15 min). Le lien ne sert qu'une fois, pendant
 15 minutes, et le jeton de la machine n'est jamais affiché. Il faut Ricochet 0.6.0 ou plus et
 le jeton opérateur du relais dans `~/.config/ricochet/client.toml` (`jeton_operateur = "…"`, son
 empreinte dans `jeton_operateur_sha256` de `/etc/ricochet/serveur.toml`).
