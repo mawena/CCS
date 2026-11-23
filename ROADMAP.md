@@ -457,7 +457,7 @@ Poser un ou plusieurs mots-clés sur un message (« important », « à revoir �
 - [x] 3 bis. 0.19.1 : bouton « ⤓ » direct sur chaque fichier de l'arbre (le téléchargement n'était visible que dans le menu « ⋯ ») ; affichage vérifié dans Chromium sans tête
 - [x] 3 ter. 0.19.2 : seuil par défaut du contexte lourd et du compactage automatique doublé (300 000 tokens)
 - [x] 4. Essai réel : envoyer, télécharger, renommer, supprimer (19/11, Chromium en taille téléphone : envoi et téléchargement de 3 Mo identiques, renommer, copier, couper, coller, supprimer)
-- [ ] 5. Plus tard, si utile : télécharger un dossier entier (archive), même gestion sur le bureau
+- [x] 5. Télécharger un dossier entier : « Télécharger (.zip) » dans le menu ⋯ d'un dossier (web), `files.archive` au pont ; rien à faire sur le bureau, qui ouvre les fichiers sur place (1.7.0)
 
 ## Phase 20 — Gestionnaire de fichiers du web (0.20.0)
 

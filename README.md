@@ -351,8 +351,8 @@ Dans la **version web**, le volet Fichiers sert aussi à gérer les fichiers du 
 - **+ Fichier**, **+ Dossier** et **Envoyer** (un ou plusieurs fichiers du téléphone ou du PC)
   agissent à la racine du projet ;
 - le bouton **⋯** d'un fichier propose Télécharger, Renommer et Supprimer ; celui d'un dossier
-  propose d'y créer un fichier ou un dossier, d'y envoyer un fichier, de le renommer ou de le
-  supprimer ;
+  propose d'y créer un fichier ou un dossier, d'y envoyer un fichier, de le télécharger en entier
+  (.zip), de le renommer ou de le supprimer ;
 - chaque fichier de l'arbre, et le fichier ouvert, a son bouton **⤓** pour le télécharger d'un appui ;
 - **Copier** ou **Couper** dans le menu **⋯**, puis **Coller ici** sur le dossier de destination
   (ou le bouton **Coller** en haut) : copie ou déplace un fichier ou un dossier.

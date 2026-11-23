@@ -32,6 +32,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   Android, App Intent iPhone) et lien `ccs://jarvis` qui ouvrent l'écran déjà en écoute.
 - Pont : méthodes `jarvis.*` et réglages `jarvis.machine`, `jarvis.port` (par défaut
   `laptop-maison:7341`) et `jarvis.fingerprint`.
+- Fichiers (web) : « Télécharger (.zip) » dans le menu ⋯ d'un dossier, pour le récupérer en entier
+  (méthode `files.archive` du pont).
 
 ### Modifié
 

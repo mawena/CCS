@@ -178,7 +178,8 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `files.read` / `files.image` / `files.info` | `path` | texte, image, ce qu'emporterait une suppression |
 | `files.write` | `path`, `text`, `stamp` | écrit (refus si changé entre-temps) |
 | `files.search` | `root`, `query` | recherche de fichiers |
-| `files.download` | `path`, `offset` | téléchargement par morceaux |
+| `files.download` | `path` ou `archive`, `offset` | téléchargement par morceaux (d'un fichier, ou d'une archive préparée par `files.archive`) |
+| `files.archive` | `path` | un dossier entier en .zip : `{archive, name, size}` |
 | `files.upload` | `dir`, `name`, `data` (base64), `offset`, `last`, `replace` | envoi par morceaux |
 | `files.mkdir` / `files.create` | `dir`, `name` | nouveau dossier, nouveau fichier |
 | `files.rename` | `root`, `path`, `name` | renomme |

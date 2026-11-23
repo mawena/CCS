@@ -10,7 +10,12 @@ import asyncio
 import base64
 import binascii
 import os
+import secrets
 import shutil
+import tempfile
+import time
+import zipfile
+from pathlib import Path
 
 from . import rpc
 from .bridge_data import EXTRA_ROOTS, _home, _under, safe_path
@@ -19,6 +24,31 @@ CHUNK = 1024 * 1024                    # octets par morceau (≈ 1,4 Mo une fois
 MAX_TRANSFER = 200 * 1024 * 1024       # taille maximale d'un fichier téléchargé ou envoyé
 MAX_COPY = 2 * 1024 * 1024 * 1024      # taille maximale d'une copie (le disque du serveur est compté)
 PART = ".ccs-envoi"
+ARCHIVE_TTL = 3600                     # une archive non téléchargée est effacée au bout d'une heure
+
+
+def _archives():
+    """Dossier privé des archives de dossiers en attente de téléchargement."""
+    folder = Path(tempfile.gettempdir()) / f"ccs-archives-{os.getuid()}"
+    folder.mkdir(mode=0o700, exist_ok=True)
+    return folder
+
+
+def _archive_path(token):
+    if not isinstance(token, str) or len(token) != 32 or any(c not in "0123456789abcdef" for c in token):
+        raise rpc.RpcError("invalide", "Archive invalide.")
+    return _archives() / f"{token}.zip"
+
+
+def _sweep(folder, now=None):
+    """Efface les archives trop vieilles (téléchargement abandonné)."""
+    now = now or time.time()
+    for old in folder.glob("*.zip*"):
+        try:
+            if now - old.stat().st_mtime > ARCHIVE_TTL:
+                old.unlink()
+        except OSError:
+            pass
 
 
 def _name(value):
@@ -95,6 +125,7 @@ class FileOps:
             "files.mkdir": self.mkdir, "files.create": self.create,
             "files.rename": self.rename, "files.delete": self.delete,
             "files.info": self.info, "files.roots": self.roots, "files.paste": self.paste,
+            "files.archive": self.archive,
         })
 
     async def roots(self, _conn, _params):
@@ -158,8 +189,49 @@ class FileOps:
                     "size": 0 if is_dir else path.lstat().st_size}
         return await asyncio.to_thread(work)
 
-    async def download(self, _conn, params):
+    async def archive(self, _conn, params):
+        """Met un dossier entier dans une archive .zip, téléchargée ensuite par `files.download`
+        avec `archive` (le jeton rendu) ; l'archive est effacée à la fin du téléchargement."""
         path = safe_path(params.get("path"))
+
+        def work():
+            if not path.is_dir():
+                raise rpc.RpcError("introuvable", "Dossier introuvable.")
+            if _weight(path) > MAX_COPY:
+                raise rpc.RpcError("trop_gros", "Dossier trop gros pour être archivé (2 Go au plus).")
+            folder = _archives()
+            _sweep(folder)
+            token = secrets.token_hex(16)
+            target = folder / f"{token}.zip"
+            part = folder / f"{token}.zip.part"
+            try:
+                with zipfile.ZipFile(part, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+                    for root, dirs, files in os.walk(path):
+                        dirs.sort()
+                        base = Path(root)
+                        rel = base.relative_to(path.parent)
+                        if not files and not dirs:
+                            z.writestr(f"{rel.as_posix()}/", b"")
+                        for name in sorted(files):
+                            item = base / name
+                            if item.is_symlink() or not item.is_file():
+                                continue
+                            try:
+                                z.write(item, (rel / name).as_posix())
+                            except OSError:
+                                continue      # illisible : on passe
+                    if part.stat().st_size > MAX_TRANSFER:
+                        raise rpc.RpcError("trop_gros", "Archive trop grosse pour être téléchargée (200 Mo au plus).")
+                part.rename(target)
+            except BaseException:
+                part.unlink(missing_ok=True)
+                raise
+            return {"archive": token, "name": f"{path.name or 'racine'}.zip", "size": target.stat().st_size}
+        return await asyncio.to_thread(work)
+
+    async def download(self, _conn, params):
+        archive = params.get("archive")
+        path = _archive_path(archive) if archive is not None else safe_path(params.get("path"))
         offset = params.get("offset", 0)
         if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
             raise rpc.RpcError("invalide", "Position invalide.")
@@ -176,8 +248,10 @@ class FileOps:
                     data = f.read(CHUNK)
             except OSError:
                 raise rpc.RpcError("introuvable", "Fichier illisible.") from None
-            return {"size": size, "data": base64.b64encode(data).decode("ascii"),
-                    "done": offset + len(data) >= size}
+            done = offset + len(data) >= size
+            if done and archive is not None:
+                path.unlink(missing_ok=True)      # archive livrée : plus besoin de la garder
+            return {"size": size, "data": base64.b64encode(data).decode("ascii"), "done": done}
         return await asyncio.to_thread(work)
 
     async def upload(self, _conn, params):
