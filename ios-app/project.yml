@@ -5,8 +5,8 @@ options:
     iOS: "17.0"
 settings:
   base:
-    MARKETING_VERSION: "1.5.0"
-    CURRENT_PROJECT_VERSION: "40"
+    MARKETING_VERSION: "1.7.0"
+    CURRENT_PROJECT_VERSION: "41"
     SWIFT_VERSION: "5.9"
 packages:
   # émulateur de terminal (VT100/xterm) du terminal intégré
