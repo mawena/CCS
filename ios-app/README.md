@@ -33,9 +33,12 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
 - **Machine pilotée** (bouton des Sessions, Plus, bandeau « Machine pilotée : … ») : le PC
   ou toute machine du relais Ricochet joignable par le tunnel ; toute l'appli la suit (sessions,
   fichiers, Git, terminal, notifications). Retour à « Ce serveur » d'un toucher.
-- **Machines et travaux distants** (Plus) : machines du relais (charge, outils, places, limite),
-  travaux `ccs distant` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
-  commande » (maintenant, cette nuit ou à une heure), réglages du relais.
+- **Réseau** (onglet) : le réseau maillé (carte, fiche de chaque appareil, ping, renommer,
+  retirer, ajout d'un PC ou d'un téléphone) et le calcul réparti au même endroit : chaque fiche
+  qui est une machine de calcul porte sa charge, sa mémoire, ses outils, ses places et sa limite ;
+  les machines joignables seulement par Ricochet ont leur fiche « Par Ricochet ». Travaux
+  `ccs distant` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
+  commande » (maintenant, cette nuit ou à une heure), secours Ricochet (réglages du relais).
 - **Mot de passe root** : quand la machine pilotée demande le mot de passe root (`ccs root`,
   `sudo -A` de Claude), une feuille s'ouvre au premier plan avec la commande, « Envoyer »,
   « Refuser » ou « Plus tard » ; le mot de passe n'est jamais gardé sur le téléphone (il l'est

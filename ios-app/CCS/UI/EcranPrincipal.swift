@@ -66,7 +66,6 @@ enum Destination: Hashable {
     case reglages
     case terminaux
     case terminal(String)
-    case machines
     case jarvis
 }
 
@@ -169,7 +168,6 @@ struct EcranPrincipal: View {
         case .reglages: EcranReglages()
         case .terminaux: EcranTerminaux()
         case .terminal(let id): EcranTerminal(id: id)
-        case .machines: EcranMachines()
         case .jarvis: EcranJarvis()
         }
     }
@@ -261,9 +259,6 @@ struct EcranPlus: View {
                 NavigationLink(value: Destination.terminaux) {
                     Label("Terminaux", systemImage: "terminal")
                 }
-                NavigationLink(value: Destination.machines) {
-                    Label("Machines et travaux distants", systemImage: "server.rack")
-                }
                 NavigationLink(value: Destination.analyse) {
                     Label("Analyse", systemImage: "chart.bar")
                 }
@@ -273,7 +268,7 @@ struct EcranPlus: View {
                     }
                 }
             } footer: {
-                Text("Réglages : notifications, serveur, téléphone (ntfy), appareils. Terminaux : un shell sur la machine pilotée. Machines : travaux lancés sur les autres machines (ccs distant). Analyse : usage par projet, modèle, compte et heure.")
+                Text("Réglages : notifications, serveur, téléphone (ntfy), appareils. Terminaux : un shell sur la machine pilotée. Analyse : usage par projet, modèle, compte et heure.")
             }
             Section("Connexion") {
                 LabeledContent("Serveur", value: modele.adresse.replacingOccurrences(of: "https://", with: ""))

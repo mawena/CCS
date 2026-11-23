@@ -10,11 +10,19 @@ struct Machine: LisibleJSON, Codable, Equatable, Identifiable {
     var cores = 0
     var load = 0.0
     var tunnel = false
-    /// Page Machines : outils inventoriés, places (travaux à la fois), travaux actifs.
+    /// Bloc « calcul » de l'onglet Réseau : outils inventoriés, places (travaux à la fois), travaux actifs.
     var tools: [String] = []
     var limit = 2
     var running = 0
     var waiting = 0
+    /// Mémoire utilisée et totale, en octets (absentes des anciens serveurs : optionnelles).
+    var memUsed: Double? = nil
+    var memTotal: Double? = nil
+    /// Rattachement à une fiche du réseau maillé : nom d'hôte, nom `reseau` des réglages, adresse
+    /// dans le réseau maillé. Chaînes éventuellement vides ou absentes.
+    var host: String? = nil
+    var mesh: String? = nil
+    var meshIp: String? = nil
 
     init(id: String = "", name: String = "", online: Bool = false, local: Bool = false, cores: Int = 0, load: Double = 0, tunnel: Bool = false) {
         self.id = id
@@ -38,9 +46,14 @@ struct Machine: LisibleJSON, Codable, Equatable, Identifiable {
         limit = j.entier("limit", 2)
         running = j.entier("running")
         waiting = j.entier("waiting")
+        memUsed = j.doubleOuNul("mem_used")
+        memTotal = j.doubleOuNul("mem_total")
+        host = j.texteOuNul("host")
+        mesh = j.texteOuNul("mesh")
+        meshIp = j.texteOuNul("mesh_ip")
     }
 
-    /// « Places : 1/2 · 3 en attente » (page Machines du web).
+    /// « Places : 1/2 · 3 en attente » (bloc « calcul » du web).
     var places: String {
         let base = "Places : \(running)/\(limit)"
         return waiting > 0 ? base + " · \(waiting) en attente" : base
@@ -114,10 +127,33 @@ struct ReglagesRelais: LisibleJSON {
     var jetonDefini = false
     var chemin = ""
     var limiteDefaut = 2
+    /// Jeton opérateur de Ricochet enregistré : « Ajouter un PC » par un lien Ricochet possible.
+    var operateurDefini = false
+    init(relais: String = "", jetonDefini: Bool = false, operateurDefini: Bool = false) {
+        self.relais = relais
+        self.jetonDefini = jetonDefini
+        self.operateurDefini = operateurDefini
+    }
     init(json j: JSON) {
         relais = j.texte("relay")
         jetonDefini = j.bool("token_set")
         chemin = j.texte("path")
         limiteDefaut = j.entier("default_limit", 2)
+        operateurDefini = j.bool("operator_set")
+    }
+}
+
+/// Réponse de `machines.add` : la commande à coller sur le PC (lien Ricochet à usage unique).
+struct AjoutMachine: LisibleJSON {
+    var id = ""
+    var command = ""
+    /// Vrai si la commande inscrit aussi le PC au réseau maillé.
+    var mesh = false
+    var expiresS = 900
+    init(json j: JSON) {
+        id = j.texte("id")
+        command = j.texte("command")
+        mesh = j.bool("mesh")
+        expiresS = j.entier("expires_s", 900)
     }
 }
