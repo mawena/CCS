@@ -865,6 +865,11 @@ u32 + PCM 16 kHz i16, 16 000 échantillons au plus par trame). Une oreille « bo
 `wake` avec `score: 2.0`, `level_db: 0`, `muted: false`, le son, puis `listen_end`. Jarvis
 injoignable : message `{"type": "relay_error", "message": …}` puis fermeture 4011.
 
+Jarvis peut aussi piloter tout le réseau CCS (sessions et sous-agents de toutes les machines,
+arrêt avec confirmation, lancement d'une session, machines et travaux) par les méthodes
+`jarvis.state`, `jarvis.sessions`, `jarvis.subagents`, `jarvis.stop_subagent`,
+`jarvis.stop_session` et `jarvis.start_session` du pont : voir [docs/jarvis.md](docs/jarvis.md).
+
 ### Limites à connaître
 
 - Retirer un serveur dans le bureau **ne révoque pas** son jeton sur le serveur : fais-le dans la version web, Réglages → Appareils.
