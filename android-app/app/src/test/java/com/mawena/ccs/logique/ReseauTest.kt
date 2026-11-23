@@ -1,0 +1,59 @@
+package com.mawena.ccs.logique
+
+import com.mawena.ccs.reseau.Appareil
+import com.mawena.ccs.reseau.CodecRpc
+import com.mawena.ccs.reseau.EtatReseau
+import com.mawena.ccs.reseau.NoeudServeur
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ReseauTest {
+    @Test
+    fun adresses() {
+        assertEquals(Reseau.SorteAdresse.Locale, Reseau.adresse("192.168.0.12:41641").sorte)
+        assertEquals(Reseau.SorteAdresse.Publique, Reseau.adresse("84.46.246.202:41641").sorte)
+        assertEquals(Reseau.SorteAdresse.Maille, Reseau.adresse("100.64.0.2:41641").sorte)
+        assertEquals(Reseau.Adresse("2a02:c207::1", Reseau.SorteAdresse.V6), Reseau.adresse("[2a02:c207::1]:41641"))
+        assertEquals(Reseau.SorteAdresse.Locale, Reseau.adresse("[fe80::1]:41641").sorte)
+    }
+
+    @Test
+    fun genres() {
+        assertEquals(Reseau.Genre.IPhone, Reseau.genre(Appareil(name = "iphone", os = "iOS")))
+        assertEquals(Reseau.Genre.Android, Reseau.genre(Appareil(name = "x", os = "android")))
+        assertEquals(Reseau.Genre.Serveur, Reseau.genre(Appareil(name = "mawena-cloud", os = "linux")))
+        assertEquals(Reseau.Genre.Bureau, Reseau.genre(Appareil(name = "pc-bureau", os = "linux")))
+    }
+
+    @Test
+    fun bilanEtListe() {
+        val e = EtatReseau(
+            ici = Appareil(name = "a", path = "self", online = true),
+            peers = listOf(Appareil(name = "b", path = "lan", online = true), Appareil(name = "c", path = "offline")),
+            nodes = listOf(NoeudServeur(name = "b"), NoeudServeur(name = "pixel", online = false)),
+        )
+        assertEquals(Reseau.Bilan(3, 2, 1, 0, 0), Reseau.bilan(e))
+        assertEquals(listOf("a", "b", "c", "pixel"), Reseau.appareils(e).map { it.first.name })
+        assertTrue(Reseau.appareils(e)[0].second)
+        assertEquals("offline", Reseau.appareils(e)[3].first.path)
+    }
+
+    @Test
+    fun formats() {
+        assertEquals("1,5 Ko", Reseau.octets(1536))
+        assertEquals("12 Mo", Reseau.octets(12L * 1024 * 1024))
+        assertTrue(Reseau.nomValide("pc-x"))
+        assertFalse(Reseau.nomValide("Pas Bon"))
+        assertEquals("sudo sh -c 'a && b'", Reseau.ligneLinux(listOf("a", "b")))
+    }
+
+    @Test
+    fun lectureJson() {
+        val e = CodecRpc.json.decodeFromString(EtatReseau.serializer(),
+            """{"url":"https://network.mawena.cloud","self":{"name":"vps","path":"self","online":true},"peers":[],"state":"Running","inconnu":1}""")
+        assertEquals("vps", e.ici?.name)
+        assertEquals("Running", e.state)
+    }
+}
