@@ -582,6 +582,13 @@ class ChatSession:
             self._requested_stop = True  # la CLI s'arrête (code 1) après le tour interrompu
         return self._control("interrupt")
 
+    def stop_task(self, task_id):
+        """Arrête une tâche de fond de la CLI (sous-agent) par son `task_id` (événement système
+        `task_started`), sans interrompre le reste du tour. Faux si la CLI ne tourne pas."""
+        if not isinstance(task_id, str) or not task_id:
+            return False
+        return self._control("stop_task", task_id=task_id)
+
     def answer_questions(self, request_id, answers):
         """Réponses de l'utilisateur aux questions de Claude (outil AskUserQuestion)."""
         with self._lock:
