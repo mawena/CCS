@@ -324,7 +324,9 @@ export function mountMachines(root, api) {
         result.append(
           el("p", {}, `Colle cette commande dans un terminal de « ${r.id} » (Ubuntu ou Debian). Le lien ne sert qu'une fois, pendant ${Math.round((r.expires_s || 900) / 60)} min.`),
           el("pre", { class: "log" }, r.command),
-          el("p", { class: "subtle" }, "Elle installe l'agent Ricochet et le serveur SSH, autorise la clé de ce serveur, puis la machine apparaît ici en ligne."),
+          el("p", { class: "subtle" }, "Elle installe l'agent Ricochet et le serveur SSH, autorise la clé de ce serveur"
+            + (r.mesh ? ", puis inscrit la machine au réseau maillé (onglet Réseau)" : "")
+            + " ; la machine apparaît ensuite ici en ligne."),
           el("div", { class: "sheet-actions" }, copy));
         refresh();
       });

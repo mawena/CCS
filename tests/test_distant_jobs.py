@@ -27,6 +27,8 @@ def sleeper():
     return p
 
 
+REAL_MESH_JOIN = distant.mesh_join
+
 class JobsCase(DistantCase):
     def setUp(self):
         super().setUp()
@@ -444,6 +446,10 @@ class TestAddMachine(JobsCase):
         write(ssh / "id_rsa", "privée")
         write(ssh / "id_rsa.pub", "ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB moi@vps\n")
         self.requests = []
+        # jamais de vraie clé Headscale pendant les tests, même sur le serveur du réseau
+        p = mock.patch.object(distant, "mesh_join", lambda machine_id, key=None: None)
+        p.start()
+        self.addCleanup(p.stop)
 
     def opener(self, status=201, body=None):
         def open_(req, timeout=None):
@@ -458,7 +464,7 @@ class TestAddMachine(JobsCase):
         distant.set_limit("pc-salon", 5)
         r = distant.add_machine("pc-salon", name="Salon", user="charles", limit=3, opener=self.opener())
         self.assertEqual(r, {"id": "pc-salon", "command": "curl -fsSL https://r.example/rejoindre/abc | sudo sh",
-                             "expires_s": 900})
+                             "mesh": False, "expires_s": 900})
         req = self.requests[0]
         self.assertEqual((req.full_url, req.get_method()), ("https://r.example/api/machines", "POST"))
         self.assertEqual(req.get_header("Authorization"), "Bearer operateur")
@@ -466,6 +472,15 @@ class TestAddMachine(JobsCase):
                                                 "ports": [22], "cles_ssh": ["ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB moi@vps"]})
         self.assertEqual(distant.load_overrides()["pc-salon"], {"limit": 3, "user": "charles"})
         self.assertTrue(distant.client_settings()["operator_set"])
+
+    def test_line_also_joins_the_mesh(self):
+        r = distant.add_machine("PC_Salon", user="charles", opener=self.opener(),
+                                mesh=lambda mid: REAL_MESH_JOIN(mid, key="cle123"))
+        self.assertTrue(r["mesh"])
+        self.assertTrue(r["command"].startswith("curl -fsSL https://r.example/rejoindre/abc | sudo sh && sudo sh -c "))
+        self.assertIn("--authkey cle123", r["command"])
+        self.assertIn("--hostname pc-salon", r["command"])
+        self.assertEqual(distant.load_overrides()["PC_Salon"]["reseau"], "pc-salon")
 
     def test_refusals(self):
         for kw in ({"machine_id": "a.b", "user": "c"}, {"machine_id": "pc", "user": ""},
