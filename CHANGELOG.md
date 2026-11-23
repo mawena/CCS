@@ -3,6 +3,13 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.8.1] — 2026-11-23
+
+### Corrigé
+
+- Appli iPhone : libellé du chemin Ricochet aligné sur Android (« Par Ricochet ») ; tests de la
+  construction iOS de nouveau au vert.
+
 ## [1.8.0] — 2026-11-23
 
 ### Ajouté
