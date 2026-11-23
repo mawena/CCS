@@ -24,7 +24,7 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
   trousseau. Puis un bouton : maintenir pour parler (fin au relâché), ou toucher une fois (fin au
   silence) ; micro `AVAudioEngine` rééchantillonné en 16 kHz, texte et voix de la réponse,
   écoute relancée seule si Jarvis pose une question. Le raccourci ouvre l'écran déjà en écoute.
-- **Fichiers** et **Git** : navigation, lecture colorée, édition, envoi et téléchargement ;
+- **Fichiers** et **Git** : navigation, lecture colorée (Git dans l'écran d'un projet, plus d'onglet Git en bas), édition, envoi et téléchargement ;
   état, diff, indexation par morceau, commit, journal, pull/push. L'onglet Fichiers parcourt
   tous les appareils : barre défilante « Serveur CCS » puis chaque PC de `machines.list`
   (grisé avec « hors ligne » ou « ni réseau maillé ni tunnel » s'il est injoignable). Un autre

@@ -3,6 +3,16 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.7.1] — 2026-11-23
+
+### Modifié
+
+- Applis Android et iPhone : plus d'onglet Git en bas ; Git reste dans l'écran d'un projet.
+
+### Corrigé
+
+- iPhone : la 1.7.0 ne compilait pas (`switch` incomplet sur le chemin « Ricochet » de l'onglet Réseau).
+
 ## [1.7.0] — 2026-11-23
 
 ### Ajouté
