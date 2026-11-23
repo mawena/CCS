@@ -3,6 +3,13 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Ajouté
+
+- Bureau : menu principal → « Parler à Jarvis… », qui ouvre la page Jarvis de la version web du
+  premier serveur CCS appairé.
+
 ## [1.8.1] — 2026-11-23
 
 ### Corrigé
