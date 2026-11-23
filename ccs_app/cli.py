@@ -1102,7 +1102,7 @@ def cmd_reseau(args):
         if action == "etat":
             print("\n".join(network.describe(network.status())))
         elif action == "ping":
-            print(network.ping(args.machine))
+            print(network.ping_text(network.ping(args.machine)))
         elif action == "cle":
             key = network.auth_key(args.utilisateur, args.duree)
             print(f"Clé jetable (une machine, {args.duree}). Sur la machine, en root :\n")
@@ -1111,7 +1111,7 @@ def cmd_reseau(args):
             for n in network.server_nodes():
                 state = "en ligne" if n["online"] else "hors ligne"
                 print(f"{n['name']:<20} {(n['ips'] or ['-'])[0]:<16} {state:<10} "
-                      f"{', '.join(n['endpoints']) or '-'}")
+                      f"{n['host']}")
         return 0
     except network.NetworkError as e:
         print(e, file=sys.stderr)

@@ -655,7 +655,10 @@ domaine en anglais : `network.mawena.cloud`, noms des machines en `<machine>.mes
 - [x] 1. VPS : Headscale 0.29.7 (`network.mawena.cloud` derrière nginx, DERP intégré, STUN UDP 3478), VPS inscrit (100.64.0.1)
 - [ ] 1b. Inscrire pc-bureau et laptop-maison (`ccs reseau cle --nom <machine>`, puis les deux lignes en root) — pc-bureau : sudo par Linux Hello, demande root non aboutie le 23/11
 - [ ] 2. CCS : `ccs reseau` (fait en 1.3.0 : état, machines, chemin LAN/direct/relais, clé d'inscription jetable) ; le lien « Ajouter un PC » installe aussi tailscale et inscrit la machine
-- [ ] 3. Page Machines (web, bureau, Android, iPhone) : interfaces, IP du réseau, chemin réel et latence de chaque liaison
+- [ ] 3. Onglet « Réseau » à droite de Sessions (Charles, 23/11 : jolie DA, icônes ; web d'abord, installé, puis Android, puis iPhone)
+  - [x] Web : carte du réseau, fiches (adresses publiées, trafic, ping réel, renommer, retirer), ajout PC / Android / iPhone (1.4.0)
+  - [ ] Android
+  - [ ] iPhone
 - [ ] 4. Fusion de Ricochet dans le dépôt CCS (crates Rust, paquets) ; `ccs distant`, root et travaux passent par les IP du réseau maillé
 - [ ] 5. (Le Pixel est sur le même réseau local que pc-bureau : leur liaison doit passer par le LAN, à vérifier avec `ccs reseau etat`.) Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
 - [ ] 6. Tests, README, CHANGELOG, releases
