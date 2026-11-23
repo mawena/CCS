@@ -556,3 +556,13 @@ body.resizing { user-select: none; cursor: col-resize; }
 .ctx-menu .menu-item[disabled] { opacity: 0.45; }
 .ctx-menu .danger-text { color: var(--error); }
 .ctx-menu .sep { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+
+/* Fichiers : choix de l'appareil (serveur CCS et PC du réseau maillé) */
+.file-devices { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; scrollbar-width: none; }
+.file-devices::-webkit-scrollbar { display: none; }
+.file-device { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+.file-device[aria-selected="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--card)); font-weight: 600; }
+.file-device.off { opacity: .55; cursor: not-allowed; }
+.file-device small { font-size: .78em; }
+.file-device:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

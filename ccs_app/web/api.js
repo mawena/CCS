@@ -24,7 +24,9 @@ export async function session() {
 }
 
 export class Api {
-  constructor() {
+  // `machine` donné : connexion fixée sur cette machine (onglet Fichiers d'un autre appareil),
+  // sans toucher à la machine pilotée gardée dans le navigateur.
+  constructor({ machine } = {}) {
     this.ws = null;
     this.nextId = 1;
     this.pending = new Map();
@@ -33,7 +35,8 @@ export class Api {
     this.delay = 1000;
     this.stopped = false;
     this.everOpen = false;
-    try { this.machine = localStorage.getItem(MACHINE_KEY) || ""; } catch { this.machine = ""; }
+    if (machine !== undefined) this.machine = machine;
+    else try { this.machine = localStorage.getItem(MACHINE_KEY) || ""; } catch { this.machine = ""; }
   }
 
   on(event, fn) {
