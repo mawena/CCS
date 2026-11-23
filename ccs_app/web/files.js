@@ -15,9 +15,13 @@ const typeIcon = (name, dir = false) => { const k = kindOf(name, dir); return ic
 
 export class FilesPanel {
   // opts.extra : actions en plus sur les dossiers (gestionnaire de fichiers), voir FileManager.
+  // opts.grid : premier niveau en grille de tuiles ; opts.enter(rel) : entrer dans un dossier
+  // (le gestionnaire de fichiers change d'adresse au lieu de déplier l'arbre).
   constructor(container, api, root, opts = {}) {
     this.api = api;
     this.root = root;
+    this.grid = Boolean(opts.grid && opts.enter);
+    this.enter = opts.enter || null;
     this.selected = null;
     this.node = el("div", { class: "files" });
     this.tree = el("ul", { class: "tree" });
@@ -60,12 +64,15 @@ export class FilesPanel {
       return;
     }
     clear(ul);
+    const grid = this.grid && ul === this.tree;
+    ul.classList.toggle("file-grid", grid);
     if (!r.entries.length) {
       ul.append(rel ? el("li", { class: "subtle file-empty" }, "Dossier vide.")
         : el("li", { class: "file-empty root" }, icon("dir", "big"), el("p", {}, "Ce dossier est vide."),
           el("p", { class: "subtle" }, "Crée un fichier ou envoies-en un avec les boutons ci-dessus.")));
     }
     for (const entry of r.entries) {
+      if (grid) { ul.append(this.tile(entry, () => this.expand(ul, rel))); continue; }
       const mark = entry.mark ? el("span", { class: `mark m-${entry.mark === "?" ? "n" : entry.mark}`, title: MARKS[entry.mark] || "" }, entry.mark) : null;
       const name = el("span", { class: "grow tree-name", title: entry.name }, entry.name);
       if (entry.dir) {
@@ -90,6 +97,17 @@ export class FilesPanel {
       }
     }
     if (r.truncated) ul.append(el("li", { class: "subtle file-empty" }, "(dossier trop long : liste coupée)"));
+  }
+
+  // Tuile de la grille : grande icône, nom sur deux lignes ; un dossier s'ouvre (nouvelle adresse),
+  // un fichier s'affiche ; « ⋯ » garde toutes les actions.
+  tile(entry, reload) {
+    const mark = entry.mark ? el("span", { class: `mark m-${entry.mark === "?" ? "n" : entry.mark}`, title: MARKS[entry.mark] || "" }, entry.mark) : null;
+    return el("li", { class: `file-tile${entry.dir ? " dir" : ""}${entry.path === this.selected ? " current" : ""}`, dataset: { path: entry.path } },
+      el("button", { type: "button", class: "tile-main", title: entry.name,
+        onclick: () => (entry.dir ? this.enter(entry.path) : this.open(entry.path)) },
+      typeIcon(entry.name, entry.dir), el("span", { class: "tile-name" }, entry.name), mark),
+      this.more(entry, reload, () => this.enter(entry.path)));
   }
 
   // Bouton « télécharger » d'un fichier : le télécharge tout de suite, sans passer par le menu.
@@ -143,7 +161,7 @@ export class FilesPanel {
     this.current?.holder.remove();
     this.browser.hidden = true;
     this.selected = relpath;                       // au retour, la ligne du fichier reste en évidence
-    for (const line of this.tree.querySelectorAll(".tree-line")) line.classList.toggle("current", line.dataset.path === relpath);
+    for (const line of this.tree.querySelectorAll(".tree-line, .file-tile")) line.classList.toggle("current", line.dataset.path === relpath);
     const holder = el("div", { class: "file-holder" });
     this.node.append(holder);
     const view = new FileView(holder, this.api, `${this.root}/${relpath}`, () => {

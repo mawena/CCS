@@ -11,6 +11,7 @@ import { FilesPanel, icon, label } from "./files.js";
 import { deviceKind, icon as netIcon } from "./reseau.js";
 
 const DEVICE_KEY = "ccs.files.device";
+const VIEW_KEY = "ccs.files.view";        // « grid » : dossiers en grille de tuiles
 
 const under = (path, root) => path === root || path.startsWith(`${root.replace(/\/$/, "")}/`);
 const base = (p) => p.split("/").filter(Boolean).pop() || "/";
@@ -38,7 +39,22 @@ export function mountFiles(container, api, ctx) {
   const devices = el("div", { class: "file-devices", role: "tablist", "aria-label": "Appareil" });
   const crumbs = el("nav", { class: "crumbs", "aria-label": "Dossier ouvert" });
   const holder = el("div", { class: "browser-body" });
-  const node = el("section", { class: "card browser" }, el("div", { class: "browser-head" }, crumbs,
+  let grid = false;
+  try { grid = localStorage.getItem(VIEW_KEY) === "grid"; } catch { /* privé */ }
+  const viewBtn = el("button", { type: "button", class: "small flat icon-only view-toggle", onclick: () => {
+    grid = !grid;
+    try { localStorage.setItem(VIEW_KEY, grid ? "grid" : "list"); } catch { /* privé */ }
+    drawView();
+    if (state.roots && !state.panel?.current) show(state.path);
+  } });
+  const drawView = () => {
+    const text = grid ? "Afficher en liste" : "Afficher en grille";
+    clear(viewBtn).append(icon(grid ? "list" : "grid"));
+    viewBtn.title = text;
+    viewBtn.setAttribute("aria-label", text);
+  };
+  drawView();
+  const node = el("section", { class: "card browser" }, el("div", { class: "browser-head" }, crumbs, viewBtn,
     el("button", { type: "button", class: "small add-project", title: "Ajouter ce dossier aux projets de CCS",
       onclick: () => state.path && addProject(state.api, state.path) }, icon("new-dir"), label("Ajouter aux projets"))), holder);
   container.append(devices, node);
@@ -114,7 +130,8 @@ export function mountFiles(container, api, ctx) {
     const clean = path && state.roots.some((r) => under(path, r)) ? path.replace(/(.)\/+$/, "$1") : state.home;
     state.path = clean;
     drawCrumbs(clean);
-    state.panel = new FilesPanel(clear(holder), state.api, clean, { extra });
+    state.panel = new FilesPanel(clear(holder), state.api, clean,
+      { extra, grid, enter: (rel) => go(`${clean.replace(/\/$/, "")}/${rel}`) });
   }
 
   // Ouvre un appareil (nouvelle connexion s'il change), puis le dossier demandé.

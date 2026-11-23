@@ -214,7 +214,7 @@ out.hash = location.hash;
 view.route(encodeURIComponent("/home/u/src")); await settle();
 out.inside = named("files.list").at(-1);
 out.here = crumbs().querySelector(".here").textContent;
-root.querySelector(".browser-head > button").click(); await settle();
+root.querySelector(".add-project").click(); await settle();
 out.current = named("projects.add").at(-1);
 view.route(encodeURIComponent("/etc")); await settle();       // hors des dossiers permis : retour au départ
 out.refused = named("files.list").at(-1);
@@ -229,6 +229,29 @@ out.refused = named("files.list").at(-1);
         self.assertEqual(out["current"], {"cwd": "/home/u/src"})
         self.assertEqual(out["refused"], {"root": "/home/u", "rel": ""})
 
+
+    def test_browser_grid_view_enters_folders(self):
+        out = run("""
+const { mountFiles } = await import("./files-browser.js");
+globalThis.location = { hash: "" };
+const view = mountFiles(root, api, { sub: "" });
+await settle();
+out = { tilesBefore: root.querySelectorAll(".file-tile").length };
+root.querySelector(".view-toggle").click(); await settle();
+out.stored = localStorage.getItem("ccs.files.view");
+out.tiles = root.querySelectorAll(".file-tile .tile-name").map((t) => t.textContent);
+out.label = root.querySelector(".view-toggle").getAttribute("aria-label");
+root.querySelector(".file-tile.dir .tile-main").click(); await settle();
+out.hash = location.hash;
+root.querySelectorAll(".file-tile .tile-main")[1].click(); await settle();
+out.opened = Boolean(root.querySelector(".file-holder"));
+""")
+        self.assertEqual(out["tilesBefore"], 0)
+        self.assertEqual(out["stored"], "grid")
+        self.assertEqual(out["tiles"], ["src", "a.txt"])
+        self.assertEqual(out["label"], "Afficher en liste")
+        self.assertEqual(out["hash"], "#/fichiers/%2Fhome%2Fu%2Fsrc")
+        self.assertTrue(out["opened"])
 
     def test_browser_opens_other_devices_of_the_mesh(self):
         out = run("""
