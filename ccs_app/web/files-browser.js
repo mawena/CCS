@@ -129,11 +129,14 @@ export function mountFiles(container, api, ctx) {
     drawDevices();
     clear(crumbs);
     clear(holder).append(loading());
-    if (device) {
+    // La connexion principale suit la machine pilotée : on la réutilise seulement si c'est
+    // l'appareil choisi, sinon (serveur CCS ou autre PC) on ouvre une connexion à part.
+    if (device === (api.machine || "")) state.api = api;
+    else {
       state.own = new Api({ machine: device });
       state.own.connect();
       state.api = state.own;
-    } else state.api = api;
+    }
     try {
       const r = await state.api.call("files.roots");
       if (token !== state.token) return;
