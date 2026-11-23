@@ -659,9 +659,9 @@ cerveau local de laptop-maison prenant le relais quand plus aucun compte n'a de 
 Charles (23/11/2026) : installer des skills d'UI et d'UX, améliorer l'onglet Fichiers et y
 accéder à tous les dossiers de tous les appareils du réseau maillé.
 
-- [ ] 1. Skills UI/UX installés pour Claude Code
-- [ ] 2. Fichiers : choix de l'appareil (serveur CCS, PC du réseau maillé), navigation par SSH sur le réseau maillé, Ricochet en secours
-- [ ] 3. Refonte UX de l'onglet (web, puis Android et iPhone)
+- [x] 1. Skills UI/UX installés pour Claude Code
+- [x] 2. Fichiers : choix de l'appareil (serveur CCS, PC du réseau maillé), navigation par SSH sur le réseau maillé, Ricochet en secours (1.7.0, web, Android, iPhone)
+- [x] 3. Refonte UX de l'onglet (web, puis Android et iPhone)
 - [ ] 4. Appareils sans client (PS5, imprimante…) : routeur de sous-réseau sur un PC du LAN (`--advertise-routes`), activé dans Headscale
 
 ## Phase 38 — Réseau maillé de tous les appareils (network.mawena.cloud)
@@ -686,7 +686,7 @@ domaine en anglais : `network.mawena.cloud`, noms des machines en `<machine>.mes
   - [ ] 4b. Déplacer le code de Ricochet dans le dépôt (à décider avec Charles : coût de construction Rust à chaque release)
 - [ ] 5. Pixel inscrit le 23/11 (`pixel-4-xl`, 100.64.0.3, appli Tailscale par adb) : pc-bureau ↔ Pixel passe par le LAN (10.228.2.44, 18 ms) ; VPS ↔ Pixel par relais DERP. iPhone inscrit le 23/11 (`iphone`, 100.64.0.4). Reste le retrait de l'ancien transport du relais. (Le Pixel est sur le même réseau local que pc-bureau : leur liaison doit passer par le LAN, à vérifier avec `ccs reseau etat`.) Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
 - [ ] 6. Tests, README, CHANGELOG, releases
-- [ ] 9. Tout par le réseau maillé, Ricochet en secours (liste des machines, `ccs distant`, Jarvis) ; fiche du serveur nommée « Serveur CCS » ; page Machines fondue dans l'onglet Réseau (web fait ; Android et iPhone en cours) (1.7.0)
+- [x] 9. Tout par le réseau maillé, Ricochet en secours (liste des machines, `ccs distant`, Jarvis) ; fiche du serveur nommée « Serveur CCS » ; page Machines fondue dans l'onglet Réseau (1.7.0)
 - [x] 7. Root : mot de passe gardé pour toujours, chiffré (AES-256-GCM, `root_vault`), revérifié après redémarrage ; web sans compte à rebours (1.3.0)
 - [x] 8. Root « pour toujours » : plus de bandeau rouge nulle part (Charles, 23/11) ; `root.status` rend `kept: false, stored: true`, donc rien à reconstruire dans les applis (1.3.1)
 
