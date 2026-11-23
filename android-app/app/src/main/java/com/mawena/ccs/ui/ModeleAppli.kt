@@ -86,23 +86,25 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
         }
     }.getOrNull().orEmpty()
 
-    /** Feuille « Machine pilotée » ouverte (bandeau, puce des Sessions, Plus). */
-    val choixMachine = MutableStateFlow(false)
-
-    /** Relit `machines.list` ; rend le message du serveur (ou null). Garde l'ancienne liste en cas d'échec. */
-    suspend fun rafraichirMachines(): String? {
+    /**
+     * Relit `machines.list` (onglet Réseau, connexion) ; rend la liste complète, ou null en cas
+     * d'échec (l'ancienne liste des autres machines est alors gardée).
+     */
+    suspend fun rafraichirMachines(): com.mawena.ccs.reseau.ListeMachines? {
         val r = kotlinx.coroutines.withTimeoutOrNull(15_000) {
             runCatching { depot.client.appeler("machines.list", com.mawena.ccs.reseau.ListeMachines.serializer()) }.getOrNull()
         } ?: return null
         val autres = r.autres
+        val memes = autres.map { it.id to it.name } == _machines.value.map { it.id to it.name }
         _machines.value = autres
-        depot.prefs.ecrire(
+        // relu toutes les 5 s par l'onglet Réseau : écrit seulement quand la liste change
+        if (!memes) depot.prefs.ecrire(
             CLE_MACHINES,
             com.mawena.ccs.reseau.CodecRpc.json.encodeToString(
                 kotlinx.serialization.builtins.ListSerializer(com.mawena.ccs.reseau.Machine.serializer()), autres,
             ),
         )
-        return r.message?.ifBlank { null }
+        return r
     }
 
     /** Pilote `id` (vide : ce serveur) : les terminaux de l'ancienne machine sont oubliés. */

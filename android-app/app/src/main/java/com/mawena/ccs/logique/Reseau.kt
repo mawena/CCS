@@ -2,16 +2,17 @@ package com.mawena.ccs.logique
 
 import com.mawena.ccs.reseau.Appareil
 import com.mawena.ccs.reseau.EtatReseau
+import com.mawena.ccs.reseau.Machine
 
 /** Calculs de l'onglet Réseau, sans Android (testés à part). Mêmes règles que la version web. */
 object Reseau {
     enum class Chemin(val libelle: String) {
         Ici("Serveur CCS"), Lan("Réseau local"), Direct("Direct par internet"),
-        Relais("Relais du VPS"), Veille("En veille"), HorsLigne("Hors ligne");
+        Relais("Relais du VPS"), Ricochet("Par Ricochet"), Veille("En veille"), HorsLigne("Hors ligne");
 
         companion object {
             fun de(path: String) = when (path) {
-                "self" -> Ici; "lan" -> Lan; "direct" -> Direct; "relay" -> Relais
+                "self" -> Ici; "lan" -> Lan; "direct" -> Direct; "relay" -> Relais; "ricochet" -> Ricochet
                 "offline" -> HorsLigne; else -> Veille
             }
         }
@@ -84,6 +85,43 @@ object Reseau {
                 path = if (it.online) "idle" else "offline") to false
         }
         return liste + enPlus
+    }
+
+    /**
+     * La machine de calcul (`machines.list`) d'une fiche du réseau (`matchMachine` du web) : ce
+     * serveur pour sa propre fiche, sinon par l'adresse du réseau maillé, puis par le nom
+     * (`reseau` des réglages, identifiant, nom d'hôte) comparé sans casse au nom ou à l'hôte.
+     */
+    fun machineDe(machines: List<Machine>, a: Appareil, ici: Boolean): Machine? {
+        if (ici) return machines.firstOrNull { it.local }
+        val cles = listOf(a.name, a.host).filter { it.isNotEmpty() }.map { it.lowercase() }
+        return machines.firstOrNull { m ->
+            !m.local && ((m.ipMaille.isNotEmpty() && m.ipMaille in a.ips) ||
+                listOf(m.mesh, m.id, m.host).any { it.isNotEmpty() && it.lowercase() in cles })
+        }
+    }
+
+    /**
+     * Une fiche de l'onglet Réseau : un appareil, sa machine de calcul s'il en a une, et
+     * `sansMaille` pour une machine joignable seulement par Ricochet (ni IP ni renommer/retirer).
+     */
+    data class Fiche(val appareil: Appareil, val ici: Boolean, val machine: Machine? = null, val sansMaille: Boolean = false)
+
+    /** Les appareils (`appareils`) avec leur machine, puis les machines hors du réseau maillé. */
+    fun fiches(e: EtatReseau, machines: List<Machine>): List<Fiche> {
+        val pris = HashSet<String>()
+        val liste = appareils(e).map { (a, ici) ->
+            val m = machineDe(machines, a, ici)
+            if (m != null) pris += m.id
+            Fiche(a, ici, m)
+        }
+        val seules = machines.filter { !it.local && it.id !in pris }.map { m ->
+            Fiche(
+                Appareil(name = m.nom, host = m.id, online = m.online, path = if (m.online) "ricochet" else "offline"),
+                ici = false, machine = m, sansMaille = true,
+            )
+        }
+        return liste + seules
     }
 
     fun octets(n: Long): String {

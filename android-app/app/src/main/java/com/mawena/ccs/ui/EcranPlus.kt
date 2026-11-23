@@ -11,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
@@ -51,15 +50,6 @@ fun EcranPlus(
             supportingContent = { Text(identifiants?.serveur.orEmpty()) },
             leadingContent = { Icon(Icons.Filled.Dns, null) },
         )
-        if (choixMachinePossible(modele)) {
-            val machine by modele.machine.collectAsStateWithLifecycle()
-            ListItem(
-                headlineContent = { Text("Machine pilotée") },
-                supportingContent = { Text(modele.depot.client.nomMachine + if (machine.isEmpty()) "" else " · toucher pour changer") },
-                leadingContent = { Icon(Icons.Filled.Computer, null) },
-                modifier = Modifier.clickable { modele.choixMachine.value = true },
-            )
-        }
         ListItem(
             headlineContent = { Text("Compte") },
             supportingContent = {

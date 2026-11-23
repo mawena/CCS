@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
@@ -41,6 +42,7 @@ import androidx.navigation.navArgument
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -123,14 +125,12 @@ fun EcranPrincipal(modele: ModeleAppli) {
             launchSingleTop = true
         }
     }
-    val choixMachine by modele.choixMachine.collectAsStateWithLifecycle()
     // commande lancée avec le mot de passe root gardé : avis discret
     LaunchedEffect(Unit) {
         modele.depot.root.usages.collect { avis.dire(com.mawena.ccs.logique.Root.texteUsage(it)) }
     }
     CompositionLocalProvider(LocalAvis provides avis) {
     FenetreRoot(modele)
-    if (choixMachine) FeuilleMachines(modele, fermer = { modele.choixMachine.value = false })
     partage?.let { p ->
         FeuillePartage(modele, p, fermer = { modele.partage.value = null }) { dest ->
             modele.partage.value = null
@@ -161,7 +161,14 @@ fun EcranPrincipal(modele: ModeleAppli) {
         },
     ) { marges ->
         Column(Modifier.fillMaxSize().padding(marges).consumeWindowInsets(marges)) {
-            BandeauMachine(modele, changer = { modele.choixMachine.value = true })
+            // la machine pilotée se choisit sur sa fiche, dans l'onglet Réseau
+            BandeauMachine(modele, changer = {
+                nav.navigate(Onglet.Reseau.route) {
+                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            })
             BandeauRoot(modele)
             BandeauConnexion(modele)
             NavHost(nav, startDestination = Onglet.Accueil.route, modifier = Modifier.weight(1f)) {
@@ -243,6 +250,27 @@ fun EcranPrincipal(modele: ModeleAppli) {
 }
 
 /** Bandeau discret tant que le WebSocket n'est pas ouvert. */
+/** Bandeau d'accent, sur tous les écrans, tant qu'on pilote une autre machine que ce serveur. */
+@Composable
+fun BandeauMachine(modele: ModeleAppli, changer: () -> Unit) {
+    val machine by modele.machine.collectAsStateWithLifecycle()
+    if (machine.isEmpty()) return
+    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(start = 16.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(Icons.Filled.Computer, null, Modifier.size(18.dp))
+            Text(
+                "Machine pilotée : ${modele.depot.client.nomMachine}", Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+            )
+            TextButton(onClick = changer) { Text("Changer") }
+        }
+    }
+}
+
 @Composable
 fun BandeauConnexion(modele: ModeleAppli) {
     val etat by modele.etat.collectAsStateWithLifecycle()

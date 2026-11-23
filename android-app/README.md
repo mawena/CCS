@@ -147,9 +147,19 @@ client se reconnecte seul (1 s, 2 s… 30 s ; tout de suite quand le réseau rev
 
 L'adresse du serveur se change sur l'écran de connexion (**Changer**).
 
+**Onglet Réseau** : tout ce qui touche aux machines y est réuni (plus d'écran Machines à part).
+Une fiche par appareil du réseau maillé ; celle d'une machine de calcul (`machines.list`) montre
+aussi sa charge, sa mémoire, ses outils, ses places et sa limite de travaux, avec le bouton
+**Piloter**. Rattachement : la fiche du serveur ↔ la machine locale ; sinon l'adresse `mesh_ip`
+parmi les IP de l'appareil, ou `mesh`, `id` ou `host` égal au nom ou à l'hôte de l'appareil. Les
+machines joignables seulement par Ricochet ont leur fiche « Par Ricochet ». Suivent les
+**Travaux**, **Lancer une commande**, l'ajout d'un appareil (PC Linux par `machines.add` quand le
+relais et ses jetons sont réglés, sinon par la clé du réseau maillé) et, replié, le **Secours
+Ricochet** (réglages du relais).
+
 **Machine pilotée** : comme le web, l'appli peut piloter une autre machine (le PC, joint par le
-tunnel Ricochet) au lieu du serveur : puce en haut de **Sessions** ou **Plus → Machine pilotée**
-(cachées s'il n'y a pas d'autre machine). Le WebSocket passe alors par `/api/ws?protocol=1&machine=<id>` ; un
+réseau maillé ou le tunnel Ricochet) au lieu du serveur : bouton **Piloter** de sa fiche, dans
+l'onglet **Réseau**. Le WebSocket passe alors par `/api/ws?protocol=1&machine=<id>` ; un
 bandeau d'accent rappelle la machine pilotée ; si elle est injoignable (fermeture 4010), l'appli
 retente comme après une coupure. Les notifications suivent la machine choisie.
 

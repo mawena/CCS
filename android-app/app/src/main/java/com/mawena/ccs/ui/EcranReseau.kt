@@ -85,13 +85,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mawena.ccs.logique.Calcul
 import com.mawena.ccs.logique.Reseau
 import com.mawena.ccs.logique.Reseau.Chemin
 import com.mawena.ccs.reseau.Appareil
 import com.mawena.ccs.reseau.AppareilValide
 import com.mawena.ccs.reseau.CleReseau
 import com.mawena.ccs.reseau.EtatReseau
+import com.mawena.ccs.reseau.ListeMachines
+import com.mawena.ccs.reseau.ListeTravaux
+import com.mawena.ccs.reseau.Machine
+import com.mawena.ccs.reseau.PcAjoute
 import com.mawena.ccs.reseau.Ping
+import com.mawena.ccs.reseau.ReglagesRicochet
+import com.mawena.ccs.reseau.TravailDistant
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
@@ -120,6 +128,7 @@ private fun iconeChemin(c: Chemin): ImageVector = when (c) {
     Chemin.Direct -> Icons.Filled.Bolt
     Chemin.Relais -> Icons.Filled.Router
     Chemin.Ici -> Icons.Filled.CheckCircle
+    Chemin.Ricochet -> Icons.Filled.SwapHoriz
     else -> Icons.Filled.NetworkPing
 }
 
@@ -131,7 +140,13 @@ private fun iconeAppareil(a: Appareil): ImageVector = when (Reseau.genre(a)) {
     Reseau.Genre.Bureau -> Icons.Filled.Computer
 }
 
-/** Onglet « Réseau » : le réseau maillé de tous les appareils (méthodes `network.*`). */
+/**
+ * Onglet « Réseau » : le réseau maillé de tous les appareils (méthodes `network.*`) et, sur la fiche
+ * de chaque machine de calcul, sa charge, ses outils, ses places et le choix de la machine pilotée ;
+ * puis les travaux, « Lancer une commande », l'ajout d'un appareil et, replié, le secours Ricochet
+ * (méthodes `machines.*`, comme `reseau.js` et `calcul.js` du web). Tout ce qui touchait aux
+ * machines est ici : il n'y a plus d'écran « Machines » à part.
+ */
 @Composable
 fun EcranReseau(modele: ModeleAppli) {
     val avis = LocalAvis.current
@@ -142,6 +157,15 @@ fun EcranReseau(modele: ModeleAppli) {
     val pings = remember { mutableStateMapOf<String, Ping>() }
     var aRenommer by remember { mutableStateOf<Appareil?>(null) }
     var aRetirer by remember { mutableStateOf<Appareil?>(null) }
+    // calcul réparti
+    val courante by modele.machine.collectAsStateWithLifecycle()
+    var liste by remember { mutableStateOf<ListeMachines?>(null) }
+    var travaux by remember { mutableStateOf<List<TravailDistant>?>(null) }
+    var erreurTravaux by remember { mutableStateOf<String?>(null) }
+    var reglages by remember { mutableStateOf<ReglagesRicochet?>(null) }
+    var erreurReglages by remember { mutableStateOf<String?>(null) }
+    var journal by remember { mutableStateOf<TravailDistant?>(null) }
+    var aArreter by remember { mutableStateOf<TravailDistant?>(null) }
 
     suspend fun recharger() {
         runCatching { client.appeler("network.status", EtatReseau.serializer()) }
@@ -154,6 +178,26 @@ fun EcranReseau(modele: ModeleAppli) {
             delay(10_000)
         }
     }
+
+    suspend fun rechargerCalcul() {
+        modele.rafraichirMachines()?.let { liste = it }
+        runCatching { client.appeler("machines.jobs", ListeTravaux.serializer()) }
+            .onSuccess { travaux = it.jobs; erreurTravaux = null }
+            .onFailure { erreurTravaux = it.message ?: "Travaux injoignables." }
+    }
+    suspend fun rechargerReglages() {
+        runCatching { client.appeler("machines.settings", ReglagesRicochet.serializer()) }
+            .onSuccess { reglages = it; erreurReglages = null }
+            .onFailure { erreurReglages = it.message ?: "Réglages illisibles." }
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (reglages == null) rechargerReglages()      // relu jusqu'à la première réponse
+            rechargerCalcul()
+            delay(5_000)
+        }
+    }
+    val machines = liste?.machines.orEmpty()
 
     val e = etat
     LazyColumn(
@@ -174,9 +218,40 @@ fun EcranReseau(modele: ModeleAppli) {
                 Text("Appareils", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
         }
-        items(Reseau.appareils(e), key = { it.first.name }) { (a, ici) ->
+        items(Reseau.fiches(e, machines), key = { if (it.sansMaille) "ricochet:${it.machine?.id}" else it.appareil.name }) { f ->
+            val a = f.appareil
+            val m = f.machine
             FicheAppareil(
-                a, ici, e, pings[a.name],
+                a, f.ici, e, pings[a.name], f.sansMaille, m?.nom,
+                calcul = when {
+                    m != null -> ({
+                        val pilotee = if (m.local) courante.isEmpty() else m.id == courante
+                        BlocCalcul(
+                            m, pilotee,
+                            piloter = when {
+                                pilotee -> null
+                                m.local -> ({ modele.choisirMachine("", "") })
+                                m.choisissable -> ({ modele.choisirMachine(m.id, m.nom) })
+                                else -> null
+                            },
+                            changerLimite = { n ->
+                                portee.launch {
+                                    runCatching {
+                                        client.appeler("machines.limit", buildJsonObject { put("machine", m.id); put("limit", n) })
+                                    }.onSuccess { avis.dire("Limite enregistrée."); rechargerCalcul() }
+                                        .onFailure { avis.dire(it.message ?: "Limite non enregistrée.") }
+                                }
+                            },
+                        )
+                    })
+                    // serveur absent de machines.list : de quoi y revenir quand on pilote une autre machine
+                    f.ici && courante.isNotEmpty() -> ({
+                        TextButton(onClick = { modele.choisirMachine("", "") }) {
+                            Icon(Icons.Filled.Computer, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Piloter ce serveur")
+                        }
+                    })
+                    else -> null
+                },
                 lancerPing = {
                     portee.launch {
                         pings[a.name] = runCatching {
@@ -188,8 +263,27 @@ fun EcranReseau(modele: ModeleAppli) {
                 retirer = { aRetirer = a },
             )
         }
+        item {
+            SectionTravaux(travaux, erreurTravaux, journal = { journal = it }, arreter = { aArreter = it })
+        }
+        item {
+            FormulaireLancer(machines, Calcul.maison(reglages?.path.orEmpty())) { params ->
+                runCatching {
+                    client.appeler("machines.start", buildJsonObject { params.forEach { (k, v) -> put(k, v) } })
+                }.fold({ rechargerCalcul(); null }, { it.message ?: "Lancement impossible." })
+            }
+        }
         if (e.server) item {
             AjoutAppareil(e,
+                ricochet = Calcul.peutAjouterPc(reglages),
+                ajouterPc = { id, compte, nom ->
+                    runCatching {
+                        client.appeler("machines.add", PcAjoute.serializer(), buildJsonObject {
+                            put("machine", id); put("user", compte)
+                            if (nom.isNotEmpty()) put("name", nom)
+                        })
+                    }.onSuccess { rechargerCalcul() }.onFailure { avis.dire(it.message ?: "Ajout impossible.") }.getOrNull()
+                },
                 creerCle = { nom ->
                     runCatching {
                         client.appeler("network.key", CleReseau.serializer(),
@@ -203,6 +297,34 @@ fun EcranReseau(modele: ModeleAppli) {
                         .onFailure { avis.dire(it.message ?: "Validation impossible.") }.isSuccess
                 },
             )
+        }
+        item {
+            SecoursRicochet(
+                reglages, erreurReglages, liste?.message?.ifBlank { null }, liste?.configured != false,
+                enregistrer = { relais, jeton ->
+                    runCatching {
+                        client.appeler("machines.configure", buildJsonObject {
+                            relais?.let { put("relay", it) }
+                            jeton?.let { put("token", it) }
+                        })
+                    }.onFailure { avis.dire(it.message ?: "Enregistrement impossible.") }.isSuccess
+                        .also { if (it) { rechargerReglages(); rechargerCalcul() } }
+                },
+            )
+        }
+    }
+
+    journal?.let { t ->
+        FeuilleJournal(client, t, travaux?.firstOrNull { it.id == t.id }, fermer = { journal = null })
+    }
+    aArreter?.let { t ->
+        ConfirmerArret(t, annuler = { aArreter = null }) {
+            aArreter = null
+            portee.launch {
+                runCatching { client.appeler("machines.stop", buildJsonObject { put("id", t.id) }) }
+                    .onSuccess { avis.dire("Travail arrêté."); rechargerCalcul() }
+                    .onFailure { avis.dire(it.message ?: "Arrêt impossible.") }
+            }
         }
     }
 
@@ -384,6 +506,9 @@ private fun Pastille(c: Chemin) {
 @Composable
 private fun FicheAppareil(
     a: Appareil, ici: Boolean, e: EtatReseau, ping: Ping?,
+    /** Machine joignable seulement par Ricochet : ni IP, ni ping, ni renommer/retirer. */
+    sansMaille: Boolean, nomMachine: String?,
+    calcul: (@Composable () -> Unit)?,
     lancerPing: () -> Unit, renommer: () -> Unit, retirer: () -> Unit,
 ) {
     val presse = LocalClipboardManager.current
@@ -409,21 +534,28 @@ private fun FicheAppareil(
                         Text(a.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Pastille(c)
-                            if (a.os.isNotEmpty()) {
+                            val detail = listOfNotNull(
+                                a.os.ifEmpty { null },
+                                a.host.takeIf { it.isNotEmpty() && it != a.name && !sansMaille },
+                                nomMachine?.takeIf { it != a.name },
+                            ).joinToString(" · ")
+                            if (detail.isNotEmpty()) {
                                 Spacer(Modifier.width(6.dp))
-                                Text(a.os, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(detail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
                 }
                 val ip = a.ips.firstOrNull().orEmpty()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(ip.ifEmpty { "—" }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
-                    if (ip.isNotEmpty()) IconButton(onClick = { presse.setText(AnnotatedString(ip)); avis.dire("Copié.") }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Filled.ContentCopy, "Copier l'adresse", modifier = Modifier.size(16.dp))
+                if (!sansMaille) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(ip.ifEmpty { "—" }, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+                        if (ip.isNotEmpty()) IconButton(onClick = { presse.setText(AnnotatedString(ip)); avis.dire("Copié.") }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Filled.ContentCopy, "Copier l'adresse", modifier = Modifier.size(16.dp))
+                        }
                     }
+                    Text("${a.name}.${e.domain}", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text("${a.name}.${e.domain}", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (a.endpoint.isNotEmpty() && !ici) Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.SwapHoriz, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(4.dp))
@@ -458,7 +590,8 @@ private fun FicheAppareil(
                         }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                calcul?.invoke()
+                if (!sansMaille) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (!ici && a.online) TextButton(onClick = lancerPing) { Icon(Icons.Filled.NetworkPing, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Ping") }
                     if (e.server) {
                         TextButton(onClick = renommer) { Icon(Icons.Filled.Edit, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Renommer") }
@@ -476,7 +609,13 @@ private fun FicheAppareil(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AjoutAppareil(e: EtatReseau, creerCle: suspend (String) -> CleReseau?, valider: suspend (String) -> Boolean) {
+private fun AjoutAppareil(
+    e: EtatReseau,
+    /** Relais, jeton et jeton opérateur Ricochet réglés : le PC s'ajoute par `machines.add`. */
+    ricochet: Boolean,
+    ajouterPc: suspend (id: String, compte: String, nom: String) -> PcAjoute?,
+    creerCle: suspend (String) -> CleReseau?, valider: suspend (String) -> Boolean,
+) {
     val presse = LocalClipboardManager.current
     val avis = LocalAvis.current
     val portee = rememberCoroutineScope()
@@ -498,7 +637,9 @@ private fun AjoutAppareil(e: EtatReseau, creerCle: suspend (String) -> CleReseau
                     ) { Text(nom, maxLines = 1) }
                 }
             }
-            if (onglet == 0) {
+            if (onglet == 0 && ricochet) {
+                AjoutPcRicochet(ajouterPc)
+            } else if (onglet == 0) {
                 var nom by remember { mutableStateOf("") }
                 var ligne by remember { mutableStateOf<String?>(null) }
                 Etapes(listOf("Choisis un nom pour la machine, puis crée la ligne.", "Colle-la dans un terminal du PC : elle installe le client et l'inscrit.", "Il apparaît ici en quelques secondes."))
