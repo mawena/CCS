@@ -1,5 +1,5 @@
 // Onglet « Réseau » (#/reseau) : le réseau maillé de tous les appareils (WireGuard, Headscale sur
-// network.mawena.cloud). Carte du réseau (cet appareil au centre, un trait par liaison, coloré
+// network.mawena.cloud). Carte du réseau (le serveur CCS au centre, un trait par liaison, coloré
 // selon le chemin : réseau local, direct par internet, relais du VPS), une fiche par appareil
 // (adresses publiées, trafic, ping réel, renommer, retirer) et l'ajout d'un appareil (PC Linux
 // par une clé jetable, téléphone par l'appli Tailscale). Méthodes `network.*`, toujours sur ce
@@ -11,7 +11,7 @@ const REFRESH_MS = 10_000;
 const NS = "http://www.w3.org/2000/svg";
 
 export const PATHS = {
-  self: { label: "Cet appareil", short: "ici", tone: "self" },
+  self: { label: "Serveur CCS", short: "serveur", tone: "self" },
   lan: { label: "Réseau local", short: "LAN", tone: "lan" },
   direct: { label: "Direct par internet", short: "Direct", tone: "direct" },
   relay: { label: "Relais du VPS", short: "Relais", tone: "relay" },
@@ -129,7 +129,7 @@ export function topology(st) {
   const cx = W / 2;
   const cy = H / 2;
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "net-map", role: "img",
-    "aria-label": "Carte du réseau : cet appareil au centre, une ligne par liaison" });
+    "aria-label": "Carte du réseau : le serveur CCS au centre, une ligne par liaison" });
   const n = Math.max(peers.length, 1);
   const rx = Math.min(250, 120 + n * 18);
   const ry = 105;

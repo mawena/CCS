@@ -1,4 +1,5 @@
-"""Lien du pont vers le cerveau de Jarvis (projet voisin) : tunnel Ricochet, TLS épinglé, WebSocket.
+"""Lien du pont vers le cerveau de Jarvis (projet voisin) : réseau maillé (tunnel Ricochet en
+secours), TLS épinglé, WebSocket.
 
 Le cerveau écoute en WebSocket sur TLS 1.3 (port 7341 de `laptop-maison` par défaut), avec un
 certificat auto-signé : on ne vérifie ni nom ni autorité, seulement l'**empreinte** du certificat
@@ -78,6 +79,32 @@ async def open_tunnel(machine, port, agent=None, config=None):
     finally:
         theirs.close()
     return ours, proc
+
+
+MESH_CONNECT_TIMEOUT = 4
+
+
+async def open_mesh(machine, port, address=None, timeout=MESH_CONNECT_TIMEOUT):
+    """(socket, None) : connexion directe par le réseau maillé, ou None si la machine n'y est pas
+    en ligne ou ne répond pas (Ricochet prend alors le relais)."""
+    from .. import distant
+    if address is None:
+        try:
+            address = await asyncio.to_thread(
+                distant.mesh_address, distant.Machine(id=machine), distant.load_overrides())
+        except distant.DistantError:
+            address = None
+    if not address:
+        return None
+    loop = asyncio.get_running_loop()
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setblocking(False)
+    try:
+        await asyncio.wait_for(loop.sock_connect(sock, (address, int(port))), timeout)
+    except (OSError, asyncio.TimeoutError):
+        sock.close()
+        return None
+    return sock, None
 
 
 async def stop_process(proc):

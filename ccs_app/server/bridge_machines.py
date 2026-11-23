@@ -114,7 +114,7 @@ class Link:
 class MachinesApi:
     def __init__(self, bridge, fetch=None, spawn=None):
         self.bridge = bridge
-        self._fetch = fetch or distant.fetch_machines
+        self._fetch = fetch or distant.list_machines
         self._spawn = spawn or self._ssh
         self.links = {}                       # connexion → Link
         bridge.close_hooks.append(self._forget)
@@ -127,7 +127,7 @@ class MachinesApi:
             "machines.add": self.add})
 
     async def _machines(self):
-        if not distant.configured():
+        if not distant.available():
             raise rpc.RpcError("introuvable", "Calcul réparti non réglé sur ce serveur "
                                "(~/.config/ricochet/client.toml).")
         try:
@@ -246,7 +246,7 @@ class MachinesApi:
             raise rpc.RpcError("conflit", "Connexion déjà relayée.")
         machine = next((m for m in await self._machines() if m.id == mid), None)
         if machine is None:
-            raise rpc.RpcError("introuvable", f"{mid} : machine inconnue du relais Ricochet.")
+            raise rpc.RpcError("introuvable", f"{mid} : machine inconnue (Ricochet et réseau maillé).")
         if machine.local:
             raise rpc.RpcError("invalide", f"{mid} est ce serveur.")
         if not machine.online:

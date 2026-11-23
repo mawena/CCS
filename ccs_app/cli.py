@@ -1036,9 +1036,9 @@ def cmd_distant(args):
     from . import distant, distant_jobs
     try:
         if args.action == "machines":
-            machines = distant.fetch_machines()
+            machines = distant.list_machines()
             lines = distant.describe(machines, distant.load_overrides(), probe=not args.vite)
-            print("\n".join(lines) if lines else "Aucune machine dans Ricochet.")
+            print("\n".join(lines) if lines else "Aucune machine (Ricochet ni réseau maillé).")
             return 0
         if args.action == "ajouter":
             r = distant.add_machine(args.id, name=args.nom, user=args.utilisateur, limit=args.limite)

@@ -301,7 +301,7 @@ private fun Chiffre(icone: ImageVector, valeur: String, libelle: String, modifie
     }
 }
 
-/** Carte du réseau : cet appareil au centre, un trait par liaison coloré selon le chemin. */
+/** Carte du réseau : le serveur CCS au centre, un trait par liaison coloré selon le chemin. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Carte(e: EtatReseau) {

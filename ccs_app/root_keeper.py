@@ -146,7 +146,7 @@ def ricochet_id(fetch=None):
     applis connaissent par `machines.list` ; None sans Ricochet ou relais injoignable."""
     try:
         from . import distant
-        machines = (fetch or distant.fetch_machines)()
+        machines = (fetch or distant.list_machines)()
     except Exception:  # noqa: BLE001 — pas de Ricochet : on garde le nom d'hôte
         return None
     return next((m.id for m in machines if m.local), None)

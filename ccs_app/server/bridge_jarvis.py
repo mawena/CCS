@@ -1,7 +1,8 @@
 """Oreilles de Jarvis : le pont relaie une oreille « bouton » (version web, applis) vers le cerveau.
 
-`ccs-web` n'a aucun droit : c'est le pont, qui tourne sous l'utilisateur et lit sa configuration
-Ricochet, qui ouvre le tunnel vers le cerveau (`jarvis_link`). Une connexion au pont porte au
+`ccs-web` n'a aucun droit : c'est le pont, qui tourne sous l'utilisateur, qui joint le cerveau
+(`jarvis_link`) : directement par le réseau maillé quand la machine y est en ligne, sinon par le
+tunnel Ricochet (secours). Une connexion au pont porte au
 plus une oreille :
 
 - `jarvis.open {fingerprint?, first}` : tunnel, TLS épinglé, WebSocket, puis envoi de `first`
@@ -59,7 +60,7 @@ class Link:
 class JarvisApi:
     def __init__(self, bridge, tunnel=None, timeout=jarvis_link.OPEN_TIMEOUT):
         self.bridge = bridge
-        self._tunnel = tunnel or self._ricochet
+        self._tunnel = tunnel or self._route
         self.timeout = timeout
         self.links = {}                       # connexion → Link
         self._opening = set()
@@ -69,6 +70,14 @@ class JarvisApi:
         bridge.add_handlers({
             "jarvis.settings": self.settings, "jarvis.configure": self.configure,
             "jarvis.open": self.open, "jarvis.send": self.send, "jarvis.close": self.close})
+
+    @classmethod
+    async def _route(cls, machine, port):
+        """Réseau maillé d'abord (connexion directe), tunnel Ricochet en secours."""
+        direct = await jarvis_link.open_mesh(machine, port)
+        if direct is not None:
+            return direct
+        return await cls._ricochet(machine, port)
 
     @staticmethod
     async def _ricochet(machine, port):

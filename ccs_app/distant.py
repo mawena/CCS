@@ -1,7 +1,9 @@
-"""Calcul réparti : lancer une commande sur une autre machine du réseau Ricochet.
+"""Calcul réparti : lancer une commande sur une autre machine de Charles.
 
-Ricochet (≥ 0.3.0) ouvre un tunnel vers le serveur SSH d'une machine, même sans IP publique ;
-le reste est du `ssh` et du `rsync` ordinaires. `ccs distant lancer -- <commande>` :
+Les machines sont jointes en SSH directement par le réseau maillé (Headscale) quand elles y sont
+en ligne ; sinon Ricochet (≥ 0.3.0), en secours, ouvre un tunnel vers leur serveur SSH. La liste
+vient du relais Ricochet, complétée par `reseau` de `machines.toml` (elle suffit sans relais). Le
+reste est du `ssh` et du `rsync` ordinaires. `ccs distant lancer -- <commande>` :
 
 1. choisit la machine (celle qui a l'outil demandé, puis la moins chargée) ;
 2. y copie le dossier du projet (seuls les fichiers changés repartent) ;
@@ -43,7 +45,7 @@ SHELL_WORDS = {"cd", "sh", "bash", "env", "time", "nice", "exec", "test", "[", "
                "ls", "cat", "export", "set", "for", "if", "while"}
 INVENTORY_TTL = 3600
 REMOTE_BASE = ".cache/ccs-distant"
-HINT = ("Calcul réparti : d'autres machines de Charles sont joignables par Ricochet. Si un outil "
+HINT = ("Calcul réparti : d'autres machines de Charles sont joignables (réseau maillé, Ricochet en secours). Si un outil "
         "manque sur cette machine (flutter, par exemple) ou pour un travail lourd (build, longue "
         "suite de tests), lance la commande ailleurs depuis le dossier du projet : "
         "`ccs distant lancer -- <commande>` (options : `--machine <id>`, `--rapatrier <chemin>` "
@@ -117,7 +119,7 @@ def configured():
 def hint():
     """Consigne ajoutée aux chats quand le calcul réparti est disponible."""
     try:
-        return HINT if configured() else None
+        return HINT if available() else None
     except OSError:
         return None
 
@@ -187,6 +189,50 @@ def fetch_machines(client=None, opener=None):
         raise DistantError(f"Relais Ricochet {client['relais']} : {why}") from None
     except (OSError, ValueError) as e:
         raise DistantError(f"Relais Ricochet {client['relais']} injoignable : {e}") from None
+
+
+def mesh_declared(overrides):
+    """Machines de `machines.toml` qui ont un nom dans le réseau maillé (`reseau = "…"`)."""
+    return {mid: conf["reseau"] for mid, conf in overrides.items()
+            if isinstance(conf, dict) and isinstance(conf.get("reseau"), str) and conf["reseau"]}
+
+
+def available():
+    """Calcul réparti possible : Ricochet réglé, ou au moins une machine du réseau maillé."""
+    if configured():
+        return True
+    try:
+        return bool(mesh_declared(load_overrides()))
+    except DistantError:
+        return False
+
+
+def list_machines(opener=None, peers=None, overrides=None):
+    """Machines connues : liste du relais Ricochet, complétée par les machines de `machines.toml`
+    qui ont un nom `reseau`, et en ligne dès que le réseau maillé les voit. Sans relais (éteint,
+    injoignable ou non réglé), le réseau maillé suffit ; l'erreur du relais n'est levée que s'il
+    ne reste aucune machine."""
+    overrides = load_overrides() if overrides is None else overrides
+    machines, err = [], None
+    if configured():
+        try:
+            machines = fetch_machines(opener=opener)
+        except DistantError as e:
+            err = e
+    known = {m.id for m in machines}
+    for mid, name in mesh_declared(overrides).items():
+        if mid not in known:
+            machines.append(Machine(id=mid, name=(overrides[mid].get("nom") or mid), host=name))
+    if machines:
+        peers = mesh_peers() if peers is None else peers
+        for m in machines:
+            if not m.online and not m.local and mesh_address(m, overrides, peers):
+                m.online = True
+    if not machines and err is not None:
+        raise err
+    if not machines and not configured():
+        load_client()                      # message « Ricochet n'est pas réglé »
+    return machines
 
 
 def ssh_port(machine, overrides):
@@ -643,7 +689,7 @@ def _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run, 
         say(f"{why} (travail {job_id})")
         _wait(job_id, not_before, now, sleep, max(poll, 30.0))
     overrides = load_overrides()
-    machines = fetch_machines(opener=opener)
+    machines = list_machines(opener=opener)
     tool = tool or (None if machine else wanted_tool(command))
     refused, candidates, chosen = [], [], None
     for m, inv in eligible(machines, overrides, tool=tool, wanted=machine, run=run, why=refused):
@@ -720,12 +766,12 @@ def machines_overview(fetch=None):
     """Machines, leurs outils connus, leurs places et leurs travaux ; ne lève jamais."""
     out = {"configured": False, "message": "", "machines": []}
     try:
-        out["configured"] = configured()
+        out["configured"] = available()
         if not out["configured"]:
             out["message"] = ("Calcul réparti non réglé sur ce serveur "
                               "(~/.config/ricochet/client.toml).")
             return out
-        machines = (fetch or fetch_machines)()
+        machines = (fetch or list_machines)()
         overrides = load_overrides()
         inv = _load_inventory()
         counts = distant_jobs.counts()

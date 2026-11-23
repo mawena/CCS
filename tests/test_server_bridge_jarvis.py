@@ -266,3 +266,52 @@ class TunnelProcessTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MeshRouteTest(unittest.IsolatedAsyncioTestCase):
+    """Réseau maillé d'abord (connexion directe), tunnel Ricochet en secours."""
+
+    async def test_direct_connection_when_the_machine_is_in_the_mesh(self):
+        server = await asyncio.start_server(lambda r, w: w.close(), "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        try:
+            got = await jarvis_link.open_mesh("laptop-maison", port, address="127.0.0.1")
+            self.assertIsNotNone(got)
+            sock, proc = got
+            self.assertIsNone(proc)
+            sock.close()
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    async def test_nothing_when_absent_or_unreachable(self):
+        with mock.patch("ccs_app.distant.mesh_address", lambda *a, **k: None):
+            self.assertIsNone(await jarvis_link.open_mesh("laptop-maison", 7341))
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()                        # port fermé : connexion refusée
+        self.assertIsNone(await jarvis_link.open_mesh("x", port, address="127.0.0.1"))
+
+    async def test_route_falls_back_to_ricochet(self):
+        calls = []
+
+        async def ricochet(machine, port):
+            calls.append((machine, port))
+            return "tunnel"
+
+        async def no_mesh(machine, port):
+            return None
+
+        with mock.patch.object(jarvis_link, "open_mesh", no_mesh), \
+                mock.patch.object(bridge_jarvis.JarvisApi, "_ricochet", staticmethod(ricochet)):
+            self.assertEqual(await bridge_jarvis.JarvisApi._route("laptop-maison", 7341), "tunnel")
+        self.assertEqual(calls, [("laptop-maison", 7341)])
+
+        async def mesh(machine, port):
+            return ("direct", None)
+
+        with mock.patch.object(jarvis_link, "open_mesh", mesh), \
+                mock.patch.object(bridge_jarvis.JarvisApi, "_ricochet", staticmethod(ricochet)):
+            self.assertEqual(await bridge_jarvis.JarvisApi._route("laptop-maison", 7341), ("direct", None))
+        self.assertEqual(len(calls), 1)

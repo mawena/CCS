@@ -6,7 +6,7 @@ import com.mawena.ccs.reseau.EtatReseau
 /** Calculs de l'onglet Réseau, sans Android (testés à part). Mêmes règles que la version web. */
 object Reseau {
     enum class Chemin(val libelle: String) {
-        Ici("Cet appareil"), Lan("Réseau local"), Direct("Direct par internet"),
+        Ici("Serveur CCS"), Lan("Réseau local"), Direct("Direct par internet"),
         Relais("Relais du VPS"), Veille("En veille"), HorsLigne("Hors ligne");
 
         companion object {

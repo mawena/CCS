@@ -18,7 +18,7 @@ enum Reseau {
 
         var libelle: String {
             switch self {
-            case .ici: return "Cet appareil"
+            case .ici: return "Serveur CCS"
             case .lan: return "Réseau local"
             case .direct: return "Direct par internet"
             case .relais: return "Relais du VPS"
