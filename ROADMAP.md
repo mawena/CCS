@@ -653,7 +653,7 @@ tout seul : LAN, puis direct par internet (percement de NAT), puis relais DERP d
 domaine en anglais : `network.mawena.cloud`, noms des machines en `<machine>.mesh.mawena.cloud`.
 
 - [ ] 1. VPS : Headscale (`network.mawena.cloud` derrière nginx, DERP intégré, STUN UDP 3478), VPS et laptop-maison inscrits
-- [ ] 2. CCS : `ccs network` (état, machines, chemin LAN/direct/relais, clé d'inscription jetable) ; le lien « Ajouter un PC » installe aussi tailscale et inscrit la machine
+- [ ] 2. CCS : `ccs reseau` (état, machines, chemin LAN/direct/relais, clé d'inscription jetable) ; le lien « Ajouter un PC » installe aussi tailscale et inscrit la machine
 - [ ] 3. Page Machines (web, bureau, Android, iPhone) : interfaces, IP du réseau, chemin réel et latence de chaque liaison
 - [ ] 4. Fusion de Ricochet dans le dépôt CCS (crates Rust, paquets) ; `ccs distant`, root et travaux passent par les IP du réseau maillé
 - [ ] 5. Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
