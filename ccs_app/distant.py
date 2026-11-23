@@ -775,11 +775,16 @@ def machines_overview(fetch=None):
         overrides = load_overrides()
         inv = _load_inventory()
         counts = distant_jobs.counts()
+        peers = mesh_peers()
     except (DistantError, OSError, ValueError) as e:
         out["message"] = str(e)
         return out
     for m in machines:
         item = _public(m)
+        # De quoi rattacher la machine à sa fiche de l'onglet Réseau
+        conf = overrides.get(m.id) or {}
+        item.update(host=m.host or "", mesh=conf["reseau"] if isinstance(conf.get("reseau"), str) else "",
+                    mesh_ip=mesh_address(m, overrides, peers) or "")
         tools = (inv.get(m.id) or {}).get("tools") or {}
         c = counts.get(m.id) or {}
         item.update(tools=sorted(k for k, v in tools.items() if v),

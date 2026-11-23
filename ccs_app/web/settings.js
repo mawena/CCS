@@ -139,18 +139,11 @@ function installGroup() {
   return group;
 }
 
-// « Machines » : lien vers la page des machines du relais Ricochet et des commandes lancées dessus.
-function machinesGroup() {
-  return el("section", { class: "card flat settings-group" }, el("h2", {}, "Machines"),
-    el("p", { class: "subtle" }, "Les machines du relais Ricochet, les commandes lancées dessus et les réglages du relais."),
-    el("div", {}, el("button", { type: "button", class: "manage-machines", onclick: () => { location.hash = "#/machines"; } }, "Gérer les machines")));
-}
-
 export function mountSettings(root, api) {
   const wrap = el("div", { class: "settings-wrap" });
   const forms = el("div", { class: "settings-wrap" });
   const devices = el("section", { class: "card flat" });
-  wrap.append(themeGroup(), voiceGroup(), installGroup(), machinesGroup(), forms, devices);
+  wrap.append(themeGroup(), voiceGroup(), installGroup(), forms, devices);
   root.append(wrap);
 
   async function loadSettings() {

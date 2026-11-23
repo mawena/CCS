@@ -1,11 +1,14 @@
 // Onglet « Réseau » (#/reseau) : le réseau maillé de tous les appareils (WireGuard, Headscale sur
 // network.mawena.cloud). Carte du réseau (le serveur CCS au centre, un trait par liaison, coloré
 // selon le chemin : réseau local, direct par internet, relais du VPS), une fiche par appareil
-// (adresses publiées, trafic, ping réel, renommer, retirer) et l'ajout d'un appareil (PC Linux
-// par une clé jetable, téléphone par l'appli Tailscale). Méthodes `network.*`, toujours sur ce
-// serveur. Rechargement toutes les 10 s tant que la page est visible.
+// (adresses publiées, trafic, ping réel, renommer, retirer, et pour les machines de calcul : charge,
+// mémoire, outils, places), les travaux lancés et le formulaire pour en lancer (calcul.js), l'ajout
+// d'un appareil (PC Linux par une clé jetable ou par Ricochet, téléphone par l'appli Tailscale) et,
+// replié en bas, le secours Ricochet. Méthodes `network.*` et `machines.*`, toujours sur ce
+// serveur. Rechargement toutes les 10 s tant que la page est visible (5 s pour le calcul).
 import { clear, confirmSheet, el, errorState, loading, promptSheet, toast } from "./dom.js";
 import { busy, copyText } from "./pages-util.js";
+import { createCompute, matchMachine } from "./calcul.js";
 
 const REFRESH_MS = 10_000;
 const NS = "http://www.w3.org/2000/svg";
@@ -15,6 +18,7 @@ export const PATHS = {
   lan: { label: "Réseau local", short: "LAN", tone: "lan" },
   direct: { label: "Direct par internet", short: "Direct", tone: "direct" },
   relay: { label: "Relais du VPS", short: "Relais", tone: "relay" },
+  ricochet: { label: "Par Ricochet", short: "Ricochet", tone: "idle" },
   idle: { label: "En veille", short: "Veille", tone: "idle" },
   offline: { label: "Hors ligne", short: "Hors ligne", tone: "offline" },
 };
@@ -41,6 +45,9 @@ const ICONS = {
   arrows: "M7 7h11l-3-3M17 17H6l3 3",
   shield: "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z",
   check: "M5 12l5 5 9-10",
+  cpu: "M7 7h10v10H7zM10 10h4v4h-4zM9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4",
+  play: "M7 4l12 8-12 8z",
+  life: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6",
 };
 
 export function icon(name, size = 20, cls = "") {
@@ -183,10 +190,23 @@ export function mountReseau(root, api) {
   const mapBox = el("section", { class: "card flat section net-map-card", "aria-label": "Carte du réseau" });
   const listBox = el("div", { class: "net-grid" });
   const addBox = el("section", { class: "card flat section net-add", "aria-label": "Ajouter un appareil" });
-  wrap.append(hero, mapBox,
+  let machines = [];
+  const compute = createCompute(api, {
+    onMachines: (list) => { machines = list; if (st) renderList(); },
+    onSettings: () => { if (st) renderAdd(); },
+  });
+  const note = api.machine ? el("p", { class: "subtle machines-note" },
+    "Réseau et calcul vus depuis le serveur CCS (pas depuis la machine pilotée).") : null;
+  wrap.append(...(note ? [note] : []), hero, mapBox,
     el("section", { class: "section net-devices", "aria-label": "Appareils" },
       el("h2", { class: "net-h2" }, icon("mesh", 20), "Appareils"), listBox),
-    addBox);
+    el("section", { class: "card flat section", "aria-label": "Travaux" },
+      el("h2", { class: "net-h2" }, icon("cpu", 20), "Travaux"), compute.jobsBox),
+    el("section", { class: "card flat section", "aria-label": "Lancer une commande" },
+      el("h2", { class: "net-h2" }, icon("play", 20), "Lancer une commande"), compute.formBox),
+    addBox,
+    el("details", { class: "card flat section net-fallback", "aria-label": "Secours Ricochet" },
+      el("summary", { class: "net-h2" }, icon("life", 20), "Secours Ricochet"), compute.relayBox));
   root.append(wrap);
 
   let st = null;
@@ -266,7 +286,7 @@ export function mountReseau(root, api) {
         renderList();
       })));
     }
-    if (st.server) {
+    if (st.server && !d.meshless) {
       actions.append(iconButton("edit", "Renommer", async () => {
         const name = await promptSheet({ title: `Renommer ${d.name}`, value: d.name, label: "Nouveau nom",
           check: (v) => {
@@ -295,8 +315,9 @@ export function mountReseau(root, api) {
         el("div", { class: "grow net-card-title" },
           el("h3", {}, d.name),
           el("div", { class: "net-sub" }, pill(d.path),
-            el("span", {}, [d.os, d.host && d.host !== d.name ? d.host : ""].filter(Boolean).join(" · "))))),
-      el("div", { class: "net-ip" },
+            el("span", {}, [d.os, d.host && d.host !== d.name ? d.host : "",
+              d.machine && (d.machine.name || d.machine.id) !== d.name ? d.machine.name || d.machine.id : ""].filter(Boolean).join(" · "))))),
+      d.meshless ? null : el("div", { class: "net-ip" },
         el("span", { class: "mono" }, ip || "—"),
         ip ? el("button", { type: "button", class: "icon flat", title: "Copier l'adresse", "aria-label": "Copier l'adresse", onclick: () => copyText(ip) }, icon("copy", 15)) : null,
         el("span", { class: "net-fqdn mono" }, `${d.name}.${st.domain}`)),
@@ -304,16 +325,31 @@ export function mountReseau(root, api) {
       addrs(d),
       d.rx || d.tx ? el("div", { class: "net-traffic" }, `↓ ${bytes(d.rx)}`, el("span", {}, "·"), `↑ ${bytes(d.tx)}`) : null,
       pingLine,
+      d.machine ? compute.block(d.machine) : null,
       actions.childNodes.length ? actions : null);
   }
 
   function renderList() {
+    // pas de redessin sous le doigt (liste de limite ouverte)
+    if (listBox.contains(document.activeElement) && document.activeElement?.tagName === "SELECT") return;
     clear(listBox);
     const all = [...(st.self ? [[st.self, true]] : []), ...(st.peers || []).map((d) => [d, false])];
     // Appareils connus du serveur mais absents de la liste locale (pas encore vus par ce client)
     const seen = new Set(all.map(([d]) => d.name));
     for (const n of st.nodes || []) {
       if (!seen.has(n.name)) all.push([{ name: n.name, host: n.host, ips: n.ips, online: n.online, path: n.online ? "idle" : "offline" }, false]);
+    }
+    // Chaque machine de calcul se rattache à sa fiche ; celles hors du réseau maillé (joignables
+    // seulement par Ricochet) ont leur propre fiche.
+    const used = new Set();
+    for (const [d, self] of all) {
+      const m = matchMachine(machines, d, self);
+      if (m) { d.machine = m; used.add(m.id); } else delete d.machine;
+    }
+    for (const m of machines) {
+      if (used.has(m.id) || m.local) continue;
+      all.push([{ name: m.name || m.id, host: m.id, online: m.online, path: m.online ? "ricochet" : "offline",
+        machine: m, meshless: true }, false]);
     }
     if (!all.length) {
       listBox.append(el("p", { class: "subtle" }, "Aucun appareil pour l'instant : ajoute le premier ci-dessous."));
@@ -327,8 +363,9 @@ export function mountReseau(root, api) {
   let addBuiltFor = null;
   function renderAdd() {
     const server = Boolean(st.server);
-    if (addBuiltFor === server) return;
-    addBuiltFor = server;
+    const key = `${server}|${compute.canAdd()}`;
+    if (addBuiltFor === key) return;
+    addBuiltFor = key;
     clear(addBox);
     addBox.append(el("h2", { class: "net-h2" }, icon("plus", 20), "Ajouter un appareil"));
     if (!st.server) {
@@ -354,7 +391,10 @@ export function mountReseau(root, api) {
     show("pc");
   }
 
+  // Avec le jeton opérateur de Ricochet : un seul lien installe SSH, l'agent Ricochet (secours) et
+  // inscrit au réseau maillé. Sinon, la clé jetable du réseau maillé seule.
   function renderPc(body) {
+    if (compute.canAdd()) { compute.addPc(body); return; }
     const name = el("input", { type: "text", placeholder: "nom (facultatif) : laptop-maison", maxlength: "63", autocapitalize: "off", spellcheck: "false" });
     const out = el("div", {});
     const go = el("button", { type: "button", class: "primary net-btn" }, icon("key", 16), el("span", {}, "Créer la ligne d'inscription"));
@@ -401,7 +441,11 @@ export function mountReseau(root, api) {
   }
 
   refresh().then(schedule);
+  const stopCompute = compute.start();
   const onVisible = () => { if (!document.hidden) refresh(); };
   document.addEventListener("visibilitychange", onVisible);
-  return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
+  return () => {
+    alive = false; clearTimeout(timer); stopCompute();
+    document.removeEventListener("visibilitychange", onVisible);
+  };
 }

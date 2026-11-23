@@ -283,3 +283,10 @@ h2.job-cmd { font-size: 1em; white-space: normal; overflow-wrap: anywhere; }
 .jarvis-line.jarvis { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .jarvis-settings summary { cursor: pointer; font-weight: 600; }
 .jarvis-settings form { margin-top: 10px; }
+
+/* Calcul réparti dans les fiches de l'onglet Réseau */
+.net-compute { display: grid; gap: 6px; padding-top: 8px; border-top: 1px dashed var(--line); min-width: 0; }
+.net-compute .machine-bar { grid-template-columns: 72px 1fr 92px; }
+.net-fallback > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.net-fallback > summary::-webkit-details-marker { display: none; }
+.net-fallback[open] > summary { margin-bottom: 8px; }

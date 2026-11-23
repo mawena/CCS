@@ -1,9 +1,10 @@
-// Page « Machines » (#/machines) : les machines du relais Ricochet (charge, mémoire, outils,
-// places), les commandes lancées dessus (`ccs distant lancer`), un formulaire pour en lancer une,
-// et les réglages du relais. Les méthodes `machines.*` répondent toujours sur ce serveur, même
-// quand le web pilote une autre machine. Rechargement toutes les 5 s tant que la page est visible.
+// Calcul réparti, affiché dans l'onglet Réseau (#/reseau) : la charge, la mémoire, les outils et
+// les places de chaque machine (rattachées à leur fiche du réseau maillé), les commandes lancées
+// dessus (`ccs distant lancer`), un formulaire pour en lancer une, l'ajout d'un PC et les réglages
+// du relais Ricochet (le secours quand le réseau maillé ne joint pas une machine). Les méthodes
+// `machines.*` répondent toujours sur ce serveur, même quand le web pilote une autre machine.
+// Rechargement toutes les 5 s tant que la page est visible.
 import { ago, clear, confirmSheet, el, emptyState, errorState, loading, toast } from "./dom.js";
-import { machineName } from "./machines.js";
 import { busy, copyText, field, shortPath } from "./pages-util.js";
 
 export const LAST_PROJECT_KEY = "ccs.project.last";
@@ -64,42 +65,38 @@ function sheet(title) {
   return dlg;
 }
 
-export function mountMachines(root, api) {
-  const wrap = el("div", { class: "settings-wrap machines-page" });
-  const note = api.machine ? el("p", { class: "subtle machines-note" },
-    `Machines vues depuis ce serveur (pas depuis ${machineName(api)}).`) : null;
-  const machinesBox = el("div", { class: "stack" }, loading());
+// La machine de calcul d'une fiche du réseau : ce serveur pour sa propre fiche, sinon par
+// l'adresse du réseau maillé, puis par le nom (`reseau` des réglages, identifiant, nom d'hôte).
+export function matchMachine(machines, d, self) {
+  if (self) return machines.find((m) => m.local) || null;
+  const keys = [d.name, d.host].filter(Boolean).map((s) => String(s).toLowerCase());
+  const ips = d.ips || [];
+  return machines.find((m) => !m.local && ((m.mesh_ip && ips.includes(m.mesh_ip))
+    || [m.mesh, m.id, m.host].some((k) => k && keys.includes(String(k).toLowerCase())))) || null;
+}
+
+// Tout le calcul réparti, en morceaux que la page Réseau place où il faut.
+export function createCompute(api, { onMachines = () => {}, onSettings = () => {} } = {}) {
+  const state = { machines: [], jobs: [], settings: null, message: "", configured: true, home: "",
+    logs: new Set(), alive: true };
   const jobsBox = el("div", { class: "stack" }, loading());
   const formBox = el("div", {});
   const relayBox = el("div", { class: "stack" }, loading());
-  const addBox = el("div", { class: "stack" });
-  wrap.append(...(note ? [note] : []),
-    el("section", { class: "card flat section", "aria-label": "Machines" }, el("h2", {}, "Machines"), machinesBox),
-    el("section", { class: "card flat section", "aria-label": "Travaux" }, el("h2", {}, "Travaux"), jobsBox),
-    el("section", { class: "card flat section", "aria-label": "Lancer une commande" }, el("h2", {}, "Lancer une commande"), formBox),
-    el("section", { class: "card flat section", "aria-label": "Ajouter un PC" }, el("h2", {}, "Ajouter un PC"), addBox),
-    el("section", { class: "card flat section", "aria-label": "Relais Ricochet" }, el("h2", {}, "Relais Ricochet"), relayBox));
-  root.append(wrap);
 
-  const state = { machines: [], jobs: [], settings: null, home: "", logs: new Set(), alive: true };
+  // ---- bloc « calcul » d'une fiche ---------------------------------------------------------
 
-  // ---- machines --------------------------------------------------------------------------
-
-  function machineCard(m) {
-    const head = el("div", { class: "machine-head" }, el("strong", { class: "grow" }, m.name || m.id),
-      m.local ? el("span", { class: "pill" }, "ce serveur") : null,
-      el("span", { class: `pill ${m.online ? "done" : "failed"}` }, m.online ? "en ligne" : "hors ligne"));
-    const card = el("article", { class: "machine-card", "aria-label": m.name || m.id }, head);
+  function block(m) {
+    const box = el("div", { class: "net-compute", "aria-label": `Calcul sur ${m.name || m.id}` });
     if (m.online && m.cores) {
       const perCore = Number(m.load || 0) / m.cores;
-      card.append(bar("Charge", perCore, `${num(perCore, 2)}/cœur`, `charge ${num(m.load)} sur ${m.cores} cœurs`));
+      box.append(bar("Charge", perCore, `${num(perCore, 2)}/cœur`, `charge ${num(m.load)} sur ${m.cores} cœurs`));
     }
     if (m.online && m.mem_total) {
-      card.append(bar("Mémoire", m.mem_used / m.mem_total,
+      box.append(bar("Mémoire", m.mem_used / m.mem_total,
         `${num(m.mem_used / 2 ** 30)}/${num(m.mem_total / 2 ** 30, 0)} Go`, "mémoire utilisée"));
     }
     const tools = m.tools || [];
-    card.append(el("div", { class: "chips", "aria-label": "Outils" },
+    box.append(el("div", { class: "chips", "aria-label": "Outils" },
       tools.length ? tools.map((t) => el("span", { class: "chip" }, t)) : el("span", { class: "subtle" }, "outils pas encore inventoriés")));
     const limit = el("select", { "aria-label": `Limite de travaux sur ${m.name || m.id}` },
       ...LIMITS.map((n) => el("option", { value: String(n) }, String(n))));
@@ -114,22 +111,10 @@ export function mountMachines(root, api) {
       refresh();
     }));
     const places = `Places : ${m.running || 0}/${m.limit || 2}` + (m.waiting ? ` · ${m.waiting} en attente` : "");
-    card.append(el("div", { class: "machine-places" }, el("span", { class: "grow" }, places),
+    box.append(el("div", { class: "machine-places" }, el("span", { class: "grow" }, places),
       el("label", { class: "machine-limit" }, "Limite", limit)));
-    if (!m.tunnel && !m.local) card.append(el("p", { class: "subtle" }, "Tunnel SSH non activé sur cette machine."));
-    return card;
-  }
-
-  function drawMachines(r, error) {
-    // on ne redessine pas sous le doigt (liste de limite ouverte)
-    if (machinesBox.contains(document.activeElement) && document.activeElement?.tagName === "SELECT") return;
-    clear(machinesBox);
-    if (error) { machinesBox.append(errorState(error.message, refresh)); return; }
-    if (r.message) machinesBox.append(el("p", { class: r.configured === false ? "subtle" : "form-error" }, r.message));
-    else if (r.configured === false) machinesBox.append(el("p", { class: "subtle" }, "Relais Ricochet non configuré : remplis ses réglages plus bas."));
-    const list = r.machines || [];
-    if (!list.length) { if (r.configured !== false) machinesBox.append(emptyState("Aucune machine sur le relais.")); return; }
-    machinesBox.append(...list.map(machineCard));
+    if (!m.tunnel && !m.local && !m.mesh_ip) box.append(el("p", { class: "subtle" }, "Ni réseau maillé ni tunnel SSH Ricochet sur cette machine."));
+    return box;
   }
 
   // ---- travaux ---------------------------------------------------------------------------
@@ -185,7 +170,7 @@ export function mountMachines(root, api) {
       let r;
       try { r = await api.call("machines.log", { id: j.id, tail: 20000 }); } catch (e) { log.textContent = e.message; return; }
       const fresh = state.jobs.find((x) => x.id === j.id);
-      if (fresh) clear(meta).append(`${fresh.state} · ${jobLine(fresh)}`);
+      if (fresh) clear(meta).append(`${STATE_LABELS[fresh.state] ?? fresh.state} · ${jobLine(fresh)}`);
       const atEnd = log.scrollTop + log.clientHeight >= log.scrollHeight - 24;
       log.textContent = r.text || "Pas encore de journal.";
       if (atEnd) log.scrollTop = log.scrollHeight;
@@ -242,11 +227,12 @@ export function mountMachines(root, api) {
     });
   });
 
-  // ---- réglages du relais ----------------------------------------------------------------
+  // ---- secours Ricochet ------------------------------------------------------------------
 
   function drawRelay(s, error) {
     clear(relayBox);
     if (error) { relayBox.append(errorState(error.message, loadRelay)); return; }
+    if (state.message) relayBox.append(el("p", { class: state.configured === false ? "subtle" : "form-error" }, state.message));
     const address = el("input", { type: "url", inputmode: "url", autocomplete: "off", autocapitalize: "off", spellcheck: "false",
       placeholder: "https://ricochet.exemple", value: s.relay || "" });
     const token = el("input", { type: "password", autocomplete: "new-password", "aria-label": "Jeton",
@@ -255,7 +241,9 @@ export function mountMachines(root, api) {
       s.token_set ? "Jeton enregistré." : "Aucun jeton.");
     const error2 = el("p", { class: "form-error", role: "alert" });
     const save = el("button", { type: "submit", class: "primary" }, "Enregistrer");
-    const f = el("form", { class: "stack" }, field("Adresse du relais", address),
+    const f = el("form", { class: "stack" },
+      el("p", { class: "subtle" }, "Le réseau maillé passe d'abord ; Ricochet prend le relais quand il ne joint pas une machine."),
+      field("Adresse du relais", address),
       field("Jeton", token, status), error2,
       el("p", { class: "subtle" }, `Fichier : ${shortPath(s.path)} · limite par défaut : ${s.default_limit ?? 2} travaux à la fois par machine.`),
       el("div", { class: "sheet-actions" }, save));
@@ -280,42 +268,34 @@ export function mountMachines(root, api) {
   async function loadRelay() {
     try { state.settings = await api.call("machines.settings"); } catch (e) { drawRelay(null, e); return; }
     drawRelay(state.settings, null);
-    drawAdd(state.settings);
+    onSettings(state.settings);
   }
 
-  // ---- ajouter un PC (lien d'installation à usage unique) ----------------------------------
+  // ---- ajouter un PC par Ricochet (lien à usage unique, inscrit aussi au réseau maillé) -----
 
-  function drawAdd(s) {
-    clear(addBox);
-    if (!s.relay || !s.token_set) {
-      addBox.append(el("p", { class: "subtle" }, "Règle d'abord le relais ci-dessous."));
-      return;
-    }
-    if (!s.operator_set) {
-      addBox.append(el("p", { class: "subtle" },
-        `Ajoute jeton_operateur = "…" (jeton opérateur du relais) à ${shortPath(s.path)} pour ajouter des PC d'ici.`));
-      return;
-    }
+  const canAdd = () => Boolean(state.settings?.relay && state.settings?.token_set && state.settings?.operator_set);
+
+  function addPc(box) {
     const id = el("input", { required: true, pattern: "[A-Za-z0-9_\\-]{1,64}", autocomplete: "off",
-      autocapitalize: "off", spellcheck: "false", placeholder: "pc-salon" });
+      autocapitalize: "off", spellcheck: "false", placeholder: "pc-salon", "aria-label": "Identifiant" });
     const user = el("input", { required: true, pattern: "[a-z_][a-z0-9_\\-]{0,31}", autocomplete: "off",
-      autocapitalize: "off", spellcheck: "false", placeholder: "charles" });
-    const name = el("input", { maxlength: "100", placeholder: "PC du salon" });
+      autocapitalize: "off", spellcheck: "false", placeholder: "charles", "aria-label": "Compte" });
+    const name = el("input", { maxlength: "100", placeholder: "PC du salon", "aria-label": "Nom affiché" });
     const error2 = el("p", { class: "form-error", role: "alert" });
-    const submit = el("button", { type: "submit", class: "primary" }, "Créer le lien");
+    const go = el("button", { type: "submit", class: "primary" }, "Créer le lien");
     const result = el("div", { class: "stack" });
     const f = el("form", { class: "stack" },
       field("Identifiant", id, "lettres, chiffres, - et _"),
       field("Ton compte sur ce PC", user, "terminal, fichiers et travaux tournent sous ce compte"),
       field("Nom affiché (facultatif)", name), error2,
-      el("div", { class: "sheet-actions" }, submit));
+      el("div", { class: "sheet-actions" }, go));
     f.addEventListener("submit", (ev) => {
       ev.preventDefault();
       error2.textContent = "";
       clear(result);
       const params = { machine: id.value.trim(), user: user.value.trim() };
       if (name.value.trim()) params.name = name.value.trim();
-      busy(submit, async () => {
+      busy(go, async () => {
         let r;
         try { r = await api.call("machines.add", params); } catch (e) { error2.textContent = e.message; return; }
         id.value = ""; name.value = "";
@@ -324,14 +304,14 @@ export function mountMachines(root, api) {
         result.append(
           el("p", {}, `Colle cette commande dans un terminal de « ${r.id} » (Ubuntu ou Debian). Le lien ne sert qu'une fois, pendant ${Math.round((r.expires_s || 900) / 60)} min.`),
           el("pre", { class: "log" }, r.command),
-          el("p", { class: "subtle" }, "Elle installe l'agent Ricochet et le serveur SSH, autorise la clé de ce serveur"
-            + (r.mesh ? ", puis inscrit la machine au réseau maillé (onglet Réseau)" : "")
-            + " ; la machine apparaît ensuite ici en ligne."),
+          el("p", { class: "subtle" }, "Elle installe le serveur SSH et l'agent Ricochet (secours), autorise la clé de ce serveur"
+            + (r.mesh ? " et inscrit la machine au réseau maillé" : "")
+            + " ; elle apparaît ensuite ici, avec sa charge et ses outils."),
           el("div", { class: "sheet-actions" }, copy));
         refresh();
       });
     });
-    addBox.append(f, result);
+    box.append(f, result);
   }
 
   // ---- chargement ------------------------------------------------------------------------
@@ -340,8 +320,16 @@ export function mountMachines(root, api) {
     if (!state.alive) return;
     const [ml, jb] = await Promise.allSettled([api.call("machines.list"), api.call("machines.jobs")]);
     if (!state.alive) return;
-    if (ml.status === "fulfilled") { state.machines = ml.value.machines || []; drawTargets(); }
-    drawMachines(ml.value || {}, ml.status === "rejected" ? ml.reason : null);
+    if (ml.status === "fulfilled") {
+      state.machines = ml.value.machines || [];
+      state.message = ml.value.message || "";
+      state.configured = ml.value.configured !== false;
+      drawTargets();
+    } else {
+      state.machines = [];
+      state.message = ml.reason?.message || "Machines injoignables.";
+    }
+    onMachines(state.machines);
     if (jb.status === "fulfilled") state.jobs = jb.value.jobs || [];
     drawJobs(jb.value || {}, jb.status === "rejected" ? jb.reason : null);
   }
@@ -363,18 +351,22 @@ export function mountMachines(root, api) {
     if (!folder.value) folder.value = lastProject() || state.home;
   }
 
-  const onVisible = () => { if (!document.hidden) refresh(); };
-  document.addEventListener("visibilitychange", onVisible);
-  const timer = setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
-  const offs = [api.on("reconnected", refresh)];
-  refresh();
-  loadRelay().then(loadHome);
+  function start() {
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
+    const offs = [api.on?.("reconnected", refresh)].filter(Boolean);
+    refresh();
+    loadRelay().then(loadHome);
+    return () => {
+      state.alive = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      for (const off of offs) off();
+      for (const l of [...state.logs]) l.close();
+    };
+  }
 
-  return () => {
-    state.alive = false;
-    clearInterval(timer);
-    document.removeEventListener("visibilitychange", onVisible);
-    for (const off of offs) off();
-    for (const l of [...state.logs]) l.close();
-  };
+  return { block, jobsBox, formBox, relayBox, addPc, canAdd, start, refresh,
+    get machines() { return state.machines; } };
 }
