@@ -1,3 +1,9 @@
+ccs (1.5.0) unstable; urgency=medium
+
+  * Onglet Réseau dans les applis Android et iPhone.
+
+ -- mawena <gamligocharles@gmail.com>  Mon, 23 Nov 2026 16:00:00 +0100
+
 ccs (1.4.0) unstable; urgency=medium
 
   * Onglet Réseau de la version web : carte, appareils, ping, ajout d'appareils.

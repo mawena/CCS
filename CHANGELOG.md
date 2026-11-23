@@ -3,6 +3,14 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.5.0] — 2026-11-23
+
+### Ajouté
+
+- Onglet « Réseau » dans les applis Android et iPhone, à droite de Sessions, comme sur le web :
+  carte du réseau maillé, fiche de chaque appareil (chemin, adresses publiées, trafic, ping réel,
+  renommer, retirer), ajout d'un PC Linux ou d'un téléphone.
+
 ## [1.4.0] — 2026-11-23
 
 ### Ajouté

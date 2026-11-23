@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -61,6 +62,7 @@ import com.mawena.ccs.ui.git.EcranGitProjet
 enum class Onglet(val route: String, val titre: String, val icone: ImageVector) {
     Accueil("accueil", "Accueil", Icons.Filled.Home),
     Sessions("sessions", "Sessions", Icons.Filled.Forum),
+    Reseau("reseau", "Réseau", Icons.Filled.Hub),
     Fichiers("fichiers", "Fichiers", Icons.Filled.Folder),
     Git("git", "Git", Icons.Filled.AccountTree),
     Plus("plus", "Plus", Icons.Filled.MoreHoriz),
@@ -197,6 +199,7 @@ fun EcranPrincipal(modele: ModeleAppli) {
                         ouvrirTerminal = terminalDans,
                     )
                 }
+                composable(Onglet.Reseau.route) { EcranReseau(modele) }
                 composable(Onglet.Fichiers.route) { EcranFichiersOnglet(modele, ouvrirFichier = { nav.navigate(Routes.fichier(it)) }) }
                 composable(Routes.FICHIERS_PROJET, arguments = listOf(argument("cwd"))) { e ->
                     EcranFichiersProjet(modele, e.arguments?.getString("cwd").orEmpty(), retour = { nav.popBackStack() },
