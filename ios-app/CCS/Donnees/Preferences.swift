@@ -59,6 +59,12 @@ enum Prefs {
         set { d.set(newValue, forKey: "lire-reponses") }
     }
 
+    /// Son partagé : « Rester à l'écoute » (récepteur UDP toujours ouvert, désactivé par défaut).
+    static var resterALEcoute: Bool {
+        get { return d.bool(forKey: Son.cleResterALEcoute) }
+        set { d.set(newValue, forKey: Son.cleResterALEcoute) }
+    }
+
     // MARK: dossiers récents de « Nouvelle session » (8 au plus, le plus récent d'abord)
 
     static func recents() -> [String] {

@@ -115,10 +115,18 @@ gst-launch-1.0 pulsesrc device=<sortie>.monitor ! audioconvert ! audioresample \
 |---|---|---|
 | Linux | GStreamer → sortie PipeWire par défaut | moniteur d'une sortie PipeWire ; chaque appareil distant est une **sortie virtuelle** (« iPhone de Charles ») : l'utiliser dans les réglages du son lance l'envoi |
 | Android | service au premier plan, MediaCodec (décodeur Opus) → AudioTrack | Android 10+ : AudioPlaybackCapture (accord MediaProjection), MediaCodec (encodeur Opus) ; certaines applis interdisent la capture |
-| iPhone | lecture en arrière-plan (`UIBackgroundModes: audio`), AudioConverter (Opus) → AVAudioEngine | extension de diffusion ReplayKit (centre de contrôle) ; contenus protégés (Apple Music, Netflix…) muets |
+| iPhone | lecture en arrière-plan (`UIBackgroundModes: audio`), AudioConverter (Opus) → AVAudioEngine ; « Rester à l'écoute » (voir plus bas) | extension de diffusion ReplayKit (centre de contrôle) ; contenus protégés (Apple Music, Netflix…) muets |
 | macOS | même agent (`ccs audio agent`), GStreamer → `autoaudiosink` | périphérique de bouclage (BlackHole) donné dans `capture_device` de `audio.toml` |
 | Windows | même agent, GStreamer → `autoaudiosink` | `wasapi2src loopback=true` (son de la sortie par défaut) |
 | Web | — (liste et télécommande seulement) | — |
+
+iPhone, **« Rester à l'écoute »** (écran Son, réglage gardé, désactivé par défaut) : iOS suspend
+l'appli en arrière-plan, qui rate alors l'ordre `receive` du pont. Activé, le récepteur UDP reste
+ouvert sur le port annoncé et le lecteur joue du silence (la session audio active garde l'appli
+éveillée) ; tout paquet RTP reçu, de n'importe quelle source, est joué tout de suite, sans arrêt
+après 10 s de silence. L'appli continue d'annoncer toutes les 30 s et de suivre les événements
+(nom de la source, `stop`) ; l'écoute tombée est rouverte à l'annonce suivante. Interruption
+(appel, autre appli audio) : lecture reprise à la fin. Coût : un peu de batterie.
 
 Linux : `ccs audio list`, `ccs audio send <source> <sortie>`, `ccs audio stop`,
 `ccs audio receive` (au premier plan, pour essayer). Le démon CCS annonce la machine et crée les

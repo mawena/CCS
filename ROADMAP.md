@@ -89,7 +89,8 @@ Conception :
 - [x] 4. iPhone : récepteur (lecture en arrière-plan) et extension ReplayKit émettrice, annonce, écran « Son » ; IPA sur Codemagic
 - [x] 5. Web et bureau GTK : liste des sorties et bouton « Envoyer le son vers… »
 - [ ] 6. Essais réels dans les six sens, README, CHANGELOG, release — lp-work → iPhone marche (24/11) si l'appli est ouverte à l'écran
-- [ ] 6b. iPhone : recevoir aussi appli en arrière-plan (iOS la suspend : elle rate l'ordre « receive » du pont)
+- [x] 6b. iPhone : recevoir aussi appli en arrière-plan (iOS la suspend : elle rate l'ordre « receive » du pont) — interrupteur « Rester à l'écoute » (écran Son)
+- [x] 6c. Latence réduite (trames 10 ms, tampons adaptatifs)
 - [ ] 7. Autres systèmes, dans l'ordre demandé par Charles (Linux, iPhone, Android, puis le reste) :
   agent portable sur macOS (GStreamer, sortie puis source par BlackHole) et Windows (GStreamer,
   `wasapi2src loopback=true`), sans les sorties virtuelles de Linux

@@ -5,7 +5,8 @@ import SwiftUI
  * Écran « Son » (Plus → Son) : le son partagé sur le réseau maillé (phase 42, `docs/audio.md`).
  * Ce que fait l'iPhone (annonce, son joué, diffusion), les flux en cours avec « Arrêter »,
  * « Envoyer le son de cet iPhone vers… » (diffusion ReplayKit lancée par l'utilisateur), envoi
- * de n'importe quelle source vers n'importe quelle sortie, et les appareils annoncés.
+ * de n'importe quelle source vers n'importe quelle sortie, « Rester à l'écoute » et les appareils
+ * annoncés.
  * `audio.list` relu toutes les 5 s tant que l'écran est ouvert.
  */
 @MainActor
@@ -25,6 +26,13 @@ struct EcranSon: View {
             Section {
                 EnteteSon(son: son, diffusionActive: diffusionActive)
                     .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            }
+            Section {
+                Toggle(isOn: Binding(get: { son.resterALEcoute }, set: { son.resterALEcoute = $0 })) {
+                    Label("Rester à l'écoute", systemImage: "ear")
+                }
+            } footer: {
+                Text("Le son envoyé vers cet iPhone joue tout de suite, même appli en arrière-plan. Consomme un peu plus de batterie : la session audio reste ouverte et joue du silence.")
             }
             if son.ecoute != nil || diffusionActive || !l.streams.isEmpty {
                 Section("En ce moment") {
@@ -173,7 +181,8 @@ private struct EnteteSon: View {
                 .background(.black.opacity(0.22), in: Capsule())
             }
             HStack(spacing: 8) {
-                pastille("hifispeaker.fill", son.ecoute.map { "Joue \($0.de)" } ?? "Prêt à jouer")
+                pastille("hifispeaker.fill", son.ecoute.map { "Joue \($0.de)" }
+                         ?? (son.sonRecu ? "Joue un son reçu" : son.resterALEcoute ? "À l'écoute" : "Prêt à jouer"))
                 pastille("dot.radiowaves.left.and.right",
                          diffusionActive ? "Vers \(son.cibleDiffusion ?? "…")" : "Pas de diffusion")
             }
