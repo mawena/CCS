@@ -8,7 +8,7 @@ from urllib.parse import unquote, urlparse
 import gi
 
 gi.require_version("GtkSource", "5")
-from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, GtkSource, Pango  # noqa: E402
+from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, GtkSource, Pango  # noqa: E402
 
 from .. import chat_rich  # noqa: E402
 from .. import markdown_render as md  # noqa: E402
@@ -22,12 +22,14 @@ _HEADING_CLASS = {1: "title-1", 2: "title-2", 3: "title-3"}
 _ALIGN = {"left": 0.0, "center": 0.5, "right": 1.0, None: 0.0}
 CARD_WIDTH = 220        # px : largeur d'une carte (bloc ```ccs « cartes »)
 CARD_PHOTO = 140        # px : hauteur de sa photo
-PHOTO_MAX = 8 * 1024 * 1024   # octets : photo distante d'une carte, au plus
-_photos = {}            # adresse -> octets : photos des cartes déjà téléchargées (30 au plus)
+FORM_WIDTH = 360        # px : largeur d'un formulaire (bloc ```ccs « formulaire »)
+IMAGE_MAX_HEIGHT = 400  # px : hauteur au plus d'une image Markdown distante
+PHOTO_MAX = 8 * 1024 * 1024   # octets : image distante (photo de carte, image Markdown), au plus
+_photos = {}            # adresse -> octets : images distantes déjà téléchargées (30 au plus)
 
 
 def _fetch(url):
-    """Octets d'une photo https (cartes seulement), ou None. Appelé hors du fil GTK."""
+    """Octets d'une image https, ou None. Appelé hors du fil GTK."""
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "CCS"})
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -68,18 +70,105 @@ def _on_activate_link(label, uri):
 _GROUP = "ccs-rich-group"   # boutons d'un même bloc ccs : un seul envoi
 
 
-def _on_rich_send(button, message):
-    """Choix ou action de carte cliqué : le message part une fois, tous les boutons du bloc sont
-    désactivés. Fonction du module (pas de cycle avec la vue, voir `_on_activate_link`)."""
-    group = button.get_parent()
+_INPUT = "ccs-rich-input"   # champ d'un formulaire, dans l'ordre de `champs`
+
+
+def _group_of(widget):
+    group = widget.get_parent()
     while group is not None and not group.has_css_class(_GROUP):
         group = group.get_parent()
+    return group
+
+
+def _on_rich_send(button, message):
+    """Choix, action de carte ou formulaire : le message part une fois, les boutons et champs
+    du bloc sont désactivés. Fonction du module (pas de cycle avec la vue, voir
+    `_on_activate_link`)."""
+    if not message:
+        return
+    group = _group_of(button)
     for child in _descendants(group) if group is not None else (button,):
-        if isinstance(child, Gtk.Button):
+        if isinstance(child, (Gtk.Button, Gtk.Entry, Gtk.DropDown)):
             child.set_sensitive(False)
     view = button.get_ancestor(MarkdownView)
-    if view is not None and view.on_send and message:
+    if view is not None and view.on_send:
         view.on_send(message)
+
+
+def _input_value(widget):
+    if isinstance(widget, Gtk.DropDown):
+        item = widget.get_selected_item()
+        return item.get_string() if item is not None else ""
+    return widget.get_text()
+
+
+def _on_form_send(widget, spec):
+    """Formulaire envoyé (bouton, ou Entrée dans un champ) : même message que la version web.
+    La fermeture ne retient que `spec` (dict Python), aucun widget : pas de cycle."""
+    view = widget.get_ancestor(MarkdownView)
+    group = _group_of(widget)
+    if group is None or view is None or not view.on_send or not widget.get_sensitive():
+        return                                     # déjà envoyé : champs et bouton désactivés
+    inputs = [w for w in _descendants(group) if w.has_css_class(_INPUT)]
+    values = {f["cle"]: _input_value(w) for f, w in zip(chat_rich.form_fields(spec), inputs)}
+    _on_rich_send(widget, chat_rich.form_message(spec, values))
+
+
+def _size_player(video, kind):
+    if kind == "audio":
+        video.set_size_request(min(IMAGE_MAX_WIDTH, 360), 48)
+    else:
+        video.set_size_request(IMAGE_MAX_WIDTH, IMAGE_MAX_WIDTH * 9 // 16)
+
+
+def _on_remote_play(button, url, kind):
+    """« Lire » d'un son ou d'une vidéo https : le lecteur n'est créé qu'à ce moment (GStreamer
+    lit l'adresse en continu, dans ses propres fils) ; rien n'est chargé à l'affichage."""
+    box = button.get_parent()
+    video = Gtk.Video.new_for_file(Gio.File.new_for_uri(url))
+    video.set_autoplay(True)
+    video.set_halign(Gtk.Align.START)
+    video.add_css_class(f"ccs-rich-{kind}")
+    video.set_tooltip_text(url)
+    _size_player(video, kind)
+    box.remove(button)
+    box.append(video)
+
+
+def _load_remote(url, done):
+    """Image https : depuis le cache, sinon téléchargée dans un fil à part ; `done(octets ou
+    None)` est toujours appelé dans le fil GTK."""
+    if url in _photos:
+        done(_photos[url])
+        return
+
+    def work():
+        data = _fetch(url)
+        if data is not None:
+            if len(_photos) >= 30:
+                _photos.pop(next(iter(_photos)), None)
+            _photos[url] = data
+        GLib.idle_add(lambda: (done(data), False)[1])
+    threading.Thread(target=work, daemon=True).start()
+
+
+def _set_image(picture, fallback, data):
+    """Image Markdown distante reçue : affichée dans IMAGE_MAX_WIDTH × IMAGE_MAX_HEIGHT ; en
+    cas d'échec, le lien `fallback` prend sa place."""
+    texture = None
+    if data:
+        try:
+            texture = Gdk.Texture.new_from_bytes(GLib.Bytes.new(data))
+        except (GLib.Error, TypeError):
+            texture = None
+    if texture is None:
+        picture.set_visible(False)
+        fallback.set_visible(True)
+        return
+    w, h = texture.get_width(), texture.get_height()
+    scale = min(1.0, IMAGE_MAX_WIDTH / max(w, 1), IMAGE_MAX_HEIGHT / max(h, 1))
+    picture.set_paintable(texture)
+    picture.set_size_request(max(1, int(w * scale)), max(1, int(h * scale)))
 
 
 def _descendants(widget):
@@ -326,11 +415,10 @@ class MarkdownView(Gtk.Box):
             return player
         local = self._local_path(block.src)
         if local is None:
-            uri = md.escape(block.src).replace('"', "&quot;")
-            label = Gtk.Label(use_markup=True, xalign=0.0, wrap=True, selectable=True,
-                              label=f'image distante : <a href="{uri}">{md.escape(block.alt) or uri}</a>')
-            label.connect("activate-link", _on_activate_link)
-            return label
+            url = chat_rich.remote_src(block.src)
+            if url:
+                return self._remote_image(url, block.alt)
+            return self._image_link(block.src, block.alt)
         if not local.is_file():
             return Gtk.Label(label=f"image introuvable : {block.alt or block.src}", xalign=0.0,
                              css_classes=["dim-label"])
@@ -342,6 +430,27 @@ class MarkdownView(Gtk.Box):
         picture.set_size_request(min(width, IMAGE_MAX_WIDTH), -1)
         picture.set_alternative_text(block.alt)
         return picture
+
+    def _image_link(self, src, alt):
+        uri = md.escape(src).replace('"', "&quot;")
+        label = Gtk.Label(use_markup=True, xalign=0.0, wrap=True, selectable=True,
+                          label=f'image distante : <a href="{uri}">{md.escape(alt) or uri}</a>')
+        label.connect("activate-link", _on_activate_link)
+        return label
+
+    def _remote_image(self, url, alt):
+        """Image https : place réservée tout de suite, image téléchargée à part (8 Mo au plus,
+        gardée en mémoire) puis affichée en taille limitée ; un échec laisse le lien."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.START,
+                      css_classes=["ccs-rich-image"])
+        picture = Gtk.Picture(can_shrink=True, content_fit=Gtk.ContentFit.CONTAIN,
+                              halign=Gtk.Align.START, alternative_text=alt, tooltip_text=alt or url)
+        fallback = self._image_link(url, alt)
+        fallback.set_visible(False)
+        box.append(picture)
+        box.append(fallback)
+        _load_remote(url, lambda data: _set_image(picture, fallback, data))
+        return box
 
     def _local_path(self, src):
         """Chemin local d'une image, ou `None` pour une adresse distante (jamais chargée)."""
@@ -375,9 +484,12 @@ class MarkdownView(Gtk.Box):
         return box
 
     def _player(self, src, label=""):
-        """Lecteur (Gtk.Video) d'un son ou d'une vidéo du disque, ou None. Un média distant reste
-        un lien : rien n'est téléchargé dans la version de bureau."""
+        """Lecteur (Gtk.Video) d'un son ou d'une vidéo du disque, ou None. Un média https reçoit
+        un bouton « Lire » qui crée le lecteur au clic (rien n'est chargé avant)."""
         kind = chat_rich.media_kind(src)
+        url = chat_rich.remote_src(src) if kind else ""
+        if url:
+            return self._remote_player(url, kind)
         local = self._local_path(src) if kind else None
         if local is None or not local.is_file():
             return None
@@ -386,19 +498,28 @@ class MarkdownView(Gtk.Box):
         video.set_halign(Gtk.Align.START)
         video.add_css_class(f"ccs-rich-{kind}")
         video.set_tooltip_text(label or local.name)
-        if kind == "audio":
-            video.set_size_request(min(IMAGE_MAX_WIDTH, 360), 48)
-        else:
-            video.set_size_request(IMAGE_MAX_WIDTH, IMAGE_MAX_WIDTH * 9 // 16)
+        _size_player(video, kind)
         return video
 
+    def _remote_player(self, url, kind):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, halign=Gtk.Align.START,
+                      css_classes=["ccs-rich-remote"])
+        content = Gtk.Box(spacing=6)
+        content.append(Gtk.Image(icon_name="media-playback-start-symbolic"))
+        content.append(Gtk.Label(label="Lire le son" if kind == "audio" else "Lire la vidéo"))
+        button = Gtk.Button(child=content, tooltip_text=url)
+        button.connect("clicked", lambda b, u=url, k=kind: _on_remote_play(b, u, k))
+        box.append(button)
+        return box
+
     def _rich(self, spec):
-        """Composant d'un bloc ```ccs : « choix » et « carte(s) » ; le reste (formulaire…)
-        reste un bloc de code dans la version de bureau."""
+        """Composant d'un bloc ```ccs : choix, formulaire, carte(s)."""
         if spec is None:
             return None
         if spec["type"] == "choix":
             return self._choices(spec)
+        if spec["type"] == "formulaire":
+            return self._form(spec) if chat_rich.form_fields(spec) else None
         if spec["type"] in ("carte", "cartes"):
             cards = chat_rich.cards_of(spec)
             return self._cards(cards) if cards else None
@@ -415,6 +536,37 @@ class MarkdownView(Gtk.Box):
             if option["label"]:
                 row.append(self._send_button(option["label"], option["message"]))
         box.append(row)
+        return box
+
+    def _form(self, spec):
+        """Formulaire : un champ par entrée de `champs` (texte, nombre, liste), puis le bouton
+        `envoyer` ; Entrée dans un champ envoie aussi. Le message part une fois."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, width_request=FORM_WIDTH,
+                      halign=Gtk.Align.START, css_classes=["card", "ccs-rich-form", _GROUP])
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_start=12, margin_end=12,
+                        margin_top=10, margin_bottom=12)
+        if spec.get("titre"):
+            inner.append(Gtk.Label(label=str(spec["titre"]), xalign=0.0, wrap=True, css_classes=["heading"]))
+        active = self.on_send is not None
+        for field in chat_rich.form_fields(spec):
+            inner.append(Gtk.Label(label=field["label"], xalign=0.0, wrap=True, css_classes=["caption"]))
+            if field["type"] == "liste":
+                widget = Gtk.DropDown.new_from_strings(field["options"])
+                if field["valeur"] in field["options"]:
+                    widget.set_selected(field["options"].index(field["valeur"]))
+            else:
+                widget = Gtk.Entry(text=field["valeur"] or "", placeholder_text=field["aide"])
+                if field["type"] == "nombre":
+                    widget.set_input_purpose(Gtk.InputPurpose.NUMBER)
+                widget.connect("activate", lambda w, s=spec: _on_form_send(w, s))
+            widget.add_css_class(_INPUT)
+            widget.set_sensitive(active)
+            inner.append(widget)
+        button = Gtk.Button(label=str(spec.get("envoyer") or "Envoyer"), halign=Gtk.Align.START,
+                            sensitive=active, margin_top=4, css_classes=["suggested-action"])
+        button.connect("clicked", lambda b, s=spec: _on_form_send(b, s))
+        inner.append(button)
+        box.append(inner)
         return box
 
     def _send_button(self, label, message):
@@ -478,18 +630,9 @@ class MarkdownView(Gtk.Box):
         plus, gardée en mémoire) ; tout autre schéma est ignoré."""
         picture = Gtk.Picture(can_shrink=True, content_fit=Gtk.ContentFit.COVER,
                               height_request=CARD_PHOTO, alternative_text=alt)
-        if src.lower().startswith("https://"):
-            if src in _photos:
-                _set_photo(picture, _photos[src])
-            else:
-                def work():
-                    data = _fetch(src)
-                    if data is not None:
-                        if len(_photos) >= 30:
-                            _photos.pop(next(iter(_photos)))
-                        _photos[src] = data
-                    GLib.idle_add(lambda: (_set_photo(picture, data), False)[1])
-                threading.Thread(target=work, daemon=True).start()
+        url = chat_rich.remote_src(src)
+        if url:
+            _load_remote(url, lambda data: _set_photo(picture, data))
             return picture
         local = self._local_path(src)
         if local is None or not local.is_file():
