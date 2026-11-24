@@ -12,7 +12,7 @@ redémarrages du pont et de la machine :
 Limite assumée : un programme qui tourne sous ce même compte peut lire les deux fichiers. Il
 pourrait de toute façon lancer `ccs root` et obtenir root tant que le mot de passe est gardé.
 Le chiffrement protège donc le disque, les sauvegardes et les copies, pas le compte lui-même.
-`ccs root oublier` (ou « Révoquer ») efface le coffre et la clé.
+`ccs root forget` (ou « Révoquer ») efface le coffre et la clé.
 """
 
 import logging

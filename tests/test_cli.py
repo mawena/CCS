@@ -613,7 +613,7 @@ class JournalCliTest(HomeTestCase):
         with mock.patch("sys.stderr", err):
             code, out = run("journal", "--jours", "0")
         self.assertEqual((code, out), (2, ""))
-        self.assertIn("usage : ccs journal [--jours N | --tout]", err.getvalue())
+        self.assertIn("usage : ccs log [--days N | --all]", err.getvalue())
         for argv in (("--jours", "3", "--tout"), ("--jours", "x")):
             with self.subTest(argv=argv), mock.patch("sys.stderr", io.StringIO()), \
                     self.assertRaises(SystemExit) as e:
@@ -897,7 +897,7 @@ class SilenceCliTest(HomeTestCase):
         with mock.patch("sys.stderr", err):
             code, out = run("silence", "2h")
         self.assertEqual((code, out), (2, ""))
-        self.assertIn("usage : ccs silence", err.getvalue())
+        self.assertIn("usage : ccs quiet", err.getvalue())
 
     def test_notifier(self):
         run("silence", "1h", "--notifier")
@@ -995,18 +995,21 @@ class MiseAJourCliTest(HomeTestCase):
 class NomsDesCommandesTest(HomeTestCase):
     """Phase 33 : noms français dans l'aide, anciens noms acceptés mais cachés."""
 
-    ALIASES = {  # ancien nom → nom affiché
-        "status": "etat", "st": "etat", "best": "meilleur", "b": "meilleur", "print": "usage",
-        "orch": "orchestrateur", "planning": "plan", "ps": "sessions", "tasks": "tache",
-        "taches": "tache", "backup": "sauvegarde", "restore": "restaurer", "phone": "telephone",
-        "conv": "conversations", "historique": "conversations", "resume": "reprendre",
-        "title": "titre", "preview": "apercu", "aperçu": "apercu", "export": "exporter",
-        "analyze": "analyse", "stats": "analyse", "integrate": "integration", "conseil": "formule",
-        "doctor": "bilan", "maj": "mise-a-jour", "shortcuts": "raccourcis", "server": "serveur",
-        "quiet": "silence", "gui": "appli", "app": "appli",
+    ALIASES = {  # ancien nom → nom affiché (anglais depuis la 1.12.0)
+        "etat": "status", "st": "status", "meilleur": "best", "b": "best", "print": "usage",
+        "orchestrateur": "orchestrator", "orch": "orchestrator", "planning": "plan", "ps": "sessions",
+        "tache": "task", "tasks": "task", "taches": "task", "sauvegarde": "backup",
+        "restaurer": "restore", "telephone": "phone", "fiche": "recap",
+        "conv": "conversations", "historique": "conversations", "reprendre": "resume",
+        "titre": "title", "apercu": "preview", "aperçu": "preview", "exporter": "export",
+        "analyse": "analyze", "stats": "analyze", "integrate": "integration", "conseil": "advisor",
+        "formule": "advisor", "semaine": "week", "mois": "month", "moment": "best-time",
+        "journal": "log", "bilan": "doctor", "maj": "update", "mise-a-jour": "update",
+        "projet": "project", "raccourcis": "shortcuts", "serveur": "server", "silence": "quiet",
+        "gui": "app", "appli": "app", "distant": "remote", "reseau": "network",
     }
-    INTERNAL = ("bridge", "web-serve", "auth-serve", "shell-distant", "notify", "statusline",
-                "hook", "tray", "collect", "daemon", "est-commande")
+    INTERNAL = ("bridge", "web-serve", "auth-serve", "remote-shell", "shell-distant", "notify",
+                "statusline", "hook", "tray", "collect", "daemon", "is-command", "est-commande")
 
     def help_text(self):
         return cli.build_parser().format_help()
@@ -1020,11 +1023,11 @@ class NomsDesCommandesTest(HomeTestCase):
     def test_ancien_nom_meme_commande_que_le_nouveau(self):
         parser = cli.build_parser()
         for old, new in self.ALIASES.items():
-            if new in ("tache", "sauvegarde", "restaurer", "telephone"):
+            if new in ("task", "backup", "restore", "phone", "recap"):
                 self.assertIs(cli.DELEGATED[old], cli.DELEGATED[new])
                 continue
-            argv = {"titre": ["x", "y"], "reprendre": ["x"], "apercu": ["x"],
-                    "exporter": ["x"], "serveur": ["liste"], "orchestrateur": ["on"]}.get(new, [])
+            argv = {"title": ["x", "y"], "resume": ["x"], "preview": ["x"], "export": ["x"],
+                    "server": ["list"], "orchestrator": ["on"], "remote": ["jobs"]}.get(new, [])
             self.assertIs(parser.parse_args([old, *argv]).func,
                           parser.parse_args([new, *argv]).func, old)
 
@@ -1037,7 +1040,7 @@ class NomsDesCommandesTest(HomeTestCase):
         self.assertTrue(set(self.ALIASES.values()) <= shown)
         for old in [*self.ALIASES, *self.INTERNAL]:
             self.assertNotIn(old, shown, old)
-        for opt in ("--switch", "--basculer", "--days", "--project", "--new-terminal", "--dir"):
+        for opt in ("--switch", "--basculer", "--jours", "--projet", "--nouveau-terminal", "--dossier"):
             self.assertNotIn(opt, text)
 
     def test_options_anciennes_et_nouvelles(self):
@@ -1081,7 +1084,7 @@ class NomsDesCommandesTest(HomeTestCase):
 
     def test_mots_etat(self):
         from ccs_app import pause, quiet
-        self.assertIn("etat", pause.USAGE)
-        self.assertIn("etat", quiet.USAGE)
+        self.assertIn("status", pause.USAGE)
+        self.assertIn("status", quiet.USAGE)
         self.assertEqual(pause.command("etat")[0], pause.command("status")[0])
         self.assertEqual(quiet.command(["etat"])[1], quiet.command(["status"])[1])

@@ -111,10 +111,10 @@ class AlertsTest(unittest.TestCase):
 
     def test_auth_alert_when_profile_has_no_token(self):
         acc = state("pro", None, error="connexion perdue : reconnecte ce compte avec "
-                                       "« ccs supprimer pro » puis « ccs ajouter pro »")
+                                       "« ccs supprimer pro » puis « ccs add pro »")
         a = self.alerts([acc], active=None)
         self.assertEqual(self.keys(a), ["auth"])
-        self.assertIn("ccs ajouter pro", a[0].body)
+        self.assertIn("ccs add pro", a[0].body)
 
     def test_disabled_types_are_skipped(self):
         self.settings["alerts"]["resets"] = False

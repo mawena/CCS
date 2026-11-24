@@ -60,7 +60,7 @@ enum EvChat: Equatable {
     /// Le cache a expiré : le prochain message relira `contexte` tokens au prix fort.
     case cacheExpire(contexte: Int, ttlS: Int, reecritureUsd: Double?, texte: String)
     case compacte
-    /// `auto` : effacée par Claude en fin de sujet (`ccs chat effacer`), pas par `/clear`.
+    /// `auto` : effacée par Claude en fin de sujet (`ccs chat clear`), pas par `/clear`.
     case reinitialise(declencheur: String)
     case note(texte: String, genre: String)
     case nouvelEssai(tentative: Int, delaiS: Double)
@@ -212,6 +212,6 @@ enum EvChat: Equatable {
 }
 
 extension EvChat {
-    /// `ConversationReset` déclenché par Claude lui-même (`ccs chat effacer`).
+    /// `ConversationReset` déclenché par Claude lui-même (`ccs chat clear`).
     static func estAuto(_ declencheur: String) -> Bool { return declencheur == "ccs_auto" }
 }

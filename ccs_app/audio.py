@@ -16,9 +16,9 @@ clé du pont, lisible par l'utilisateur), sinon par le premier serveur appairé 
 Autres systèmes (même agent, `ccs audio agent` lancé à la main) : macOS et Windows jouent par
 `autoaudiosink` ; Windows capte le son de sa sortie par `wasapi2src loopback=true`, macOS par un
 périphérique de bouclage (BlackHole) donné dans `capture_device`. Pas de sorties virtuelles hors
-de Linux : l'envoi se lance depuis `ccs audio envoyer` ou une autre appli CCS.
+de Linux : l'envoi se lance depuis `ccs audio send` ou une autre appli CCS.
 
-Réglages : `~/.config/ccs/audio.toml` (`active`, `port`, `label`, `capture_device` sur macOS). `ccs audio activer` l'écrit et
+Réglages : `~/.config/ccs/audio.toml` (`active`, `port`, `label`, `capture_device` sur macOS). `ccs audio enable` l'écrit et
 lance le service.
 """
 
@@ -327,7 +327,7 @@ def call(method, transport=None, **params):
 def resolve(devices, text, me=None):
     """Nom d'appareil d'après un nom ou un nom affiché approché (« ici » : cette machine)."""
     t = (text or "").strip().lower()
-    if t in ("ici", "moi", "local") and me:
+    if t in ("here", "me", "ici", "moi", "local") and me:
         return me
     for d in devices:
         if t == d["device"].lower():
@@ -336,14 +336,14 @@ def resolve(devices, text, me=None):
     if len(hits) == 1:
         return hits[0]
     if not hits:
-        raise AudioError(f"Aucun appareil « {text} » (voir `ccs audio lister`).")
+        raise AudioError(f"Aucun appareil « {text} » (voir `ccs audio list`).")
     raise AudioError(f"« {text} » désigne plusieurs appareils : {', '.join(hits)}.")
 
 
 def describe(listing, me=None):
     devices, streams = listing.get("devices") or [], listing.get("streams") or []
     if not devices:
-        return ["Aucun appareil annoncé (CCS ouvert sur le téléphone, `ccs audio activer` sur les PC)."]
+        return ["Aucun appareil annoncé (CCS ouvert sur le téléphone, `ccs audio enable` sur les PC)."]
     lines = []
     for d in devices:
         can = " + ".join(x for x, ok in (("joue", d["play"]), ("capte", d["capture"])) if ok) or "-"

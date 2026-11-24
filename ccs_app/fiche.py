@@ -19,7 +19,7 @@ FILES_MAX = 12
 WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
 MAX_LINE_BYTES = 4_000_000
 STATUS_MARKS = {"completed": "[x]", "in_progress": "[~]", "pending": "[ ]"}
-USAGE = "usage : ccs fiche <identifiant>"
+USAGE = "usage : ccs recap <identifiant>"
 
 
 @dataclass
@@ -206,7 +206,7 @@ def format_text(f):
 
 
 def command(args, out=None, err=None, store=None):
-    """« ccs fiche <identifiant> » : affiche la fiche et renvoie le code de sortie
+    """« ccs recap <identifiant> » : affiche la fiche et renvoie le code de sortie
     (0 réussi, 1 conversation ou journal introuvable, 2 mauvais arguments)."""
     out, err = out or sys.stdout, err or sys.stderr
     args = list(args or [])

@@ -365,7 +365,7 @@ class CommandTest(unittest.TestCase):
                     ["--precedent", "121"], ["--inconnu"], ["oups"]):
             code, text, calls = self.run_cmd(bad)
             self.assertEqual(code, 2, bad)
-            self.assertTrue(text.startswith("Usage : ccs mois"), text)
+            self.assertTrue(text.startswith("Usage : ccs month"), text)
             self.assertEqual(calls, [])
 
     def test_failure_gives_code_1(self):

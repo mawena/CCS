@@ -44,14 +44,14 @@ export function mountHome(root, api) {
     autocapitalize: "off", "aria-label": "Nom du compte" });
   const addError = el("p", { class: "form-error", role: "alert" });
   addBox.append(el("h2", {}, "Ajouter un compte Claude"),
-    el("p", { class: "subtle" }, "Lance « ccs ajouter » dans un terminal : ouvre le lien de connexion sur ton téléphone ou ton PC, puis colle le code dans le terminal."),
+    el("p", { class: "subtle" }, "Lance « ccs add » dans un terminal : ouvre le lien de connexion sur ton téléphone ou ton PC, puis colle le code dans le terminal."),
     el("div", { class: "row" }, nameInput, el("button", { class: "small", onclick: () => {
       addError.textContent = "";
       if (!/^[A-Za-z0-9_-]{1,32}$/.test(nameInput.value)) { addError.textContent = "Nom : lettres, chiffres, - et _ seulement."; return; }
       addTerm?.destroy(true);
       const holder = el("div", { class: "term-box" });
       addBox.append(holder);
-      addTerm = new TerminalView(holder, api, { cwd: ctx.home, command: "ccs ajouter", name: nameInput.value });
+      addTerm = new TerminalView(holder, api, { cwd: ctx.home, command: "ccs add", name: nameInput.value });
     } }, "Ouvrir le terminal")), addError);
 
   async function switchTo(card, button) {

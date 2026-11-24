@@ -1,5 +1,5 @@
 """Page « Machines » des Réglages : les machines du relais Ricochet (charge, mémoire, outils,
-places et limite), les commandes lancées dessus (`ccs distant lancer`), le lancement d'une
+places et limite), les commandes lancées dessus (`ccs remote run`), le lancement d'une
 commande et les réglages du relais. Même contenu que la page web `#/machines`, en plus simple.
 
 Les appels au moteur (`distant`, `distant_jobs`) sont lents (réseau, fichiers) : ils tournent dans

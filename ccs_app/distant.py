@@ -3,7 +3,7 @@
 Les machines sont jointes en SSH directement par le réseau maillé (Headscale) quand elles y sont
 en ligne ; sinon Ricochet (≥ 0.3.0), en secours, ouvre un tunnel vers leur serveur SSH. La liste
 vient du relais Ricochet, complétée par `reseau` de `machines.toml` (elle suffit sans relais). Le
-reste est du `ssh` et du `rsync` ordinaires. `ccs distant lancer -- <commande>` :
+reste est du `ssh` et du `rsync` ordinaires. `ccs remote run -- <commande>` :
 
 1. choisit la machine (celle qui a l'outil demandé, puis la moins chargée) ;
 2. y copie le dossier du projet (seuls les fichiers changés repartent) ;
@@ -48,14 +48,14 @@ REMOTE_BASE = ".cache/ccs-distant"
 HINT = ("Calcul réparti : d'autres machines de Charles sont joignables (réseau maillé, Ricochet en secours). Si un outil "
         "manque sur cette machine (flutter, par exemple) ou pour un travail lourd (build, longue "
         "suite de tests), lance la commande ailleurs depuis le dossier du projet : "
-        "`ccs distant lancer -- <commande>` (options : `--machine <id>`, `--rapatrier <chemin>` "
-        "pour rapporter les fichiers produits, `--inclure <chemin>` pour envoyer un fichier que "
+        "`ccs remote run -- <commande>` (options : `--machine <id>`, `--fetch <chemin>` "
+        "pour rapporter les fichiers produits, `--include <chemin>` pour envoyer un fichier que "
         "git ignore). Tu peux lancer plusieurs commandes en parallèle : chaque machine a un "
         "nombre de places, et une commande attend son tour si elles sont toutes prises. Pour "
         "garder cette machine légère, envoie les longues suites de tests la nuit : "
-        "`ccs distant lancer --quand nuit --detache -- <commande>` (ou `--quand HH:MM`), puis "
-        "`ccs distant travaux`, `ccs distant journal <id>` et `ccs distant arreter <id>`. "
-        "`ccs distant machines` liste les machines, leur charge et leurs outils.")
+        "`ccs remote run --when night --detach -- <commande>` (ou `--when HH:MM`), puis "
+        "`ccs remote jobs`, `ccs remote log <id>` et `ccs remote stop <id>`. "
+        "`ccs remote machines` liste les machines, leur charge et leurs outils.")
 DEFAULT_LIMIT = 2
 LIMIT_RANGE = (1, 8)
 MACHINE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -488,13 +488,13 @@ def _local_tz():
 
 
 def schedule(when, now=None):
-    """(heure de départ ou None pour tout de suite, raison) pour `--quand nuit|HH:MM`."""
+    """(heure de départ ou None pour tout de suite, raison) pour `--when night|HH:MM`."""
     when = (when or "").strip()
     t = time.time() if now is None else now
     if not when:
         return None, ""
     current = datetime.fromtimestamp(t, timezone.utc)
-    if when == "nuit":
+    if when in ("night", "nuit"):
         from . import tasks
         from .settings import load_settings
         night = tasks.config(load_settings())["night"]
@@ -622,7 +622,7 @@ def _attached(argv):
 
 
 def _trap_term():
-    """SIGTERM (`ccs distant arreter`) devient une interruption, comme Ctrl+C."""
+    """SIGTERM (`ccs remote stop`) devient une interruption, comme Ctrl+C."""
     def stop(signum, frame):
         raise KeyboardInterrupt
     try:
@@ -640,7 +640,7 @@ def launch(command, machine=None, tool=None, fetch=(), include=(), with_git=Fals
     (`when`), puis une place libre sur une machine, et son état avance jusqu'au bout."""
     say = say or (lambda text: print(f"[ccs distant] {text}", file=sys.stderr, flush=True))
     if not command:
-        raise DistantError("Aucune commande : ccs distant lancer -- <commande>")
+        raise DistantError("Aucune commande : ccs remote run -- <commande>")
     cwd = cwd or os.getcwd()
     if job_id:
         job = distant_jobs.update(job_id, pid=os.getpid(), detached=bool(detached))
@@ -1036,7 +1036,7 @@ def add_machine(machine_id, name=None, user=None, limit=None, ports=(22,), opene
 
 
 def describe(machines, overrides, probe=True, run=None):
-    """Lignes de `ccs distant machines`."""
+    """Lignes de `ccs remote machines`."""
     lines = []
     for m in machines:
         label = m.id + (f" ({m.name})" if m.name else "")

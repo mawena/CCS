@@ -126,8 +126,8 @@ class TokensTest(HomeTestCase):
         self.assertEqual(calls, [])
         msg = str(cm.exception)
         self.assertIn("connexion perdue", msg)
-        self.assertIn("ccs supprimer pro", msg)
-        self.assertIn("ccs ajouter pro", msg)
+        self.assertIn("ccs remove pro", msg)
+        self.assertIn("ccs add pro", msg)
 
     def test_refresh_fills_active_profile_whose_copy_is_empty(self):
         # Copie du profil actif vidée (ancien bug 0.3.0) : le jeton renouvelé

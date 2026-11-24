@@ -35,7 +35,7 @@ STDERR_LINES = 20
 # (la CLI peut lire un message reçu en plein tour sans lui donner de `result` à part).
 SETTLE_S = 3.0
 
-# Effacement automatique (phase 24) : en fin de sujet, Claude lance `ccs chat effacer`, qui
+# Effacement automatique (phase 24) : en fin de sujet, Claude lance `ccs chat clear`, qui
 # dépose une demande au nom du jeton de son chat ; au retour au repos, le moteur envoie `/clear`.
 CLEAR_COMMAND = "/clear"
 CLEAR_TRIGGER = "ccs_auto"
@@ -44,7 +44,7 @@ OLD_CLEAR_TOKEN_VAR = "CCS_CHAT_JETON"   # lue encore (chats lancés avant la 1.
 CLEAR_HINT = (
     "Effacement automatique : ce chat tourne dans CCS. Quand un sujet est vraiment terminé "
     "(travail commité, poussé et publié, mémoire et feuille de route à jour) et que l'utilisateur "
-    "n'attend plus de réponse sur ce sujet, lance `ccs chat effacer` (outil Bash) dans ton dernier "
+    "n'attend plus de réponse sur ce sujet, lance `ccs chat clear` (outil Bash) dans ton dernier "
     "message, puis termine ta réponse en le disant en une ligne. CCS enverra `/clear` à la fin de "
     "ton tour : la conversation repart à vide (moins de contexte, moins de quota). Ne propose "
     "donc plus à l'utilisateur de taper `/clear` lui-même. Ne le fais pas si une question est en "
@@ -59,7 +59,7 @@ def clear_requests_dir():
 
 
 def request_clear(token):
-    """Demande déposée par `ccs chat effacer` : un fichier vide au nom du jeton."""
+    """Demande déposée par `ccs chat clear` : un fichier vide au nom du jeton."""
     if not token or not token.isalnum():
         raise ValueError("jeton de chat invalide")
     d = clear_requests_dir()
@@ -241,7 +241,7 @@ class ChatSession:
         return clear_requests_dir() / self._clear_token
 
     def _maybe_auto_clear(self):
-        """Au repos : une demande de `ccs chat effacer` attend → `/clear`. Pas tant qu'un
+        """Au repos : une demande de `ccs chat clear` attend → `/clear`. Pas tant qu'un
         sous-agent de fond tourne (il serait perdu) : la demande attend le repos suivant."""
         path = self._clear_request()
         if not path.exists():
@@ -272,7 +272,7 @@ class ChatSession:
         env.pop(CLEAR_TOKEN_VAR, None)
         env.pop(OLD_CLEAR_TOKEN_VAR, None)
         if self._auto_clear_on():
-            env[CLEAR_TOKEN_VAR] = self._clear_token     # pour `ccs chat effacer`
+            env[CLEAR_TOKEN_VAR] = self._clear_token     # pour `ccs chat clear`
         return env
 
     def _spawn(self):

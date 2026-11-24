@@ -5,6 +5,18 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Modifié
+
+- Bureau, onglet Réseau au niveau du web (phase 44) : « Appareils » donne une fiche dépliable par
+  appareil du réseau maillé (genre, en ligne ou non, chemin réel, adresse à copier, adresses
+  publiées avec leur type, trafic, « Mesurer », « Renommer », « Retirer du réseau » confirmé), la
+  machine de calcul Ricochet rattachée à sa fiche ; « Ajouter un appareil » (PC Linux par lien
+  Ricochet ou clé jetable, Android, iPhone) ; sections dans l'ordre du web, « Secours Ricochet » en
+  bas. Mêmes méthodes `network.*` que le web, par le pont du serveur CCS (repli sur ce PC s'il est
+  injoignable).
+
+## [1.12.0] — 2026-11-24
+
 ### Ajouté
 
 - Son partagé sur le réseau maillé (phase 42) : chaque appareil CCS qui sait jouer du son est une
@@ -21,23 +33,22 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   (macOS) ou `wasapi2src loopback=true` (Windows), sans sorties virtuelles. Non essayé.
 - Android : écran Son (Plus → Son partagé), lecture en service au premier plan, envoi du son du
   téléphone par AudioPlaybackCapture (Android 10+, accord à chaque départ).
-- iPhone : écran Son, lecture en arrière-plan, envoi par une extension de diffusion ReplayKit
-  (contenus protégés muets).
+- iPhone : écran Son (Plus → Son), lecture en arrière-plan, envoi par une extension de diffusion
+  ReplayKit « CCS » (contenus protégés muets). L'extension compte pour un App ID de plus sur le
+  compte Apple gratuit.
 - Web (Réseau → Son partagé) et bureau GTK (onglet Réseau) : appareils, flux en cours, « Envoyer le
   son » et « Arrêter ».
 
 ### Modifié
 
-- Bureau, onglet Réseau au niveau du web (phase 44) : « Appareils » donne une fiche dépliable par
-  appareil du réseau maillé (genre, en ligne ou non, chemin réel, adresse à copier, adresses
-  publiées avec leur type, trafic, « Mesurer », « Renommer », « Retirer du réseau » confirmé), la
-  machine de calcul Ricochet rattachée à sa fiche ; « Ajouter un appareil » (PC Linux par lien
-  Ricochet ou clé jetable, Android, iPhone) ; sections dans l'ordre du web, « Secours Ricochet » en
-  bas. Mêmes méthodes `network.*` que le web, par le pont du serveur CCS (repli sur ce PC s'il est
-  injoignable).
+- **Toutes les commandes passent en anglais** (`ccs status`, `ccs remote run`, `ccs audio send`,
+  `ccs chat clear`, `ccs task add`, `ccs backup`…), options comprises (`--when night`, `--detach`,
+  `--name`, `--notify`…). Les noms français restent acceptés, sans paraître dans l'aide : rien ne
+  casse dans les scripts, raccourcis ni services. README, manuel et aides suivent.
 
 ### Corrigé
 
+- Tests : `test_terminals_gui` ne se chargeait plus (import manquant).
 - Chat web : on voit enfin les sous-agents de fond travailler. La CLI ne passe que leur lancement
   et leur fin ; le pont lit leur transcription toutes les 3 s et envoie leurs étapes (textes,
   outils, résultats) dans leur vue, comme pour un sous-agent au premier plan.

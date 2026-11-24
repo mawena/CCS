@@ -738,7 +738,7 @@ class ChatTab(Gtk.Box):
         def show(plan):
             if plan is None:
                 self.show_notice("Format de l'historique des fichiers inconnu : retour impossible "
-                                 "(voir « ccs bilan »).")
+                                 "(voir « ccs doctor »).")
             elif plan is no_snapshot:
                 self.show_notice("Retour en arrière impossible : Claude Code n'a pas gardé "
                                  "d'instantané des fichiers pour ce message.")
