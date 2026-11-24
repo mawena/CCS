@@ -156,3 +156,40 @@ out = { text, abilities: S.abilities(devices[2]), outs: S.choices(devices).outpu
         self.assertEqual(out["abilities"], "—")
         self.assertEqual(out["outs"], 2)
         self.assertEqual(out["sent"][1], {"source": "iphone", "target": "pc-bureau"})
+
+    def test_lecteurs(self):
+        out = self.run_son(r"""
+const vlc = { id: "vlc", name: "VLC", status: "Playing", title: "Titre", artist: "Artiste",
+              volume: 40, can_seek: true, can_next: true, can_prev: false, can_play: true, can_pause: true };
+const devices = [
+  { device: "pc-bureau", label: "PC du bureau", ip: "100.64.0.2", play: true, capture: true, system: "linux", players: [vlc] },
+  { device: "iphone", label: "iPhone", ip: "100.64.0.4", play: true, capture: false, system: "ios" },
+];
+const calls = [];
+const api = { call: async (m, p) => { calls.push([m, p]); return m === "audio.list" ? { devices, streams: [] } : { ok: true }; } };
+const root = document.createElement("div");
+document.body.append(root);
+const stop = S.mountSon(root, api, R.icon);
+await settle();
+const text = root.textContent;
+const buttons = [...root.querySelectorAll("button")];
+const by = (t) => buttons.find((b) => b.getAttribute("title") === t);
+by("Pause").click();
+by("Avancer de 10 s").click();
+await settle();
+const vol = root.querySelector("input");
+vol.value = "70";
+vol.dispatchEvent(new Event("change"));
+await settle();
+stop();
+out = { text, prevDisabled: !!by("Précédent").disabled, ctl: calls.filter((c) => c[0] === "audio.control").map((c) => c[1]),
+        sections: [...root.querySelectorAll("h2")].map((h) => h.textContent) };
+""")
+        self.assertIn("Artiste — Titre", out["text"])
+        self.assertIn("PC du bureau", out["text"])
+        self.assertEqual(out["sections"], ["Son partagé", "Lecteurs"])
+        self.assertTrue(out["prevDisabled"])
+        self.assertEqual(out["ctl"], [
+            {"device": "pc-bureau", "player": "vlc", "command": "toggle"},
+            {"device": "pc-bureau", "player": "vlc", "command": "seek", "value": 10},
+            {"device": "pc-bureau", "player": "vlc", "command": "volume", "value": 70}])
