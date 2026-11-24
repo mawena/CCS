@@ -2,7 +2,7 @@
 
 Plusieurs comptes Claude Code sur un PC Linux, comme un seul. Détails de chaque
 version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`. Phases terminées
-(1 à 35, 39, correctifs) : `docs/ROADMAP-fait.md`.
+(1 à 35, 39, 41, correctifs) : `docs/ROADMAP-fait.md`.
 
 ## Reste à faire (résumé)
 
@@ -12,16 +12,6 @@ version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`. Phases te
   de l'ancien transport du relais, 38.6 tests et releases
 - **Essai** : 37.4 « ajouter un PC » sur un vrai nouveau PC
 - **Plus tard** : 37.5 « Ajouter un PC » dans les applis, 31.10 onglets shell du bureau
-
-## Phase 41 — Onglets Réseau, Fichiers et Jarvis sur le bureau (1.10.0) ✅
-
-Charles (24/11/2026) : l'application du bureau n'a pas les onglets Réseau, Jarvis et Fichiers du web.
-
-- [x] 1. Onglet Réseau : appareils du réseau maillé (chemin, « Mesurer » par `tailscale ping`) puis machines, travaux, lancement et secours Ricochet (la page Machines quitte les Réglages)
-- [x] 2. Onglet Fichiers : arbre d'un dossier (personnel au départ, « Changer de dossier ») et éditeur
-- [x] 3. Onglet Jarvis : ouvre la page Jarvis du serveur CCS dans le navigateur, ou mène aux Réglages sans serveur
-- [x] 4. `gui --page reseau|fichiers|jarvis`, Ctrl+1 à Ctrl+6, tests
-- [x] 5. Release 1.10.0
 
 ## Phase 31 — Relance après une limite, sur toutes les interfaces (0.36.0)
 

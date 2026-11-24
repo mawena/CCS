@@ -742,3 +742,13 @@ accéder à tous les dossiers de tous les appareils du réseau maillé.
 - [x] 2. Fichiers : choix de l'appareil (serveur CCS, PC du réseau maillé), navigation par SSH sur le réseau maillé, Ricochet en secours (1.7.0, web, Android, iPhone)
 - [x] 3. Refonte UX de l'onglet (web, puis Android et iPhone)
 - [x] 4. Appareils sans client (PS5, imprimante…) : routeur de sous-réseau sur un PC du LAN (`--advertise-routes`), activé dans Headscale — laptop-maison annonce 192.168.0.0/24 (route validée le 23/11), le VPS l'accepte (`tailscale set --accept-routes`) ; iPhone et Pixel : « Use Tailscale subnets » dans l'appli
+
+## Phase 41 — Onglets Réseau, Fichiers et Jarvis sur le bureau (1.10.0) ✅
+
+Charles (24/11/2026) : l'application du bureau n'a pas les onglets Réseau, Jarvis et Fichiers du web.
+
+- [x] 1. Onglet Réseau : appareils du réseau maillé (chemin, « Mesurer » par `tailscale ping`) puis machines, travaux, lancement et secours Ricochet (la page Machines quitte les Réglages)
+- [x] 2. Onglet Fichiers : arbre d'un dossier (personnel au départ, « Changer de dossier ») et éditeur
+- [x] 3. Onglet Jarvis : ouvre la page Jarvis du serveur CCS dans le navigateur, ou mène aux Réglages sans serveur
+- [x] 4. `gui --page reseau|fichiers|jarvis`, Ctrl+1 à Ctrl+6, tests
+- [x] 5. Release 1.10.0
