@@ -24,8 +24,8 @@ from . import phone_hub, root_prompt, style  # noqa: E402
 from .files_page import FilesPage  # noqa: E402
 from .home_page import HomePage  # noqa: E402
 from .jarvis_page import JarvisPage  # noqa: E402
-from .market_page import MarketPage  # noqa: E402
 from .network_page import NetworkPage  # noqa: E402
+from .son_page import SonPage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
 from .prefs_dialog import PrefsDialog, current_project  # noqa: E402
@@ -39,7 +39,7 @@ DOCTOR_DELAY_S = 4   # bilan de santé du démarrage : après le premier afficha
 # Sous cette largeur, les onglets (Accueil, Sessions, Analyse) passent dans la barre du bas. Seuil
 # mesuré du temps des 4 onglets (6 onglets de même largeur tenaient en 1080 px, 7 en 1202 px :
 # environ 100 px par onglet), plus une marge.
-NARROW_SP = 900
+NARROW_SP = 1000   # 7 onglets depuis l'onglet Son
 # Pendant une pause, « Auto ⏸ jusqu'à 14:00 » remplace « Auto » : le seuil monte de la
 # différence de largeur (mesurée), plus cette marge.
 PAUSE_MARGIN_SP = 16
@@ -112,17 +112,17 @@ class Window(Adw.ApplicationWindow):
         self.analysis_hub = AnalysisHub(self)
         self.history, self.analysis = self.analysis_hub.history, self.analysis_hub.analysis
         self.network = NetworkPage(toast=self.toast, default_cwd=current_project(self))
+        self.son = SonPage(toast=self.toast)
         self.files = FilesPage()
         self.jarvis = JarvisPage(self)
-        self.market = MarketPage(self)
         for page, name, title, icon in (
                 (self.home, "home", "Accueil", "go-home-symbolic"),
                 (self.terminals, "sessions", "Sessions", "utilities-terminal-symbolic"),
                 (self.network, "network", "Réseau", "network-workgroup-symbolic"),
+                (self.son, "son", "Son", "audio-speakers-symbolic"),
                 (self.files, "files", "Fichiers", "folder-symbolic"),
-                (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic"),
                 (self.jarvis, "jarvis", "Jarvis", "audio-input-microphone-symbolic"),
-                (self.market, "market", "Market", "system-search-symbolic")):
+                (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
         self.stack.connect("notify::visible-child-name", self.on_page)
         top_switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
@@ -382,28 +382,6 @@ class Window(Adw.ApplicationWindow):
         else:
             self.terminals.open_claude(cwd, resume, title)
         return "integre"
-
-    def open_market(self):
-        """Chat Market (phase 45) : son dossier préparé hors de l'interface, puis l'onglet déjà
-        ouvert, sinon un nouvel onglet qui reprend sa dernière conversation."""
-        from .. import market
-
-        def work():
-            d = market.workspace()
-            return str(d), market.latest_session(d)
-        in_thread(work, lambda found: self.show_market_chat(*found))
-
-    def show_market_chat(self, cwd, session_id):
-        tab = self.terminals.find(session_id=session_id) if session_id else None
-        if tab is None:
-            tab = next((t for t in self.terminals.tabs()
-                        if getattr(t.state, "chat", False) and t.state.cwd == cwd), None)
-        if tab is not None:
-            self.terminals.present(tab)
-            return tab
-        tab = self.terminals.open_claude(cwd, session_id, "Market")
-        self.show_terminals()
-        return tab
 
     def open_shell(self, cwd, external=False):
         if terminal.choose(self.terminals.available, external) == "externe":

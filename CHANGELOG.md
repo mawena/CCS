@@ -3,6 +3,45 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+## [1.15.0] — 2026-11-25
+
+### Ajouté
+
+- **Lecteurs pilotés à distance** : les lecteurs audio MPRIS des PC Linux (VLC, Firefox…) se
+  pilotent depuis tous les clients, section « Lecteurs » de l'écran Son (web, bureau, iPhone,
+  Android) : nom, morceau, ⏮ ⏯ ⏭, ±10 s, volume. En ligne de commande : `ccs audio players
+  [appareil]` et `ccs audio control [--device …] [lecteur] play|pause|toggle|next|prev|seek ±N|volume
+  0-100`. Pont : `audio.report`, `audio.players`, `audio.control` (`docs/audio.md`).
+- **Onglet « Son » sur le web, le bureau, l’iPhone et Android** dans la barre principale, juste après Réseau (partage du
+  son et lecteurs) ; l'entrée Son de l'onglet Plus disparaît.
+
+- **iPhone, « Rester à l'écoute »** (écran Son, désactivé par défaut) : le récepteur reste ouvert
+  sur le port annoncé et la session audio joue du silence, si bien que l'appli en arrière-plan
+  n'est plus suspendue. Tout son envoyé vers l'iPhone joue tout de suite, même sans l'ordre
+  « receive » du pont. Reprise après un appel ou une autre appli audio. Un peu plus de batterie.
+- **Chat riche** (web et bureau) :
+  - images agrandissables d'un clic (web) ;
+  - lecteurs pour les liens et chemins de sons et de vidéos ;
+  - blocs `ccs` en JSON : `choix` (boutons qui envoient un message), `carte` et `cartes` (photo, prix, lien, actions), `formulaire` (web seulement).
+  - Claude en est averti à chaque lancement. Format : `docs/chat-riche.md`.
+- **Market** présente ses annonces en cartes et propose des choix pour la suite.
+
+### Modifié
+
+- Bureau : l'écran Son a son propre module (`gui/son_page.py`), inclus dans l'onglet Réseau ; web :
+  rendu autonome `mountSon(conteneur, api)`.
+
+- **Son partagé, latence réduite** : trames Opus de 10 ms (`restricted-lowdelay` sous Linux),
+  tampon de gigue adaptatif (départ 30 ms, de 20 à 150 ms selon les pertes) sur l'iPhone et
+  Android, `rtpjitterbuffer` à 40 ms sous Linux (`latency_ms` réglable), tampon matériel de 5 ms
+  sur l'iPhone, `AudioTrack` basse latence et capture par blocs de 10 ms sur Android. Le
+  protocole ne change pas : les trames de 20 ms restent acceptées.
+- **Market** n'est plus un onglet : c'est l'option « Market (Marketplace Facebook) » de la nouvelle session (web et bureau).
+- **Onglets** : Jarvis passe avant Analyse ; Réglages reste en dernier.
+- **Version web** : la CSP autorise les images https et les médias `'self' blob: https:`.
+
 ## [1.14.0] — 2026-11-24
 
 ### Corrigé

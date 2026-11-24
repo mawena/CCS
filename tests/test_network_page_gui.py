@@ -161,7 +161,7 @@ class NetworkPageTest(HomeTestCase):
             self.backend.settings = lambda: settings
         self.toasts = []
         return NetworkPage(toast=self.toasts.append, runner=sync_runner, backend=self.backend,
-                           mesh_api=MeshApi(call=self.bridge), sound=Adw.PreferencesGroup(title="Son partagé"),
+                           mesh_api=MeshApi(call=self.bridge),
                            default_cwd="/tmp")
 
     def groups(self, page):
@@ -179,7 +179,7 @@ class NetworkPageTest(HomeTestCase):
 
     def test_sections_in_web_order(self):
         p = self.make()
-        self.assertEqual(self.groups(p), ["Appareils", "Son partagé", "Travaux", "Lancer une commande",
+        self.assertEqual(self.groups(p), ["Appareils", "Travaux", "Lancer une commande",
                                           "Ajouter un appareil", "Secours Ricochet"])
         p.mesh.refresh()
         self.assertIn("pc-bureau", [r.get_title() for r in p.mesh._rows])

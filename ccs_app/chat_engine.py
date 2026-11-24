@@ -41,6 +41,21 @@ CLEAR_COMMAND = "/clear"
 CLEAR_TRIGGER = "ccs_auto"
 CLEAR_TOKEN_VAR = "CCS_CHAT_TOKEN"
 OLD_CLEAR_TOKEN_VAR = "CCS_CHAT_JETON"   # lue encore (chats lancés avant la 1.0.0), à retirer en 2.0
+# Chat riche : toujours donné (docs/chat-riche.md). Court : il part à chaque lancement.
+RICH_HINT = (
+    "Affichage riche : ce chat tourne dans CCS (bureau, web, téléphone). Les images Markdown "
+    "(https ou chemin local) s'affichent ; un lien ou un `chemin` vers un son ou une vidéo "
+    "(mp3, ogg, wav, m4a, opus, mp4, webm, mov) gagne un lecteur. Un bloc de code de langue "
+    "`ccs` contenant un JSON devient un composant : "
+    '{"type":"choix","titre":"…","options":["A",{"label":"Voir","message":"texte envoyé"}]} '
+    "(boutons : un clic t'envoie le message) ; "
+    '{"type":"cartes","items":[{"titre":"…","image":"https://…","prix":"…","description":"…",'
+    '"lien":"https://…","actions":[{"label":"…","message":"…"}]}]} '
+    "(fiches, une seule : type carte) ; "
+    '{"type":"formulaire","titre":"…","champs":[{"nom":"…","label":"…","type":"texte|nombre|liste",'
+    '"options":[…]}]} (web seulement). Utilise-les quand ils aident vraiment (choix fermé, '
+    "comparaison d'articles), jamais à la place d'une réponse en texte."
+)
 CLEAR_HINT = (
     "Effacement automatique : ce chat tourne dans CCS. Quand un sujet est vraiment terminé "
     "(travail commité, poussé et publié, mémoire et feuille de route à jour) et que l'utilisateur "
@@ -227,9 +242,9 @@ class ChatSession:
             argv += ["--resume", self.session_id]
         # calcul réparti disponible : Claude sait qu'il peut lancer un travail ailleurs ;
         # effacement automatique : il sait qu'il peut vider la conversation en fin de sujet
-        hints = [h for h in (distant.hint(), CLEAR_HINT if self._auto_clear_on() else None) if h]
-        if hints:
-            argv += ["--append-system-prompt", "\n\n".join(hints)]
+        # chat riche : il sait que ses images, médias et blocs ```ccs s'affichent
+        hints = [h for h in (distant.hint(), CLEAR_HINT if self._auto_clear_on() else None, RICH_HINT) if h]
+        argv += ["--append-system-prompt", "\n\n".join(hints)]
         return argv
 
     def _auto_clear_on(self):

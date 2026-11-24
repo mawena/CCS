@@ -88,7 +88,16 @@ Conception :
 - [x] 3. Android : récepteur (service au premier plan) et émetteur (AudioPlaybackCapture), annonce, écran « Son » ; APK sur Codemagic
 - [x] 4. iPhone : récepteur (lecture en arrière-plan) et extension ReplayKit émettrice, annonce, écran « Son » ; IPA sur Codemagic
 - [x] 5. Web et bureau GTK : liste des sorties et bouton « Envoyer le son vers… »
-- [ ] 6. Essais réels dans les six sens, README, CHANGELOG, release
+- [ ] 6. Essais réels dans les six sens, README, CHANGELOG, release — lp-work → iPhone marche (24/11) si l'appli est ouverte à l'écran
+- [x] 6b. iPhone : recevoir aussi appli en arrière-plan (iOS la suspend : elle rate l'ordre « receive » du pont) — interrupteur « Rester à l'écoute » (écran Son)
+- [x] 6c. Latence réduite (trames 10 ms, tampons adaptatifs)
+- [x] 6d. Lecteurs MPRIS (VLC, Firefox…) des PC Linux pilotés depuis tous les clients : agent (`audio.report`), pont (`audio.players`, `audio.control`), `ccs audio players` et `control`, section « Lecteurs » de l'écran Son (web, bureau, iPhone, Android)
+- [x] 6e. Onglet Son sur toutes les plateformes
+  - [x] iPhone : onglet « Son » après Réseau (retiré de Plus)
+  - [x] Android : onglet « Son » après Réseau (retiré de Plus)
+  - [x] Web : onglet « Son » (#/son) après Réseau, retiré de Réseau
+  - [x] Bureau : onglet « Son » (SonPage, Ctrl+4) après Réseau, retiré de Réseau
+- [ ] Idée : le téléphone comme lecteur piloté. iOS l'interdit (aucune appli ne peut piloter la lecture des autres) ; Android le permet avec l'accès aux notifications (`MediaSessionManager.getActiveSessions`), à accorder à la main dans les réglages
 - [ ] 7. Autres systèmes, dans l'ordre demandé par Charles (Linux, iPhone, Android, puis le reste) :
   agent portable sur macOS (GStreamer, sortie puis source par BlackHole) et Windows (GStreamer,
   `wasapi2src loopback=true`), sans les sorties virtuelles de Linux
@@ -186,3 +195,20 @@ chat) ; il doit se comporter comme la feuille du web.
 - [x] 6. Tests : dialogue sous Xvfb (ordre, défauts, effort, boutons, fenêtre pas encore affichée), bouton de projet, cache expiré, `new_session_form`, effort, `chat.providers`
 - [x] 7. Release 1.14.0
 
+
+## Phase 49 — Market en option, ordre des onglets, chat riche
+
+Market devient une option de la nouvelle session ; les onglets finissent par Jarvis, Analyse,
+Réglages ; les réponses de Claude affichent images, sons, vidéos et composants (blocs `ccs`).
+
+- [x] 1. Market : option « Market (Marketplace Facebook) » de la nouvelle session (web et bureau), plus d'onglet Market ; la CLI ne change pas
+- [x] 2. Onglets : …, Jarvis, Analyse, Réglages (web et bureau)
+- [x] 3. Web : images agrandissables, lecteurs de sons et de vidéos (https ou fichiers locaux lus par l'explorateur), blocs `ccs` choix, formulaire, carte, cartes ; CSP `media-src 'self' blob: https:`
+- [x] 4. Bureau : choix, carte et cartes, photos https des cartes, lecteurs des médias locaux
+- [x] 5. Claude averti par `RICH_HINT` ; Market présente ses annonces en cartes et propose des choix
+- [x] 6. Tests (web, bureau sous Xvfb, moteur du chat, marché) ; `docs/chat-riche.md`
+- [ ] 7. Vérifier à l'écran : web (téléphone et ordinateur) et bureau, avec une vraie recherche Market
+- [ ] 8. Bureau : formulaire, images Markdown et médias distants (aujourd'hui bloc de code ou lien)
+- [ ] 9. Rendu riche dans l'appli iOS
+- [ ] 10. Rendu riche dans l'appli Android
+- [x] 11. Release 1.15.0 (avec les lecteurs et l'onglet Son de la phase 42)

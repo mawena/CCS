@@ -20,6 +20,11 @@ class AudioTest {
 
     private fun lue(s: Sortie): Int? = (s as? Sortie.Trame)?.donnees?.get(0)?.toInt()
 
+    /** Paquet Opus : octet TOC (CELT 10 ms stéréo par défaut) puis le numéro [n]. */
+    private fun o(n: Int, toc: Int = 0xF4) = byteArrayOf(toc.toByte(), n.toByte())
+
+    private fun lueO(s: Sortie): Int? = (s as? Sortie.Trame)?.donnees?.get(1)?.toInt()
+
     @Test
     fun paquetRtpAllerRetour() {
         val p = Audio.paquetRtp(0xfffe, 0xfffffff0L, 0x12345678L, byteArrayOf(9, 8, 7))
@@ -52,14 +57,28 @@ class AudioTest {
     }
 
     @Test
-    fun numeroteurAvanceDe960() {
+    fun numeroteurAvanceSelonLaTrame() {
         val n = Audio.Numeroteur(0xffff, 0xffffffffL - 100, 7)
-        val a = Audio.lireRtp(n.paquet(trame(1)))!!
-        val b = Audio.lireRtp(n.paquet(trame(2)))!!
+        val a = Audio.lireRtp(n.paquet(o(1)))!!                  // CELT 10 ms : +480
+        val b = Audio.lireRtp(n.paquet(o(2, 0xFC)))!!            // CELT 20 ms : +960
+        val c = Audio.lireRtp(n.paquet(byteArrayOf()))!!
         assertEquals(0xffff, a.sequence)
         assertEquals(0, b.sequence)
-        assertEquals((0xffffffffL - 100 + 960) and 0xffffffffL, b.horodatage)
+        assertEquals((0xffffffffL - 100 + 480) and 0xffffffffL, b.horodatage)
+        assertEquals((0xffffffffL - 100 + 480 + 960) and 0xffffffffL, c.horodatage)
         assertEquals(7L, b.ssrc)
+    }
+
+    @Test
+    fun dureeOpus() {
+        assertEquals(480, Audio.echantillonsOpus(o(0)))                       // CELT 10 ms
+        assertEquals(960, Audio.echantillonsOpus(o(0, 0xFC)))                 // CELT 20 ms
+        assertEquals(960, Audio.echantillonsOpus(o(0, 0x08)))                 // SILK 20 ms
+        assertEquals(960, Audio.echantillonsOpus(byteArrayOf(0xF5.toByte(), 0)))     // 2 trames de 10 ms
+        assertEquals(1440, Audio.echantillonsOpus(byteArrayOf(0xF7.toByte(), 3)))    // code 3 : 3 × 10 ms
+        assertNull(Audio.echantillonsOpus(byteArrayOf(0xF7.toByte())))
+        assertNull(Audio.echantillonsOpus(byteArrayOf(0xFF.toByte(), 0x3f)))  // 63 × 20 ms : trop long
+        assertNull(Audio.echantillonsOpus(byteArrayOf()))
     }
 
     @Test
@@ -130,6 +149,69 @@ class AudioTest {
         assertEquals(1, lue(t.prendre()))
         assertTrue(t.ajouter(30_000, trame(2)))       // saut énorme : on repart
         assertEquals(2, lue(t.prendre()))
+    }
+
+    @Test
+    fun gigueDemarreA30ms() {
+        val g = Audio.GigueAdaptative()
+        assertEquals(30, g.cibleMs)
+        assertEquals(3, g.tampon.minTrames)          // 3 × 10 ms
+        assertEquals(7, g.tampon.maxTrames)          // + 40 ms de marge
+        assertEquals(10, g.dureeTrameMs)
+    }
+
+    @Test
+    fun gigueMonteSurPerteUneFoisParRafale() {
+        val g = Audio.GigueAdaptative()
+        for (s in listOf(0, 1, 2, 4, 5, 7)) g.ajouter(s, o(s))
+        assertEquals(listOf(0, 1, 2), List(3) { lueO(g.prendre()) })
+        assertEquals(Sortie.Perte, g.prendre())      // 3 manque
+        assertEquals(40, g.cibleMs)
+        assertEquals(4, g.tampon.minTrames)
+        g.prendre(); g.prendre()
+        assertEquals(Sortie.Perte, g.prendre())      // 6 manque, dans le répit de 500 ms
+        assertEquals(40, g.cibleMs)
+    }
+
+    @Test
+    fun gigueRedescendQuandStable() {
+        val g = Audio.GigueAdaptative(cibleMs = 50)
+        for (s in 0 until 5) g.ajouter(s, o(s))
+        // 10 s de trames de 10 ms sans perte ni creux : un pas de moins
+        for (s in 5 until 5 + 1000) {
+            g.ajouter(s and 0xffff, o(s))
+            assertTrue(g.prendre() is Sortie.Trame)
+        }
+        assertEquals(40, g.cibleMs)
+    }
+
+    @Test
+    fun gigueCreuxCourtMaisPasPause() {
+        fun jouer(g: Audio.GigueAdaptative, debut: Int, n: Int) {
+            for (s in debut until debut + n) { g.ajouter(s, o(s)); g.prendre() }
+        }
+        val g = Audio.GigueAdaptative()
+        jouer(g, 0, 20)
+        repeat(10) { g.prendre() }                   // 100 ms sans rien : sous-alimentation
+        jouer(g, 20, 10)
+        assertEquals(40, g.cibleMs)
+        val h = Audio.GigueAdaptative()
+        jouer(h, 0, 20)
+        repeat(80) { h.prendre() }                   // 800 ms : la source s'est tue
+        jouer(h, 100, 10)
+        assertEquals(30, h.cibleMs)
+    }
+
+    @Test
+    fun gigueTramesDe20ms() {
+        val g = Audio.GigueAdaptative()
+        g.ajouter(0, o(0, 0xFC))
+        assertEquals(960, g.echantillons)
+        assertEquals(20, g.dureeTrameMs)
+        assertEquals(2, g.tampon.minTrames)          // 30 ms → 2 trames de 20 ms
+        assertEquals(4, g.tampon.maxTrames)
+        g.ajouter(1, o(1, 0xFC))
+        assertEquals(0, lueO(g.prendre()))
     }
 
     @Test

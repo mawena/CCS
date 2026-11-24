@@ -9,7 +9,6 @@
 import { clear, confirmSheet, el, errorState, loading, promptSheet, toast } from "./dom.js";
 import { busy, copyText } from "./pages-util.js";
 import { createCompute, matchMachine } from "./calcul.js";
-import { createSon } from "./son.js";
 
 const REFRESH_MS = 10_000;
 const NS = "http://www.w3.org/2000/svg";
@@ -196,14 +195,11 @@ export function mountReseau(root, api) {
     onMachines: (list) => { machines = list; if (st) renderList(); },
     onSettings: () => { if (st) renderAdd(); },
   });
-  const son = createSon(api, icon);
   const note = api.machine ? el("p", { class: "subtle machines-note" },
     "Réseau et calcul vus depuis le serveur CCS (pas depuis la machine pilotée).") : null;
   wrap.append(...(note ? [note] : []), hero, mapBox,
     el("section", { class: "section net-devices", "aria-label": "Appareils" },
       el("h2", { class: "net-h2" }, icon("mesh", 20), "Appareils"), listBox),
-    el("section", { class: "card flat section", "aria-label": "Son partagé" },
-      el("h2", { class: "net-h2" }, icon("pulse", 20), "Son partagé"), son.box),
     el("section", { class: "card flat section", "aria-label": "Travaux" },
       el("h2", { class: "net-h2" }, icon("cpu", 20), "Travaux"), compute.jobsBox),
     el("section", { class: "card flat section", "aria-label": "Lancer une commande" },
@@ -446,11 +442,10 @@ export function mountReseau(root, api) {
 
   refresh().then(schedule);
   const stopCompute = compute.start();
-  const stopSon = son.start();
   const onVisible = () => { if (!document.hidden) refresh(); };
   document.addEventListener("visibilitychange", onVisible);
   return () => {
-    alive = false; clearTimeout(timer); stopCompute(); stopSon();
+    alive = false; clearTimeout(timer); stopCompute();
     document.removeEventListener("visibilitychange", onVisible);
   };
 }

@@ -2,10 +2,11 @@ import ReplayKit
 import SwiftUI
 
 /**
- * Écran « Son » (Plus → Son) : le son partagé sur le réseau maillé (phase 42, `docs/audio.md`).
+ * Onglet « Son » (après Réseau) : le son partagé sur le réseau maillé (phase 42, `docs/audio.md`).
  * Ce que fait l'iPhone (annonce, son joué, diffusion), les flux en cours avec « Arrêter »,
  * « Envoyer le son de cet iPhone vers… » (diffusion ReplayKit lancée par l'utilisateur), envoi
- * de n'importe quelle source vers n'importe quelle sortie, et les appareils annoncés.
+ * de n'importe quelle source vers n'importe quelle sortie, « Rester à l'écoute » et les appareils
+ * annoncés, puis les lecteurs (VLC, Firefox…) des PC Linux : ⏮ ⏯ ⏭, ±10 s, volume.
  * `audio.list` relu toutes les 5 s tant que l'écran est ouvert.
  */
 @MainActor
@@ -25,6 +26,13 @@ struct EcranSon: View {
             Section {
                 EnteteSon(son: son, diffusionActive: diffusionActive)
                     .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            }
+            Section {
+                Toggle(isOn: Binding(get: { son.resterALEcoute }, set: { son.resterALEcoute = $0 })) {
+                    Label("Rester à l'écoute", systemImage: "ear")
+                }
+            } footer: {
+                Text("Le son envoyé vers cet iPhone joue tout de suite, même appli en arrière-plan. Consomme un peu plus de batterie : la session audio reste ouverte et joue du silence.")
             }
             if son.ecoute != nil || diffusionActive || !l.streams.isEmpty {
                 Section("En ce moment") {
@@ -102,6 +110,24 @@ struct EcranSon: View {
             } footer: {
                 Text("Un Pixel ou un iPhone source demande son accord sur l'appareil même (notification).")
             }
+            Section {
+                if l.avecLecteurs.isEmpty {
+                    Text("Aucun PC ne publie ses lecteurs. Sur un PC Linux : ccs audio enable.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                ForEach(l.avecLecteurs) { a in
+                    if a.players?.isEmpty ?? true {
+                        Text("\(a.nom) : aucun lecteur ouvert").font(.footnote).foregroundStyle(.secondary)
+                    }
+                    ForEach(a.players ?? []) { p in
+                        LigneLecteur(appareil: a, lecteur: p) { commande, valeur in
+                            Task { await son.piloter(a, p, commande, valeur: valeur) }
+                        }
+                    }
+                }
+            } header: {
+                Text("Lecteurs")
+            }
             Section("Appareils") {
                 if l.devices.isEmpty {
                     Text("Aucun appareil annoncé.").font(.footnote).foregroundStyle(.secondary)
@@ -173,7 +199,8 @@ private struct EnteteSon: View {
                 .background(.black.opacity(0.22), in: Capsule())
             }
             HStack(spacing: 8) {
-                pastille("hifispeaker.fill", son.ecoute.map { "Joue \($0.de)" } ?? "Prêt à jouer")
+                pastille("hifispeaker.fill", son.ecoute.map { "Joue \($0.de)" }
+                         ?? (son.sonRecu ? "Joue un son reçu" : son.resterALEcoute ? "À l'écoute" : "Prêt à jouer"))
                 pastille("dot.radiowaves.left.and.right",
                          diffusionActive ? "Vers \(son.cibleDiffusion ?? "…")" : "Pas de diffusion")
             }
@@ -228,5 +255,59 @@ struct SelecteurDiffusion: UIViewRepresentable {
                 if let b = s as? UIButton { b.sendActions(for: .allTouchEvents) }
             }
         }
+    }
+}
+
+/// Un lecteur d'un PC : nom, morceau, ⏮ ⏯ ⏭, ±10 s s'il sait se déplacer, volume.
+/// Le curseur garde sa valeur pendant le glissement ; la commande part au lâcher.
+private struct LigneLecteur: View {
+    let appareil: AppareilSon
+    let lecteur: LecteurSon
+    let piloter: (String, Double?) -> Void
+    @State private var volume: Double = 0
+    @State private var glisse = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: lecteur.joue ? "play.fill" : lecteur.status == "Paused" ? "pause.fill" : "stop.fill")
+                    .foregroundStyle(.secondary).frame(width: 20)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(lecteur.name) · \(appareil.nom)").lineLimit(1)
+                    Text(lecteur.morceau.isEmpty ? "—" : lecteur.morceau)
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            HStack(spacing: 18) {
+                touche("backward.end.fill", "Précédent", "prev", actif: lecteur.canPrev)
+                if lecteur.canSeek { touche("gobackward.10", "Reculer de 10 s", "seek", -10) }
+                touche(lecteur.joue ? "pause.fill" : "play.fill", lecteur.joue ? "Pause" : "Lecture", "toggle",
+                       actif: lecteur.canPause || lecteur.canPlay)
+                if lecteur.canSeek { touche("goforward.10", "Avancer de 10 s", "seek", 10) }
+                touche("forward.end.fill", "Suivant", "next", actif: lecteur.canNext)
+            }
+            if lecteur.volume != nil {
+                HStack {
+                    Image(systemName: "speaker.fill").foregroundStyle(.secondary)
+                    Slider(value: $volume, in: 0...100, step: 5, onEditingChanged: { edite in
+                        glisse = edite
+                        if !edite { piloter("volume", volume) }
+                    })
+                    .accessibilityLabel("Volume de \(lecteur.name)")
+                    Image(systemName: "speaker.wave.3.fill").foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+        .onAppear { volume = lecteur.volume ?? 0 }
+        .onChange(of: lecteur.volume) { _, v in if !glisse { volume = v ?? 0 } }
+    }
+
+    private func touche(_ icone: String, _ titre: String, _ commande: String, _ valeur: Double? = nil,
+                        actif: Bool = true) -> some View {
+        Button { piloter(commande, valeur) } label: { Image(systemName: icone).font(.title3) }
+            .buttonStyle(.borderless)
+            .disabled(!actif)
+            .accessibilityLabel(titre)
     }
 }

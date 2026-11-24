@@ -52,7 +52,12 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
 - **Son partagé** (Plus → Son, phase 42, `docs/audio.md`) : tant que l'appli est connectée,
   l'iPhone s'annonce au pont toutes les 30 s (`audio.announce`, nom du pair du réseau maillé qui
   porte son adresse 100.64.x) comme sortie et comme source. Sortie : écoute UDP 4010, RTP/Opus,
-  tampon de gigue 60-150 ms, lecture `AVAudioEngine`, continue en arrière-plan (mode audio).
+  trames de 10 ou 20 ms, tampon de gigue adaptatif 20-150 ms (départ 30 ms), tampon matériel de
+  5 ms, lecture `AVAudioEngine`, continue en arrière-plan (mode audio). **Rester à l'écoute**
+  (interrupteur de l'écran Son, désactivé par défaut) : récepteur UDP toujours ouvert sur le port
+  annoncé et session audio qui joue du silence, pour que l'appli en arrière-plan ne soit pas
+  suspendue ; tout paquet RTP reçu est joué tout de suite, même si l'ordre « receive » a été raté.
+  Reprise après un appel ou une autre appli audio. Coûte un peu de batterie.
   Source : extension de diffusion ReplayKit `Diffusion` (dans `CCS.app/PlugIns`) qui encode le
   son des applis en Opus 96 kb/s ; la cible lui est passée par le groupe d'applis
   `group.<bundle id>` (seul droit demandé, créé par SideStore). Écran Son : flux en cours avec

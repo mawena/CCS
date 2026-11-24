@@ -661,6 +661,16 @@ class AutoClearTest(unittest.TestCase):
         argv = s._argv()
         self.assertIn(eng.CLEAR_HINT, argv[argv.index("--append-system-prompt") + 1])
 
+    def test_rich_hint_always_given(self):
+        # chat riche : Claude sait que ses blocs ```ccs, images et médias s'affichent
+        for auto_clear in (True, False):
+            s, _proc = self.session(auto_clear=auto_clear)
+            argv = s._argv()
+            hint = argv[argv.index("--append-system-prompt") + 1]
+            self.assertIn(eng.RICH_HINT, hint)
+            for word in ('"choix"', '"cartes"', '"formulaire"', "`ccs`"):
+                self.assertIn(word, eng.RICH_HINT)
+
     def test_setting_read_when_not_given(self):
         with mock.patch("ccs_app.settings.load_settings", return_value={"chat": {"auto_clear": False}}):
             self.assertFalse(eng.auto_clear_setting())

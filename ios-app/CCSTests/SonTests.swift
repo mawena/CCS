@@ -36,8 +36,25 @@ final class SonTests: XCTestCase {
         let b = Rtp.lire(p.paquet(Data([2])))!.0
         XCTAssertEqual(a.sequence, 0xFFFF)
         XCTAssertEqual(b.sequence, 0)
-        XCTAssertEqual(b.horodatage, a.horodatage &+ 960)
+        XCTAssertEqual(b.horodatage, a.horodatage &+ 480)   // trames de 10 ms par défaut
         XCTAssertEqual(b.ssrc, 42)
+        let c = Rtp.lire(p.paquet(Data([3]), echantillons: 960))!.0
+        let d = Rtp.lire(p.paquet(Data([4])))!.0
+        XCTAssertEqual(c.horodatage, b.horodatage &+ 480)
+        XCTAssertEqual(d.horodatage, c.horodatage &+ 960)   // la trame de 20 ms compte double
+    }
+
+    func testDureeOpus() {
+        XCTAssertEqual(Rtp.echantillonsOpus(Data([0xF4])), 480)        // CELT 10 ms stéréo
+        XCTAssertEqual(Rtp.echantillonsOpus(Data([0xFC])), 960)        // CELT 20 ms stéréo
+        XCTAssertEqual(Rtp.echantillonsOpus(Data([0xFD])), 1920)       // deux trames de 20 ms
+        XCTAssertEqual(Rtp.echantillonsOpus(Data([0xFF, 0x03])), 2880) // trois trames de 20 ms
+        XCTAssertEqual(Rtp.echantillonsOpus(Data([0x08])), 960)        // SILK 20 ms
+        XCTAssertEqual(Rtp.echantillonsOpus(Data([0x18])), 2880)       // SILK 60 ms
+        XCTAssertEqual(Rtp.echantillonsOpus(Data([0x60])), 480)        // hybride 10 ms
+        XCTAssertNil(Rtp.echantillonsOpus(Data()))
+        XCTAssertNil(Rtp.echantillonsOpus(Data([0xFF])))               // nombre de trames absent
+        XCTAssertNil(Rtp.echantillonsOpus(Data([0xFF, 0x3F])))         // plus de 120 ms
     }
 
     func testEcartEtCanaux() {
@@ -168,6 +185,71 @@ final class SonTests: XCTestCase {
         XCTAssertTrue(EvenementSon.lire(s)!.concerne("pc"))
         XCTAssertFalse(EvenementSon.lire(s)!.concerne(""))
         XCTAssertNil(EvenementSon.lire(JSON.lire(#"{"action":"autre"}"#)!))
+    }
+
+    // MARK: tampon adaptatif
+
+    /// Trame Opus de 10 ms (TOC 0xF4) ou de 20 ms (0xFC) numérotée `n`.
+    private func o(_ n: UInt8, _ toc: UInt8 = 0xF4) -> Data { return Data([toc, n]) }
+
+    func testGigueMonteSurPerteUneFoisParRafale() {
+        var g = GigueAdaptative()
+        XCTAssertEqual(g.cibleMs, 30)
+        XCTAssertEqual(g.tampon.depart, 3)                 // 3 × 10 ms
+        XCTAssertEqual(g.tampon.maximum, 7)                // + 40 ms de marge
+        for s: UInt16 in [0, 1, 2, 4, 6] { g.ajouter(sequence: s, o(UInt8(s))) }
+        XCTAssertEqual(g.sortir(), .trame(o(0)))
+        XCTAssertEqual(g.sortir(), .trame(o(1)))
+        XCTAssertEqual(g.sortir(), .trame(o(2)))
+        XCTAssertEqual(g.sortir(), .perte)
+        XCTAssertEqual(g.cibleMs, 40)
+        XCTAssertEqual(g.tampon.depart, 4)
+        XCTAssertEqual(g.sortir(), .trame(o(4)))
+        XCTAssertEqual(g.sortir(), .perte)                 // même rafale : pas de second pas
+        XCTAssertEqual(g.cibleMs, 40)
+    }
+
+    func testGigueRedescendQuandStable() {
+        var g = GigueAdaptative()
+        for s: UInt16 in 0..<3 { g.ajouter(sequence: s, o(UInt8(s & 0xFF))) }
+        for k in 0..<999 {
+            XCTAssertEqual(g.sortir(), .trame(o(UInt8(k & 0xFF))))
+            g.ajouter(sequence: UInt16(k + 3), o(UInt8((k + 3) & 0xFF)))
+        }
+        XCTAssertEqual(g.cibleMs, 30)
+        _ = g.sortir()                                     // 10 s jouées sans incident
+        XCTAssertEqual(g.cibleMs, 20)
+        XCTAssertEqual(g.tampon.depart, 2)
+    }
+
+    func testGigueCreuxCourtMaisPasPause() {
+        var g = GigueAdaptative()
+        for s: UInt16 in 0..<3 { g.ajouter(sequence: s, o(UInt8(s))) }
+        for _ in 0..<3 { _ = g.sortir() }
+        XCTAssertEqual(g.sortir(), .attente)               // sous-alimentation
+        for s: UInt16 in 3..<6 { g.ajouter(sequence: s, o(UInt8(s))) }
+        XCTAssertEqual(g.sortir(), .trame(o(3)))
+        XCTAssertEqual(g.cibleMs, 40)
+        // une pause de la source (plus de 300 ms) ne fait pas monter
+        var h = GigueAdaptative()
+        for s: UInt16 in 0..<3 { h.ajouter(sequence: s, o(UInt8(s))) }
+        for _ in 0..<3 { _ = h.sortir() }
+        for _ in 0..<40 { XCTAssertEqual(h.sortir(), .attente) }
+        for s: UInt16 in 3..<6 { h.ajouter(sequence: s, o(UInt8(s))) }
+        XCTAssertEqual(h.sortir(), .trame(o(3)))
+        XCTAssertEqual(h.cibleMs, 30)
+    }
+
+    func testGigueTramesDe20ms() {
+        var g = GigueAdaptative()
+        g.ajouter(sequence: 0, o(0, 0xFC))
+        XCTAssertEqual(g.echantillons, 960)
+        XCTAssertEqual(g.dureeTrameMs, 20)
+        XCTAssertEqual(g.tampon.depart, 2)                 // 30 ms → 2 trames de 20 ms
+        XCTAssertEqual(g.tampon.maximum, 4)
+        XCTAssertEqual(g.sortir(), .attente)
+        g.ajouter(sequence: 1, o(1, 0xFC))
+        XCTAssertEqual(g.sortir(), .trame(o(0, 0xFC)))
     }
 
     func testListe() {

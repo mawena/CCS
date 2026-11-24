@@ -1,6 +1,5 @@
-"""Onglet Market dans le pont (`bridge_market`, phase 45) : `market.open` prépare le dossier du
-chat Market, ouvre le chat, puis le rejoint (même chat d'un appareil à l'autre) ; une ancienne
-conversation est reprise."""
+"""Market dans le pont (`bridge_market`) : `market.workspace` prépare le dossier du chat Market et
+renvoie son chemin, où la feuille « Nouvelle session » ouvre un chat."""
 
 import os
 import shutil
@@ -9,7 +8,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ccs_app import market, sessions
 from ccs_app.server import bridge, bridge_chat, bridge_market, rpc
 from tests.helpers import make_home
 
@@ -31,7 +29,7 @@ class MarketBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.sock = Path(self.tmp) / "b.sock"
         self.bridge = bridge.Bridge("alice", None, local=True, start_daemon=False, install_claude=False)
         self.hub = bridge_chat.ChatHub(self.bridge, claude=FAKE, environ={"PATH": os.environ.get("PATH", "/usr/bin:/bin")})
-        self.api = bridge_market.MarketApi(self.bridge, self.hub)
+        self.api = bridge_market.MarketApi(self.bridge)
         await self.bridge.start(self.sock)
         self.addAsyncCleanup(self.bridge.stop)
         self.addAsyncCleanup(self.hub.close_all)
@@ -44,26 +42,19 @@ class MarketBridgeTest(unittest.IsolatedAsyncioTestCase):
         await c.call("hello")
         return c
 
-    async def test_open_then_join(self):
-        a, b = await self.client(), await self.client()
-        r1 = await a.call("market.open")
-        ws = self.home / ".local" / "share" / "ccs" / "market"
-        self.assertEqual(r1["cwd"], str(ws))
-        self.assertEqual(r1["title"], "Market")
-        self.assertTrue((ws / "CLAUDE.md").is_file())
-        r2 = await b.call("market.open")                     # autre appareil : le même chat
-        self.assertEqual(r2["chat_id"], r1["chat_id"])
-        self.assertEqual(len((await a.call("chat.list"))["chats"]), 1)
-
-    async def test_resumes_last_conversation(self):
-        ws = market.workspace()
-        journal = sessions.transcript_path(str(ws), "abc-123")
-        journal.parent.mkdir(parents=True, exist_ok=True)
-        journal.write_text('{"type":"user","message":{"role":"user","content":"routeur"}}\n')
+    async def test_workspace(self):
         c = await self.client()
-        r = await c.call("market.open")
-        self.assertEqual(r["session_id"], "abc-123")
-        self.assertEqual(r["state"], "idle")
+        r = await c.call("market.workspace")
+        ws = self.home / ".local" / "share" / "ccs" / "market"
+        self.assertEqual(r["cwd"], str(ws))
+        self.assertTrue((ws / "CLAUDE.md").is_file())
+        self.assertTrue((ws / ".claude" / "settings.json").is_file())
+
+    async def test_new_session_in_workspace(self):
+        c = await self.client()
+        cwd = (await c.call("market.workspace"))["cwd"]
+        r = await c.call("chat.open", cwd=cwd)          # la feuille « Nouvelle session » ouvre un chat ordinaire
+        self.assertEqual(r["cwd"], cwd)
 
 
 if __name__ == "__main__":

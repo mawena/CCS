@@ -17,9 +17,14 @@ object Audio {
     const val PORT = 4010
     const val FREQUENCE = 48_000
     const val CANAUX = 2
-    const val TRAME_MS = 20
-    /** Échantillons (par canal) d'une trame de 20 ms : l'horodatage RTP avance d'autant. */
+    /** Durée visée d'une trame Opus. Les récepteurs acceptent aussi 20 ms (anciens émetteurs). */
+    const val TRAME_MS = 10
+    /** Échantillons (par canal) d'une trame de 10 ms : 480. */
     const val ECHANTILLONS_TRAME = FREQUENCE * TRAME_MS / 1000
+    /** Échantillons d'une trame de 20 ms (encodeur Opus d'Android, anciens émetteurs) : 960. */
+    const val ECHANTILLONS_ANCIENNE_TRAME = FREQUENCE * 20 / 1000
+    /** Plus long paquet Opus : 120 ms. */
+    const val ECHANTILLONS_MAX = FREQUENCE * 120 / 1000
     const val CHARGE_RTP = 96
     const val DEBIT = 96_000
     const val ANNONCE_MS = 30_000L
@@ -80,12 +85,37 @@ object Audio {
         ((p[i].toLong() and 0xff) shl 24) or ((p[i + 1].toLong() and 0xff) shl 16) or
             ((p[i + 2].toLong() and 0xff) shl 8) or (p[i + 3].toLong() and 0xff)
 
-    /** Numérotation d'un émetteur : séquence et horodatage de départ aléatoires, +1 et +960 par trame. */
+    /**
+     * Échantillons (par canal, 48 kHz) d'un paquet Opus, lus dans son octet TOC (RFC 6716, § 3.1) :
+     * 480 pour 10 ms, 960 pour 20 ms. null si le paquet est vide ou incohérent.
+     */
+    fun echantillonsOpus(paquet: ByteArray): Int? {
+        if (paquet.isEmpty()) return null
+        val toc = paquet[0].toInt() and 0xff
+        val config = toc shr 3
+        val parTrame = when {
+            config < 12 -> intArrayOf(480, 960, 1920, 2880)[config % 4]     // SILK : 10, 20, 40, 60 ms
+            config < 16 -> intArrayOf(480, 960)[config % 2]                 // hybride : 10, 20 ms
+            else -> intArrayOf(120, 240, 480, 960)[config % 4]              // CELT : 2,5, 5, 10, 20 ms
+        }
+        val nombre = when (toc and 0x03) {
+            0 -> 1
+            1, 2 -> 2
+            else -> if (paquet.size < 2) return null else paquet[1].toInt() and 0x3f
+        }
+        val n = parTrame * nombre
+        return if (n in 1..ECHANTILLONS_MAX) n else null
+    }
+
+    /**
+     * Numérotation d'un émetteur : séquence et horodatage de départ aléatoires, +1 par trame et,
+     * pour l'horodatage, la durée lue dans la trame (480 pour 10 ms, 960 pour 20 ms).
+     */
     class Numeroteur(private var sequence: Int, private var horodatage: Long, val ssrc: Long) {
         fun paquet(trame: ByteArray): ByteArray {
             val p = paquetRtp(sequence, horodatage, ssrc, trame)
             sequence = (sequence + 1) and 0xffff
-            horodatage = (horodatage + ECHANTILLONS_TRAME) and 0xffffffffL
+            horodatage = (horodatage + (echantillonsOpus(trame) ?: ECHANTILLONS_TRAME)) and 0xffffffffL
             return p
         }
 
@@ -97,7 +127,7 @@ object Audio {
 
     // ---- tampon de gigue ---------------------------------------------------------------------
 
-    /** Ce que rend le tampon à chaque tic de 20 ms. */
+    /** Ce que rend le tampon à chaque tic (une durée de trame). */
     sealed interface Sortie {
         /** Pas encore assez de paquets (départ, ou reprise après un long trou) : ne rien jouer. */
         data object Attente : Sortie
@@ -107,13 +137,17 @@ object Audio {
     }
 
     /**
-     * Tampon de gigue de 60 à 150 ms : les paquets sont rangés par numéro de séquence (étendu
+     * Tampon de gigue compté en trames (réglé par [GigueAdaptative]) : les paquets sont rangés par numéro de séquence (étendu
      * au-delà de 16 bits), les retardataires et les doublons jetés. La lecture commence quand
      * [minTrames] trames attendent ; au-delà de [maxTrames], les plus anciennes sont jetées pour
      * rattraper le retard. Après [videMax] tics sans rien, on repart de zéro (l'émetteur s'est tu,
      * ou a recommencé avec une autre numérotation). Pas thread-safe : l'appelant synchronise.
      */
-    class TamponGigue(val minTrames: Int = 3, val maxTrames: Int = 7, val videMax: Int = 5) {
+    class TamponGigue(minTrames: Int = 3, maxTrames: Int = 7, val videMax: Int = 5) {
+        var minTrames = minTrames
+            private set
+        var maxTrames = maxTrames
+            private set
         private val paquets = TreeMap<Long, ByteArray>()
         private var prochain: Long? = null       // séquence étendue de la prochaine trame à jouer
         private var reference: Long? = null      // dernière séquence étendue reçue
@@ -139,7 +173,13 @@ object Audio {
             return true
         }
 
-        /** La trame de ce tic de 20 ms. */
+        /** Change le départ et le plafond (en trames) sans perdre les paquets en attente. */
+        fun regler(min: Int, max: Int) {
+            minTrames = maxOf(1, min)
+            maxTrames = maxOf(minTrames, max)
+        }
+
+        /** La trame de ce tic. */
         fun prendre(): Sortie {
             var attendu = prochain
             if (attendu == null) {
@@ -176,6 +216,113 @@ object Audio {
 
         private companion object {
             const val SAUT_MAX = 3_000L
+        }
+    }
+
+    /** Réglages du tampon de gigue adaptatif (les mêmes sur iOS). */
+    object Gigue {
+        /** Retard visé au départ d'un flux. */
+        const val DEPART_MS = 30
+        const val MINIMUM_MS = 20
+        const val MAXIMUM_MS = 150
+        /** Montée sur incident, descente après un moment stable. */
+        const val PAS_MS = 10
+        /** Au-delà du retard visé plus cette marge, les plus vieilles trames sont sautées. */
+        const val MARGE_MS = 40
+        /** Joué sans perte ni creux pendant 10 s : on redescend d'un pas. */
+        const val STABLE_MS = 10_000
+        /** Après une montée, les incidents des 500 ms suivantes ne comptent pas (une rafale = un pas). */
+        const val REPIT_MS = 500
+        /** Un creux plus long que 300 ms est un silence de la source, pas un tampon trop court. */
+        const val CREUX_COURT_MS = 300
+    }
+
+    /**
+     * Tampon de gigue adaptatif : démarre bas (30 ms), monte d'un pas (10 ms) à chaque perte ou creux
+     * court (sous-alimentation), redescend d'un pas après 10 s stables, entre 20 et 150 ms. Compte en
+     * trames selon la durée de la dernière trame reçue (10 ou 20 ms, lue dans l'octet TOC).
+     * Pas thread-safe : l'appelant synchronise.
+     */
+    class GigueAdaptative(cibleMs: Int = Gigue.DEPART_MS) {
+        val tampon = TamponGigue()
+        var cibleMs = cibleMs.coerceIn(Gigue.MINIMUM_MS, Gigue.MAXIMUM_MS)
+            private set
+        /** Échantillons de la dernière trame reçue : 480 (10 ms) ou 960 (20 ms) le plus souvent. */
+        var echantillons = ECHANTILLONS_TRAME
+            private set
+        private var stableMs = 0
+        private var repitMs = 0
+        private var creuxMs: Int? = null      // durée du creux en cours
+
+        init { appliquer() }
+
+        /** Durée d'une trame (ms, arrondie vers le bas). */
+        val dureeTrameMs: Int get() = maxOf(1, echantillons * 1000 / FREQUENCE)
+
+        fun ajouter(sequence: Int, donnees: ByteArray): Boolean {
+            val n = echantillonsOpus(donnees)
+            if (n != null && n != echantillons) {
+                echantillons = n
+                appliquer()
+            }
+            return tampon.ajouter(sequence, donnees)
+        }
+
+        fun prendre(): Sortie {
+            val s = tampon.prendre()
+            val d = dureeTrameMs
+            repitMs = maxOf(0, repitMs - d)
+            when (s) {
+                is Sortie.Trame -> {
+                    val c = creuxMs
+                    if (c != null) {
+                        creuxMs = null
+                        if (c <= Gigue.CREUX_COURT_MS) incident()
+                    } else {
+                        stableMs += d
+                        if (stableMs >= Gigue.STABLE_MS) {
+                            stableMs = 0
+                            if (cibleMs > Gigue.MINIMUM_MS) {
+                                cibleMs = maxOf(Gigue.MINIMUM_MS, cibleMs - Gigue.PAS_MS)
+                                appliquer()
+                            }
+                        }
+                    }
+                }
+                // tampon vide : creux (sous-alimentation ou source qui se tait), jugé à la reprise ;
+                // trou avec des trames derrière : paquet perdu, incident tout de suite
+                Sortie.Perte -> {
+                    if (tampon.taille == 0) creuxMs = (creuxMs ?: 0) + d else incident()
+                }
+                Sortie.Attente -> {
+                    val c = creuxMs
+                    if (c != null) creuxMs = c + d
+                }
+            }
+            return s
+        }
+
+        fun vider() {
+            tampon.vider()
+            creuxMs = null
+            stableMs = 0
+        }
+
+        private fun incident() {
+            stableMs = 0
+            if (repitMs > 0) return
+            repitMs = Gigue.REPIT_MS
+            if (cibleMs < Gigue.MAXIMUM_MS) {
+                cibleMs = minOf(Gigue.MAXIMUM_MS, cibleMs + Gigue.PAS_MS)
+                appliquer()
+            }
+        }
+
+        private fun appliquer() {
+            val parMs = FREQUENCE / 1000
+            fun trames(ms: Int) = (ms * parMs + echantillons - 1) / echantillons
+            val depart = maxOf(1, trames(cibleMs))
+            tampon.regler(depart, depart + maxOf(1, trames(Gigue.MARGE_MS)))
         }
     }
 

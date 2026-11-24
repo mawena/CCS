@@ -13,6 +13,12 @@ cible). Chaque appareil ne garde que ce qui le concerne (`device`). `audio.stop`
 entre les adresses 100.64.x (voir `ccs_app/audio.py` et `docs/audio.md`).
 
 Une sortie ne joue qu'un flux à la fois : un nouvel envoi vers elle arrête le précédent.
+
+Lecteurs (MPRIS, machines Linux) : l'agent les joint à son annonce et les rapporte dès qu'ils
+changent (`audio.report`), le pont les garde avec l'appareil (`audio.list`, `audio.players`) et
+pousse `{"action": "players", ...}`. `audio.control {device, player, command, value}` pousse
+`{"action": "control", ...}` à la machine, qui exécute puis rapporte l'état ; `audio.players`
+pousse `{"action": "players_refresh"}` pour une relecture immédiate.
 """
 
 import ipaddress
@@ -28,12 +34,48 @@ DEFAULT_PORT = 4010
 MAX_DEVICES = 64
 SYSTEMS = ("linux", "android", "ios", "macos", "windows", "web", "autre")
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$")
-# format du son, le même partout : RTP/Opus (RFC 7587), 48 kHz stéréo, trames de 20 ms
-CODEC = {"codec": "opus", "rate": 48000, "channels": 2, "frame_ms": 20, "payload": 96}
+# format du son, le même partout : RTP/Opus (RFC 7587), 48 kHz stéréo, trames de 10 ms (20 ms acceptées)
+PLAYER_COMMANDS = ("play", "pause", "toggle", "next", "prev", "seek", "volume")
+PLAYER_STATUS = ("Playing", "Paused", "Stopped")
+PLAYER_ID_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,199}$")
+MAX_PLAYERS = 16
+CODEC = {"codec": "opus", "rate": 48000, "channels": 2, "frame_ms": 10, "payload": 96}
 
 
 def _invalid(text):
     return rpc.RpcError("invalide", text)
+
+
+def _text(v, limit):
+    return v.strip()[:limit] if isinstance(v, str) else ""
+
+
+def _num(v, low=0.0, high=1e7):
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not low <= v <= high:
+        return None
+    return v
+
+
+def clean_players(raw):
+    """Lecteurs annoncés, nettoyés et bornés ; None si absent (appareil sans lecteurs pilotables)."""
+    if raw is None:
+        return None
+    if not isinstance(raw, list):
+        raise _invalid("Lecteurs invalides (liste attendue).")
+    out = []
+    for p in raw[:MAX_PLAYERS]:
+        if not isinstance(p, dict) or not isinstance(p.get("id"), str) or not PLAYER_ID_RE.match(p["id"]):
+            continue
+        vol = _num(p.get("volume"), 0, 100)
+        out.append({
+            "id": p["id"], "name": _text(p.get("name"), 80) or p["id"],
+            "status": p.get("status") if p.get("status") in PLAYER_STATUS else "Stopped",
+            "title": _text(p.get("title"), 200), "artist": _text(p.get("artist"), 200),
+            "position": _num(p.get("position")), "length": _num(p.get("length")),
+            "volume": round(vol) if vol is not None else None,
+            **{k: bool(p.get(k)) for k in ("can_play", "can_pause", "can_next", "can_prev", "can_seek")},
+            "can_control": bool(p.get("can_control", True))})
+    return out
 
 
 def _device_name(params, key):
@@ -52,7 +94,8 @@ class AudioApi:
         self._ids = itertools.count(1)
         bridge.add_handlers({
             "audio.announce": self.announce, "audio.forget": self.forget,
-            "audio.list": self.list, "audio.send": self.send, "audio.stop": self.stop})
+            "audio.list": self.list, "audio.send": self.send, "audio.stop": self.stop,
+            "audio.report": self.report, "audio.players": self.players, "audio.control": self.control})
         hooks = getattr(bridge, "tick_hooks", None)
         if hooks is not None:
             hooks.append(self.sweep)
@@ -66,7 +109,7 @@ class AudioApi:
     def _public(self, d):
         now = self.clock()
         return {k: d[k] for k in ("device", "label", "ip", "port", "play", "capture", "system")} | \
-            {"age": round(now - d["seen"], 1)}
+            {"age": round(now - d["seen"], 1), "players": d.get("players")}
 
     async def sweep(self):
         """Oublie les appareils muets depuis 90 s et arrête leurs flux."""
@@ -97,7 +140,10 @@ class AudioApi:
             system = "autre"
         if device not in self.devices and len(self._alive()) >= MAX_DEVICES:
             raise _invalid("Trop d'appareils annoncés.")
-        self.devices[device] = {
+        players = clean_players(params.get("players"))
+        if players is None and "players" not in params and device in self.devices:
+            players = self.devices[device].get("players")
+        self.devices[device] = {"players": players,
             "device": device, "label": label.strip()[:60] or device, "ip": ip, "port": port,
             "play": bool(params.get("play")), "capture": bool(params.get("capture")),
             "system": system, "seen": self.clock()}
@@ -173,3 +219,56 @@ class AudioApi:
         for sid in stopped:
             await self._end(sid, "arrêté")
         return {"ok": True, "stopped": stopped}
+
+    # ---- lecteurs (MPRIS) ----------------------------------------------------------------
+
+    def _known(self, device):
+        d = self._alive().get(device)
+        if d is None:
+            raise rpc.RpcError("introuvable", f"{device} n'est pas annoncé (agent `ccs audio` lancé ?).")
+        return d
+
+    async def report(self, _conn, params):
+        """L'agent d'une machine rapporte ses lecteurs (changement, ou après une commande)."""
+        device = _device_name(params, "device")
+        d = self._known(device)
+        d["players"] = clean_players(params.get("players")) or []
+        d["seen"] = self.clock()
+        await self.bridge.broadcast("audio", {"action": "players", "device": device,
+                                              "players": d["players"]})
+        return {"ok": True}
+
+    async def players(self, _conn, params):
+        """Lecteurs connus (d'une machine, ou de toutes) ; demande aux agents de les relire."""
+        await self.sweep()
+        device = _device_name(params, "device") if params.get("device") else None
+        if device is not None:
+            self._known(device)
+        await self.bridge.broadcast("audio", {"action": "players_refresh", "device": device})
+        return {"devices": [{"device": d["device"], "label": d["label"], "players": d.get("players")}
+                            for d in sorted(self.devices.values(), key=lambda d: d["label"].lower())
+                            if device in (None, d["device"]) and d.get("players") is not None]}
+
+    async def control(self, _conn, params):
+        """`{device, player, command, value?}` → poussé à la machine, qui exécute et rapporte."""
+        device = _device_name(params, "device")
+        d = self._known(device)
+        player, command, value = params.get("player"), params.get("command"), params.get("value")
+        if not isinstance(player, str) or not PLAYER_ID_RE.match(player):
+            raise _invalid("Lecteur invalide.")
+        if command not in PLAYER_COMMANDS:
+            raise _invalid(f"Commande invalide : {', '.join(PLAYER_COMMANDS)}.")
+        if isinstance(value, bool) or (value is not None and not isinstance(value, (int, float, str))):
+            raise _invalid("Valeur invalide.")
+        if isinstance(value, str) and len(value) > 16:
+            raise _invalid("Valeur invalide.")
+        if command == "volume" and value is None:
+            raise _invalid("Volume manquant (0 à 100).")
+        known = d.get("players")
+        if known is None:
+            raise _invalid(f"{d['label']} ne rapporte pas de lecteurs (agent Linux à jour ?).")
+        if player not in {p["id"] for p in known}:
+            raise rpc.RpcError("introuvable", f"Lecteur « {player} » inconnu sur {d['label']}.")
+        await self.bridge.broadcast("audio", {"action": "control", "device": device, "player": player,
+                                              "command": command, "value": value})
+        return {"ok": True}

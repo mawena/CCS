@@ -1,7 +1,7 @@
 """Market : chercher sur Facebook Marketplace au Togo (phase 45).
 
-L'onglet Market de CCS est un chat Claude dédié (dossier `~/.local/share/ccs/market/`, voir
-`workspace()`) ; Claude y appelle les commandes `ccs market search|seller|item|status|login`
+Le chat Market est une session Claude ouverte dans un dossier dédié (`~/.local/share/ccs/market/`,
+voir `workspace()`), par l'option « Market » de la feuille « Nouvelle session » ; Claude y appelle les commandes `ccs market search|seller|item|status|login`
 (`market_cli`), qui pilotent ici un Chrome sans interface.
 
 Chemin des requêtes : **toujours par pc-bureau, par le réseau maillé**. Chaque commande ouvre
@@ -165,6 +165,16 @@ def free_port():
 def _port_open(port):
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def is_this_machine(addr):
+    """Vrai si `addr` est une adresse de cette machine (on tourne sur pc-bureau lui-même)."""
+    try:
+        with socket.socket(socket.AF_INET6 if ":" in addr else socket.AF_INET) as s:
+            s.bind((addr, 0))
             return True
     except OSError:
         return False
@@ -912,6 +922,10 @@ def login(cfg=None, wait_s=LOGIN_WAIT_S, out=print, run_cmd=subprocess.run, tunn
     """Ouvre Chrome sur l'écran de pc-bureau (profil dédié), attend la connexion de Charles,
     exporte les cookies par CDP (tunnel `ssh -L`), les garde en 600 puis referme ce Chrome."""
     cfg = cfg or config()
+    if is_this_machine(cfg["hostname"]):
+        raise MarketError("`ccs market login` se lance depuis le VPS (ou le chat web), pas sur "
+                          "pc-bureau : c'est le VPS qui garde la session Facebook. Chrome "
+                          "s'ouvrira quand même ici, sur ton écran.")
     script = f"CHROME={cfg['remote_chrome']!s}; PORT={int(cfg['remote_port'])}\n" + LOGIN_SCRIPT
     try:
         r = run_cmd([*ssh_base(cfg), cfg["host"], "bash", "-s"], input=script, text=True,
@@ -1000,6 +1014,21 @@ la fois et évite les pages inutiles.
 2. Les alternatives écartées et la raison (incompatible, trop cher, instable…).
 3. Ce qui reste à vérifier avec le vendeur (version matérielle, garantie, état réel).
 Réponses courtes et lisibles sur un téléphone.
+
+## Affichage (chat riche, docs/chat-riche.md)
+Le chat de CCS affiche les blocs de code de langue `ccs` (JSON) en composants. Mets le
+classement (5 annonces au plus) dans un bloc `cartes`, puis ton avis en texte court :
+
+```ccs
+{"type":"cartes","items":[{"titre":"TP-Link Archer C6","prix":"25 000 FCFA","sous_titre":"Lomé",
+ "description":"WireGuard par OpenWrt, état neuf","lien":"https://www.facebook.com/marketplace/item/…",
+ "image":"https://…","actions":[{"label":"Détails","message":"Détails de l'annonce TP-Link Archer C6"}]}]}
+```
+
+- `image` seulement si tu connais une adresse https de la photo ; sinon omets-la.
+- `lien` : toujours le lien de l'annonce.
+- Termine par un bloc `choix` pour la suite, par exemple
+  `{"type":"choix","titre":"Et ensuite ?","options":["Détails du premier","Chercher moins cher","Autre ville"]}`.
 
 ## Règles
 - Si une commande dit que **pc-bureau ne répond pas**, dis-le simplement et arrête : rien ne

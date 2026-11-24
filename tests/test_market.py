@@ -511,6 +511,18 @@ class LoginTest(Env):
         with self.assertRaises(market.TunnelError):
             market.login(self.cfg, out=lambda s: None, run_cmd=lambda *a, **k: Proc())
 
+    def test_login_on_pc_bureau_itself(self):
+        cfg = dict(self.cfg, hostname="127.0.0.1")          # adresse de cette machine
+        ran = []
+        with self.assertRaises(market.MarketError) as e:
+            market.login(cfg, out=lambda s: None, run_cmd=lambda *a, **k: ran.append(a))
+        self.assertIn("depuis le VPS", str(e.exception))
+        self.assertEqual(ran, [])                           # aucun ssh vers soi-même
+
+    def test_is_this_machine(self):
+        self.assertTrue(market.is_this_machine("127.0.0.1"))
+        self.assertFalse(market.is_this_machine("192.0.2.7"))
+
 
 class WorkspaceTest(Env):
     def test_workspace(self):

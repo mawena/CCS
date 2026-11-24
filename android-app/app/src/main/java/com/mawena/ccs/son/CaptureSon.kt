@@ -19,7 +19,8 @@ import java.net.InetSocketAddress
 
 /**
  * Capte le son des autres applis (AudioPlaybackCapture, Android 10+, avec l'accord
- * MediaProjection), l'encode en Opus (MediaCodec, 96 kb/s, trames de 20 ms) et l'envoie en RTP
+ * MediaProjection) par blocs de 10 ms, l'encode en Opus (MediaCodec, 96 kb/s ; l'encodeur d'Android
+ * fixe lui-même la durée des trames, 20 ms en pratique, sans réglage public) et l'envoie en RTP
  * vers [viser]. Tant qu'aucune destination n'est fixée, les trames sont jetées. [fin] est appelé
  * (une fois) si la capture s'arrête d'elle-même.
  */
@@ -68,7 +69,7 @@ class CaptureSon(private val projection: MediaProjection, private val fin: (Stri
         val min = AudioRecord.getMinBufferSize(Audio.FREQUENCE, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT)
         val r = AudioRecord.Builder()
             .setAudioFormat(format)
-            .setBufferSizeInBytes(maxOf(min, OCTETS_TRAME * 8))
+            .setBufferSizeInBytes(maxOf(min, OCTETS_CAPTURE))
             .setAudioPlaybackCaptureConfig(config)
             .build()
         if (r.state != AudioRecord.STATE_INITIALIZED) {
@@ -81,7 +82,7 @@ class CaptureSon(private val projection: MediaProjection, private val fin: (Stri
     private fun ouvrirEncodeur(): MediaCodec {
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, Audio.FREQUENCE, Audio.CANAUX).apply {
             setInteger(MediaFormat.KEY_BIT_RATE, Audio.DEBIT)
-            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, OCTETS_TRAME * 2)
+            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, Audio.ECHANTILLONS_ANCIENNE_TRAME * Audio.CANAUX * 2 * 2)
         }
         val e = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_OPUS)
         try {
@@ -167,7 +168,10 @@ class CaptureSon(private val projection: MediaProjection, private val fin: (Stri
 
     private companion object {
         const val TAG = "CaptureSon"
-        /** 20 ms de PCM 16 bits stéréo à 48 kHz. */
+        /** Bloc lu à chaque tour : 10 ms de PCM 16 bits stéréo à 48 kHz. */
         const val OCTETS_TRAME = Audio.ECHANTILLONS_TRAME * Audio.CANAUX * 2
+        /** Tampon de l'AudioRecord : 40 ms (au moins le minimum du matériel), au lieu de 160 ms. */
+        const val CAPTURE_MS = 40
+        const val OCTETS_CAPTURE = Audio.FREQUENCE / 1000 * CAPTURE_MS * Audio.CANAUX * 2
     }
 }
