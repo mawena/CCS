@@ -160,8 +160,9 @@ jamais dans la ligne de commande).
 - [x] 8. Essai du dialogue GTK sous Xvfb et tests web
 - [x] 9. Documentation : README, `docs/man/ccs.1`, CHANGELOG
 - [x] 10. Essai réel sur le VPS : `ccs provider test openrouter` répond (GLM 5.3 et Nemotron gratuit) ; l'essai se limite à 256 jetons de sortie (sinon 402 avec peu de crédit)
+- [x] 10b. Défaut OpenRouter : DeepSeek V4.1 Flash `deepseek/deepseek-v4.1-flash-1017:floor` (OpenRouter choisit l'hébergeur le moins cher, ~0,03-0,05/0,10-0,50 $ avec cache), choix de Charles ; GLM 5.3 reste dans la liste
 - [ ] 11. Charles : créditer OpenRouter, clé plafonnée à 50 $/mois ; essai d'une vraie session (bureau, web, tâche)
-- [ ] 12. Release 1.13.0 (par Charles)
+- [x] 12. Release 1.13.0
 
 ## Phase 47 — Venice et autres services compatibles OpenAI (proposée)
 

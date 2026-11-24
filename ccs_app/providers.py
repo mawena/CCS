@@ -44,11 +44,13 @@ PRESETS = {
         "base_url": "https://openrouter.ai/api",
         "key_file": "~/.config/openrouter/cle",
         "models_url": "https://openrouter.ai/api/v1/models",
-        "default_model": "z-ai/glm-5.3",
+        "default_model": "deepseek/deepseek-v4.1-flash-1017:floor",
         "models": [
-            ["GLM 5.3 (défaut, peu filtré)", "z-ai/glm-5.3"],
+            # « :floor » : OpenRouter choisit l'hébergeur le moins cher (~0,03-0,05/0,10-0,50 $, cache)
+            ["DeepSeek V4.1 Flash (défaut, le moins cher)", "deepseek/deepseek-v4.1-flash-1017:floor"],
+            ["GLM 5.3 (peu filtré)", "z-ai/glm-5.3"],
             ["Grok 4.7 (le plus puissant, 2/6 $)", "x-ai/grok-4.7"],
-            ["DeepSeek V4.1 Flash 1017 (très bon marché)", "deepseek/deepseek-v4.1-flash-1017"],
+            ["DeepSeek V4.1 Flash 1017", "deepseek/deepseek-v4.1-flash-1017"],
             ["DeepSeek V4.1 Flash", "deepseek/deepseek-v4.1-flash"],
             ["DeepSeek V4 Pro", "deepseek/deepseek-v4-pro-0813"],
             ["Kimi K3.1 Pro", "moonshotai/kimi-k3.1-pro"],
