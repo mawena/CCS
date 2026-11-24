@@ -3,6 +3,19 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Corrigé
+
+- Chat web : on voit enfin les sous-agents de fond travailler. La CLI ne passe que leur lancement
+  et leur fin ; le pont lit leur transcription toutes les 3 s et envoie leurs étapes (textes,
+  outils, résultats) dans leur vue, comme pour un sous-agent au premier plan.
+- Chat web : après un rechargement de la page, une reprise de la conversation ou un `/compact`,
+  les pastilles des sous-agents lancés avant reviennent (`agents` dans `chat.attach`) et leur vue
+  se remplit depuis leur transcription (`chat.agent_log`). Ceux d'avant une reprise sont marqués
+  arrêtés s'ils ne s'étaient pas finis.
+- Jarvis : la liste des sous-agents d'un chat compte aussi ceux lancés avant sa reprise.
+
 ## [1.11.0] — 2026-11-24
 
 ### Ajouté
