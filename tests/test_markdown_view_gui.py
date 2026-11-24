@@ -96,11 +96,54 @@ class MarkdownViewTest(unittest.TestCase):
         self.assertTrue(cells[-2].get_wrap())                     # longue : passe à la ligne
         self.assertEqual(cells[-2].get_width_chars(), 40)
 
-    def test_remote_image_not_loaded(self):
+    def fetching(self, result):
+        """Remplace le téléchargement (pas de réseau dans les tests) ; rend la liste des adresses."""
+        import ccs_app.gui.markdown_view as mv
+        fetched, old = [], mv._fetch
+        mv._fetch = lambda url: (fetched.append(url), result)[1]
+        self.addCleanup(setattr, mv, "_fetch", old)
+        self.addCleanup(mv._photos.clear)
+        return fetched
+
+    def wait(self, until):
+        from gi.repository import GLib
+        ctx = GLib.MainContext.default()
+        for _ in range(200):
+            if until():
+                return
+            ctx.iteration(False)
+            import time
+            time.sleep(0.01)
+        self.fail("délai dépassé")
+
+    def test_remote_image_loaded_in_background(self):
+        from gi.repository import GdkPixbuf
+        with tempfile.TemporaryDirectory() as tmp:
+            GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, False, 8, 1200, 1200).savev(
+                str(Path(tmp) / "a.png"), "png", [], [])
+            data = (Path(tmp) / "a.png").read_bytes()
+        fetched = self.fetching(data)
         v = self.view("![chat](https://exemple.org/c.png)")
-        self.assertFalse([w for w in walk(v) if isinstance(w, Gtk.Picture)])
-        labels = [w.get_label() for w in walk(v) if isinstance(w, Gtk.Label)]
-        self.assertTrue(any("image distante : " in t and ">chat<" in t for t in labels))
+        pic = next(w for w in walk(v) if isinstance(w, Gtk.Picture))
+        self.wait(lambda: pic.get_paintable() is not None)
+        self.assertEqual(fetched, ["https://exemple.org/c.png"])
+        self.assertEqual(pic.get_size_request(), (400, 400))           # limitée à 600 × 400
+        link = next(w for w in walk(v) if isinstance(w, Gtk.Label))
+        self.assertFalse(link.get_visible())
+        self.view("![chat](https://exemple.org/c.png)")                 # ensuite : depuis le cache
+        self.assertEqual(len(fetched), 1)
+
+    def test_remote_image_failure_and_refused_schemes(self):
+        self.fetching(None)
+        v = self.view("![chat](https://exemple.org/c.png)")
+        pic = next(w for w in walk(v) if isinstance(w, Gtk.Picture))
+        self.wait(lambda: not pic.get_visible())
+        link = next(w for w in walk(v) if isinstance(w, Gtk.Label))
+        self.assertTrue(link.get_visible())
+        self.assertIn(">chat<", link.get_label())
+        for src in ("http://exemple.org/c.png", "data:image/png;base64,AAAA"):
+            v = self.view(f"![x]({src})")
+            self.assertFalse([w for w in walk(v) if isinstance(w, Gtk.Picture)], src)
 
     def test_local_image_is_a_picture(self):
         from gi.repository import GdkPixbuf
@@ -152,20 +195,59 @@ class MarkdownViewTest(unittest.TestCase):
         finally:
             mv._fetch = old
 
-    def test_ccs_form_and_invalid_stay_code(self):
-        for body in ('{"type":"formulaire","champs":[{"nom":"a"}]}', "{pas du json", '{"type":"inconnu"}'):
+    def test_invalid_blocks_stay_code(self):
+        for body in ('{"type":"formulaire","champs":["pas un objet"]}', "{pas du json", '{"type":"inconnu"}'):
             v = self.view(f"```ccs\n{body}\n```")
             self.assertEqual(len([w for w in walk(v) if isinstance(w, GtkSource.View)]), 1, body)
+
+    def test_ccs_form_sends_once(self):
+        sent = []
+        spec = ('{"type":"formulaire","titre":"Recherche","envoyer":"Chercher","champs":['
+                '{"nom":"prix","label":"Prix max","type":"nombre"},'
+                '{"nom":"ville","label":"Ville","type":"liste","options":["Lomé","Kara"],"valeur":"Kara"},'
+                '{"nom":"note","label":"Note","type":"texte","valeur":"","aide":"facultatif"}]}')
+        v = self.view(f"```ccs\n{spec}\n```", on_send=sent.append)
+        self.assertFalse([w for w in walk(v) if isinstance(w, GtkSource.View)])
+        entries = [w for w in walk(v) if isinstance(w, Gtk.Entry)]
+        drop = next(w for w in walk(v) if isinstance(w, Gtk.DropDown))
+        self.assertEqual(drop.get_selected(), 1)
+        self.assertEqual(entries[1].get_placeholder_text(), "facultatif")
+        entries[0].set_text("50000")
+        button = next(w for w in walk(v) if isinstance(w, Gtk.Button) and w.get_label() == "Chercher")
+        button.emit("clicked")
+        self.assertEqual(sent, ["Recherche\n- Prix max : 50000\n- Ville : Kara"])
+        self.assertFalse(button.get_sensitive() or entries[0].get_sensitive() or drop.get_sensitive())
+        entries[0].emit("activate")                                   # une seule fois
+        self.assertEqual(len(sent), 1)
+
+    def test_ccs_form_inactive_without_on_send(self):
+        v = self.view('```ccs\n{"type":"formulaire","champs":[{"nom":"a"}]}\n```')
+        self.assertTrue(v.get_first_child().has_css_class("ccs-rich-form"))
+        self.assertFalse(any(w.get_sensitive() for w in walk(v) if isinstance(w, (Gtk.Button, Gtk.Entry))))
 
     def test_local_media_get_a_player(self):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "son.ogg").write_bytes(b"")
             (Path(tmp) / "clip.mp4").write_bytes(b"")
-            v = self.view("Écoute `son.ogg` et [la vidéo](clip.mp4), pas [ça](https://ex.com/a.mp3).\n\n"
+            v = self.view("Écoute `son.ogg` et [la vidéo](clip.mp4), pas [ça](http://ex.com/a.mp3).\n\n"
                           "![démo](clip.mp4)", base_dir=tmp)
             videos = [w for w in walk(v) if isinstance(w, Gtk.Video)]
             self.assertEqual(len(videos), 3)
             self.assertTrue(videos[0].has_css_class("ccs-rich-audio"))
+
+    def test_remote_media_play_on_click(self):
+        url = "https://exemple.invalid/a.mp3"
+        v = self.view(f"Écoute [ça]({url}).\n\n![clip](https://exemple.invalid/c.webm)")
+        self.assertFalse([w for w in walk(v) if isinstance(w, Gtk.Video)])   # rien de chargé
+        boxes = [w for w in walk(v) if w.has_css_class("ccs-rich-remote")]
+        self.assertEqual(len(boxes), 2)
+        button = next(w for w in walk(boxes[0]) if isinstance(w, Gtk.Button))
+        button.emit("clicked")
+        video = next(w for w in walk(boxes[0]) if isinstance(w, Gtk.Video))
+        self.assertTrue(video.has_css_class("ccs-rich-audio"))
+        self.assertEqual(video.get_file().get_uri(), url)
+        self.assertFalse([w for w in walk(boxes[0]) if isinstance(w, Gtk.Button) and w is button])
+        video.get_media_stream() and video.get_media_stream().pause()
 
     def test_set_text_replaces_content(self):
         v = self.view("a\n\nb")

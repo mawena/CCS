@@ -612,6 +612,7 @@ $ par million de jetons entrée/sortie) :
 |---|---|---|
 | `openrouter` (compatible Anthropic) | DeepSeek V4.1 Flash 1017 `:floor` (défaut, le moins cher : hébergeur le moins cher choisi par OpenRouter, ~0,03-0,05/0,10-0,50 avec cache), GLM 5.3 (~1,40/4,40 selon l'hébergeur), Grok 4.7 (2/6), Kimi K3.1 Pro, Qwen3 Coder Next… | `~/.config/openrouter/cle` |
 | `deepseek` (API directe compatible Anthropic) | `deepseek-flash` (0,30/1,20, -50 % en heures creuses), `deepseek-v4-pro` | `~/.config/deepseek/cle` |
+| `venice` (compatible OpenAI, par le proxy intégré) | `glm-5-3-flash-uncensored` (défaut), `deepseek-v4-1-flash-1017-uncensored`, `venice-uncensored` | `~/.config/venice/cle` |
 
 Budget : plafonner la clé chez le fournisseur (sur OpenRouter, « limit » de la clé, par exemple
 50 $). Claude Code réserve 32 000 jetons de sortie par requête : avec très peu de crédit, une
@@ -625,8 +626,16 @@ Ajouter ou modifier un fournisseur : `~/.config/ccs/providers.json`, par exemple
  "openrouter": {"default_model": "x-ai/grok-4.7"}}
 ```
 
-`key_file` null : service sans clé. Le service doit parler l'API Anthropic (`/v1/messages`) ;
-pour un service seulement compatible OpenAI (Venice…), passer par un proxy (claude-code-router).
+`key_file` null : service sans clé. Le service doit parler l'API Anthropic (`/v1/messages`),
+ou, avec `"api": "openai"`, l'API OpenAI (`/chat/completions`, `base_url` sans `/chat/completions`) ;
+`extra_body` ajoute des champs à chaque requête (Venice : `venice_parameters`).
+
+Services compatibles OpenAI (Venice…) : CCS lance à la demande un petit proxy local
+(`ccs_app/openai_proxy.py`, sans dépendance) sur `127.0.0.1:47447` (variable
+`CCS_OPENAI_PROXY_PORT`), qui traduit `/v1/messages` en `/chat/completions` (outils et streaming
+compris). La clé n'est jamais lue par le proxy : Claude l'envoie, le proxy la transmet. Il s'arrête
+seul 90 s après la dernière session qui l'utilise. `ccs provider proxy` : état ;
+`ccs provider proxy stop` : l'arrêter. Journal : `~/.cache/ccs/openai-proxy.log`.
 
 ## Raccourcis clavier
 
@@ -1005,6 +1014,7 @@ ccs audio send here iphone       # le son de ce PC vers l'iPhone
 ccs audio send pixel pc-bureau   # télécommande : du Pixel vers pc-bureau
 ccs audio stop                   # arrête les flux de ce PC (ou : ccs audio stop a3)
 ccs audio receive                  # sans le service : au premier plan, pour essayer
+ccs audio status                   # diagnostic : outils, serveur de son, sorties, service
 ccs audio disable
 ```
 
@@ -1338,7 +1348,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs tui [--server <nom>]` | CCS en plein écran dans le terminal (ce poste, ou un serveur appairé) |
 | `ccs server add <adresse> [--name n]` / `list` / `remove <nom>` | Serveurs CCS distants : appairage (mot de passe et code), liste, retrait |
 | `sudo ccs totp reset <utilisateur>` | Sur le serveur : efface le code de double authentification d'un utilisateur |
-| `ccs audio list` / `send <source> <sortie>` / `stop [flux\|appareil]` / `receive` / `enable [--name n]` / `disable` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
+| `ccs audio list` / `send <source> <sortie>` / `stop [flux\|appareil]` / `receive` / `status` / `enable [--name n]` / `disable` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
 | `ccs remote machines [--fast]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--fast` : sans les interroger) |
 | `ccs remote run [--machine m] [--tool o] [--fetch chemin] [--include chemin] [--with-git] [--when night\|HH:MM] [--detach] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
 | `ccs market search "<mots>" [--min N] [--max N] [--city lome]` / `seller <lien>` / `item <lien>` / `status` / `login` | Market : annonces de Facebook Marketplace au Togo (toujours par pc-bureau), vendeur, détails d'une annonce, état, connexion (une fois) ; `--json` |

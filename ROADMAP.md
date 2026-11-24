@@ -84,7 +84,7 @@ Conception :
   pour une vidéo synchro par un relais.
 
 - [x] 1. Serveur : registre des sorties audio (annonce, expiration, liste) et méthodes du pont, tests
-- [ ] 2. Linux : `ccs audio` (lister, envoyer, recevoir), récepteur RTP/Opus, sorties PipeWire virtuelles pour chaque appareil distant, annonce automatique par le démon ; essai pc-bureau ↔ VPS
+- [x] 2. Linux : `ccs audio` (lister, envoyer, recevoir), récepteur RTP/Opus, sorties PipeWire virtuelles pour chaque appareil distant, annonce automatique par le démon ; essai pc-bureau ↔ VPS
 - [x] 3. Android : récepteur (service au premier plan) et émetteur (AudioPlaybackCapture), annonce, écran « Son » ; APK sur Codemagic
 - [x] 4. iPhone : récepteur (lecture en arrière-plan) et extension ReplayKit émettrice, annonce, écran « Son » ; IPA sur Codemagic
 - [x] 5. Web et bureau GTK : liste des sorties et bouton « Envoyer le son vers… »
@@ -97,7 +97,7 @@ Conception :
   - [x] Android : onglet « Son » après Réseau (retiré de Plus)
   - [x] Web : onglet « Son » (#/son) après Réseau, retiré de Réseau
   - [x] Bureau : onglet « Son » (SonPage, Ctrl+4) après Réseau, retiré de Réseau
-- [ ] Idée : le téléphone comme lecteur piloté. iOS l'interdit (aucune appli ne peut piloter la lecture des autres) ; Android le permet avec l'accès aux notifications (`MediaSessionManager.getActiveSessions`), à accorder à la main dans les réglages
+- [x] Le téléphone Android comme lecteur piloté (accès aux notifications, rapport au pont). Idée d’origine : iOS l'interdit (aucune appli ne peut piloter la lecture des autres) ; Android le permet avec l'accès aux notifications (`MediaSessionManager.getActiveSessions`), à accorder à la main dans les réglages
 - [ ] 7. Autres systèmes, dans l'ordre demandé par Charles (Linux, iPhone, Android, puis le reste) :
   agent portable sur macOS (GStreamer, sortie puis source par BlackHole) et Windows (GStreamer,
   `wasapi2src loopback=true`), sans les sorties virtuelles de Linux
@@ -178,9 +178,9 @@ jamais dans la ligne de commande).
 Venice (modèles « uncensored » avec outils : `glm-5-3-flash-uncensored`,
 `deepseek-v4-1-flash-1017-uncensored`, Venice Uncensored 1.2) ne parle que l'API OpenAI.
 
-- [ ] 1. Proxy local claude-code-router (ou LiteLLM) lancé à la demande par CCS, traduit `/v1/messages` vers l'API OpenAI
-- [ ] 2. Préréglage `venice` (clé `~/.config/venice/cle`) pointant sur ce proxy ; vérifier l'appel d'outils de bout en bout
-- [ ] 3. Arrêt du proxy avec la dernière session (RAM)
+- [x] 1. Proxy local claude-code-router (ou LiteLLM) lancé à la demande par CCS, traduit `/v1/messages` vers l'API OpenAI
+- [x] 2. Préréglage `venice` (clé `~/.config/venice/cle`) pointant sur ce proxy ; vérifier l'appel d'outils de bout en bout
+- [x] 3. Arrêt du proxy avec la dernière session (RAM)
 
 ## Phase 48 — Nouvelle session : le bureau comme le web
 
@@ -208,7 +208,8 @@ Réglages ; les réponses de Claude affichent images, sons, vidéos et composant
 - [x] 5. Claude averti par `RICH_HINT` ; Market présente ses annonces en cartes et propose des choix
 - [x] 6. Tests (web, bureau sous Xvfb, moteur du chat, marché) ; `docs/chat-riche.md`
 - [ ] 7. Vérifier à l'écran : web (téléphone et ordinateur) et bureau, avec une vraie recherche Market
-- [ ] 8. Bureau : formulaire, images Markdown et médias distants (aujourd'hui bloc de code ou lien)
-- [ ] 9. Rendu riche dans l'appli iOS
-- [ ] 10. Rendu riche dans l'appli Android
+- [x] 8. Bureau : formulaire, images Markdown https et médias distants
+- [x] 9. Rendu riche dans l'appli iOS
+- [x] 10. Rendu riche dans l'appli Android
 - [x] 11. Release 1.15.0 (avec les lecteurs et l'onglet Son de la phase 42)
+- [x] 12. Release 1.16.0 (audio Linux, Venice, rendu riche iOS et Android, lecteurs du Pixel)

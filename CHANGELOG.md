@@ -5,6 +5,19 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.16.0] — 2026-11-26
+
+### Ajouté
+
+- **Venice et services compatibles OpenAI** : proxy local intégré (traduction Anthropic → OpenAI, outils et streaming), lancé à la demande et arrêté 90 s après la dernière session ; préréglage `venice` ; `ccs provider proxy [stop]`.
+- **`ccs audio status`** : réglages, outils, serveur de son, sorties virtuelles et service.
+- **Android, lecteurs du téléphone pilotés** : avec l’accès aux notifications, Spotify, YouTube… du Pixel apparaissent dans l’onglet Son de tous les appareils et se pilotent à distance (lecture, pause, suivant, volume).
+- **iPhone et Android, rendu riche du chat** : blocs de code, tableaux, cartes d’outils et liens, comme sur le web et le bureau.
+
+### Corrigé
+
+- **Audio sous Linux** : une machine sans serveur de son ne s’annonce plus comme sortie ni source ; un flux qui s’arrête est relancé une fois puis signalé ; erreurs GStreamer dans le journal.
+
 ## [1.15.1] — 2026-11-25
 
 ### Corrigé

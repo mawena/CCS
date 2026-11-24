@@ -63,10 +63,10 @@ Le message envoyé contient le titre, puis une ligne `- Libellé : valeur` par c
 | | Web | Bureau (GTK) | iOS, Android |
 |---|---|---|---|
 | choix, carte, cartes | oui | oui | pas encore |
-| formulaire | oui | bloc de code | pas encore |
-| images https | oui | photos des cartes seulement | pas encore |
+| formulaire | oui | oui | pas encore |
+| images https | oui | oui (chargées en arrière-plan) | pas encore |
 | images et médias locaux | oui (lus par l'explorateur, 60 Mo au plus) | oui (Gtk.Video) | pas encore |
-| sons et vidéos distants | oui | lien seulement | pas encore |
+| sons et vidéos distants | oui | oui (lecteur créé au clic sur « Lire ») | pas encore |
 
 - Web :
   - code dans `ccs_app/web/chat-rich.js`, appelé après chaque rendu de réponse ;
@@ -74,5 +74,22 @@ Le message envoyé contient le titre, puis une ligne `- Libellé : valeur` par c
 - Bureau :
   - partie commune dans `ccs_app/chat_rich.py` ;
   - rendu dans `ccs_app/gui/markdown_view.py`.
-  - Les images Markdown distantes n'y sont pas chargées.
-  - Dans les vues des sous-agents, les boutons restent inactifs.
+  - Formulaire : le message envoyé est le même que sur le web (titre, puis `- Libellé : valeur`
+    par champ rempli) ; bouton ou Entrée dans un champ, une seule fois.
+  - Images https : téléchargées dans un fil (8 Mo au plus, 30 gardées en cache), affichées
+    dans 600 × 400 au plus ; en cas d'échec, le lien reste. `http:` et `data:` sont refusés.
+  - Sons et vidéos https : rien n'est chargé à l'affichage ; le bouton « Lire » crée le lecteur
+    (Gtk.Video, lu en continu par GStreamer).
+  - Dans les vues des sous-agents, les boutons et champs restent inactifs.
+
+## Android
+
+- Partie commune dans `android-app/.../logique/ChatRiche.kt` (comme `web/chat-rich.js`) ; rendu
+  dans `ui/chat/RicheVue.kt`, branché par `MarkdownVue.kt` et fourni par `EcranChat.kt`
+  (`LocalRiche`). Hors du chat (aperçu d'un fichier `.md`), le Markdown reste simple.
+- Images : 360 dp de large au plus, agrandies d'un toucher. Fichiers du serveur lus par
+  `files.download`, adresses https par OkHttp ; 60 Mo au plus, gardés 24 h dans le cache de l'appli.
+- Sons : `MediaPlayer` (lecture, pause, position). Vidéos : `VideoView` et ses commandes.
+  Rien ne se charge avant le premier toucher.
+- Blocs `ccs` : boutons, menus déroulants et champs Material ; un bouton n'envoie qu'une fois.
+  Dans la vue d'un sous-agent, les boutons restent inactifs.

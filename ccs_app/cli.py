@@ -1037,6 +1037,9 @@ def cmd_audio(args):
                    "apparaissent dans ses sorties son." if cfg["active"] else "Son partagé désactivé.")
                   if ok else f"Service {audio.SERVICE} : {err}")
             return 0 if ok else 1
+        if action == "etat":
+            print("\n".join(audio.check()))
+            return 0
         if action in ("lecteurs", "piloter") and not getattr(args, "appareil", None):
             return _audio_local_players(audio, args, action)
         try:
@@ -1628,6 +1631,8 @@ def build_parser():
     auon.add_argument("--name", dest="nom", help="nom affiché sur les autres appareils")
     _old_option(auon, "--nom", dest="nom")
     _action(au_sub, "disable", "desactiver", help="arrête le son partagé sur cette machine")
+    _action(au_sub, "status", "etat", help="cette machine : réglages, outils, serveur de son, "
+            "sorties virtuelles, service")
     _action(au_sub, "receive", "recevoir", help="au premier plan, pour essayer : annonce cette machine et "
                                        "joue ce qu'on lui envoie")
     aup = _action(au_sub, "players", "lecteurs", help="lecteurs (VLC, Firefox…) de cette machine, ou "

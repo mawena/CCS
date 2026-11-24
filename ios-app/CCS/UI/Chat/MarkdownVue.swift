@@ -30,6 +30,16 @@ func annoter(_ segments: [Markdown.Segment], taille: CGFloat = tailleTexteChat, 
             b.underlineStyle = Text.LineStyle.single
             return b
         }
+        // image hors paragraphe (tableau, titre) : son texte, ou son adresse, en lien
+        if s.image, let l = s.lien {
+            let t = s.texte.isEmpty ? l : s.texte
+            if let u = URL(string: l), let schema = u.scheme?.lowercased(), ["http", "https"].contains(schema) {
+                r.append(lie(morceau(t), u))
+            } else {
+                r.append(morceau(t))
+            }
+            continue
+        }
         if let l = s.lien, let u = URL(string: l), let schema = u.scheme?.lowercased(), ["http", "https", "mailto"].contains(schema) {
             r.append(lie(morceau(s.texte), u))
             continue
@@ -95,7 +105,7 @@ private struct BlocVue: View {
     var body: some View {
         switch bloc {
         case .paragraphe(let contenu):
-            Text(annoter(contenu, liens: liens)).fixedSize(horizontal: false, vertical: true)
+            EnLigneRiche(contenu: contenu)
         case .titre(let niveau, let contenu):
             Text(annoter(contenu, taille: niveau == 1 ? 21 : (niveau == 2 ? 19 : 17), gras: true, liens: liens))
                 .padding(.top, 4)
@@ -108,13 +118,17 @@ private struct BlocVue: View {
                             .font(.system(size: tailleTexteChat))
                             .foregroundStyle(.secondary)
                             .frame(minWidth: e.marque.count > 2 ? 26 : 16, alignment: .leading)
-                        Text(annoter(e.contenu, liens: liens)).fixedSize(horizontal: false, vertical: true)
+                        EnLigneRiche(contenu: e.contenu)
                     }
                     .padding(.leading, CGFloat(e.niveau * 16))
                 }
             }
         case .code(let langue, let texte):
-            BlocCode(code: texte, langue: langue)
+            if langue.lowercased() == "ccs", let c = Riche.bloc(texte) {
+                ComposantRiche(composant: c)
+            } else {
+                BlocCode(code: texte, langue: langue)
+            }
         case .citation(let blocs):
             HStack(alignment: .top, spacing: 10) {
                 RoundedRectangle(cornerRadius: 2).fill(Color.secondary.opacity(0.5)).frame(width: 3)
@@ -139,6 +153,31 @@ private struct BlocVue: View {
         case .some(true): return "☑"
         case .some(false): return "☐"
         case .none: return e.marque
+        }
+    }
+}
+
+/**
+ * Texte en ligne d'un paragraphe ou d'un élément de liste : les images en sont retirées et
+ * s'affichent dessous, avec un lecteur pour chaque son ou vidéo cité (lien, `code`, chemin).
+ */
+@MainActor
+private struct EnLigneRiche: View {
+    @Environment(\.liensFichiers) private var liens
+    let contenu: [Markdown.Segment]
+
+    var body: some View {
+        let texte = contenu.filter { !$0.image }
+        let medias = Riche.medias(contenu, liens: liens)
+        if medias.isEmpty {
+            Text(annoter(texte, liens: liens)).fixedSize(horizontal: false, vertical: true)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                if !texte.allSatisfy({ $0.texte.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                    Text(annoter(texte, liens: liens)).fixedSize(horizontal: false, vertical: true)
+                }
+                MediasEnLigne(medias: medias)
+            }
         }
     }
 }

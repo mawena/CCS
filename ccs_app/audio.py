@@ -51,6 +51,7 @@ ANNOUNCE_EVERY = 30
 POLL_S = 2
 IDLE_STOP_S = 10            # sortie virtuelle muette depuis 10 s : envoi arrêté
 RESEND_GAP_S = 5            # pas plus d'une demande d'envoi par sortie toutes les 5 s
+RESTARTS = 1                # pipeline GStreamer mort : relancé une fois par flux, puis flux arrêté
 # Latence (voir docs/audio.md, § 4) : trames de 10 ms, tampons courts.
 FRAME_MS = 10               # trame Opus émise (les récepteurs acceptent aussi 20 ms)
 LATENCY_MS = 40             # tampon de gigue du récepteur (rtpjitterbuffer), réglable : latency_ms
@@ -177,6 +178,15 @@ class Pipewire:
             raise AudioError((r.stderr or "pactl a échoué").strip())
         return r.stdout
 
+    def available(self):
+        """Un serveur de son répond (PipeWire par pipewire-pulse, ou PulseAudio) : sans lui
+        (serveur sans carte son, session sans son), la machine ne sait ni jouer ni capter."""
+        try:
+            self._pactl("info")
+        except AudioError:
+            return False
+        return True
+
     def sinks(self):
         return parse_sinks(self._pactl("list", "short", "sinks"))
 
@@ -250,13 +260,52 @@ def missing_tools(which=shutil.which, system=None):
     return [t for t in tools if which(t) is None]
 
 
+def check(cfg=None, pipewire=None, which=shutil.which, system=None, status=None, run=subprocess.run):
+    """`ccs audio status` : ce qui manque pour que cette machine soit sortie et source."""
+    system = system or this_system()
+    cfg = cfg if cfg is not None else load_config()
+    lines = [f"Son partagé : {'actif' if cfg['active'] else 'inactif'} (port UDP {cfg['port']}"
+             + (f", nom « {cfg['label']} »" if cfg.get("label") else "") + ")"]
+    missing = missing_tools(which, system)
+    lines.append("Outils : " + ("GStreamer et pactl présents" if not missing
+                                else "manque " + ", ".join(missing)))
+    try:
+        name, ip = identity(status if status is not None else network.status())
+        lines.append(f"Réseau maillé : {name} ({ip})")
+    except (AudioError, network.NetworkError) as e:
+        lines.append(f"Réseau maillé : {e}")
+    if system == "linux":
+        pw = pipewire or Pipewire(run=run)
+        if "pactl" in missing or not pw.available():
+            lines.append("Serveur de son : aucun (ni PipeWire ni PulseAudio) : cette machine "
+                         "n'est annoncée ni comme sortie ni comme source")
+        else:
+            lines.append("Serveur de son : présent")
+            try:
+                virt = sorted(pw.modules())
+            except AudioError:
+                virt = []
+            lines.append("Sorties virtuelles : " + (", ".join(virt) if virt else "aucune"))
+        if cfg["active"]:
+            try:
+                r = run(["systemctl", "--user", "is-active", SERVICE], capture_output=True,
+                        text=True, timeout=10)
+                state = (r.stdout or "").strip() or "inconnu"
+            except (OSError, subprocess.TimeoutExpired):
+                state = "inconnu"
+            lines.append(f"Service {SERVICE} : {state}")
+    return lines
+
+
 class Process:
     """Un pipeline GStreamer lancé et arrêté proprement (SIGINT puis SIGKILL)."""
 
     def __init__(self, argv, popen=subprocess.Popen):
         self.argv = argv
+        # stderr hérité : les erreurs de gst-launch (-q n'écrit qu'elles) vont au journal du
+        # service ccs-audio, ou au terminal de `ccs audio receive`
         self.proc = popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL, start_new_session=True)
+                          start_new_session=True)
 
     def alive(self):
         return self.proc.poll() is None
@@ -642,6 +691,10 @@ class Agent:
         self.sender = None           # (flux, cible, Process, lancé par la sortie virtuelle ?)
         self.idle_since = {}         # sortie → muette depuis
         self.asked = {}              # cible → dernière demande d'envoi
+        self.sound = True            # serveur de son présent (Linux : relu à chaque annonce)
+        self.restarts = {}           # (rôle, flux) → relances déjà faites
+        self._last_receive = None    # données du dernier `receive` (pour relancer)
+        self._last_emit = None       # données du dernier `emit`
         # lecteurs MPRIS de la session (Linux) : None tant qu'on ne sait pas les lire
         self.mpris = mpris or (Mpris() if system == "linux" else None)
         self.players = None
@@ -733,6 +786,10 @@ class Agent:
             self.stop_sender()
 
     def start_receiver(self, data):
+        if not self.sound:
+            log.warning("réception refusée : pas de serveur de son sur cette machine")
+            return
+        self._last_receive = data
         self.stop_receiver()
         log.info("réception de %s (flux %s)", data.get("from"), data.get("stream"))
         self.receiver = (data.get("stream"),
@@ -749,6 +806,10 @@ class Agent:
         ip, port = data.get("ip"), data.get("port")
         if not target or not ip or not isinstance(port, int):
             return
+        if not self.sound:
+            log.warning("émission refusée : pas de serveur de son sur cette machine")
+            return
+        self._last_emit = data
         self.stop_sender()
         sink = sink_name(target)
         try:
@@ -769,11 +830,54 @@ class Agent:
             self.sender[2].stop()
             self.sender = None
 
+    async def check_pipelines(self):
+        """Pipeline GStreamer mort (sortie son disparue, port pris, réseau) : relancé une fois
+        par flux ; s'il meurt encore, le flux est arrêté au pont (les autres appareils le voient)."""
+        for role in ("receiver", "sender"):
+            cur = getattr(self, role)
+            if not cur or cur[-2 if role == "sender" else 1].alive():
+                continue
+            sid = cur[0]
+            code = cur[-2 if role == "sender" else 1].proc.poll()
+            key = (role, sid)
+            if self.restarts.get(key, 0) < RESTARTS:
+                self.restarts[key] = self.restarts.get(key, 0) + 1
+                log.warning("%s du flux %s arrêté (code %s) : relance",
+                            "récepteur" if role == "receiver" else "émetteur", sid, code)
+                if role == "receiver":
+                    self.start_receiver(self._last_receive or {"stream": sid})
+                else:
+                    self.start_sender(self._last_emit or {})
+                continue
+            log.warning("%s du flux %s arrêté encore (code %s) : flux arrêté",
+                        "récepteur" if role == "receiver" else "émetteur", sid, code)
+            if role == "receiver":
+                self.stop_receiver()
+            else:
+                self.stop_sender()
+            self.restarts.pop(key, None)
+            try:
+                await self.client.call("audio.stop", stream=sid)
+            except Exception:  # noqa: BLE001 — pont coupé : il oubliera le flux de lui-même
+                pass
+
     # annonce et sorties virtuelles
+    def detect_sound(self):
+        """Linux : serveur de son présent ? Ailleurs, on suppose que oui (autoaudiosink)."""
+        if self.pw is None:
+            return True
+        ok = self.pw.available()
+        if ok != self.sound:
+            log.warning("serveur de son %s", "revenu" if ok else
+                        "absent : ni sortie ni source tant qu'il ne répond pas")
+        self.sound = ok
+        return ok
+
     def announcement(self):
         return {"device": self.name, "label": self.cfg.get("label") or self.name, "ip": self.ip,
-                "port": self.cfg["port"], "play": True, "system": self.system,
-                "capture": capture_elements(self.system, device=self.cfg.get("capture_device")) is not None,
+                "port": self.cfg["port"], "play": self.sound, "system": self.system,
+                "capture": self.sound and capture_elements(
+                    self.system, device=self.cfg.get("capture_device")) is not None,
                 **({"players": self.players} if self.players is not None else {})}
 
     async def announce(self):
@@ -781,6 +885,7 @@ class Agent:
             self.players = await asyncio.to_thread(self.read_players)
             if self.players is not None:
                 self._players_sent = players_snapshot(self.players)
+        await asyncio.to_thread(self.detect_sound)
         r = await self.client.call("audio.announce", **self.announcement())
         listing = await self.client.call("audio.list")
         self.devices = {d["device"]: d for d in listing.get("devices") or []
@@ -797,6 +902,8 @@ class Agent:
         """Une sortie virtuelle par appareil distant qui sait jouer ; les autres retirées."""
         if self.pw is None:
             return
+        if not self.sound:           # pas de serveur de son : rien à créer (ni à retirer)
+            return
         wanted = {sink_name(d): d for d, info in self.devices.items() if info.get("play")}
         have = self.pw.modules()
         for sink, device in wanted.items():
@@ -808,7 +915,7 @@ class Agent:
 
     async def watch_sinks(self):
         """Sortie virtuelle utilisée → envoi ; muette 10 s → arrêt."""
-        if self.pw is None:
+        if self.pw is None or not self.sound:
             return
         try:
             states = self.pw.sinks()
@@ -844,7 +951,7 @@ class Agent:
         self.client.on_event = self.on_event
         await self.client.connect()
         try:
-            if self.pw is not None:
+            if self.pw is not None and self.detect_sound():
                 self.pw.remove_all()         # restes d'un agent précédent
         except AudioError as e:
             log.warning("%s", e)
@@ -859,6 +966,7 @@ class Agent:
                     except Exception as e:  # noqa: BLE001 — pont coupé : on réessaie
                         log.warning("annonce : %s", e)
                         last = self.clock() - ANNOUNCE_EVERY + 5
+                await self.check_pipelines()
                 if self.client.online:
                     await self.watch_sinks()
                     await self.refresh_players()
@@ -875,7 +983,7 @@ class Agent:
         self.stop_sender()
         self.stop_receiver()
         try:
-            if self.pw is not None:
+            if self.pw is not None and self.sound:
                 self.pw.remove_all()
         except AudioError:
             pass
@@ -894,7 +1002,8 @@ class Agent:
 def run_agent():
     """`ccs audio agent` : tourne jusqu'à SIGTERM/SIGINT."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    missing = missing_tools()
+    # pactl absent : la machine tourne sans serveur de son (annoncée ni sortie ni source)
+    missing = [t for t in missing_tools() if t != "pactl"]
     if missing:
         raise AudioError("Manque : " + ", ".join(missing) + " (paquets gstreamer1.0-tools, "
                          "gstreamer1.0-plugins-good, gstreamer1.0-pulseaudio, pulseaudio-utils).")

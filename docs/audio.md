@@ -10,8 +10,8 @@ UDP direct entre les adresses du réseau maillé (100.64.x).
 ## 1. Annonce
 
 Pas de multicast sur Tailscale, donc pas de mDNS : chaque appareil annonce au pont du serveur ce
-qu'il sait faire, **toutes les 30 s** tant que CCS est ouvert (et, sur Linux, tant que le démon
-tourne). Le pont l'oublie **90 s** après sa dernière annonce.
+qu'il sait faire, **toutes les 30 s** tant que CCS est ouvert (et, sur Linux, tant que le service
+`ccs-audio` tourne). Le pont l'oublie **90 s** après sa dernière annonce.
 
 ```json
 → {"method": "audio.announce", "params": {
@@ -129,8 +129,19 @@ après 10 s de silence. L'appli continue d'annoncer toutes les 30 s et de suivre
 (appel, autre appli audio) : lecture reprise à la fin. Coût : un peu de batterie.
 
 Linux : `ccs audio list`, `ccs audio send <source> <sortie>`, `ccs audio stop`,
-`ccs audio receive` (au premier plan, pour essayer). Le démon CCS annonce la machine et crée les
-sorties virtuelles tout seul quand le réglage « son partagé » est actif.
+`ccs audio receive` (au premier plan, pour essayer), `ccs audio status` (diagnostic local).
+Le service utilisateur `ccs-audio` (`ccs audio enable`) annonce la machine et crée les sorties
+virtuelles tout seul quand le réglage « son partagé » est actif.
+
+- **Sans serveur de son** (`pactl info` échoue : serveur sans carte son, session non ouverte),
+  la machine s'annonce sans `play` ni `capture`, ne crée aucune sortie virtuelle et refuse les
+  ordres `receive`/`emit`. L'état est relu à chaque annonce : PipeWire revenu, tout repart.
+  Seul `gst-launch-1.0` est obligatoire pour lancer le service ; `pactl` absent vaut « pas de son ».
+- **Pipeline mort** (gst-launch arrêté : sortie débranchée, appareil disparu) : relancé une fois
+  avec le même ordre ; s'il meurt encore, le flux est arrêté et signalé au pont (`audio.stop`).
+  Les erreurs de GStreamer vont dans le journal du service (`journalctl --user -u ccs-audio`).
+- `ccs audio status` affiche les réglages, les outils manquants, l'adresse dans le réseau maillé,
+  la présence du serveur de son, les sorties virtuelles `ccs_audio_*` et l'état du service.
 
 ## 6. Lecteurs : piloter VLC, Firefox… à distance
 

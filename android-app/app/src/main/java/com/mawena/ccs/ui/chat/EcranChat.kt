@@ -170,7 +170,15 @@ fun EcranChat(
     val ouvre = remember(fichiers, mc.cwd) { OuvreFichier(LiensFichiers(mc.cwd, fichiers), ouvrirFichier) }
 
     val titre = dest.titre ?: Format.base(mc.cwd)
-    CompositionLocalProvider(LocalOuvreFichier provides ouvre) {
+    // chat riche (phase 49) : images, lecteurs et blocs ccs ; boutons inactifs dans la vue d'un sous-agent
+    val enSousAgent = vue.agentVu != null
+    val riche = remember(mc, mc.cwd, enSousAgent) {
+        Riche(
+            mc.cwd, modele.depot.client, modele.depot.http, java.io.File(modele.depot.appli.cacheDir, "riche"),
+            if (enSousAgent) null else { t: String -> mc.envoyerTexte(t) },
+        )
+    }
+    CompositionLocalProvider(LocalOuvreFichier provides ouvre, LocalRiche provides riche) {
     Column(Modifier.fillMaxSize().imePadding()) {
         BarreHaut(
             titre, ETATS[vue.etat]?.takeIf { vue.pret } ?: Format.base(mc.cwd), retour = retour,

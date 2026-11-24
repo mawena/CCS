@@ -59,3 +59,37 @@ def web_link(url):
     """Lien http(s) gardé, tout autre schéma refusé (chaîne vide)."""
     url = _str(url).strip()
     return url if re.match(r"^https?://", url, re.I) else ""
+
+
+def remote_src(src):
+    """Adresse https d'une image ou d'un média gardée telle quelle, sinon chaîne vide."""
+    src = _str(src).strip()
+    return src if re.match(r"^https://", src, re.I) else ""
+
+
+def form_fields(spec):
+    """Champs d'un formulaire : {cle, label, type, options, valeur, aide} pour chaque objet de
+    `champs` (le reste est ignoré). `cle` : `nom`, à défaut `label`."""
+    out = []
+    for f in spec.get("champs") or []:
+        if not isinstance(f, dict):
+            continue
+        options = f.get("options")
+        out.append({"cle": _str(f["nom"] if f.get("nom") is not None else f.get("label")),
+                    "label": _str(f.get("label") or f.get("nom")),
+                    "type": _str(f.get("type")) or "texte",
+                    "options": [_str(o) for o in options] if isinstance(options, list) else [],
+                    "valeur": None if f.get("valeur") is None else _str(f["valeur"]),
+                    "aide": _str(f.get("aide"))})
+    return out
+
+
+def form_message(spec, values):
+    """Message envoyé par un formulaire : le titre, puis « - Libellé : valeur » par champ rempli
+    (`values` : {cle: texte}). Même texte que la version web (formMessage)."""
+    lines = [_str(spec["titre"])] if spec.get("titre") else []
+    for f in form_fields(spec):
+        v = _str(values.get(f["cle"])).strip()
+        if v:
+            lines.append(f"- {f['label']} : {v}")
+    return "\n".join(lines)

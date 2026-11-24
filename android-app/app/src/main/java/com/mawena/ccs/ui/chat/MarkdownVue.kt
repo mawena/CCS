@@ -48,6 +48,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mawena.ccs.logique.ChatRiche
 import com.mawena.ccs.logique.Coloration
 import com.mawena.ccs.logique.LiensFichiers
 import com.mawena.ccs.logique.Markdown
@@ -153,8 +154,9 @@ private fun BlocVue(b: Markdown.Bloc) {
     val lien = MaterialTheme.colorScheme.primary
     val ouvre = LocalOuvreFichier.current
     val cc = couleursCode()
+    val riche = LocalRiche.current
     when (b) {
-        is Markdown.Paragraphe -> Text(remember(b, lien, ouvre) { annoter(b.contenu, lien, cc.fond, ouvre) }, style = MaterialTheme.typography.bodyMedium)
+        is Markdown.Paragraphe -> ContenuRiche(b.contenu, MaterialTheme.typography.bodyMedium)
         is Markdown.Titre -> Text(
             remember(b, lien, ouvre) { annoter(b.contenu, lien, cc.fond, ouvre) },
             style = when (b.niveau) {
@@ -171,11 +173,15 @@ private fun BlocVue(b: Markdown.Bloc) {
                     val marque = when (e.coche) { true -> "☑"; false -> "☐"; null -> e.marque }
                     Text(marque, Modifier.width(if (e.marque.length > 2) 30.dp else 20.dp), style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(remember(e, lien, ouvre) { annoter(e.contenu, lien, cc.fond, ouvre) }, style = MaterialTheme.typography.bodyMedium)
+                    ContenuRiche(e.contenu, MaterialTheme.typography.bodyMedium, Modifier.weight(1f))
                 }
             }
         }
-        is Markdown.Code -> BlocCode(b.texte, b.langue)
+        is Markdown.Code -> {
+            // Bloc ```ccs valide dans le chat : un composant (choix, formulaire, cartes) ; sinon du code.
+            val comp = remember(b, riche != null) { if (riche != null && b.langue == "ccs") ChatRiche.analyser(b.texte) else null }
+            if (comp != null) ComposantVue(comp) else BlocCode(b.texte, b.langue)
+        }
         is Markdown.Citation -> Row(Modifier.height(IntrinsicSize.Min).padding(vertical = 2.dp)) {
             Box(Modifier.width(3.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outline, RoundedCornerShape(2.dp)))
             Column(Modifier.padding(start = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

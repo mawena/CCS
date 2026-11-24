@@ -19,6 +19,10 @@ Fournisseurs connus : `PRESETS` (OpenRouter, DeepSeek), complétés ou remplacé
               "models": [["Qwen3 Coder 30B", "qwen3-coder:30b"]]}}
 
 `key_file` null : service sans clé (Ollama local).
+
+`"api": "openai"` : service qui ne parle que l'API OpenAI (Venice…). `base_url` est alors
+l'adresse OpenAI (…/v1) ; claude passe par le proxy local de CCS (openai_proxy.py), lancé à la
+demande et arrêté avec la dernière session. `extra_body` : champs ajoutés à chaque requête.
 """
 
 import json
@@ -73,7 +77,23 @@ PRESETS = {
             ["DeepSeek V4 Pro (1,32/3,96 $)", "deepseek-v4-pro"],
         ],
     },
+    # API seulement compatible OpenAI : par le proxy local (openai_proxy.py). Modèles peu filtrés
+    # avec appel d'outils ; sans l'invite système de Venice, qui gênerait celle de Claude Code.
+    "venice": {
+        "label": "Venice",
+        "api": "openai",
+        "base_url": "https://api.venice.ai/api/v1",
+        "key_file": "~/.config/venice/cle",
+        "default_model": "glm-5-3-flash-uncensored",
+        "extra_body": {"venice_parameters": {"include_venice_system_prompt": False}},
+        "models": [
+            ["GLM 5.3 Flash Uncensored (défaut)", "glm-5-3-flash-uncensored"],
+            ["DeepSeek V4.1 Flash 1017 Uncensored", "deepseek-v4-1-flash-1017-uncensored"],
+            ["Venice Uncensored 1.2", "venice-uncensored"],
+        ],
+    },
 }
+APIS = ("anthropic", "openai")
 
 
 @dataclass(frozen=True)
@@ -85,6 +105,15 @@ class Provider:
     default_model: str | None = None
     models: tuple = field(default_factory=tuple)   # (libellé, identifiant)
     models_url: str | None = None
+    api: str = "anthropic"            # « openai » : par le proxy local
+    extra_body: dict | None = field(default=None, hash=False, compare=False)
+
+    def claude_url(self):
+        """Adresse donnée à claude : le service lui-même, ou le proxy local pour OpenAI."""
+        if self.api == "openai":
+            from . import openai_proxy
+            return openai_proxy.url_for(self.name)
+        return self.base_url
 
     def key_path(self):
         return os.path.expanduser(self.key_file) if self.key_file else None
@@ -119,8 +148,12 @@ def _build(name, raw):
         if isinstance(item, (list, tuple)) and len(item) == 2 and all(isinstance(x, str) for x in item):
             models.append((item[0], item[1]))
     default = raw.get("default_model") or (models[0][1] if models else None)
+    api = str(raw.get("api") or "anthropic").casefold()
+    if api not in APIS:
+        raise ValueError(f"fournisseur « {name} » : api inconnue {api!r} ({', '.join(APIS)})")
+    extra = raw.get("extra_body") if isinstance(raw.get("extra_body"), dict) else None
     return Provider(name, str(raw.get("label") or name), str(raw["base_url"]).rstrip("/"),
-                    raw.get("key_file"), default, tuple(models), raw.get("models_url"))
+                    raw.get("key_file"), default, tuple(models), raw.get("models_url"), api, extra)
 
 
 def load():
@@ -172,7 +205,7 @@ def key_problem(provider):
 def settings(provider, model=None):
     """Réglages de `claude --settings` pour ce fournisseur (dict)."""
     model = model or provider.default_model
-    env = {MARK: provider.name, "ANTHROPIC_BASE_URL": provider.base_url,
+    env = {MARK: provider.name, "ANTHROPIC_BASE_URL": provider.claude_url(),
            # une clé Anthropic de l'environnement passerait avant celle du fournisseur
            "ANTHROPIC_API_KEY": ""}
     if model:
@@ -199,6 +232,10 @@ def claude_args(name, model=None, check=True):
         problem = key_problem(provider)
         if problem:
             raise ValueError(f"{provider.label} : {problem}")
+        if provider.api == "openai":
+            # le proxy part maintenant ; il s'arrêtera seul après la dernière session
+            from . import openai_proxy
+            openai_proxy.ensure_running()
     model = model or provider.default_model
     args = ["--settings", json.dumps(settings(provider, model), ensure_ascii=False, separators=(",", ":"))]
     if model:
@@ -282,7 +319,7 @@ def choices():
 # Commande « ccs provider »
 # --------------------------------------------------------------------------
 
-USAGE = """usage : ccs provider [list | show <nom> | models <nom> [mots…] | key <nom> | test <nom> [modèle]]
+USAGE = """usage : ccs provider [list | show <nom> | models <nom> [mots…] | key <nom> | test <nom> [modèle] | proxy [stop]]
 
   list                 fournisseurs connus, adresse, état de la clé (défaut)
   show <nom>           détail et modèles proposés
@@ -290,6 +327,7 @@ USAGE = """usage : ccs provider [list | show <nom> | models <nom> [mots…] | ke
                        « free » pour les gratuits)
   key <nom>            enregistre la clé (lue sans écho, ou sur l'entrée standard), droits 600
   test <nom> [modèle]  envoie « ok » au modèle par claude et affiche la réponse
+  proxy [stop]         état du proxy local des services OpenAI (Venice…), ou arrêt
 
 Ajouter un fournisseur : {path}
 Utiliser : ccs task add "…" --provider openrouter [--model <modèle>] ; dans l'appli et sur le
@@ -300,14 +338,16 @@ def _list(out):
     for name, p in sorted(load().items()):
         problem = key_problem(p)
         state = "clé prête" if not problem else problem
-        print(f"{name:<12} {p.label:<14} {p.base_url}", file=out)
+        via = " (OpenAI, par le proxy local)" if p.api == "openai" else ""
+        print(f"{name:<12} {p.label:<14} {p.base_url}{via}", file=out)
         print(f"{'':<12} modèle par défaut : {p.default_model or '—'} ; {state}", file=out)
     return 0
 
 
 def _show(name, out):
     p = get(name)
-    print(f"{p.label} ({p.name})\n  adresse : {p.base_url}\n  clé : {p.key_path() or 'aucune'}"
+    via = f" (API OpenAI, par le proxy {p.claude_url()})" if p.api == "openai" else ""
+    print(f"{p.label} ({p.name})\n  adresse : {p.base_url}{via}\n  clé : {p.key_path() or 'aucune'}"
           f" — {key_problem(p) or 'prête'}\n  modèle par défaut : {p.default_model or '—'}", file=out)
     for label, model in p.models:
         print(f"  • {label:<44} {model}", file=out)
@@ -398,6 +438,9 @@ def command(argv, out=None):
     try:
         if action in ("list", "liste", "ls"):
             return _list(out)
+        if action == "proxy":
+            from . import openai_proxy
+            return openai_proxy.main(["stop" if argv[:1] == ["stop"] else "status"])
         if action in ("help", "aide", "-h", "--help"):
             print(USAGE.format(path=config_path()), file=out)
             return 0

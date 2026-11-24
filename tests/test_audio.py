@@ -12,6 +12,10 @@ class FakePw:
         self.mods = {}
         self.states = {}
         self.created = []
+        self.up = True
+
+    def available(self):
+        return self.up
 
     def sinks(self):
         return dict(self.states)
@@ -200,6 +204,68 @@ class AgentTest(unittest.IsolatedAsyncioTestCase):
         await a.watch_sinks()
         self.assertIsNone(a.sender)
         self.assertEqual(a.client.calls[-1], ("audio.stop", {"stream": "a3"}))
+
+    async def test_pipeline_mort_relance_puis_flux_arrete(self):
+        a = self.agent
+        a.on_event("audio", {"action": "receive", "device": "pc-bureau", "stream": "a5", "from": "iphone"})
+        self.procs[-1].done = 1                             # gst-launch mort (sortie son partie…)
+        await a.check_pipelines()
+        self.assertEqual(len(self.procs), 2)                # relancé une fois
+        self.assertEqual(a.receiver[0], "a5")
+        self.assertIn("udpsrc", self.procs[-1].argv)
+        self.assertEqual(a.client.calls, [])
+        self.procs[-1].done = 1
+        await a.check_pipelines()
+        self.assertIsNone(a.receiver)                       # mort encore : flux arrêté au pont
+        self.assertEqual(a.client.calls, [("audio.stop", {"stream": "a5"})])
+        await a.check_pipelines()                           # plus rien à surveiller
+        self.assertEqual(len(a.client.calls), 1)
+
+    async def test_emetteur_mort_relance_vers_la_meme_cible(self):
+        a = self.agent
+        a.on_event("audio", {"action": "emit", "device": "pc-bureau", "stream": "a6", "to": "iphone",
+                             "ip": "100.64.0.4", "port": 4010})
+        self.procs[-1].done = 1
+        await a.check_pipelines()
+        self.assertEqual(a.sender[:2], ("a6", "iphone"))
+        self.assertIn("host=100.64.0.4", self.procs[-1].argv)
+        self.procs[-1].done = 1
+        await a.check_pipelines()
+        self.assertIsNone(a.sender)
+        self.assertEqual(a.client.calls, [("audio.stop", {"stream": "a6"})])
+
+    async def test_sans_serveur_de_son(self):
+        a = self.agent
+        self.pw.up = False
+        self.assertFalse(a.detect_sound())
+        ann = a.announcement()
+        self.assertEqual((ann["play"], ann["capture"]), (False, False))
+        a.sync_sinks()
+        self.assertEqual(self.pw.created, [])               # pas de sorties virtuelles
+        a.on_event("audio", {"action": "receive", "device": "pc-bureau", "stream": "a7"})
+        a.on_event("audio", {"action": "emit", "device": "pc-bureau", "stream": "a8", "to": "iphone",
+                             "ip": "100.64.0.4", "port": 4010})
+        self.assertEqual((a.receiver, a.sender, self.procs), (None, None, []))
+        self.pw.up = True                                   # PipeWire revenu (session ouverte)
+        self.assertTrue(a.detect_sound())
+        ann = a.announcement()
+        self.assertEqual((ann["play"], ann["capture"]), (True, True))
+        a.sync_sinks()
+        self.assertEqual(self.pw.created, [("iphone", "iPhone")])
+
+    async def test_annonce_relit_le_serveur_de_son(self):
+        a = self.agent
+        a.mpris = None
+        self.pw.up = False
+        seen = []
+
+        class Client(FakeClient):
+            async def call(self, method, **params):
+                seen.append((method, params))
+                return {"devices": [], "streams": []} if method == "audio.list" else {}
+        a.client = Client()
+        await a.announce()
+        self.assertFalse(seen[0][1]["play"])
 
 
 def faux_lecteur(nom="VLC", statut="Playing", volume=0.5, peut_avancer=True):
@@ -450,6 +516,46 @@ class PipewireTest(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0, "", "")
         audio.Pipewire(run).create("iphone", "iPhone de Charles")
         self.assertEqual(calls[0][-1], """sink_properties='device.description="iPhone de Charles"'""")
+
+
+class EtatTest(unittest.TestCase):
+    def run_ok(self, argv, **kw):
+        import subprocess
+        self.argvs.append(argv)
+        if argv[:2] == ["systemctl", "--user"]:
+            return subprocess.CompletedProcess(argv, 0, "active\n", "")
+        if argv[:2] == ["pactl", "info"] and not self.up:
+            return subprocess.CompletedProcess(argv, 1, "", "Connection refused")
+        if argv[:2] == ["pactl", "list"]:
+            out = "7\tmodule-null-sink\tsink_name=ccs_audio_iphone sink_properties=...\n" \
+                if argv[-1] == "modules" else ""
+            return subprocess.CompletedProcess(argv, 0, out, "")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    def setUp(self):
+        self.argvs, self.up = [], True
+        self.status = {"self": {"name": "pc-bureau", "ips": ["100.64.0.2"]}}
+
+    def test_tout_va_bien(self):
+        lines = audio.check({"active": True, "port": 4010, "label": "PC"}, which=lambda t: "/usr/bin/" + t,
+                            system="linux", status=self.status, run=self.run_ok)
+        text = "\n".join(lines)
+        self.assertIn("actif (port UDP 4010, nom « PC »)", text)
+        self.assertIn("pc-bureau (100.64.0.2)", text)
+        self.assertIn("Serveur de son : présent", text)
+        self.assertIn("ccs_audio_iphone", text)
+        self.assertIn("ccs-audio.service : active", text)
+
+    def test_serveur_sans_son(self):
+        self.up = False
+        lines = audio.check({"active": False, "port": 4010, "label": ""}, which=lambda t: None,
+                            system="linux", status={}, run=self.run_ok)
+        text = "\n".join(lines)
+        self.assertIn("manque gst-launch-1.0, pactl", text)
+        self.assertIn("Serveur de son : aucun", text)
+        self.assertIn("pas dans le réseau maillé", text)
+        self.assertFalse(any(a[0] == "systemctl" for a in self.argvs))   # inactif : pas demandé
+        self.assertFalse(any(a[:2] == ["pactl", "info"] for a in self.argvs))  # pactl absent
 
 
 class AutresSystemesTest(unittest.TestCase):
