@@ -13,8 +13,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   en relation (`audio.announce`, `audio.list`, `audio.send`, `audio.stop`, `audio.forget`) ; le son
   passe en RTP/Opus, en UDP direct entre les adresses 100.64.x (port 4010). Protocole :
   `docs/audio.md`.
-- Linux : `ccs audio lister | envoyer <source> <sortie> | arreter | activer | desactiver |
-  recevoir`, service utilisateur `ccs-audio` (désactivé par défaut). Chaque appareil distant
+- Linux : `ccs audio list | send <source> <sortie> | stop | enable | disable |
+  receive`, service utilisateur `ccs-audio` (désactivé par défaut). Chaque appareil distant
   apparaît comme une sortie PipeWire (« iPhone de Charles ») : la choisir dans les réglages du son
   lance l'envoi, ne plus s'en servir l'arrête après 10 s. GStreamer pour le son.
 - macOS et Windows : le même agent (`ccs audio agent`) joue le son reçu ; source par BlackHole
