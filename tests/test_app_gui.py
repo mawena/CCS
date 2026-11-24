@@ -104,7 +104,7 @@ class ShowSessionActionTest(unittest.TestCase):
         import inspect
         source = inspect.getsource(self.appmod.Window.__init__)
         from ccs_app import desktop
-        self.assertEqual(desktop.PAGES, ("home", "sessions", "network", "files", "jarvis", "analysis"))
+        self.assertEqual(desktop.PAGES, ("home", "sessions", "network", "son", "files", "jarvis", "analysis"))
         for name in desktop.PAGES:
             self.assertIn(f'"{name}"', source)
         self.assertNotIn('"conversations"', source)
