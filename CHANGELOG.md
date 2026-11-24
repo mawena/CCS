@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.15.0] — 2026-11-25
+
 ### Ajouté
 
 - **Lecteurs pilotés à distance** : les lecteurs audio MPRIS des PC Linux (VLC, Firefox…) se
