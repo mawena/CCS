@@ -333,7 +333,10 @@ class ChatHub:
         return {}
 
     async def providers(self, _conn, _params):
-        return {"providers": await asyncio.to_thread(provider_list)}
+        def work():
+            return {"providers": provider_list(),
+                    "form": chat_options.new_session_form(settings.load_settings())}
+        return await asyncio.to_thread(work)
 
     async def interrupt(self, _conn, params):
         await asyncio.to_thread(self._get(params).engine.interrupt)

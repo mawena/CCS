@@ -1,13 +1,13 @@
 // « Nouvelle session » comme au bureau : dossier (récents, dépôts git du disque, chemin tapé),
-// compte, modèle et droits. Le compte demande une bascule globale (accounts.switch) avant
-// l'ouverture, comme le bureau ; la feuille le dit.
+// compte, fournisseur, modèle, effort et droits, dans cet ordre. Les listes et les droits par
+// défaut viennent du pont (chat.providers → form, chat_options.new_session_form), les mêmes que
+// le bureau. Le compte demande une bascule globale (accounts.switch) avant l'ouverture, comme le
+// bureau ; la feuille le dit.
 import { clear, el, errorState, loading } from "./dom.js";
 import { sheet } from "./sessions-conv.js";
 
 const RECENT_KEY = "ccs-recent-folders";
-const MODELS = [["", "Par défaut"], ["opus", "Opus"], ["sonnet", "Sonnet"], ["haiku", "Haiku"], ["fable", "Fable"]];
-const RIGHTS = [["manual", "Demander"], ["acceptEdits", "Modifications acceptées"], ["plan", "Plan"],
-  ["bypassPermissions", "Tout autoriser"]];
+const DEFAULT = [["", "Par défaut"]];       // en attendant le pont
 const SHOWN = 30;
 
 export function recentFolders() {
@@ -22,7 +22,9 @@ export function rememberFolder(path) {
 
 const short = (p, home) => (home && p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p);
 
-// known : dossiers de projets connus [{ path, name }] ; onOpen(cwd, { model, rights, provider }) ; onTerm(cwd).
+const options = (select, list) => clear(select).append(...list.map(([v, t]) => el("option", { value: v }, t)));
+
+// known : dossiers de projets connus [{ path, name }] ; onOpen(cwd, { model, effort, rights, provider }) ; onTerm(cwd).
 export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
   const folder = el("input", { type: "text", value: initial, placeholder: "~/Repo/projet", "aria-label": "Dossier de la session",
     autocapitalize: "off", autocomplete: "off", spellcheck: "false", enterkeyhint: "go" });
@@ -30,7 +32,10 @@ export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
   const warn = el("p", { class: "notice warning", hidden: true }, "La bascule s'applique à toutes les sessions ouvertes.");
   const account = el("select", { "aria-label": "Compte Claude" });
   const accountBox = el("label", { hidden: true }, "Compte Claude", account, hint, warn);
-  const model = el("select", { "aria-label": "Modèle" }, ...MODELS.map(([v, t]) => el("option", { value: v }, t)));
+  let form = { models: DEFAULT, efforts: DEFAULT, rights: [], default_rights: "manual", dangerous: [] };
+  const model = el("select", { "aria-label": "Modèle" });
+  const effort = el("select", { "aria-label": "Effort" });
+  const effortBox = el("label", {}, "Effort", effort);
   // Fournisseur : Claude, ou un autre service (OpenRouter…) ; ses modèles remplacent ceux de Claude
   const provider = el("select", { "aria-label": "Fournisseur" }, el("option", { value: "claude" }, "Claude"));
   const providerNote = el("p", { class: "notice warning", hidden: true });
@@ -39,21 +44,34 @@ export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
   const current = () => providers.find((p) => p.name === provider.value);
   const refreshProvider = () => {
     const p = current();
-    const list = p && p.name !== "claude" ? p.models : MODELS;
-    clear(model).append(...list.map(([v, t]) => el("option", { value: v }, t)));
+    const other = p && p.name !== "claude";
+    options(model, other ? p.models : form.models);
+    effortBox.hidden = other;              // l'effort est propre aux modèles Claude
     providerNote.hidden = !p?.problem;
     providerNote.textContent = p?.problem || "";
   };
   provider.addEventListener("change", refreshProvider);
-  api.call("chat.providers").then((r) => {
-    providers = r.providers || [];
-    if (providers.length < 2) return;
-    clear(provider).append(...providers.map((p) => el("option", { value: p.name }, p.label)));
-    providerBox.hidden = false;
-  }, () => {});
-  const rights = el("select", { "aria-label": "Droits" }, ...RIGHTS.map(([v, t]) => el("option", { value: v }, t)));
+  const rights = el("select", { "aria-label": "Droits" });
   const danger = el("p", { class: "notice error", hidden: true }, "Claude pourra tout faire sans rien demander : à réserver à un dossier jetable.");
-  rights.addEventListener("change", () => { danger.hidden = rights.value !== "bypassPermissions"; });
+  const refreshDanger = () => { danger.hidden = !form.dangerous.includes(rights.value); };
+  rights.addEventListener("change", refreshDanger);
+  options(model, form.models);
+  options(effort, form.efforts);
+  api.call("chat.providers").then((r) => {
+    if (r.form) {
+      form = r.form;
+      options(effort, form.efforts);
+      options(rights, form.rights);
+      rights.value = form.default_rights;
+      refreshDanger();
+    }
+    providers = r.providers || [];
+    if (providers.length > 1) {
+      options(provider, providers.map((p) => [p.name, p.label]));
+      providerBox.hidden = false;
+    }
+    refreshProvider();
+  }, () => {});
   const picker = el("div", { class: "folder-picker" });
   const msg = el("p", { class: "message", role: "alert" });
 
@@ -129,16 +147,17 @@ export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
       }
       if (current()?.problem) { msg.textContent = current().problem; return; }
       const chosen = provider.value && provider.value !== "claude" ? provider.value : null;
-      const ok = await onOpen(path, { model: model.value || null, rights: rights.value, provider: chosen });
+      const ok = await onOpen(path, { model: model.value || null, effort: chosen ? null : effort.value || null,
+        rights: rights.value || form.default_rights, provider: chosen });
       if (ok !== false) { rememberFolder(path); close(); }
     } catch (e) { msg.textContent = e.message; } finally { go.disabled = false; }
   };
   const term = el("button", { type: "button", onclick: () => { const p = folder.value.trim(); if (!p) { msg.textContent = "Choisis ou tape un dossier."; return; } rememberFolder(p); close(); onTerm(p); } }, "Terminal");
   const go = el("button", { type: "button", class: "primary", onclick: open }, "Ouvrir un chat");
-  const form = el("form", { class: "new-sheet", onsubmit: (e) => { e.preventDefault(); open(); } },
+  const sheetForm = el("form", { class: "new-sheet", onsubmit: (e) => { e.preventDefault(); open(); } },
     el("label", {}, "Dossier", folder), picker, accountBox, providerBox,
-    el("div", { class: "two" }, el("label", {}, "Modèle", model), el("label", {}, "Droits", rights)), danger, msg);
-  const { close } = sheet("Nouvelle session", form, [el("button", { type: "button", class: "flat", onclick: () => close() }, "Annuler"), term, go]);
+    el("div", { class: "two" }, el("label", {}, "Modèle", model), effortBox), el("label", {}, "Droits", rights), danger, msg);
+  const { close } = sheet("Nouvelle session", sheetForm, [el("button", { type: "button", class: "flat", onclick: () => close() }, "Annuler"), term, go]);
 
   renderPicker();
   loadRepos();

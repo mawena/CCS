@@ -3,6 +3,30 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Corrigé
+
+- **Nouvelle session au bureau** : la fenêtre des paramètres ne s'affichait pas dans la plupart
+  des cas. Le bouton « Nouvelle session » d'un projet et « Nouvelle session » d'un chat au cache
+  expiré ouvraient directement un chat, sans dialogue (seul « Avec des options… » du menu le
+  montrait) ; lancé par `ccs appli --nouvelle-session`, le dialogue pouvait être présenté avant
+  que la fenêtre n'apparaisse. Désormais, comme au web, tout nouveau chat passe par le dialogue,
+  présenté seulement une fois la fenêtre affichée.
+
+### Modifié
+
+- **Dialogue « Nouvelle session » du bureau aligné sur le web** : mêmes champs dans le même
+  ordre (dossier, compte, fournisseur, modèle, effort, droits), mêmes valeurs par défaut (droits
+  des réglages `chat.rights`, « Demander » sinon) et mêmes boutons (Annuler, Terminal, Ouvrir un
+  chat). Les listes viennent d'une source commune, `chat_options.new_session_form`, envoyée au
+  web par `chat.providers` (fini les listes en dur dans `sessions-new.js`).
+
+### Ajouté
+
+- **Effort dans la Nouvelle session** (bureau et web) : niveau de réflexion choisi à
+  l'ouverture (`--effort`), caché pour un autre fournisseur que Claude.
+
 ## [1.13.0] — 2026-11-24
 
 ### Ajouté

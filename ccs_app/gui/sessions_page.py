@@ -590,7 +590,7 @@ class SessionsPage(Adw.BreakpointBin):
     def new_session_button(self, e, embedded):
         menu = Gio.Menu()
         cwd = GLib.Variant.new_string(e.cwd)
-        entries = [("Avec des options…", "sess.new", cwd)]
+        entries = []
         if embedded:
             entries.append(("Dans un terminal externe", "sess.external", pair(e.cwd)))
         entries += [("Terminal ici", "sess.terminal", cwd), ("Ouvrir le dossier", "sess.folder", cwd),
@@ -601,9 +601,9 @@ class SessionsPage(Adw.BreakpointBin):
             menu.append_item(item)
         new = Adw.SplitButton(label="Nouvelle session", menu_model=menu, valign=Gtk.Align.CENTER,
                               sensitive=e.exists, css_classes=["suggested-action"],
-                              tooltip_text="Nouvelle session dans l'application" if embedded
-                              else "Nouvelle session dans un terminal")
-        new.connect("clicked", lambda *_: self.start(e.cwd))
+                              tooltip_text="Nouvelle session : compte, modèle, effort et droits au choix")
+        # Comme « Nouveau chat » du web : toujours par le dialogue des paramètres
+        new.connect("clicked", lambda *_: self.window.new_session(e.cwd))
         return new
 
     # ---- actions -------------------------------------------------------------

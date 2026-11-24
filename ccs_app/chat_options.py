@@ -134,6 +134,22 @@ def default_rights(settings):
     return value if value in RIGHT_VALUES else "manual"
 
 
+def new_session_form(settings):
+    """Champs de « Nouvelle session », communs au bureau et au web (source unique des listes).
+
+    Ordre d'affichage : dossier, compte, fournisseur, modèle, effort, droits (les dossiers,
+    comptes et fournisseurs viennent d'ailleurs : sessions, project_accounts, providers).
+    Valeurs en [valeur, libellé] ; « » : réglage de Claude Code. L'effort ne vaut que pour
+    les modèles Claude ; les droits par défaut sont ceux des réglages (`chat.rights`)."""
+    return {
+        "models": [[v or "", label] for label, v in MODELS],
+        "efforts": [["", "Par défaut"]] + [[e, EFFORT_LABELS[e]] for e in EFFORTS],
+        "rights": [[v, label] for label, v in RIGHTS],
+        "default_rights": default_rights(settings),
+        "dangerous": sorted(launch_options.DANGEROUS_MODES),
+    }
+
+
 def with_default_rights(options, extra_args, settings):
     """`options` complétées des droits par défaut, sauf si `extra_args` fixe `--permission-mode`."""
     args = [a for a in (extra_args or ()) if isinstance(a, str)]
