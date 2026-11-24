@@ -1,6 +1,7 @@
 # Feuille de route — CCS
 
-Plusieurs comptes Claude Code sur un PC Linux, comme un seul. Détails de chaque
+Claude Code partout : tous les appareils (bureau, web, Android, iPhone), toutes les machines
+(réseau maillé, calcul réparti), tous les comptes (comme un seul). Détails de chaque
 version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`. Phases terminées
 (1 à 35, 38, 39, 41, correctifs) : `docs/ROADMAP-fait.md`.
 

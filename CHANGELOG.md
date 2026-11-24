@@ -19,6 +19,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ### Modifié
 
+- Descriptions de CCS revues partout (README, site, paquets, page man, aide, appli web, dépôt
+  GitHub) : CCS n'est plus seulement un outil multi-comptes, mais Claude Code partout — appareils,
+  machines et comptes.
+
 - Bureau, onglet Réseau au niveau du web (phase 44) : « Appareils » donne une fiche dépliable par
   appareil du réseau maillé (genre, en ligne ou non, chemin réel, adresse à copier, adresses
   publiées avec leur type, trafic, « Mesurer », « Renommer », « Retirer du réseau » confirmé), la
