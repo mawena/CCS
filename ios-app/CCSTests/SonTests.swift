@@ -79,7 +79,7 @@ final class SonTests: XCTestCase {
 
     func testTamponDebordeEtBoucle() {
         var g = TamponGigue(depart: 3, maximum: 7)
-        for i in 0..<10 { g.ajouter(sequence: UInt16(0xFFFA &+ i), t(UInt8(i))) }   // passe par 0
+        for i in 0..<10 { g.ajouter(sequence: UInt16(0xFFFA) &+ UInt16(i), t(UInt8(i))) }   // passe par 0
         // à la 8e trame (140 ms dépassés), on est revenu à 3 trames d'avance : les 5 premières sautées
         XCTAssertEqual(g.avance, 5)
         XCTAssertEqual(g.jetees, 5)
