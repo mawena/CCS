@@ -12,7 +12,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   Android) : nom, morceau, ⏮ ⏯ ⏭, ±10 s, volume. En ligne de commande : `ccs audio players
   [appareil]` et `ccs audio control [--device …] [lecteur] play|pause|toggle|next|prev|seek ±N|volume
   0-100`. Pont : `audio.report`, `audio.players`, `audio.control` (`docs/audio.md`).
-- **iPhone et Android, onglet « Son »** dans la barre principale, juste après Réseau (partage du
+- **Onglet « Son » sur le web, le bureau, l’iPhone et Android** dans la barre principale, juste après Réseau (partage du
   son et lecteurs) ; l'entrée Son de l'onglet Plus disparaît.
 
 - **iPhone, « Rester à l'écoute »** (écran Son, désactivé par défaut) : le récepteur reste ouvert

@@ -107,12 +107,12 @@ class NavigationTest(HomeTestCase):
             self.addCleanup(win.destroy)
         applied.assert_called_once_with("sombre")
 
-    def test_six_tabs_in_order(self):
+    def test_seven_tabs_in_order(self):
         pages = self.win.stack.get_pages()
         titles = [(pages.get_item(i).get_name(), pages.get_item(i).get_title())
                   for i in range(pages.get_n_items())]
         self.assertEqual(titles, [("home", "Accueil"), ("sessions", "Sessions"), ("network", "Réseau"),
-                                  ("files", "Fichiers"), ("jarvis", "Jarvis"), ("analysis", "Analyse")])
+                                  ("son", "Son"), ("files", "Fichiers"), ("jarvis", "Jarvis"), ("analysis", "Analyse")])
 
     def test_network_tab_lists_mesh_devices(self):
         from ccs_app.gui.network_page import MeshApi, MeshGroup
@@ -129,7 +129,7 @@ class NavigationTest(HomeTestCase):
         self.assertIn("Stopped", group.get_description())
 
     def test_network_tab_lists_sound_devices(self):
-        from ccs_app.gui.network_page import SoundGroup
+        from ccs_app.gui.son_page import SoundGroup
         calls = []
         listing = {"devices": [
             {"device": "iphone", "label": "iPhone", "ip": "100.64.0.4", "play": True, "capture": True, "system": "ios"},
@@ -251,7 +251,7 @@ class NavigationTest(HomeTestCase):
         app2 = self.appmod.App()
         with mock.patch.object(self.appmod, "Window", return_value=self.win):
             app2.window()
-        for key, tab in enumerate(("home", "sessions", "network", "files", "jarvis", "analysis"), 1):
+        for key, tab in enumerate(("home", "sessions", "network", "son", "files", "jarvis", "analysis"), 1):
             self.assertEqual(app2.get_actions_for_accel(f"<Control>{key}"), [f"win.show-tab::{tab}"])
         self.assertEqual(app2.get_actions_for_accel("<Control>comma"), ["win.prefs"])
         for tab in ("analysis", "sessions", "home"):

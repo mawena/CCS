@@ -6,7 +6,7 @@
   « Renommer » et « Retirer du réseau » (confirmé). La machine de calcul Ricochet qui lui
   correspond s'y rattache (charge, mémoire, places et limite) ; celle hors du réseau maillé a sa
   propre fiche, comme sur le web.
-- « Son partagé » et « Lecteurs » (son_page.py, `audio.*`), puis « Travaux », « Lancer une commande »,
+- « Travaux », « Lancer une commande »,
   « Ajouter un appareil » (PC Linux par lien Ricochet ou par clé jetable, Android, iPhone) et
   « Secours Ricochet » (MachinesPage).
 
@@ -23,7 +23,6 @@ from gi.repository import Adw, GLib, Gtk, Pango
 from .. import audio, network
 from .machines_page import REFRESH_S, MachinesPage, machine_subtitle
 from .servers_group import _threaded
-from .son_page import PlayersGroup, SoundGroup  # noqa: F401  (SoundGroup : ancien chemin)
 
 PATHS = {"self": "Serveur CCS", "lan": "Réseau local", "direct": "Direct par internet",
          "relay": "Relais du VPS", "ricochet": "Par Ricochet", "idle": "En veille",
@@ -532,19 +531,16 @@ class AddDeviceGroup(Adw.PreferencesGroup):
 
 
 class NetworkPage(MachinesPage):
-    """Ordre du web : Appareils, (Son partagé, Lecteurs), Travaux, Lancer une commande, Ajouter un appareil,
+    """Ordre du web : Appareils, Travaux, Lancer une commande, Ajouter un appareil,
     Secours Ricochet. Les machines du relais vont dans les fiches des appareils."""
 
-    def __init__(self, toast=None, default_cwd=None, runner=None, backend=None, mesh_api=None,
-                 sound=None, players=None):
+    def __init__(self, toast=None, default_cwd=None, runner=None, backend=None, mesh_api=None):
         api = mesh_api or MeshApi()
         self.mesh = MeshGroup(toast=toast, runner=runner, api=api, on_limit=self._limit,
                               on_status=self._status)
-        self.sound = sound if sound is not None else SoundGroup(toast=toast)
-        self.players = players if players is not None else PlayersGroup(toast=toast)
         self._mesh_api, self._runner = api, runner
         super().__init__(toast=toast, runner=runner, backend=backend, default_cwd=default_cwd,
-                         first_groups=(self.mesh, self.sound, self.players))
+                         first_groups=(self.mesh,))
         self.set_title("Réseau")
 
     def _limit(self, machine_id, limite):
