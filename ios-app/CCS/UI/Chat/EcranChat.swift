@@ -271,6 +271,8 @@ private struct FilChatVue: View {
             FeuilleEtiquettes(etiquettes: mc.etiquettes, filtre: filtreEtiquette) { id in montrerMessage(id) }
         }
         .environment(\.liensFichiers, liens)
+        // chat riche : chemins relatifs au dossier ; boutons des blocs ccs actifs dans le fil principal seulement
+        .environment(\.chatRiche, ChatRiche(cwd: mc.cwd, envoyer: mc.vue.agentVu == nil ? { t in mc.envoyerTexte(t) } : nil))
         .environment(\.openURL, OpenURLAction { u in
             guard let f = LiensFichiers.lire(u) else { return .systemAction }
             naviguer(.fichier(chemin: f.chemin, ligne: f.ligne))

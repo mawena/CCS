@@ -27,7 +27,7 @@ struct Motif {
 
 /**
  * Markdown des réponses de Claude, lu en blocs (titres, paragraphes, listes, code, citations,
- * tableaux, règles) et en segments de texte stylés (gras, italique, code, barré, liens). L'écran
+ * tableaux, règles) et en segments de texte stylés (gras, italique, code, barré, liens, images). L'écran
  * construit ses textes à partir de ce résultat. Tolérant : un texte en cours d'arrivée (bloc de
  * code pas encore fermé, `**` sans fin) se lit sans erreur.
  */
@@ -57,9 +57,11 @@ enum Markdown {
         var code = false
         var barre = false
         var lien: String? = nil
+        /// Image Markdown `![texte](adresse)` : `texte` est la légende, `lien` l'adresse (chat riche).
+        var image = false
 
         func memeStyle(_ o: Segment) -> Bool {
-            return gras == o.gras && italique == o.italique && code == o.code && barre == o.barre && lien == o.lien
+            return !image && !o.image && gras == o.gras && italique == o.italique && code == o.code && barre == o.barre && lien == o.lien
         }
     }
 
@@ -438,6 +440,13 @@ private final class AnalyseEnLigne {
             if (c == "!" && i + 1 < s.count && s[i + 1] == "[") || (c == "[" && st.lien == nil) {
                 if let l = lien(s, c == "!" ? i + 1 : i) {
                     vider()
+                    if c == "!" {
+                        // image : un segment à part, rendu en image par l'écran (chat riche)
+                        out.append(Segment(texte: l.texte, gras: st.gras, italique: st.italique, code: false, barre: st.barre,
+                                           lien: l.url, image: true))
+                        i = l.fin
+                        continue
+                    }
                     var n = st
                     n.lien = l.url
                     parcourir(Array(l.texte.isEmpty ? l.url : l.texte), n)
