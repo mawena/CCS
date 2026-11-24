@@ -364,51 +364,51 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
 
   ccs                      liste les profils (● = actif) ; aussi : ccs list
   ccs <nom>                bascule sur le profil <nom> (ou : ccs use <nom>)
-  ccs next              bascule sur le profil suivant utilisable (pratique en cas de limite atteinte)
-  ccs save <nom>    enregistre le compte actuellement connecté sous <nom>
-  ccs add <nom> [opts] connecte un nouveau compte (claude auth login) et l'enregistre
+  ccs next                 bascule sur le profil suivant utilisable (pratique en cas de limite atteinte)
+  ccs save <nom>           enregistre le compte actuellement connecté sous <nom>
+  ccs add <nom> [opts]     connecte un nouveau compte (claude auth login) et l'enregistre
                            opts : --email <adresse>  --console  --sso
-  ccs current               affiche le profil actif
-  ccs rename <a> <b>     renomme un profil
-  ccs remove <nom>      supprime un profil
-  ccs best [--show]    bascule sur le meilleur compte maintenant (--show : sans basculer)
-  ccs status                 compte actif, prévision, meilleur compte, capacité restante
+  ccs current              affiche le profil actif
+  ccs rename <a> <b>       renomme un profil
+  ccs remove <nom>         supprime un profil
+  ccs best [--show]        bascule sur le meilleur compte maintenant (--show : sans basculer)
+  ccs status               compte actif, prévision, meilleur compte, capacité restante
   ccs usage                affiche l'usage (session / semaine) de TOUS les comptes
   ccs auto on|off          active / désactive la bascule automatique (98 %)
   ccs pause [durée]        suspend la bascule automatique et l'orchestrateur :
                            1h, 4h, demain, manuel ; off pour reprendre ; status (défaut) : état
-  ccs quiet [durée]      ne pas déranger : retient les notifications (résumées à la fin) :
+  ccs quiet [durée]        ne pas déranger : retient les notifications (résumées à la fin) :
                            1h, 4h, demain ; off ou reprendre pour lever ; status (défaut) : état
-  ccs orchestrator on|off enchaîne et décale les fenêtres de 5 h des comptes
+  ccs orchestrator on|off  enchaîne et décale les fenêtres de 5 h des comptes
   ccs plan                 planning des fenêtres et des recharges à venir
   ccs sessions             sessions Claude Code ouvertes : projet, état, consommation, mémoire (RAM)
                            et badge « contexte lourd »
-  ccs task [add "<message>" [-C dossier] [--model m] [--rights lecture|modifications|tout]
-            [--quand quota|nuit|HH:MM] | voir <id> | annuler <id> | supprimer <id>]
+  ccs task [add "<message>" [-C dossier] [--model m] [--rights read|edit|all]
+            [--when quota|night|HH:MM] | show <id> | cancel <id> | remove <id>]
                            file de tâches lancées par le service, sans fenêtre
   ccs budget [<dossier> <montant>|aucun]
                            budget hebdomadaire par projet (équivalent dollars) : état, fixer, retirer
   ccs recap <id>           fiche « où j'en étais » d'une conversation (marche aussi sur une archivée)
-  ccs backup [fichier] sauvegarde chiffrée (gpg) des profils, réglages, budgets, raccourcis
+  ccs backup [fichier]     sauvegarde chiffrée (gpg) des profils, réglages, budgets, raccourcis
   ccs restore <fichier> [--yes]
                            restaure une sauvegarde, avec confirmation avant d'écraser
-  ccs phone [test]    notifications sur le téléphone (ntfy) : état et lien d'abonnement ;
+  ccs phone [test]         notifications sur le téléphone (ntfy) : état et lien d'abonnement ;
                            « test » envoie un message d'essai
   ccs conversations [mots] [opts]
                            historique des conversations Claude Code du PC (recherche)
-                           opts : -p/--projet <projet>  --vscode  --terminal  -n/--limite N
-                           --tous  --json
+                           opts : -p/--project <projet>  --vscode  --terminal  -n/--limit N
+                           --all  --json
   ccs resume <id> [opts]
-                           reprend une conversation ici (ou --vscode, --nouveau-terminal,
-                           --afficher) ; une conversation archivée est d'abord restaurée
-                           --dossier <dossier> : depuis un projet déplacé
+                           reprend une conversation ici (ou --vscode, --new-terminal,
+                           --print) ; une conversation archivée est d'abord restaurée
+                           --dir <dossier> : depuis un projet déplacé
   ccs title <id> <titre>   renomme une conversation (comme /rename dans Claude Code)
-  ccs preview <id>          affiche une conversation en Markdown, avec son coût
+  ccs preview <id>         affiche une conversation en Markdown, avec son coût
   ccs export <id> [fichier.md]
                            exporte une conversation en Markdown (défaut : <titre>.md ici)
   ccs integration [on|off|status]
                            ligne d'état dans Claude Code + bascule après blocage (hook)
-  ccs analyze [--days N]  où part ton usage : projets, modèles, heures, conseils
+  ccs analyze [--days N]   où part ton usage : projets, modèles, heures, conseils
   ccs advisor              la formule qu'il te faut (Pro, Max, Ultra) d'après ton usage réel
   ccs week [--previous N]
                            bilan de la semaine écoulée (ou de N semaines plus tôt)
@@ -425,25 +425,25 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
                            compte par projet : liste, compte d'un dossier, association
   ccs shortcuts [status|on|off [action…]|set <action> <raccourci>]
                            raccourcis clavier globaux du bureau GNOME
-  ccs tui [--server NOM]  CCS en plein écran dans le terminal (ici, ou sur un serveur appairé)
+  ccs tui [--server NOM]   CCS en plein écran dans le terminal (ici, ou sur un serveur appairé)
   ccs remote machines [--fast]
                            machines du réseau Ricochet : en ligne ou non, charge, outils
   ccs remote run [--machine M] [--tool O] [--fetch chemin] -- <commande>
                            lance une commande du projet sur une autre machine (tunnel SSH, rsync)
-  ccs chat clear         dans un chat de CCS : vide la conversation (/clear) à la fin du tour
+  ccs chat clear           dans un chat de CCS : vide la conversation (/clear) à la fin du tour
   ccs server add|list|remove
                            serveurs CCS distants : appairage (mot de passe Ubuntu + code), liste
-  ccs doctor                bilan de santé : service, version, bureau, comptes, Claude Code
+  ccs doctor               bilan de santé : service, version, bureau, comptes, Claude Code
                            (code de sortie 1 au moindre problème)
   ccs app [--page ONGLET] [--session PID:ID] [--task ID] [--new-session]
                            ouvre l'application graphique
   ccs version              version de CCS
   ccs help                 cette aide
 
-  --notifier (suivant, utiliser, meilleur, pause, silence) : résultat aussi en notification
+  --notify (next, use, best, pause, quiet) : résultat aussi en notification
   bureau ; c'est l'option des raccourcis clavier (bascule notée « raccourci » dans le journal)
 
-  Les anciens noms (list, use, next, best, status, resume…) restent acceptés.
+  Les anciens noms français (liste, utiliser, suivant, meilleur, etat, reprendre…) restent acceptés.
   Un profil qui porte le nom d'une commande se joint par « ccs use <nom> ».
 
 Profils stockés dans : $STORE
