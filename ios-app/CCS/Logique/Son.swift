@@ -6,6 +6,15 @@ enum Son {
     static let periodeAnnonce: Double = 30
     /// Rien reçu pendant 10 s : on cesse d'écouter.
     static let silenceMax: Double = 10
+    /// Tampon matériel demandé à iOS (`setPreferredIOBufferDuration`) : 5 ms.
+    static let tamponMateriel: Double = 0.005
+    /// Son programmé d'avance sur le lecteur : au moins 20 ms et au moins deux tampons.
+    static let avanceMinMs = 20
+    static let tamponsEnVolMin = 2
+    /// Clé `UserDefaults` du réglage « Rester à l'écoute » (désactivé par défaut) : récepteur UDP
+    /// toujours ouvert sur le port annoncé, session audio gardée par du silence, tout paquet RTP
+    /// joué tout de suite (même sans événement « receive »).
+    static let cleResterALEcoute = "son-rester-a-l-ecoute"
 
     /// Adresse du réseau maillé (100.64.0.0/10, plage de Tailscale et Headscale).
     static func estMaillee(_ ip: String) -> Bool {

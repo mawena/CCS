@@ -1,18 +1,20 @@
 import AVFoundation
 import AudioToolbox
 
-/// Formats du son partagé : PCM flottant 48 kHz stéréo (non entrelacé) et Opus 20 ms.
+/// Formats du son partagé : PCM flottant 48 kHz stéréo (non entrelacé) et Opus (10 ms émis,
+/// 10 ou 20 ms reçus).
 enum FormatsSon {
     static let pcm = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(Rtp.frequence),
                                    channels: AVAudioChannelCount(Rtp.canaux), interleaved: false)!
 
-    static let opus: AVAudioFormat = {
+    /// Opus 48 kHz stéréo dont chaque paquet fait `echantillons` (480 = 10 ms, 960 = 20 ms).
+    static func opus(_ echantillons: Int = Rtp.echantillonsParTrame) -> AVAudioFormat? {
         var d = AudioStreamBasicDescription(
             mSampleRate: Double(Rtp.frequence), mFormatID: kAudioFormatOpus, mFormatFlags: 0,
-            mBytesPerPacket: 0, mFramesPerPacket: UInt32(Rtp.echantillonsParTrame), mBytesPerFrame: 0,
+            mBytesPerPacket: 0, mFramesPerPacket: UInt32(echantillons), mBytesPerFrame: 0,
             mChannelsPerFrame: UInt32(Rtp.canaux), mBitsPerChannel: 0, mReserved: 0)
-        return AVAudioFormat(streamDescription: &d)!
-    }()
+        return AVAudioFormat(streamDescription: &d)
+    }
 
     /// Taille maximale d'une trame Opus (RFC 6716 : 1275 octets par trame).
     static let trameMax = 1500
@@ -27,20 +29,36 @@ enum FormatsSon {
     }
 }
 
-/// Encodeur Opus d'Apple (`kAudioFormatOpus`) : 960 échantillons PCM 48 kHz stéréo → une trame.
+/**
+ * Encodeur Opus d'Apple (`kAudioFormatOpus`) : `echantillons` PCM 48 kHz stéréo → une trame.
+ * Trames de 10 ms (480) par défaut ; si le système les refuse, repli sur 20 ms (960). Apple
+ * n'expose pas d'équivalent de `restricted-lowdelay` (CELT seul) : à 96 kb/s stéréo et 10 ms,
+ * Opus choisit de lui-même le mode CELT, le plus court.
+ */
 final class EncodeurOpus {
     private let convertisseur: AVAudioConverter
     private let sortie: AVAudioCompressedBuffer
+    /// Échantillons (par canal) d'une trame : à donner à chaque `encoder`, et pas de l'horodatage.
+    let echantillons: Int
 
-    init?(debit: Int = 96_000) {
-        guard let c = AVAudioConverter(from: FormatsSon.pcm, to: FormatsSon.opus) else { return nil }
+    init?(debit: Int = 96_000, echantillons voulu: Int = Rtp.echantillonsParTrame) {
+        let essais = voulu == Rtp.echantillonsAncienneTrame ? [voulu] : [voulu, Rtp.echantillonsAncienneTrame]
+        var trouve: (Int, AVAudioFormat, AVAudioConverter)? = nil
+        for n in essais {
+            if let f = FormatsSon.opus(n), let c = AVAudioConverter(from: FormatsSon.pcm, to: f) {
+                trouve = (n, f, c)
+                break
+            }
+        }
+        guard let (n, f, c) = trouve else { return nil }
         c.bitRate = debit
         convertisseur = c
+        echantillons = n
         let taille = max(c.maximumOutputPacketSize, FormatsSon.trameMax)
-        sortie = AVAudioCompressedBuffer(format: FormatsSon.opus, packetCapacity: 4, maximumPacketSize: taille)
+        sortie = AVAudioCompressedBuffer(format: f, packetCapacity: 4, maximumPacketSize: taille)
     }
 
-    /// Encode 20 ms (`entree.frameLength` = 960) ; rend les trames produites (souvent une).
+    /// Encode une trame (`entree.frameLength` = `echantillons`) ; rend les trames produites (souvent une).
     func encoder(_ entree: AVAudioPCMBuffer) -> [Data] {
         var donne = false
         sortie.packetCount = 0
@@ -63,20 +81,36 @@ final class EncodeurOpus {
     }
 }
 
-/// Décodeur Opus d'Apple : une trame RTP → PCM 48 kHz stéréo (une trame mono est aussi acceptée).
+/**
+ * Décodeur Opus d'Apple : une trame RTP → PCM 48 kHz stéréo (une trame mono est aussi acceptée).
+ * Un convertisseur par durée de trame (lue dans l'octet TOC : 10 ms, 20 ms…), créé au besoin ;
+ * repli sur celui de 20 ms si une durée n'est pas prise en charge.
+ */
 final class DecodeurOpus {
-    private let convertisseur: AVAudioConverter
-    private let entree: AVAudioCompressedBuffer
+    private struct Voie { let convertisseur: AVAudioConverter; let entree: AVAudioCompressedBuffer }
+    private var voies: [Int: Voie] = [:]
 
     init?() {
-        guard let c = AVAudioConverter(from: FormatsSon.opus, to: FormatsSon.pcm) else { return nil }
-        convertisseur = c
-        entree = AVAudioCompressedBuffer(format: FormatsSon.opus, packetCapacity: 1, maximumPacketSize: FormatsSon.trameMax)
+        guard voie(Rtp.echantillonsAncienneTrame) != nil else { return nil }
+    }
+
+    private func voie(_ n: Int) -> Voie? {
+        if let v = voies[n] { return v }
+        guard let f = FormatsSon.opus(n), let c = AVAudioConverter(from: f, to: FormatsSon.pcm) else { return nil }
+        let v = Voie(convertisseur: c, entree: AVAudioCompressedBuffer(format: f, packetCapacity: 1,
+                                                                     maximumPacketSize: FormatsSon.trameMax))
+        voies[n] = v
+        return v
     }
 
     func decoder(_ trame: Data) -> AVAudioPCMBuffer? {
+        let n = Rtp.echantillonsOpus(trame) ?? Rtp.echantillonsAncienneTrame
         guard !trame.isEmpty, trame.count <= FormatsSon.trameMax,
-              let sortie = AVAudioPCMBuffer(pcmFormat: FormatsSon.pcm, frameCapacity: 5760) else { return nil }
+              let v = voie(n) ?? voie(Rtp.echantillonsAncienneTrame),
+              let sortie = AVAudioPCMBuffer(pcmFormat: FormatsSon.pcm,
+                                            frameCapacity: AVAudioFrameCount(Rtp.echantillonsMax)) else { return nil }
+        let entree = v.entree
+        let convertisseur = v.convertisseur
         trame.withUnsafeBytes { (p: UnsafeRawBufferPointer) in
             if let b = p.baseAddress { entree.data.copyMemory(from: b, byteCount: trame.count) }
         }
@@ -90,7 +124,7 @@ final class DecodeurOpus {
             if donne { statut.pointee = .noDataNow; return nil }
             donne = true
             statut.pointee = .haveData
-            return self.entree
+            return entree
         }
         guard etat != .error, sortie.frameLength > 0 else { return nil }
         return sortie

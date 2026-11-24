@@ -48,7 +48,15 @@ ANNOUNCE_EVERY = 30
 POLL_S = 2
 IDLE_STOP_S = 10            # sortie virtuelle muette depuis 10 s : envoi arrêté
 RESEND_GAP_S = 5            # pas plus d'une demande d'envoi par sortie toutes les 5 s
-LATENCY_MS = 100            # tampon de gigue du récepteur
+# Latence (voir docs/audio.md, § 4) : trames de 10 ms, tampons courts.
+FRAME_MS = 10               # trame Opus émise (les récepteurs acceptent aussi 20 ms)
+LATENCY_MS = 40             # tampon de gigue du récepteur (rtpjitterbuffer), réglable : latency_ms
+LATENCY_MIN_MS, LATENCY_MAX_MS = 20, 500
+CAPTURE_BUFFER_US = 20000   # pulsesrc buffer-time : tampon de capture
+CAPTURE_PERIOD_US = 5000    # pulsesrc latency-time : période de lecture du moniteur
+PLAYER_BUFFER_US = 40000    # pulsesink buffer-time (défaut GStreamer : 200 ms)
+PLAYER_PERIOD_US = 10000    # pulsesink latency-time
+OPUS_BITRATE = 96000
 SINK_PREFIX = "ccs_audio_"
 MESH = ipaddress.ip_network("100.64.0.0/10")
 RTP_CAPS = "application/x-rtp,media=audio,clock-rate=48000,encoding-name=OPUS,payload=96"
@@ -77,6 +85,10 @@ def load_config(path=None):
         port = DEFAULT_PORT
     label = data.get("label") if isinstance(data.get("label"), str) else ""
     out = {"active": data.get("active") is True, "port": port, "label": label.strip()}
+    latency = data.get("latency_ms")
+    if isinstance(latency, int) and not isinstance(latency, bool) \
+            and LATENCY_MIN_MS <= latency <= LATENCY_MAX_MS:
+        out["latency_ms"] = latency
     if isinstance(data.get("capture_device"), str) and data["capture_device"].strip():
         out["capture_device"] = data["capture_device"].strip()
     return out
@@ -88,6 +100,8 @@ def save_config(cfg, path=None):
     label = cfg.get("label", "").replace("\\", "").replace('"', "")
     dev = str(cfg.get("capture_device") or "").replace("\\", "").replace('"', "")
     capture = f'capture_device = "{dev}"\n' if dev else ""
+    latency = cfg.get("latency_ms")
+    capture += f"latency_ms = {int(latency)}\n" if isinstance(latency, int) else ""
     path.write_text(f'active = {"true" if cfg.get("active") else "false"}\n'
                     f'port = {int(cfg.get("port", DEFAULT_PORT))}\n'
                     f'label = "{label}"\n' + capture, encoding="utf-8")
@@ -193,14 +207,17 @@ def this_system(name=None):
 
 
 def player_element(system):
-    return ["pulsesink", "client-name=CCS"] if system == "linux" else ["autoaudiosink"]
+    if system == "linux":
+        return ["pulsesink", f"buffer-time={PLAYER_BUFFER_US}", f"latency-time={PLAYER_PERIOD_US}",
+                "client-name=CCS"]
+    return ["autoaudiosink"]
 
 
 def capture_elements(system, monitor=None, device=None):
     """Élément GStreamer qui capte le son joué par la machine, ou None si elle ne sait pas."""
     if system == "linux":
-        return ["pulsesrc", f"device={monitor or '@DEFAULT_MONITOR@'}", "buffer-time=40000",
-                "latency-time=10000", "client-name=CCS"]
+        return ["pulsesrc", f"device={monitor or '@DEFAULT_MONITOR@'}", f"buffer-time={CAPTURE_BUFFER_US}",
+                f"latency-time={CAPTURE_PERIOD_US}", "client-name=CCS"]
     if system == "windows":
         return ["wasapi2src", "loopback=true", "low-latency=true"]
     if system == "macos" and device:
@@ -220,8 +237,8 @@ def sender_argv(monitor, ip, port, system="linux", device=None):
     if src is None:
         raise AudioError("Cette machine ne sait pas capter son son (macOS : capture_device).")
     return ["gst-launch-1.0", "-q", *src, "!", "audioconvert", "!", "audioresample", "!",
-            "audio/x-raw,rate=48000,channels=2", "!", "opusenc", "bitrate=96000", "frame-size=20",
-            "audio-type=generic", "!", "rtpopuspay", "pt=96", "!", "udpsink", f"host={ip}",
+            "audio/x-raw,rate=48000,channels=2", "!", "opusenc", f"bitrate={OPUS_BITRATE}",
+            f"frame-size={FRAME_MS}", "audio-type=restricted-lowdelay", "!", "rtpopuspay", "pt=96", "!", "udpsink", f"host={ip}",
             f"port={port}", "sync=false", "async=false"]
 
 
@@ -399,7 +416,8 @@ class Agent:
         self.stop_receiver()
         log.info("réception de %s (flux %s)", data.get("from"), data.get("stream"))
         self.receiver = (data.get("stream"),
-                         Process(receiver_argv(self.cfg["port"], system=self.system), self._popen))
+                         Process(receiver_argv(self.cfg["port"], self.cfg.get("latency_ms", LATENCY_MS),
+                                              system=self.system), self._popen))
 
     def stop_receiver(self):
         if self.receiver:

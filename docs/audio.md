@@ -38,7 +38,7 @@ défaut, un nom tiré du modèle (`pixel`, `iphone`).
 → {"method": "audio.list"}
 ← {"devices": [{"device", "label", "ip", "port", "play", "capture", "system", "age"}, …],
    "streams": [{"stream": "a3", "source": "pc-bureau", "target": "iphone", "started": 1764…}],
-   "codec": {"codec": "opus", "rate": 48000, "channels": 2, "frame_ms": 20, "payload": 96},
+   "codec": {"codec": "opus", "rate": 48000, "channels": 2, "frame_ms": 10, "payload": 96},
    "every": 30}
 ```
 
@@ -73,26 +73,39 @@ la source cesse d'émettre, la cible cesse d'écouter.
 
 ## 4. Transport : RTP/Opus (RFC 7587)
 
-- UDP, de la source vers `ip:port` de la cible ; **un paquet RTP = une trame Opus de 20 ms**.
+- UDP, de la source vers `ip:port` de la cible ; **un paquet RTP = une trame Opus de 10 ms**
+  (les trames de 20 ms restent acceptées : le récepteur lit leur durée dans l'octet TOC d'Opus).
 - 48 kHz, stéréo (le récepteur accepte aussi le mono : `channels` de l'en-tête Opus).
 - En-tête RTP de 12 octets : `V=2, P=0, X=0, CC=0`, `M=0`, **PT=96**, numéro de séquence (16 bits,
-  +1 par paquet, départ aléatoire), horodatage (32 bits, **+960 par trame** de 20 ms, départ
-  aléatoire), SSRC aléatoire (32 bits). Charge utile : la trame Opus brute (pas d'Ogg).
-- Débit Opus conseillé : 96 kb/s stéréo (musique), mode « audio », trames de 20 ms.
-- Récepteur : tampon de gigue de **60 à 150 ms** (ordre par numéro de séquence, paquets en retard
-  jetés, trou → masquage de perte du décodeur ou silence). Rien reçu pendant **10 s** : on arrête
-  d'écouter (le pont enverra `stop` de toute façon).
-- Retard attendu : 100 à 200 ms en direct ; bien plus par un relais Tailscale (DERP).
+  +1 par paquet, départ aléatoire), horodatage (32 bits, **+480 par trame** de 10 ms, +960 pour
+  20 ms, départ aléatoire), SSRC aléatoire (32 bits). Charge utile : la trame Opus brute (pas d'Ogg).
+- Débit Opus conseillé : 96 kb/s stéréo, trames de 10 ms, mode `restricted-lowdelay` (CELT seul)
+  quand l'encodeur le permet (GStreamer). Apple (AudioConverter) et Android (MediaCodec) n'ont pas
+  ce réglage ; l'encodeur Opus de MediaCodec reste à 20 ms (pas de réglage public de durée).
+- Récepteur : **tampon de gigue adaptatif** (ordre par numéro de séquence, paquets en retard jetés,
+  trou → masquage de perte du décodeur ou silence). Départ à **30 ms** ; +10 ms à chaque perte ou
+  sous-alimentation (une fois par rafale, répit de 500 ms ; une pause de plus de 300 ms ne compte
+  pas) ; −10 ms après **10 s** sans incident ; borné entre **20 et 150 ms**. Rien reçu pendant
+  **10 s** : on arrête d'écouter (le pont enverra `stop` de toute façon).
+- Retard attendu : 50 à 100 ms en direct ; bien plus par un relais Tailscale (DERP).
+
+Valeurs par plateforme (constantes nommées dans le code) :
+
+| | Émission | Réception |
+|---|---|---|
+| Linux (`ccs_app/audio.py`) | `FRAME_MS = 10`, `opusenc frame-size=10 audio-type=restricted-lowdelay`, petits tampons `pulsesrc` | `rtpjitterbuffer latency=40` (`LATENCY_MS`, réglable par `latency_ms`) |
+| iPhone (`Rtp.swift`, `Son.swift`) | trames de 10 ms (AudioConverter) | session `setPreferredIOBufferDuration(0.005)`, `GigueAdaptative`, 20 ms d'avance de silence au départ |
+| Android (`Audio.kt`, `LecteurRtp.kt`, `CaptureSon.kt`) | capture par blocs de 10 ms, tampon `AudioRecord` de 40 ms (`CAPTURE_MS`) ; trames de 20 ms (MediaCodec) | `AudioTrack` en `PERFORMANCE_MODE_LOW_LATENCY`, tampon max(minimum, 40 ms) (`PISTE_MS`), `GigueAdaptative` |
 
 Compatible GStreamer côté Linux :
 
 ```sh
 # recevoir
 gst-launch-1.0 udpsrc port=4010 caps="application/x-rtp,media=audio,clock-rate=48000,encoding-name=OPUS,payload=96" \
-  ! rtpjitterbuffer latency=100 ! rtpopusdepay ! opusdec plc=true ! audioconvert ! audioresample ! autoaudiosink
+  ! rtpjitterbuffer latency=40 ! rtpopusdepay ! opusdec plc=true ! audioconvert ! audioresample ! autoaudiosink
 # émettre le son d'une sortie PipeWire
 gst-launch-1.0 pulsesrc device=<sortie>.monitor ! audioconvert ! audioresample \
-  ! audio/x-raw,rate=48000,channels=2 ! opusenc bitrate=96000 frame-size=20 \
+  ! audio/x-raw,rate=48000,channels=2 ! opusenc bitrate=96000 frame-size=10 audio-type=restricted-lowdelay \
   ! rtpopuspay pt=96 ! udpsink host=100.64.0.4 port=4010
 ```
 
@@ -102,10 +115,18 @@ gst-launch-1.0 pulsesrc device=<sortie>.monitor ! audioconvert ! audioresample \
 |---|---|---|
 | Linux | GStreamer → sortie PipeWire par défaut | moniteur d'une sortie PipeWire ; chaque appareil distant est une **sortie virtuelle** (« iPhone de Charles ») : l'utiliser dans les réglages du son lance l'envoi |
 | Android | service au premier plan, MediaCodec (décodeur Opus) → AudioTrack | Android 10+ : AudioPlaybackCapture (accord MediaProjection), MediaCodec (encodeur Opus) ; certaines applis interdisent la capture |
-| iPhone | lecture en arrière-plan (`UIBackgroundModes: audio`), AudioConverter (Opus) → AVAudioEngine | extension de diffusion ReplayKit (centre de contrôle) ; contenus protégés (Apple Music, Netflix…) muets |
+| iPhone | lecture en arrière-plan (`UIBackgroundModes: audio`), AudioConverter (Opus) → AVAudioEngine ; « Rester à l'écoute » (voir plus bas) | extension de diffusion ReplayKit (centre de contrôle) ; contenus protégés (Apple Music, Netflix…) muets |
 | macOS | même agent (`ccs audio agent`), GStreamer → `autoaudiosink` | périphérique de bouclage (BlackHole) donné dans `capture_device` de `audio.toml` |
 | Windows | même agent, GStreamer → `autoaudiosink` | `wasapi2src loopback=true` (son de la sortie par défaut) |
 | Web | — (liste et télécommande seulement) | — |
+
+iPhone, **« Rester à l'écoute »** (écran Son, réglage gardé, désactivé par défaut) : iOS suspend
+l'appli en arrière-plan, qui rate alors l'ordre `receive` du pont. Activé, le récepteur UDP reste
+ouvert sur le port annoncé et le lecteur joue du silence (la session audio active garde l'appli
+éveillée) ; tout paquet RTP reçu, de n'importe quelle source, est joué tout de suite, sans arrêt
+après 10 s de silence. L'appli continue d'annoncer toutes les 30 s et de suivre les événements
+(nom de la source, `stop`) ; l'écoute tombée est rouverte à l'annonce suivante. Interruption
+(appel, autre appli audio) : lecture reprise à la fin. Coût : un peu de batterie.
 
 Linux : `ccs audio list`, `ccs audio send <source> <sortie>`, `ccs audio stop`,
 `ccs audio receive` (au premier plan, pour essayer). Le démon CCS annonce la machine et crée les

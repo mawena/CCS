@@ -9,6 +9,10 @@ import UserNotifications
  * événements `audio` qui le nomment (écouter, émettre, arrêter), liste des appareils et des flux
  * pour l'écran Son. Le son reçu est joué par `RecepteurSon` ; le son émis part de l'extension de
  * diffusion ReplayKit (`Diffusion/`), à qui la cible est passée par le groupe d'applis.
+ *
+ * « Rester à l'écoute » (réglage gardé, désactivé par défaut) : tant que l'appli tourne, le
+ * récepteur reste ouvert sur le port annoncé en mode permanent (silence joué, tout paquet RTP
+ * joué tout de suite, même sans événement « receive ») ; rouvert à l'annonce suivante s'il tombe.
  */
 @MainActor
 @Observable
@@ -28,6 +32,16 @@ final class SonPartage {
     private(set) var cibleDiffusion: String? = nil
     /// Monte de 1 à chaque fois qu'il faut montrer le sélecteur de diffusion de ReplayKit.
     private(set) var demandeDiffusion = 0
+    /// Réglage « Rester à l'écoute » (`Prefs.resterALEcoute`).
+    var resterALEcoute: Bool = Prefs.resterALEcoute {
+        didSet {
+            guard resterALEcoute != oldValue else { return }
+            Prefs.resterALEcoute = resterALEcoute
+            appliquerEcoute()
+        }
+    }
+    /// À l'écoute en permanence : un son arrive (reçu depuis moins de 10 s).
+    private(set) var sonRecu = false
 
     @ObservationIgnored private let client: CcsClient
     @ObservationIgnored private let dire: (String) -> Void
@@ -43,10 +57,16 @@ final class SonPartage {
         self.client = client
         self.dire = dire
         recepteur.surFin = { [weak self] raison in
-            guard let s = self, let e = s.ecoute else { return }
-            s.ecoute = nil
-            s.dire("Son de \(e.de) arrêté : \(raison)")
+            guard let s = self else { return }
+            s.sonRecu = false
+            if let e = s.ecoute {
+                s.ecoute = nil
+                s.dire("Son de \(e.de) arrêté : \(raison)")
+            } else if s.resterALEcoute {
+                s.dire("Écoute permanente coupée : \(raison) Nouvel essai à la prochaine annonce.")
+            }
         }
+        recepteur.surSon = { [weak self] recu in self?.sonRecu = recu }
     }
 
     // MARK: cycle
@@ -72,6 +92,7 @@ final class SonPartage {
                 try? await Task.sleep(nanoseconds: UInt64(attente * 1_000_000_000))
             }
         }
+        appliquerEcoute()
     }
 
     /// Déconnexion volontaire : le pont oublie l'iPhone (`audio.forget`), tout s'arrête.
@@ -87,7 +108,7 @@ final class SonPartage {
         boucle = nil
         for a in abonnements { client.oublier(a) }
         abonnements = []
-        arreterEcoute()
+        arreterEcoute(tout: true)
         if GroupeSon.diffusionActive { GroupeSon.demanderArret() } else { GroupeSon.ecrireCible(nil) }
         cibleDiffusion = nil
         liste = ListeSon()
@@ -97,6 +118,8 @@ final class SonPartage {
     // MARK: annonce
 
     func annoncer() async {
+        // écoute permanente tombée (port pris, son coupé par iOS) : on la rouvre
+        if resterALEcoute && recepteur.ecoute == nil { appliquerEcoute(signaler: false) }
         let ip = SonPartage.adresseMaillee()
         self.ip = ip
         guard let ip = ip else {
@@ -248,8 +271,13 @@ final class SonPartage {
     }
 
     private func ecouter(flux: String, de: String, port: Int) {
+        // déjà à l'écoute en permanence sur ce port : le son joue déjà, on le nomme seulement
+        if let e = recepteur.ecoute, e.permanent, e.port == port {
+            ecoute = (flux, de)
+            return
+        }
         do {
-            try recepteur.demarrer(port: port)
+            try recepteur.demarrer(port: port, permanent: resterALEcoute && boucle != nil)
             ecoute = (flux, de)
         } catch {
             ecoute = nil
@@ -257,9 +285,33 @@ final class SonPartage {
         }
     }
 
-    private func arreterEcoute() {
-        recepteur.arreter()
+    /// Arrête le son joué ; en écoute permanente le récepteur reste ouvert, sauf si `tout`.
+    private func arreterEcoute(tout: Bool = false) {
         ecoute = nil
+        if tout || !(recepteur.ecoute?.permanent ?? false) {
+            recepteur.arreter()
+            sonRecu = false
+        }
+    }
+
+    /// Ouvre ou referme l'écoute permanente selon le réglage (seulement tant que l'appli annonce).
+    /// Un échec est dit, sauf aux nouveaux essais (`signaler` faux : toutes les 30 s).
+    private func appliquerEcoute(signaler: Bool = true) {
+        let ouverte = recepteur.ecoute
+        if resterALEcoute && boucle != nil {
+            if let o = ouverte {
+                if !o.permanent { recepteur.changerMode(permanent: true) }
+                return
+            }
+            do {
+                try recepteur.demarrer(port: Rtp.portParDefaut, permanent: true)
+            } catch {
+                if signaler { dire("Impossible de rester à l'écoute : \(error.localizedDescription)") }
+            }
+        } else if let o = ouverte, o.permanent {
+            sonRecu = false
+            if ecoute != nil { recepteur.changerMode(permanent: false) } else { recepteur.arreter() }
+        }
     }
 
     static let idNotification = "son|emit"

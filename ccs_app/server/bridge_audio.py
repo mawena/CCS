@@ -28,8 +28,8 @@ DEFAULT_PORT = 4010
 MAX_DEVICES = 64
 SYSTEMS = ("linux", "android", "ios", "macos", "windows", "web", "autre")
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$")
-# format du son, le même partout : RTP/Opus (RFC 7587), 48 kHz stéréo, trames de 20 ms
-CODEC = {"codec": "opus", "rate": 48000, "channels": 2, "frame_ms": 20, "payload": 96}
+# format du son, le même partout : RTP/Opus (RFC 7587), 48 kHz stéréo, trames de 10 ms (20 ms acceptées)
+CODEC = {"codec": "opus", "rate": 48000, "channels": 2, "frame_ms": 10, "payload": 96}
 
 
 def _invalid(text):
