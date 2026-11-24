@@ -652,6 +652,22 @@ combler ce qui manque encore à l'appli iPhone.
 - [x] 4. Tests XCTest (machines, travaux, liens), construction Codemagic, release mineure 0.35.0
 - [x] 5. Essai par Charles sur l'iPhone (PC allumé, CCS à jour sur le PC)
 
+## Phase 31 — Relance après une limite, sur toutes les interfaces (0.36.0)
+
+Charles (21/11/2026) : une session arrêtée par une limite de Claude Code doit repartir seule
+quand la limite est levée, sur le bureau, la TUI, le web, Android et l'iPhone.
+
+- [x] 1. `limit_resume` : heure de levée (fenêtre de 5 h, semaine, autre compte libéré), marqueurs « planned » / « lifted », verrou du hook, une bascule et une notification pour toutes les sessions bloquées
+- [x] 2. Hook StopFailure : relance prévue dès la limite (aucun compte libre, bascule impossible, pause), heure dans la notification, dossier de la conversation gardé
+- [x] 3. Service, application et pont font avancer les marqueurs (le premier qui a le verrou agit)
+- [x] 4. Onglets du terminal et chats du bureau : bandeau « relance prévue à HH:MM », « continue » à la levée
+- [x] 5. Chats du pont (web, Android, iPhone, TUI) : note dans le fil, « continue » à la levée ; marqueur de secours si le hook n'a rien écrit ; notes du pont affichées dans la TUI
+- [x] 6. Terminaux de la version web : `claude` lancé à la main relancé aussi
+- [x] 7. Hors de CCS : notification, ou `claude --resume … -p continue` en arrière-plan (réglage)
+- [x] 8. Réglage `limit_resume` (bureau, web, Android, iPhone), tests, docs, release 0.36.0
+- [x] 9. Essai réel par Charles lors d'une vraie limite (bureau, téléphone)
+- [x] 10. (1.11.0) Onglets shell du bureau où `claude` est lancé à la main (aujourd'hui : notification)
+
 ## Phase 32 — Ordre des sessions, tableaux, consommation de tokens (0.37.0)
 
 Charles (21/11/2026) : ordonner les sessions dans la version web ; plus de vide sous les
@@ -732,6 +748,32 @@ dictée et `spd-say` (speech-dispatcher) pour la lecture.
 - [x] 3. Android : micro dans la saisie, lecture des réponses, réglage
 - [x] 4. iPhone : micro dans la saisie, lecture des réponses, réglage (permissions micro et reconnaissance)
 - [x] 5. Tests, README, CHANGELOG ; release mineure 1.1.0 (APK et IPA sur Codemagic, installés sur le Pixel et l'iPhone)
+
+## Phase 38 — Réseau maillé de tous les appareils (network.mawena.cloud)
+
+Charles (23/11/2026) : fusionner Ricochet dans CCS et relier tous ses appareils par internet comme
+sur un réseau local, en passant par le LAN quand deux appareils y sont ensemble. Choix : WireGuard
+en maillage avec **Headscale** (coordination, sur le VPS) et le client **tailscale** sur chaque
+appareil (appli de l'App Store sur l'iPhone : pas de NetworkExtension avec SideStore). Chemin choisi
+tout seul : LAN, puis direct par internet (percement de NAT), puis relais DERP du VPS. Noms de
+domaine en anglais : `network.mawena.cloud`, noms des machines en `<machine>.mesh.mawena.cloud`.
+
+- [x] 1. VPS : Headscale 0.29.7 (`network.mawena.cloud` derrière nginx, DERP intégré, STUN UDP 3478), VPS inscrit (100.64.0.1)
+- [x] 1b. Inscrire pc-bureau et laptop-maison (`ccs reseau cle --nom <machine>`, puis les deux lignes en root) — pc-bureau (`lp-work`, 100.64.0.2), laptop-maison (100.64.0.5, 23/11)
+- [x] 2. CCS : `ccs reseau` (fait en 1.3.0 : état, machines, chemin LAN/direct/relais, clé d'inscription jetable) ; le lien « Ajouter un PC » installe aussi tailscale et inscrit la machine (1.6.0)
+- [x] 3. Onglet « Réseau » à droite de Sessions (Charles, 23/11 : jolie DA, icônes ; web d'abord, installé, puis Android, puis iPhone)
+  - [x] Web : carte du réseau, fiches (adresses publiées, trafic, ping réel, renommer, retirer), ajout PC / Android / iPhone (1.4.0)
+  - [x] Android (1.5.0)
+  - [x] iPhone (1.5.0)
+  - [x] Web : l'ajout d'appareil ne revient plus sur « PC Linux » au rafraîchissement (1.5.1)
+- [x] 4. Fusion de Ricochet dans le dépôt CCS (crates Rust, paquets) ; `ccs distant`, root et travaux passent par les IP du réseau maillé
+  - [x] 4a. `ccs distant` (et donc les travaux) en SSH direct sur l'adresse du réseau maillé, Ricochet en secours (1.6.0) ; root n'utilise Ricochet que pour le nom de la machine
+  - [x] 4b. Abandonné (Charles, 24/11) : Ricochet reste un dépôt à part, en secours du réseau maillé
+- [x] 5. Pixel inscrit le 23/11 (`pixel-4-xl`, 100.64.0.3, appli Tailscale par adb) : pc-bureau ↔ Pixel passe par le LAN (10.228.2.44, 18 ms) ; VPS ↔ Pixel par relais DERP. iPhone inscrit le 23/11 (`iphone`, 100.64.0.4). Ricochet reste en secours (Charles, 24/11) : rien à retirer. (Le Pixel est sur le même réseau local que pc-bureau : leur liaison doit passer par le LAN, à vérifier avec `ccs reseau etat`.) Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
+- [x] 6. Tests, README, CHANGELOG, releases
+- [x] 9. Tout par le réseau maillé, Ricochet en secours (liste des machines, `ccs distant`, Jarvis) ; fiche du serveur nommée « Serveur CCS » ; page Machines fondue dans l'onglet Réseau (1.7.0)
+- [x] 7. Root : mot de passe gardé pour toujours, chiffré (AES-256-GCM, `root_vault`), revérifié après redémarrage ; web sans compte à rebours (1.3.0)
+- [x] 8. Root « pour toujours » : plus de bandeau rouge nulle part (Charles, 23/11) ; `root.status` rend `kept: false, stored: true`, donc rien à reconstruire dans les applis (1.3.1)
 
 ## Phase 39 — Fichiers de tout le réseau maillé, onglet Fichiers revu
 

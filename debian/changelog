@@ -1,3 +1,9 @@
+ccs (1.11.0) unstable; urgency=medium
+
+  * Ajouter un PC : option CCS et Claude Code ; bureau : Ajouter un PC, reprise dans les onglets shell.
+
+ -- mawena <gamligocharles@gmail.com>  Tue, 24 Nov 2026 18:00:00 +0100
+
 ccs (1.10.0) unstable; urgency=medium
 
   * Bureau : onglets Réseau, Fichiers et Jarvis.
