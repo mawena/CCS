@@ -108,11 +108,12 @@ class MarkdownViewTest(unittest.TestCase):
     def wait(self, until):
         from gi.repository import GLib
         ctx = GLib.MainContext.default()
-        for _ in range(200):
+        import time
+        fin = time.monotonic() + 10  # large : la suite complète charge la machine
+        while time.monotonic() < fin:
             if until():
                 return
             ctx.iteration(False)
-            import time
             time.sleep(0.01)
         self.fail("délai dépassé")
 
