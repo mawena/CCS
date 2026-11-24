@@ -943,6 +943,7 @@ ccs audio lister                    # appareils annoncés et flux en cours
 ccs audio envoyer ici iphone        # le son de ce PC vers l'iPhone
 ccs audio envoyer pixel pc-bureau   # télécommande : du Pixel vers pc-bureau
 ccs audio arreter                   # arrête les flux de ce PC (ou : ccs audio arreter a3)
+ccs audio recevoir                  # sans le service : au premier plan, pour essayer
 ccs audio desactiver
 ```
 
@@ -1226,7 +1227,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs tui [--serveur <nom>]` | CCS en plein écran dans le terminal (ce poste, ou un serveur appairé) |
 | `ccs serveur ajouter <adresse> [--nom n]` / `liste` / `retirer <nom>` | Serveurs CCS distants : appairage (mot de passe et code), liste, retrait |
 | `sudo ccs totp reinitialiser <utilisateur>` | Sur le serveur : efface le code de double authentification d'un utilisateur |
-| `ccs audio lister` / `envoyer <source> <sortie>` / `arreter [flux\|appareil]` / `activer [--nom n]` / `desactiver` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
+| `ccs audio lister` / `envoyer <source> <sortie>` / `arreter [flux\|appareil]` / `recevoir` / `activer [--nom n]` / `desactiver` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
 | `ccs distant machines [--vite]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--vite` : sans les interroger) |
 | `ccs distant lancer [--machine m] [--outil o] [--rapatrier chemin] [--inclure chemin] [--avec-git] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
 | `ccs chat effacer` | Dans un chat de CCS (lancé par Claude) : vide la conversation (`/clear`) à la fin du tour en cours |

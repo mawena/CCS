@@ -1004,7 +1004,14 @@ def cmd_audio(args):
     from . import audio, network
     action = args.action or "lister"
     try:
-        if action == "agent":
+        if action in ("agent", "recevoir"):
+            if action == "recevoir":
+                if audio.load_config()["active"]:
+                    print("Le son partagé est déjà actif (service ccs-audio) : cette machine reçoit "
+                          "déjà. `ccs audio desactiver` d'abord pour essayer au premier plan.",
+                          file=sys.stderr)
+                    return 1
+                print("Cette machine est annoncée et joue ce qu'on lui envoie (Ctrl+C pour arrêter).")
             audio.run_agent()
             return 0
         if action in ("activer", "desactiver"):
@@ -1527,6 +1534,8 @@ def build_parser():
     auon = au_sub.add_parser("activer", help="annonce cette machine et crée ses sorties virtuelles")
     auon.add_argument("--nom", help="nom affiché sur les autres appareils")
     au_sub.add_parser("desactiver", help="arrête le son partagé sur cette machine")
+    au_sub.add_parser("recevoir", help="au premier plan, pour essayer : annonce cette machine et "
+                                       "joue ce qu'on lui envoie")
     au_sub.add_parser("agent")          # interne : service ccs-audio
     au.set_defaults(func=cmd_audio)
     ch = _command(sub, "chat", "chats de CCS (commandes pour Claude)")
