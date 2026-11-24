@@ -170,6 +170,16 @@ def _port_open(port):
         return False
 
 
+def is_this_machine(addr):
+    """Vrai si `addr` est une adresse de cette machine (on tourne sur pc-bureau lui-même)."""
+    try:
+        with socket.socket(socket.AF_INET6 if ":" in addr else socket.AF_INET) as s:
+            s.bind((addr, 0))
+            return True
+    except OSError:
+        return False
+
+
 class Tunnel:
     """`ssh -D` (SOCKS) ou `ssh -L` vers pc-bureau, fermé à la sortie du bloc `with`."""
 
@@ -912,6 +922,10 @@ def login(cfg=None, wait_s=LOGIN_WAIT_S, out=print, run_cmd=subprocess.run, tunn
     """Ouvre Chrome sur l'écran de pc-bureau (profil dédié), attend la connexion de Charles,
     exporte les cookies par CDP (tunnel `ssh -L`), les garde en 600 puis referme ce Chrome."""
     cfg = cfg or config()
+    if is_this_machine(cfg["hostname"]):
+        raise MarketError("`ccs market login` se lance depuis le VPS (ou le chat web), pas sur "
+                          "pc-bureau : c'est le VPS qui garde la session Facebook. Chrome "
+                          "s'ouvrira quand même ici, sur ton écran.")
     script = f"CHROME={cfg['remote_chrome']!s}; PORT={int(cfg['remote_port'])}\n" + LOGIN_SCRIPT
     try:
         r = run_cmd([*ssh_base(cfg), cfg["host"], "bash", "-s"], input=script, text=True,
