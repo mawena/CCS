@@ -7,6 +7,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ### Ajouté
 
+- **Venice et services compatibles OpenAI** : proxy local intégré (traduction Anthropic → OpenAI, outils et streaming), lancé à la demande et arrêté 90 s après la dernière session ; préréglage `venice` ; `ccs provider proxy [stop]`.
 - **`ccs audio status`** : réglages, outils, serveur de son, sorties virtuelles et service.
 
 ### Corrigé

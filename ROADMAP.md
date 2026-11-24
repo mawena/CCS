@@ -178,9 +178,9 @@ jamais dans la ligne de commande).
 Venice (modèles « uncensored » avec outils : `glm-5-3-flash-uncensored`,
 `deepseek-v4-1-flash-1017-uncensored`, Venice Uncensored 1.2) ne parle que l'API OpenAI.
 
-- [ ] 1. Proxy local claude-code-router (ou LiteLLM) lancé à la demande par CCS, traduit `/v1/messages` vers l'API OpenAI
-- [ ] 2. Préréglage `venice` (clé `~/.config/venice/cle`) pointant sur ce proxy ; vérifier l'appel d'outils de bout en bout
-- [ ] 3. Arrêt du proxy avec la dernière session (RAM)
+- [x] 1. Proxy local claude-code-router (ou LiteLLM) lancé à la demande par CCS, traduit `/v1/messages` vers l'API OpenAI
+- [x] 2. Préréglage `venice` (clé `~/.config/venice/cle`) pointant sur ce proxy ; vérifier l'appel d'outils de bout en bout
+- [x] 3. Arrêt du proxy avec la dernière session (RAM)
 
 ## Phase 48 — Nouvelle session : le bureau comme le web
 
