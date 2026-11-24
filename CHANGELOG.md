@@ -27,6 +27,13 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - Web (Réseau → Son partagé) et bureau GTK (onglet Réseau) : appareils, flux en cours, « Envoyer le
   son » et « Arrêter ».
 
+### Modifié
+
+- **Toutes les commandes passent en anglais** (`ccs status`, `ccs remote run`, `ccs audio send`,
+  `ccs chat clear`, `ccs task add`, `ccs backup`…), options comprises (`--when night`, `--detach`,
+  `--name`, `--notify`…). Les noms français restent acceptés, sans paraître dans l'aide : rien ne
+  casse dans les scripts, raccourcis ni services. README, manuel et aides suivent.
+
 ### Corrigé
 
 - Tests : `test_terminals_gui` ne se chargeait plus (import manquant).

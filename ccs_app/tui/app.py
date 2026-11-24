@@ -207,7 +207,7 @@ class TuiApp:
 
     def on_state(self, state):
         text = {"offline": "Connexion perdue : reconnexion…", "reconnected": "Reconnecté.",
-                "auth": "Jeton refusé : appaire de nouveau ce serveur (ccs serveur ajouter)."}.get(state)
+                "auth": "Jeton refusé : appaire de nouveau ce serveur (ccs server add)."}.get(state)
         if text:
             self.footer.set_text(("alerte", text))
         if state == "reconnected":

@@ -446,7 +446,7 @@ class InstallTest(SafetyMixin, unittest.TestCase):
         self.b.set(sc.CUSTOM_SCHEMA, {"command": "/usr/bin/ccs pause 1h"}, DIR + "ccs-pause/")
         st = sc.status(backend=self.b)
         self.assertEqual([i.id for i in st.items if i.outdated], list(old))
-        self.assertIn("commande à mettre à jour : ccs raccourcis on suivant", sc.format_text(st))
+        self.assertIn("commande à mettre à jour : ccs shortcuts on suivant", sc.format_text(st))
         self.assertEqual(sc.update_commands(backend=self.b), list(old))
         for act, cmd in new.items():
             self.assertEqual(custom(self.b, DIR + f"ccs-{act}/")["command"], f"/usr/bin/{cmd} --notifier")
@@ -532,7 +532,7 @@ class StockGnomeTest(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------
-# État et texte de « ccs raccourcis »
+# État et texte de « ccs shortcuts »
 # --------------------------------------------------------------------------
 
 class StatusTest(SafetyMixin, unittest.TestCase):
@@ -587,7 +587,7 @@ class StatusTest(SafetyMixin, unittest.TestCase):
         self.assertRegex(text, r"⚠ Afficher les sessions\s+Super\+Alt\+S")
         self.assertIn("Lecteur d'écran", text)
         self.assertRegex(text, r"· Pause 1 h\s+Super\+Alt\+P\s+\(désactivé\)")
-        self.assertIn("ccs raccourcis on", text)
+        self.assertIn("ccs shortcuts on", text)
 
 
 class CommandTest(SafetyMixin, unittest.TestCase):
@@ -647,7 +647,7 @@ class CommandTest(SafetyMixin, unittest.TestCase):
     def test_unknown_subcommand(self):
         code, text = sc.command(["zut"], backend=self.b)
         self.assertEqual(code, 2)
-        self.assertIn("ccs raccourcis", text)
+        self.assertIn("ccs shortcuts", text)
 
     def test_unsupported(self):
         with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "KDE"}):

@@ -6,7 +6,7 @@
      "alerted": {"/home/u/Work/App": {"week": "2026-11-09", "pcts": [80]}}}
 
 - Un sous-dossier compte pour le projet le plus proche qui a un budget (`nearest`).
-- La semaine est la semaine calendaire de `ccs semaine` (`weekly_report.week_anchor`).
+- La semaine est la semaine calendaire de `ccs week` (`weekly_report.week_anchor`).
 - La dépense est l'équivalent API (`costs`) des réponses de la semaine dont le dossier de
   travail est dans le projet ; les relectures de journaux passent par le cache de `costs`
   (chemin, taille et date de modification).
@@ -160,7 +160,7 @@ def nearest(cwd, budgets):
 # --------------------------------------------------------------------------
 
 def week_bounds(now, settings=None, accounts=None):
-    """(début, fin) de la semaine en cours, comme `ccs semaine` (début de semaine d'après les
+    """(début, fin) de la semaine en cours, comme `ccs week` (début de semaine d'après les
     comptes, sinon le lundi 9:00 ou le jour réglé)."""
     from . import weekly_report
     from .settings import load_settings

@@ -17,7 +17,7 @@ override_dh_install:
 # et activée pour tous les utilisateurs.
 override_dh_installsystemduser:
 	dh_installsystemduser -pccs --name=ccs-daemon
-	# son partagé : activé par `ccs audio activer` seulement
+	# son partagé : activé par `ccs audio enable` seulement
 	dh_installsystemduser -pccs --name=ccs-audio --no-enable
 
 # Services du serveur (paquet ccs-serveur) ; le pont est un gabarit démarré par ccs-auth.

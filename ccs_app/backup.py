@@ -1,4 +1,4 @@
-"""Sauvegarde chiffrée des comptes et des réglages (`ccs sauvegarde`, `ccs restaurer`).
+"""Sauvegarde chiffrée des comptes et des réglages (`ccs backup`, `ccs restore`).
 
 Contenu, déduit du code de CCS :
 
@@ -27,7 +27,7 @@ créé en 600 puis posé atomiquement. La restauration n'écrit que dans le doss
 
 API : BackupError, default_name(), collect(), create(), open_backup(), Backup
 (`contents`, `conflicts()`, `restore()`), restore(), describe(), command() (`ccs
-sauvegarde` / `ccs restaurer`).
+sauvegarde` / `ccs restore`).
 """
 
 import io
@@ -65,8 +65,8 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 _MEMBER_RE = re.compile(r"^profiles/(?!\.{1,2}/)([A-Za-z0-9._-]+)/(oauth|account)\.json$")
 
 USAGE = (
-    "usage : ccs sauvegarde [fichier]          sauvegarde chiffrée (gpg) des comptes et réglages\n"
-    "        ccs restaurer <fichier> [--oui]   restaure une sauvegarde (--oui : sans confirmation)"
+    "usage : ccs backup [fichier]          sauvegarde chiffrée (gpg) des comptes et réglages\n"
+    "        ccs restore <fichier> [--yes]   restaure une sauvegarde (--yes : sans confirmation)"
 )
 
 
@@ -446,13 +446,13 @@ def _ask(over):
 
 
 def command(args, confirm=None, backend=None, out=None, err=None):
-    """`ccs sauvegarde [fichier]` et `ccs restaurer <fichier> [--oui]` : la sous-commande
+    """`ccs backup [fichier]` et `ccs restore <fichier> [--yes]` : la sous-commande
     est le premier argument (« sauvegarde » ou « restaurer »). Renvoie le code de sortie."""
     out, err = out or sys.stdout, err or sys.stderr
     args = list(args)
     verb = args.pop(0) if args and args[0] in ("sauvegarde", "restaurer") else "sauvegarde"
-    yes = "--oui" in args
-    rest = [a for a in args if a != "--oui"]
+    yes = "--yes" in args or "--oui" in args
+    rest = [a for a in args if a not in ("--yes", "--oui")]
     if any(a.startswith("-") for a in rest) or (verb == "sauvegarde" and (yes or len(rest) > 1)) \
             or (verb == "restaurer" and len(rest) != 1):
         print(USAGE, file=err)

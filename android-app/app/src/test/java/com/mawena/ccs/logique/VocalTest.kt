@@ -41,7 +41,7 @@ class VocalTest {
         assertEquals("Voir la doc et le schéma.", Vocal.pourLecture("Voir [la doc](https://exemple.fr/doc) et ![le schéma](a.png)."))
         assertEquals("Adresse : lien", Vocal.pourLecture("Adresse : https://ccs.mawena.cloud/x?y=1"))
         assertEquals("Ici : lien", Vocal.pourLecture("Ici : <https://exemple.fr>"))
-        assertEquals("Lance ccs root etat", Vocal.pourLecture("Lance `ccs root etat`"))
+        assertEquals("Lance ccs root status", Vocal.pourLecture("Lance `ccs root status`"))
     }
 
     @Test

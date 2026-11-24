@@ -1,9 +1,9 @@
-"""Registre des commandes lancées par `ccs distant lancer` (calcul réparti).
+"""Registre des commandes lancées par `ccs remote run` (calcul réparti).
 
 Un fichier JSON par travail dans `~/.cache/ccs/machines/jobs/<id>.json` (`~/.cache` suit
 `XDG_CACHE_HOME` ; `distant/travaux/` avant la 1.0.0, renommé tout seul), écrit de façon
 atomique ; le journal d'un travail détaché est `<id>.log` à côté. Toute lecture-écriture passe
-par un verrou (`fcntl.flock` sur `.lock`) : plusieurs `ccs distant lancer` simultanés comptent
+par un verrou (`fcntl.flock` sur `.lock`) : plusieurs `ccs remote run` simultanés comptent
 ainsi les places des machines sans se marcher dessus.
 
 États (en anglais, comme ceux des tâches) : `waiting` (pas de place libre), `scheduled`
@@ -97,7 +97,7 @@ def _read(job_id):
 
 
 def label(state):
-    """État d'un travail en français, pour l'affichage (`ccs distant travaux`, pages)."""
+    """État d'un travail en français, pour l'affichage (`ccs remote jobs`, pages)."""
     return LABELS.get(state, state or "?")
 
 
@@ -279,7 +279,7 @@ RUNNER = "import sys; from ccs_app import cli; sys.exit(cli.main(sys.argv[1:]))"
 
 def start(command, cwd, machine=None, tool=None, when="", *, fetch=(), include=(),
           with_git=False, popen=None):
-    """Lance un travail détaché (`ccs distant lancer --detache …` à part) ; renvoie son id."""
+    """Lance un travail détaché (`ccs remote run --detach …` à part) ; renvoie son id."""
     from . import distant
     command = list(command)
     if not command:

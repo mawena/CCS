@@ -824,8 +824,8 @@ def askpass_main(argv=None, out=None, fetch=fetch_password, ensure=ensure_keeper
 # --------------------------------------------------------------------------
 
 USAGE = """usage : ccs root -- <commande…>   lance la commande avec sudo, mot de passe demandé aux appareils
-       ccs root etat              mot de passe gardé ou non, temps restant
-       ccs root oublier           efface tout de suite le mot de passe gardé"""
+       ccs root status              mot de passe gardé ou non, temps restant
+       ccs root forget           efface tout de suite le mot de passe gardé"""
 
 STATUS_WORDS = ("etat", "état", "status")
 FORGET_WORDS = ("oublier", "forget")

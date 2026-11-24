@@ -352,7 +352,7 @@ def sections(report):
 
 
 def format_text(report):
-    """Texte de `ccs semaine`."""
+    """Texte de `ccs week`."""
     lines = [title(report)]
     for head, rows in sections(report):
         lines += ["", head] + [f"• {row}" for row in rows]

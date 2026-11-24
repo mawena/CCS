@@ -589,13 +589,13 @@ def check_profiles(p):
     profiles = p.profiles()
     if not profiles:
         return [Check("Comptes", AVERTISSEMENT, "aucun profil enregistré : enregistre le compte actuel avec "
-                                                "« ccs enregistrer <nom> »")]
+                                                "« ccs save <nom> »")]
     accounts = {a.get("name"): a for a in (p.once("state") or {}).get("accounts") or [] if isinstance(a, dict)}
     now = p.now()
     out = []
     for prof in profiles:
         nom = f"Compte {prof.name}"
-        fix = f"ccs supprimer {prof.name} && ccs ajouter {prof.name}"
+        fix = f"ccs remove {prof.name} && ccs add {prof.name}"
         info = p.token_info(prof)
         error = str((accounts.get(prof.name) or {}).get("error") or "")
         if not info.present:
@@ -698,8 +698,8 @@ def check_archive(p):
 def check_gpg(p):
     nom = "Chiffrement (gpg)"
     if p.which("gpg"):
-        return Check(nom, OK, "gpg présent : ccs sauvegarde est disponible")
-    return Check(nom, AVERTISSEMENT, "gpg introuvable : ccs sauvegarde et ccs restaurer ne marcheront pas",
+        return Check(nom, OK, "gpg présent : ccs backup est disponible")
+    return Check(nom, AVERTISSEMENT, "gpg introuvable : ccs backup et ccs restore ne marcheront pas",
                  "sudo apt install gnupg")
 
 
@@ -724,7 +724,7 @@ def check_tasks(p):
         return None
     ids = ", ".join(dead)
     return Check(nom, AVERTISSEMENT, f"tâche en cours dont le processus n'existe plus : {ids}",
-                 f"ccs tache annuler {dead[0]}")
+                 f"ccs task cancel {dead[0]}")
 
 
 def check_file_history(p):

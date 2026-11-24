@@ -59,7 +59,7 @@ class FicheBackupCliTest(HomeTestCase):
     def test_fiche_needs_an_identifier(self):
         code, _, err = run("fiche")
         self.assertEqual(code, 2)
-        self.assertIn("usage : ccs fiche", err)
+        self.assertIn("usage : ccs recap", err)
 
     def test_fiche_unknown_conversation(self):
         code, _, err = run("fiche", "zzzz")

@@ -442,7 +442,7 @@ def group_by_day(entries, now=None):
 
 
 def format_text(entries, now=None):
-    """Texte de « ccs journal » : un bloc par jour, une ligne par entrée (✗ : échec)."""
+    """Texte de « ccs log » : un bloc par jour, une ligne par entrée (✗ : échec)."""
     if not entries:
         return "Aucune bascule sur cette période."
     width = max(len(e.title) for e in entries)
@@ -457,11 +457,11 @@ def format_text(entries, now=None):
     return "\n".join(lines)
 
 
-USAGE = "usage : ccs journal [--jours N | --tout]"
+USAGE = "usage : ccs log [--days N | --all]"
 
 
 def command(days=7, now=None, store=None):
-    """(code de sortie, texte) de « ccs journal [--jours N | --tout] » (None : tout l'historique)."""
+    """(code de sortie, texte) de « ccs log [--days N | --all] » (None : tout l'historique)."""
     if days is not None and (isinstance(days, bool) or not isinstance(days, int) or days <= 0):
         return 2, USAGE
     if store is None:

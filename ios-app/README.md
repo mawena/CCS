@@ -42,7 +42,7 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
   retirer, ajout d'un PC ou d'un téléphone) et le calcul réparti au même endroit : chaque fiche
   qui est une machine de calcul porte sa charge, sa mémoire, ses outils, ses places et sa limite ;
   les machines joignables seulement par Ricochet ont leur fiche « Par Ricochet ». Travaux
-  `ccs distant` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
+  `ccs remote` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
   commande » (maintenant, cette nuit ou à une heure), secours Ricochet (réglages du relais).
 - **Son partagé** (Plus → Son, phase 42, `docs/audio.md`) : tant que l'appli est connectée,
   l'iPhone s'annonce au pont toutes les 30 s (`audio.announce`, nom du pair du réseau maillé qui

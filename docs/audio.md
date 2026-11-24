@@ -107,6 +107,6 @@ gst-launch-1.0 pulsesrc device=<sortie>.monitor ! audioconvert ! audioresample \
 | Windows | même agent, GStreamer → `autoaudiosink` | `wasapi2src loopback=true` (son de la sortie par défaut) |
 | Web | — (liste et télécommande seulement) | — |
 
-Linux : `ccs audio lister`, `ccs audio envoyer <source> <sortie>`, `ccs audio arreter`,
-`ccs audio recevoir` (au premier plan, pour essayer). Le démon CCS annonce la machine et crée les
+Linux : `ccs audio list`, `ccs audio send <source> <sortie>`, `ccs audio stop`,
+`ccs audio receive` (au premier plan, pour essayer). Le démon CCS annonce la machine et crée les
 sorties virtuelles tout seul quand le réglage « son partagé » est actif.

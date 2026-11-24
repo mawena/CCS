@@ -99,7 +99,7 @@ DEFAULTS = {
     "budget": {"enabled": True, "alert_pcts": [80, 100]},
     # Chats : idle_suspend_min : minutes d'inactivité avant de suspendre le processus claude d'un
     # chat (0 = jamais) ; rights : mode de permission des nouveaux chats ; auto_clear : Claude
-    # peut effacer la conversation en fin de sujet (`ccs chat effacer`) ; read_aloud : l'appli de
+    # peut effacer la conversation en fin de sujet (`ccs chat clear`) ; read_aloud : l'appli de
     # bureau lit à voix haute chaque réponse à la fin du tour (la version web a son propre réglage).
     "chat": {"idle_suspend_min": 30, "rights": "manual", "auto_clear": True, "read_aloud": False},
     "files": {"layout": "B", "show_ignored": False},
@@ -173,7 +173,7 @@ INTEGERS = {"alerts.weekly_report_hour", "alerts.monthly_report_hour", "advisor.
             "archive.max_age_days", "context_alert.threshold_tokens",
             "chat.idle_suspend_min", "git.fetch_minutes", "jarvis.port"}
 CHOICES = {
-    # Mode de Claude Code, ou mot des droits de `ccs tache` (converti à la lecture).
+    # Mode de Claude Code, ou mot des droits de `ccs task` (converti à la lecture).
     "chat.rights": launch_options.PERMISSION_MODE_VALUES + launch_options.RIGHTS_WORDS,
     "files.layout": ("A", "B"),
     "git.layout": ("A", "B", "C"),
