@@ -14,6 +14,15 @@
       "category": "developer",
       "versions": [
         {
+          "version": "1.16.0",
+          "buildVersion": "48",
+          "date": "2026-11-24",
+          "localizedDescription": "Rendu riche du chat (Markdown, code, tableaux), Venice, audio Linux fiabilisé.",
+          "downloadURL": "https://github.com/mawena/CCS/releases/download/v1.16.0/CCS-1.16.0.ipa",
+          "size": 2603203,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.15.0",
           "buildVersion": "47",
           "date": "2026-11-24",
