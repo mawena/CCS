@@ -76,3 +76,15 @@ Le message envoyé contient le titre, puis une ligne `- Libellé : valeur` par c
   - rendu dans `ccs_app/gui/markdown_view.py`.
   - Les images Markdown distantes n'y sont pas chargées.
   - Dans les vues des sous-agents, les boutons restent inactifs.
+
+## Android
+
+- Partie commune dans `android-app/.../logique/ChatRiche.kt` (comme `web/chat-rich.js`) ; rendu
+  dans `ui/chat/RicheVue.kt`, branché par `MarkdownVue.kt` et fourni par `EcranChat.kt`
+  (`LocalRiche`). Hors du chat (aperçu d'un fichier `.md`), le Markdown reste simple.
+- Images : 360 dp de large au plus, agrandies d'un toucher. Fichiers du serveur lus par
+  `files.download`, adresses https par OkHttp ; 60 Mo au plus, gardés 24 h dans le cache de l'appli.
+- Sons : `MediaPlayer` (lecture, pause, position). Vidéos : `VideoView` et ses commandes.
+  Rien ne se charge avant le premier toucher.
+- Blocs `ccs` : boutons, menus déroulants et champs Material ; un bouton n'envoie qu'une fois.
+  Dans la vue d'un sous-agent, les boutons restent inactifs.

@@ -27,6 +27,8 @@ object Markdown {
         val code: Boolean = false,
         val barre: Boolean = false,
         val lien: String? = null,
+        /** Image `![alt](src)` : `texte` est le texte de remplacement, `lien` la source. */
+        val image: Boolean = false,
     )
 
     private val FENCE = Regex("^ {0,3}(`{3,}|~{3,})\\s*([^`\\s]*)?.*$")
@@ -202,7 +204,7 @@ object Markdown {
         val fusion = ArrayList<Segment>()
         for (s in out) {
             val d = fusion.lastOrNull()
-            if (d != null && d.copy(texte = s.texte) == s) fusion[fusion.size - 1] = d.copy(texte = d.texte + s.texte)
+            if (d != null && !s.image && d.copy(texte = s.texte) == s) fusion[fusion.size - 1] = d.copy(texte = d.texte + s.texte)
             else fusion.add(s)
         }
         return fusion
@@ -267,6 +269,12 @@ object Markdown {
             }
             if ((c == '!' && i + 1 < s.length && s[i + 1] == '[') || (c == '[' && st.lien == null)) {
                 val l = lien(s, if (c == '!') i + 1 else i)
+                if (l != null && c == '!') {
+                    vider()
+                    out.add(Segment(l.first.ifEmpty { l.second }, st.gras, st.italique, false, st.barre, l.second, image = true))
+                    i = l.third
+                    continue
+                }
                 if (l != null) {
                     vider()
                     enLigne(l.first.ifEmpty { l.second }, st.copy(lien = l.second), out)
