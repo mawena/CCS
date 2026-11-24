@@ -33,7 +33,7 @@ object Routes {
         route.startsWith("projet") || route.startsWith("chat") || route.startsWith("git") -> Onglet.Sessions.route
         route.startsWith("fichier") -> Onglet.Fichiers.route
         route == ANALYSE -> Onglet.Accueil.route
-        route == REGLAGES || route == JARVIS || route == SON || route.startsWith("terminal") -> Onglet.Plus.route
+        route == REGLAGES || route == JARVIS || route.startsWith("terminal") -> Onglet.Plus.route
         else -> route
     }
 }
