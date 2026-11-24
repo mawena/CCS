@@ -262,6 +262,23 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         att = await c.call("chat.attach", chat_id=r["chat_id"], since=0)
         self.assertEqual(att["options"]["provider"], "openrouter")
 
+    async def test_resume_finds_provider_from_journal(self):
+        """Reprise sans fournisseur d'une conversation Venice : le pont le retrouve dans le journal,
+        sinon claude enverrait le modèle Venice chez Anthropic. Un modèle Claude choisi l'emporte."""
+        import json
+        from ccs_app import providers
+        providers.save_key("venice", "cle-essai")
+        journal = sessions.transcript_path(str(self.project), "ven")
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text(json.dumps({"type": "assistant", "message": {
+            "model": "deepseek-v4-1-flash-1017-uncensored"}}) + "\n")
+        c = await self.client()
+        r = await c.call("chat.open", cwd=str(self.project), session_id="ven")
+        self.assertEqual(r["options"]["provider"], "venice")
+        await c.call("chat.close", chat_id=r["chat_id"])
+        r = await c.call("chat.open", cwd=str(self.project), session_id="ven", options={"model": "opus"})
+        self.assertFalse(r["options"].get("provider"))
+
     async def test_list_gives_journal_title(self):
         """chat.list donne le titre de la conversation : `/rename` ou CCS d'abord, sinon le titre
         automatique ; rien tant que le journal n'en a pas. Le dernier renommage l'emporte."""
