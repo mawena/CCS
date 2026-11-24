@@ -14,7 +14,7 @@ import os
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from .. import core, launch_options, project_accounts, sessions
+from .. import core, launch_options, project_accounts, providers, sessions
 from ..launch_options import LaunchSpec
 from .common import in_thread
 from .doctor_dialog import plain_row
@@ -86,8 +86,16 @@ class NewSessionDialog(Adw.Dialog):
         page.add(who)
 
         how = Adw.PreferencesGroup(title="Options de Claude Code")
+        # Fournisseur : Claude, ou un autre service (OpenRouter…) qui fournit le modèle
+        self.providers = providers.choices()
+        self.provider_row = Adw.ComboRow(title="Fournisseur", model=Gtk.StringList.new(
+            [label for _n, label, _m in self.providers]))
+        self.provider_row.set_visible(len(self.providers) > 1)
+        self.provider_row.connect("notify::selected", lambda *_: self.provider_changed())
+        how.add(self.provider_row)
+        self.model_values = list(launch_options.MODELS)
         self.model_row = Adw.ComboRow(title="Modèle", model=Gtk.StringList.new(
-            [label for label, _v in launch_options.MODELS]))
+            [label for label, _v in self.model_values]))
         how.add(self.model_row)
         self.mode_row = Adw.ComboRow(title="Permissions", model=Gtk.StringList.new(
             [label for label, _v in launch_options.PERMISSION_MODES]))
@@ -180,9 +188,33 @@ class NewSessionDialog(Adw.Dialog):
         i = self.profile_row.get_selected()
         return self.profiles[i].name if 0 <= i < len(self.profiles) else None
 
+    def selected_provider(self):
+        i = self.provider_row.get_selected()
+        name = self.providers[i][0] if 0 <= i < len(self.providers) else "claude"
+        return None if providers.is_claude(name) else name
+
+    def provider_changed(self):
+        i = self.provider_row.get_selected()
+        models = self.providers[i][2] if 0 <= i < len(self.providers) else []
+        self.model_values = list(models) if self.selected_provider() else list(launch_options.MODELS)
+        self.model_row.set_model(Gtk.StringList.new([label for label, _v in self.model_values]))
+        self.model_row.set_selected(0)
+        self.update()
+
+    def provider_problem(self):
+        if not hasattr(self, "provider_row"):
+            return None          # update() appelé pendant la construction
+        name = self.selected_provider()
+        if not name:
+            return None
+        try:
+            return providers.key_problem(providers.get(name))
+        except ValueError as e:
+            return str(e)
+
     def selected_model(self):
         i = self.model_row.get_selected()
-        return launch_options.MODELS[i][1] if 0 <= i < len(launch_options.MODELS) else None
+        return self.model_values[i][1] if 0 <= i < len(self.model_values) else None
 
     def selected_mode(self):
         i = self.mode_row.get_selected()
@@ -192,14 +224,18 @@ class NewSessionDialog(Adw.Dialog):
         folder, profile = self.selected_folder(), self.selected_profile()
         origin = project_accounts.origin_for(folder, profile, self.assocs) if profile != self.active else None
         return LaunchSpec(cwd=folder, profile=profile, model=self.selected_model(),
-                          permission_mode=self.selected_mode(), origin=origin)
+                          permission_mode=self.selected_mode(), origin=origin,
+                          provider=self.selected_provider())
 
     def update(self):
         folder = self.selected_folder()
         self.folder_row.set_tooltip_text(folder)
         ok = bool(folder) and os.path.isdir(folder)
-        self.ok_btn.set_sensitive(ok)
-        self.ok_btn.set_tooltip_text(None if ok else "Ce dossier n'existe pas")
+        problem = self.provider_problem()
+        if hasattr(self, "provider_row"):
+            self.provider_row.set_subtitle(problem or "")
+        self.ok_btn.set_sensitive(ok and not problem)
+        self.ok_btn.set_tooltip_text(problem if problem else None if ok else "Ce dossier n'existe pas")
         self.project_account(folder)
         profile = self.selected_profile()
         self.switch_row.set_visible(bool(profile) and profile != self.active)

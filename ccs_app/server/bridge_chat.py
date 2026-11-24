@@ -38,7 +38,7 @@ import time
 import uuid as uuidlib
 from pathlib import Path
 
-from .. import chat_engine, chat_options, conversations, chat_protocol as proto, context_alert, limit_events, \
+from .. import chat_engine, chat_options, conversations, providers, chat_protocol as proto, context_alert, limit_events, \
     limit_resume, markdown_render, message_tags, notify, sessions, settings, subagents
 from ..chat_engine import ChatSession
 from . import events, rpc
@@ -120,7 +120,30 @@ def _uuid(raw):
 def _options(raw):
     raw = raw if isinstance(raw, dict) else {}
     names = {f.name for f in dataclasses.fields(chat_options.ChatOptions)}
-    return chat_options.ChatOptions(**{k: v for k, v in raw.items() if k in names})
+    options = chat_options.ChatOptions(**{k: v for k, v in raw.items() if k in names})
+    if options.provider:                 # fournisseur inconnu ou sans clé : refusé avant de lancer
+        try:
+            problem = providers.key_problem(providers.get(options.provider))
+        except ValueError as e:
+            problem = str(e)
+        if problem:
+            raise rpc.RpcError("invalide", problem)
+    return options
+
+
+def provider_list():
+    """Fournisseurs à proposer : [{name, label, models: [[id, libellé]], problem}]."""
+    out = []
+    for name, label, models in providers.choices():
+        problem = None
+        if not providers.is_claude(name):
+            try:
+                problem = providers.key_problem(providers.get(name))
+            except ValueError as e:
+                problem = str(e)
+        out.append({"name": name, "label": label, "models": [[m, lab] for lab, m in models],
+                    "problem": problem})
+    return out
 
 
 class ChatHub:
@@ -145,6 +168,7 @@ class ChatHub:
             "chat.interrupt": self.interrupt, "chat.options": self.options,
             "chat.close": self.close, "chat.render": self.render, "chat.context": self.context,
             "chat.tags": self.tags, "chat.tag": self.tag, "chat.agent_log": self.agent_log,
+            "chat.providers": self.providers,
         })
 
     # ---- état ------------------------------------------------------------------------
@@ -308,13 +332,18 @@ class ChatHub:
         self._record(chat, events.PermissionSettled(str(params.get("request_id")), "answered"))
         return {}
 
+    async def providers(self, _conn, _params):
+        return {"providers": await asyncio.to_thread(provider_list)}
+
     async def interrupt(self, _conn, params):
         await asyncio.to_thread(self._get(params).engine.interrupt)
         return {}
 
     async def options(self, _conn, params):
         chat = self._get(params)
-        await asyncio.to_thread(chat.engine.set_options, _options(params.get("options")))
+        raw = dict(params.get("options") or {}) if isinstance(params.get("options"), dict) else {}
+        raw["provider"] = chat.engine.options.provider   # fixé à l'ouverture : claude n'en change pas en route
+        await asyncio.to_thread(chat.engine.set_options, _options(raw))
         return {}
 
     async def context(self, _conn, params):

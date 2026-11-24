@@ -49,7 +49,7 @@ NIGHT_DURATION_H = 3.0  # durée supposée d'une tâche de nuit pour choisir le 
 TIME_RE = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 ID_RE = re.compile(r"^[0-9]{1,9}$")
 USAGE = ('usage : ccs task [add "<message>" [-C dossier] [--model m] '
-         '[--rights read|edit|all] [--when quota|night|HH:MM]]\n'
+         '[--rights read|edit|all] [--when quota|night|HH:MM] [--provider nom]]\n'
          '       ccs task [show <id>] [cancel <id>] [remove <id>]')
 
 
@@ -76,6 +76,7 @@ class Task:
     error: str | None = None
     note: str = ""                       # dernier motif d'attente ou d'échec, lisible
     extra: dict = field(default_factory=dict)
+    provider: str | None = None          # autre fournisseur que Claude (providers.py)
 
     def to_dict(self):
         return asdict(self)
@@ -105,7 +106,7 @@ class Task:
         return t
 
 
-_TYPES = {"model": (str, type(None)), "rights": (str,), "when": (str,), "not_before": (int, float, type(None)),
+_TYPES = {"model": (str, type(None)), "provider": (str, type(None)), "rights": (str,), "when": (str,), "not_before": (int, float, type(None)),
           "state": (str,), "created": (int, float), "started": (int, float, type(None)),
           "finished": (int, float, type(None)), "session_id": (str, type(None)),
           "account": (str, type(None)), "attempts": (int,), "retry_at": (int, float, type(None)),
@@ -229,7 +230,7 @@ def normalize_rights(rights):
 
 
 def add(message, cwd=None, model=None, rights=DEFAULT_RIGHTS, when="quota", now=None, tz=None,
-        extra=None):
+        extra=None, provider=None):
     """Ajoute une tâche en attente et la renvoie. Lève ValueError (message vide, droits ou
     moment inconnus, dossier inexistant, modèle invalide), OSError. `extra` : données propres à
     la tâche (ex. `{"roadmap": {"path", "text", "phase"}}` pour une tâche de la feuille de route)."""
@@ -242,14 +243,16 @@ def add(message, cwd=None, model=None, rights=DEFAULT_RIGHTS, when="quota", now=
     folder = os.path.normpath(os.path.abspath(os.path.expanduser(cwd or os.getcwd())))
     if not os.path.isdir(folder):
         raise ValueError(f"dossier introuvable : {folder}")
-    launch_options.claude_args(model=model)          # valide le modèle
+    from . import providers
+    provider = providers.normalize(provider)
+    launch_options.claude_args(model=model, provider=provider)   # valide le modèle et la clé
     model = launch_options._model(model)
     now = now or datetime.now(timezone.utc)
     not_before = next_occurrence(when, now, tz).timestamp() if TIME_RE.match(when) else None
     with _locked():
         tasks, nxt = _read()
         task = Task(str(nxt), message, folder, model, rights, when, not_before, QUEUED, now.timestamp(),
-                    extra=dict(extra or {}))
+                    extra=dict(extra or {}), provider=provider)
         tasks.append(task)
         _write(tasks, nxt + 1)
     return task
@@ -547,10 +550,11 @@ def line(task):
 
 def parse_add(args):
     """Arguments de `ccs task add` : dict (message, cwd, model, rights, when) ; ValueError."""
-    out = {"message": None, "cwd": None, "model": None, "rights": DEFAULT_RIGHTS, "when": "quota"}
+    out = {"message": None, "cwd": None, "model": None, "rights": DEFAULT_RIGHTS, "when": "quota",
+           "provider": None}
     keys = {"-C": "cwd", "--dir": "cwd", "--dossier": "cwd", "--model": "model", "--modele": "model",
             "--modèle": "model", "--rights": "rights", "--droits": "rights", "--when": "when",
-            "--quand": "when"}
+            "--quand": "when", "--provider": "provider", "--fournisseur": "provider"}
     args = list(args)
     i = 0
     while i < len(args):

@@ -22,7 +22,7 @@ export function rememberFolder(path) {
 
 const short = (p, home) => (home && p.startsWith(`${home}/`) ? `~${p.slice(home.length)}` : p);
 
-// known : dossiers de projets connus [{ path, name }] ; onOpen(cwd, { model, rights }) ; onTerm(cwd).
+// known : dossiers de projets connus [{ path, name }] ; onOpen(cwd, { model, rights, provider }) ; onTerm(cwd).
 export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
   const folder = el("input", { type: "text", value: initial, placeholder: "~/Repo/projet", "aria-label": "Dossier de la session",
     autocapitalize: "off", autocomplete: "off", spellcheck: "false", enterkeyhint: "go" });
@@ -31,6 +31,26 @@ export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
   const account = el("select", { "aria-label": "Compte Claude" });
   const accountBox = el("label", { hidden: true }, "Compte Claude", account, hint, warn);
   const model = el("select", { "aria-label": "Modèle" }, ...MODELS.map(([v, t]) => el("option", { value: v }, t)));
+  // Fournisseur : Claude, ou un autre service (OpenRouter…) ; ses modèles remplacent ceux de Claude
+  const provider = el("select", { "aria-label": "Fournisseur" }, el("option", { value: "claude" }, "Claude"));
+  const providerNote = el("p", { class: "notice warning", hidden: true });
+  const providerBox = el("label", { hidden: true }, "Fournisseur", provider, providerNote);
+  let providers = [];
+  const current = () => providers.find((p) => p.name === provider.value);
+  const refreshProvider = () => {
+    const p = current();
+    const list = p && p.name !== "claude" ? p.models : MODELS;
+    clear(model).append(...list.map(([v, t]) => el("option", { value: v }, t)));
+    providerNote.hidden = !p?.problem;
+    providerNote.textContent = p?.problem || "";
+  };
+  provider.addEventListener("change", refreshProvider);
+  api.call("chat.providers").then((r) => {
+    providers = r.providers || [];
+    if (providers.length < 2) return;
+    clear(provider).append(...providers.map((p) => el("option", { value: p.name }, p.label)));
+    providerBox.hidden = false;
+  }, () => {});
   const rights = el("select", { "aria-label": "Droits" }, ...RIGHTS.map(([v, t]) => el("option", { value: v }, t)));
   const danger = el("p", { class: "notice error", hidden: true }, "Claude pourra tout faire sans rien demander : à réserver à un dossier jetable.");
   rights.addEventListener("change", () => { danger.hidden = rights.value !== "bypassPermissions"; });
@@ -107,14 +127,16 @@ export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
         const r = await api.call("accounts.switch", { name: account.value });
         if (!r.ok) { msg.textContent = "La bascule de compte a échoué : rien n'est ouvert."; return; }
       }
-      const ok = await onOpen(path, { model: model.value || null, rights: rights.value });
+      if (current()?.problem) { msg.textContent = current().problem; return; }
+      const chosen = provider.value && provider.value !== "claude" ? provider.value : null;
+      const ok = await onOpen(path, { model: model.value || null, rights: rights.value, provider: chosen });
       if (ok !== false) { rememberFolder(path); close(); }
     } catch (e) { msg.textContent = e.message; } finally { go.disabled = false; }
   };
   const term = el("button", { type: "button", onclick: () => { const p = folder.value.trim(); if (!p) { msg.textContent = "Choisis ou tape un dossier."; return; } rememberFolder(p); close(); onTerm(p); } }, "Terminal");
   const go = el("button", { type: "button", class: "primary", onclick: open }, "Ouvrir un chat");
   const form = el("form", { class: "new-sheet", onsubmit: (e) => { e.preventDefault(); open(); } },
-    el("label", {}, "Dossier", folder), picker, accountBox,
+    el("label", {}, "Dossier", folder), picker, accountBox, providerBox,
     el("div", { class: "two" }, el("label", {}, "Modèle", model), el("label", {}, "Droits", rights)), danger, msg);
   const { close } = sheet("Nouvelle session", form, [el("button", { type: "button", class: "flat", onclick: () => close() }, "Annuler"), term, go]);
 
