@@ -97,6 +97,19 @@ class ProvidersTest(HomeTestCase):
         args = providers.claude_args("openrouter")
         self.assertEqual(args[-1], providers.get("openrouter").default_model)
 
+    def test_model_owner_and_last_model_of_journal(self):
+        """Reprise : le fournisseur se déduit du dernier modèle du journal (`<synthetic>` ignoré)."""
+        self.assertEqual(providers.for_model("deepseek-v4-1-flash-1017-uncensored"), "venice")
+        self.assertIsNone(providers.for_model("claude-opus-5-5"))
+        self.assertIsNone(providers.for_model(None))
+        journal = self.home / "j.jsonl"
+        self.assertIsNone(providers.last_model(journal))
+        lines = [{"type": "assistant", "message": {"model": "qwen-3-6-plus"}},
+                 {"type": "user", "message": {"content": "x"}},
+                 {"type": "assistant", "message": {"model": "<synthetic>"}}]
+        journal.write_text("\n".join(json.dumps(x) for x in lines) + "\nnon json \"model\"\n")
+        self.assertEqual(providers.last_model(journal), "qwen-3-6-plus")
+
     def test_keyless_provider(self):
         cfg = providers.config_path()
         cfg.parent.mkdir(parents=True, exist_ok=True)

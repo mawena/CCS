@@ -5,6 +5,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.16.3] — 2026-11-27
+
+### Corrigé
+- Web : rouvrir une conversation lancée avec un fournisseur tiers (Venice, DeepSeek…) échouait avec « There's an issue with the selected model ». L'appareil ne renvoyait pas le fournisseur et claude envoyait le modèle repris du journal chez Anthropic. Le pont retrouve maintenant le fournisseur à partir du dernier modèle du journal.
+
 ## [1.16.2] — 2026-11-27
 
 ### Corrigé

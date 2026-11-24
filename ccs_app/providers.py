@@ -185,6 +185,38 @@ def get(name):
     return load()[normalize(name)]
 
 
+def for_model(model):
+    """Fournisseur (non Claude) dont la liste contient `model`, ou None."""
+    if not model:
+        return None
+    for name, provider in load().items():
+        if model == provider.default_model or any(m == model for _, m in provider.models):
+            return name
+    return None
+
+
+def last_model(path, tail=256 * 1024):
+    """Dernier modèle répondant dans le journal `.jsonl` (fin du fichier), ou None."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - tail))
+            lines = f.read().decode("utf-8", "replace").splitlines()
+    except (OSError, TypeError):
+        return None
+    for line in reversed(lines):
+        if '"model"' not in line:
+            continue
+        try:
+            msg = json.loads(line).get("message")
+        except (ValueError, AttributeError):
+            continue
+        model = msg.get("model") if isinstance(msg, dict) else None
+        if isinstance(model, str) and model and not model.startswith("<"):   # « <synthetic> »
+            return model
+    return None
+
+
 def key_problem(provider):
     """Ce qui empêche d'utiliser la clé (texte), ou None si tout va bien."""
     path = provider.key_path()

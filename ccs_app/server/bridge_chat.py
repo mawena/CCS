@@ -268,9 +268,18 @@ class ChatHub:
                 if chat.engine.session_id == session_id:
                     chat.conns.add(conn)
                     return {"chat_id": chat.chat_id, "seq": chat.seq, "cwd": chat.cwd, **_info(chat)}
+        raw = dict(params.get("options") or {}) if isinstance(params.get("options"), dict) else {}
+        if session_id and not raw.get("provider"):
+            # reprise : l'appareil ne connaît pas le fournisseur ; sans lui, claude enverrait le
+            # modèle repris du journal (Venice, DeepSeek…) chez Anthropic, qui le refuse
+            model = await asyncio.to_thread(providers.last_model, transcript_of(cwd, session_id))
+            provider = providers.for_model(model)
+            if provider and (not raw.get("model") or providers.for_model(raw["model"]) == provider):
+                raw["provider"] = provider
+                raw["model"] = raw.get("model") or model
         chat = _Chat(f"c{self.boot}-{next(self._ids)}", cwd)
         chat.engine = ChatSession(cwd, session_id=session_id or None,
-                                  options=_options(params.get("options")),
+                                  options=_options(raw),
                                   on_event=self._on_event(chat), claude=self.claude,
                                   environ=self.environ)
         chat.conns.add(conn)
