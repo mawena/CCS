@@ -30,7 +30,10 @@ workflows:
           SIMU=$(xcrun simctl list devices available | grep -m1 -o 'iPhone [0-9]* (' | sed 's/ ($//')
           xcodebuild test -project CCS.xcodeproj -scheme CCS \
             -destination "platform=iOS Simulator,name=$SIMU" \
-            CODE_SIGNING_ALLOWED=NO | xcpretty || exit 1
+            CODE_SIGNING_ALLOWED=NO | xcpretty || {
+              # plantage de l'appli hôte : le rapport dit où
+              find ~/Library/Logs/DiagnosticReports -name 'CCS*' -mmin -30 2>/dev/null | head -1 | xargs -I{} head -c 6000 {}
+              exit 1; }
       - name: .ipa non signé
         script: |
           set -o pipefail
@@ -40,6 +43,14 @@ workflows:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | xcpretty
           mkdir -p build/Payload
           cp -R build/CCS.xcarchive/Products/Applications/CCS.app build/Payload/
+          # extension de diffusion (son partagé) bien embarquée
+          test -d build/Payload/CCS.app/PlugIns/Diffusion.appex || { echo "Diffusion.appex absente de CCS.app/PlugIns"; exit 1; }
+          # signature ad hoc avec les droits (groupe d'applis) : SideStore les lit dans le binaire
+          # pour créer le groupe à la signature ; l'extension d'abord, puis l'appli
+          codesign --force --sign - --entitlements Diffusion/Diffusion.entitlements build/Payload/CCS.app/PlugIns/Diffusion.appex
+          codesign --force --sign - --entitlements CCS/CCS.entitlements build/Payload/CCS.app
+          codesign -d --entitlements - build/Payload/CCS.app/PlugIns/Diffusion.appex 2>&1 | grep -q application-groups
+          ls build/Payload/CCS.app/PlugIns
           (cd build && zip -qr CCS.ipa Payload)
     artifacts:
       - ios-app/build/CCS.ipa

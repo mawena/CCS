@@ -19,6 +19,8 @@ sealed interface DemandeAppli {
     data object NouveauChat : DemandeAppli
     /** Écran « Parler à Jarvis » (raccourci, `ccs://jarvis`, QR code `jarvis://pair?…`). */
     data object Jarvis : DemandeAppli
+    /** Écran « Son partagé » (notification d'un flux de son). */
+    data object Son : DemandeAppli
 }
 
 /** État de l'appli : adresse du serveur, identifiants gardés, connexion. */
@@ -191,8 +193,12 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
 
     fun deconnecter() {
         val portier = _identifiants.value?.viaPortier == true
-        oublier()
-        if (portier) CookieManager.getInstance().removeAllCookies(null)
+        viewModelScope.launch {
+            // le pont oublie ce téléphone comme sortie et source de son (avant de couper)
+            depot.son.partir()
+            oublier()
+            if (portier) CookieManager.getInstance().removeAllCookies(null)
+        }
     }
 
     private fun oublier() {

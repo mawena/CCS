@@ -37,7 +37,7 @@ die() {
   exit 1
 }
 
-# Notification bureau (seulement avec --notifier) : par claude-accounts (D-Bus), sinon
+# Notification bureau (seulement avec --notify) : par claude-accounts (D-Bus), sinon
 # notify-send. Ne fait jamais échouer la commande.
 notify_desktop() {
   [[ -n "$NOTIFY" ]] || return 0
@@ -57,7 +57,7 @@ take_notifier() {
   ARGS=()
   local a
   for a in "$@"; do
-    if [[ "$a" == --notifier ]]; then
+    if [[ "$a" == --notify || "$a" == --notifier ]]; then
       NOTIFY=1
       [[ -n "${CCS_VIA+x}" ]] || ORIGIN_VIA=raccourci
     else
@@ -124,7 +124,7 @@ active_profile() {
 # Copie l'état de connexion actuel dans le profil $1.
 save_live_to() {
   local name="$1" dir="$STORE/$1"
-  live_logged_in || die "aucun compte Claude connecté (lance 'claude auth login' ou 'ccs ajouter <nom>')"
+  live_logged_in || die "aucun compte Claude connecté (lance 'claude auth login' ou 'ccs add <nom>')"
   jq -e '.oauthAccount' "$GLOBAL" >/dev/null 2>&1 || die "oauthAccount absent de $GLOBAL"
   mkdir -p "$dir"
   jq '{claudeAiOauth, organizationUuid}' "$CREDS" | atomic_write "$dir/oauth.json"
@@ -143,8 +143,8 @@ sync_active() {
 
 install_profile() {
   local name="$1" dir="$STORE/$1"
-  [[ -f "$dir/oauth.json" && -f "$dir/account.json" ]] || die "profil inconnu : $name (voir 'ccs liste')"
-  has_token "$dir/oauth.json" || die "'$name' : connexion perdue, reconnecte ce compte avec 'ccs supprimer $name' puis 'ccs ajouter $name'"
+  [[ -f "$dir/oauth.json" && -f "$dir/account.json" ]] || die "profil inconnu : $name (voir 'ccs list')"
+  has_token "$dir/oauth.json" || die "'$name' : connexion perdue, reconnecte ce compte avec 'ccs remove $name' puis 'ccs add $name'"
   mkdir -p "$CONFIG_DIR"
   [[ -f "$CREDS" ]] || echo '{}' | atomic_write "$CREDS"
   [[ -f "$GLOBAL" ]] || echo '{}' | atomic_write "$GLOBAL"
@@ -217,7 +217,7 @@ cmd_list() {
   local cur p mark
   cur="$(active_profile)"
   if [[ -z "$(profiles)" ]]; then
-    echo "Aucun profil. Enregistre le compte actuel avec : ccs enregistrer <nom>"
+    echo "Aucun profil. Enregistre le compte actuel avec : ccs save <nom>"
     return
   fi
   for p in $(profiles); do
@@ -225,16 +225,16 @@ cmd_list() {
     printf '%s %s%-14s%s %-6s %s\n' "$mark" "$c_bold" "$p" "$c_off" "$(plan_of "$p")" "$(describe "$p")"
   done
   if [[ -z "$cur" ]] && live_logged_in; then
-    echo "${c_dim}(le compte connecté n'est enregistré dans aucun profil : ccs enregistrer <nom>)${c_off}"
+    echo "${c_dim}(le compte connecté n'est enregistré dans aucun profil : ccs save <nom>)${c_off}"
   fi
 }
 
 cmd_save() {
-  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs enregistrer <nom>"
+  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs save <nom>"
   valid_name "$name"
   local cur; cur="$(active_profile)"
   if [[ -n "$cur" && "$cur" != "$name" ]]; then
-    die "ce compte est déjà enregistré sous '$cur' (ccs renommer $cur $name pour le renommer)"
+    die "ce compte est déjà enregistré sous '$cur' (ccs rename $cur $name pour le renommer)"
   fi
   lock_store
   save_live_to "$name"
@@ -244,12 +244,12 @@ cmd_save() {
 }
 
 cmd_add() {
-  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs ajouter <nom> [--email adresse] [--console] [--sso]"
+  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs add <nom> [--email adresse] [--console] [--sso]"
   shift
   valid_name "$name"
   [[ ! -d "$STORE/$name" ]] || die "le profil '$name' existe déjà"
   if live_logged_in && [[ -z "$(active_profile)" ]]; then
-    die "le compte actuellement connecté n'est pas enregistré ; fais d'abord 'ccs enregistrer <nom>' pour ne pas le perdre"
+    die "le compte actuellement connecté n'est pas enregistré ; fais d'abord 'ccs save <nom>' pour ne pas le perdre"
   fi
   lock_store
   sync_active
@@ -274,9 +274,9 @@ cmd_add() {
 
 cmd_use() {
   take_notifier "$@"
-  [[ ${#ARGS[@]} -le 1 ]] || die "usage : ccs utiliser <nom> [--notifier]"
-  local name="${ARGS[0]:-}"; [[ -n "$name" ]] || die "usage : ccs utiliser <nom> [--notifier]"
-  [[ -d "$STORE/$name" ]] || die "profil inconnu : $name (voir 'ccs liste')"
+  [[ ${#ARGS[@]} -le 1 ]] || die "usage : ccs use <nom> [--notify]"
+  local name="${ARGS[0]:-}"; [[ -n "$name" ]] || die "usage : ccs use <nom> [--notify]"
+  [[ -d "$STORE/$name" ]] || die "profil inconnu : $name (voir 'ccs list')"
   local cur; cur="$(active_profile)"
   if [[ "$cur" == "$name" ]]; then
     echo "Déjà sur '$name' : $(describe "$name")"
@@ -284,7 +284,7 @@ cmd_use() {
     return
   fi
   if live_logged_in && [[ -z "$cur" ]]; then
-    die "le compte connecté n'est enregistré dans aucun profil ; 'ccs enregistrer <nom>' d'abord"
+    die "le compte connecté n'est enregistré dans aucun profil ; 'ccs save <nom>' d'abord"
   fi
   note_origin "$name" || true
   lock_store
@@ -301,7 +301,7 @@ cmd_use() {
 # connexion est perdue.
 cmd_next() {
   take_notifier "$@"
-  [[ ${#ARGS[@]} -eq 0 ]] || die "usage : ccs suivant [--notifier]"
+  [[ ${#ARGS[@]} -eq 0 ]] || die "usage : ccs next [--notify]"
   local all cur i k n first=0 count cand names="" cmds=""
   local -a lost=()
   mapfile -t all < <(profiles)
@@ -329,13 +329,13 @@ cmd_next() {
   done
   for cand in "${lost[@]}"; do
     names+="${names:+, }$cand"
-    cmds+="${cmds:+ ; }'ccs supprimer $cand' puis 'ccs ajouter $cand'"
+    cmds+="${cmds:+ ; }'ccs remove $cand' puis 'ccs add $cand'"
   done
   die "aucun autre profil utilisable, connexion perdue pour : $names (reconnecte avec $cmds)"
 }
 
 cmd_rm() {
-  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs supprimer <nom>"
+  local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs remove <nom>"
   [[ -d "$STORE/$name" ]] || die "profil inconnu : $name"
   [[ "$(active_profile)" != "$name" ]] || die "'$name' est le compte actif ; bascule d'abord sur un autre"
   rm -rf -- "${STORE:?}/$name"
@@ -344,7 +344,7 @@ cmd_rm() {
 
 cmd_rename() {
   local old="${1:-}" new="${2:-}"
-  [[ -n "$old" && -n "$new" ]] || die "usage : ccs renommer <ancien> <nouveau>"
+  [[ -n "$old" && -n "$new" ]] || die "usage : ccs rename <ancien> <nouveau>"
   valid_name "$new"
   [[ -d "$STORE/$old" ]] || die "profil inconnu : $old"
   [[ ! -e "$STORE/$new" ]] || die "'$new' existe déjà"
@@ -362,89 +362,89 @@ usage() {
   cat <<EOF
 ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
 
-  ccs                      liste les profils (● = actif) ; aussi : ccs liste
-  ccs <nom>                bascule sur le profil <nom> (ou : ccs utiliser <nom>)
-  ccs suivant              bascule sur le profil suivant utilisable (pratique en cas de limite atteinte)
-  ccs enregistrer <nom>    enregistre le compte actuellement connecté sous <nom>
-  ccs ajouter <nom> [opts] connecte un nouveau compte (claude auth login) et l'enregistre
+  ccs                      liste les profils (● = actif) ; aussi : ccs list
+  ccs <nom>                bascule sur le profil <nom> (ou : ccs use <nom>)
+  ccs next                 bascule sur le profil suivant utilisable (pratique en cas de limite atteinte)
+  ccs save <nom>           enregistre le compte actuellement connecté sous <nom>
+  ccs add <nom> [opts]     connecte un nouveau compte (claude auth login) et l'enregistre
                            opts : --email <adresse>  --console  --sso
-  ccs actuel               affiche le profil actif
-  ccs renommer <a> <b>     renomme un profil
-  ccs supprimer <nom>      supprime un profil
-  ccs meilleur [--voir]    bascule sur le meilleur compte maintenant (--voir : sans basculer)
-  ccs etat                 compte actif, prévision, meilleur compte, capacité restante
+  ccs current              affiche le profil actif
+  ccs rename <a> <b>       renomme un profil
+  ccs remove <nom>         supprime un profil
+  ccs best [--show]        bascule sur le meilleur compte maintenant (--show : sans basculer)
+  ccs status               compte actif, prévision, meilleur compte, capacité restante
   ccs usage                affiche l'usage (session / semaine) de TOUS les comptes
   ccs auto on|off          active / désactive la bascule automatique (98 %)
   ccs pause [durée]        suspend la bascule automatique et l'orchestrateur :
-                           1h, 4h, demain, manuel ; off pour reprendre ; etat (défaut) : état
-  ccs silence [durée]      ne pas déranger : retient les notifications (résumées à la fin) :
-                           1h, 4h, demain ; off ou reprendre pour lever ; etat (défaut) : état
-  ccs orchestrateur on|off enchaîne et décale les fenêtres de 5 h des comptes
+                           1h, 4h, demain, manuel ; off pour reprendre ; status (défaut) : état
+  ccs quiet [durée]        ne pas déranger : retient les notifications (résumées à la fin) :
+                           1h, 4h, demain ; off ou reprendre pour lever ; status (défaut) : état
+  ccs orchestrator on|off  enchaîne et décale les fenêtres de 5 h des comptes
   ccs plan                 planning des fenêtres et des recharges à venir
   ccs sessions             sessions Claude Code ouvertes : projet, état, consommation, mémoire (RAM)
                            et badge « contexte lourd »
-  ccs tache [ajouter "<message>" [-C dossier] [--modele m] [--droits lecture|modifications|tout]
-            [--quand quota|nuit|HH:MM] | voir <id> | annuler <id> | supprimer <id>]
+  ccs task [add "<message>" [-C dossier] [--model m] [--rights read|edit|all]
+            [--when quota|night|HH:MM] | show <id> | cancel <id> | remove <id>]
                            file de tâches lancées par le service, sans fenêtre
   ccs budget [<dossier> <montant>|aucun]
                            budget hebdomadaire par projet (équivalent dollars) : état, fixer, retirer
-  ccs fiche <id>           fiche « où j'en étais » d'une conversation (marche aussi sur une archivée)
-  ccs sauvegarde [fichier] sauvegarde chiffrée (gpg) des profils, réglages, budgets, raccourcis
-  ccs restaurer <fichier> [--oui]
+  ccs recap <id>           fiche « où j'en étais » d'une conversation (marche aussi sur une archivée)
+  ccs backup [fichier]     sauvegarde chiffrée (gpg) des profils, réglages, budgets, raccourcis
+  ccs restore <fichier> [--yes]
                            restaure une sauvegarde, avec confirmation avant d'écraser
-  ccs telephone [essai]    notifications sur le téléphone (ntfy) : état et lien d'abonnement ;
-                           « essai » envoie un message d'essai
+  ccs phone [test]         notifications sur le téléphone (ntfy) : état et lien d'abonnement ;
+                           « test » envoie un message d'essai
   ccs conversations [mots] [opts]
                            historique des conversations Claude Code du PC (recherche)
-                           opts : -p/--projet <projet>  --vscode  --terminal  -n/--limite N
-                           --tous  --json
-  ccs reprendre <id> [opts]
-                           reprend une conversation ici (ou --vscode, --nouveau-terminal,
-                           --afficher) ; une conversation archivée est d'abord restaurée
-                           --dossier <dossier> : depuis un projet déplacé
-  ccs titre <id> <titre>   renomme une conversation (comme /rename dans Claude Code)
-  ccs apercu <id>          affiche une conversation en Markdown, avec son coût
-  ccs exporter <id> [fichier.md]
+                           opts : -p/--project <projet>  --vscode  --terminal  -n/--limit N
+                           --all  --json
+  ccs resume <id> [opts]
+                           reprend une conversation ici (ou --vscode, --new-terminal,
+                           --print) ; une conversation archivée est d'abord restaurée
+                           --dir <dossier> : depuis un projet déplacé
+  ccs title <id> <titre>   renomme une conversation (comme /rename dans Claude Code)
+  ccs preview <id>         affiche une conversation en Markdown, avec son coût
+  ccs export <id> [fichier.md]
                            exporte une conversation en Markdown (défaut : <titre>.md ici)
-  ccs integration [on|off|etat]
+  ccs integration [on|off|status]
                            ligne d'état dans Claude Code + bascule après blocage (hook)
-  ccs analyse [--jours N]  où part ton usage : projets, modèles, heures, conseils
-  ccs formule              la formule qu'il te faut (Pro, Max, Ultra) d'après ton usage réel
-  ccs semaine [--precedente N]
+  ccs analyze [--days N]   où part ton usage : projets, modèles, heures, conseils
+  ccs advisor              la formule qu'il te faut (Pro, Max, Ultra) d'après ton usage réel
+  ccs week [--previous N]
                            bilan de la semaine écoulée (ou de N semaines plus tôt)
-  ccs mois [--precedent N]
+  ccs month [--previous N]
                            rapport du mois écoulé (ou de N mois plus tôt)
-  ccs moment [--duree 3h] [--sur 24h]
+  ccs best-time [--duration 3h] [--within 24h]
                            meilleur moment pour lancer une grosse tâche (quota d'affilée)
-  ccs mise-a-jour [--verifier]
+  ccs update [--check]
                            installe la dernière version de CCS (.deb de GitHub, vérifié) ;
-                           --verifier : dit seulement s'il y en a une
-  ccs journal [--jours N | --tout]
+                           --check : dit seulement s'il y en a une
+  ccs log [--days N | --all]
                            journal des bascules avec leur raison (7 derniers jours par défaut)
-  ccs projet [<dossier>] [<compte>|aucun]
+  ccs project [<dossier>] [<compte>|aucun]
                            compte par projet : liste, compte d'un dossier, association
-  ccs raccourcis [etat|on|off [action…]|definir <action> <raccourci>]
+  ccs shortcuts [status|on|off [action…]|set <action> <raccourci>]
                            raccourcis clavier globaux du bureau GNOME
-  ccs tui [--serveur NOM]  CCS en plein écran dans le terminal (ici, ou sur un serveur appairé)
-  ccs distant machines [--vite]
+  ccs tui [--server NOM]   CCS en plein écran dans le terminal (ici, ou sur un serveur appairé)
+  ccs remote machines [--fast]
                            machines du réseau Ricochet : en ligne ou non, charge, outils
-  ccs distant lancer [--machine M] [--outil O] [--rapatrier chemin] -- <commande>
+  ccs remote run [--machine M] [--tool O] [--fetch chemin] -- <commande>
                            lance une commande du projet sur une autre machine (tunnel SSH, rsync)
-  ccs chat effacer         dans un chat de CCS : vide la conversation (/clear) à la fin du tour
-  ccs serveur ajouter|liste|retirer
+  ccs chat clear           dans un chat de CCS : vide la conversation (/clear) à la fin du tour
+  ccs server add|list|remove
                            serveurs CCS distants : appairage (mot de passe Ubuntu + code), liste
-  ccs bilan                bilan de santé : service, version, bureau, comptes, Claude Code
+  ccs doctor               bilan de santé : service, version, bureau, comptes, Claude Code
                            (code de sortie 1 au moindre problème)
-  ccs appli [--page ONGLET] [--session PID:ID] [--tache ID] [--nouvelle-session]
+  ccs app [--page ONGLET] [--session PID:ID] [--task ID] [--new-session]
                            ouvre l'application graphique
   ccs version              version de CCS
-  ccs aide                 cette aide
+  ccs help                 cette aide
 
-  --notifier (suivant, utiliser, meilleur, pause, silence) : résultat aussi en notification
+  --notify (next, use, best, pause, quiet) : résultat aussi en notification
   bureau ; c'est l'option des raccourcis clavier (bascule notée « raccourci » dans le journal)
 
-  Les anciens noms (list, use, next, best, status, resume…) restent acceptés.
-  Un profil qui porte le nom d'une commande se joint par « ccs utiliser <nom> ».
+  Les anciens noms français (liste, utiliser, suivant, meilleur, etat, reprendre…) restent acceptés.
+  Un profil qui porte le nom d'une commande se joint par « ccs use <nom> ».
 
 Profils stockés dans : $STORE
 EOF
@@ -454,21 +454,21 @@ cmd_gui() { setsid -f "$CA" appli "$@" >/dev/null 2>&1; }
 cmd_version() { exec "$CA" --version; }
 
 # Commandes propres à ccs (bascule de profil, qui ne passe pas par Python) : nom principal
-# français, puis anciens noms. Tout le reste est passé tel quel à claude-accounts, qui tient
+# anglais (depuis la 1.12.0), puis anciens noms (français compris). Tout le reste est passé tel quel à claude-accounts, qui tient
 # la seule table des autres commandes et de leurs anciens noms (ccs_app/cli.py).
 own_command() {
   case "$1" in
-    liste|list|ls) echo cmd_list ;;
-    enregistrer|save) echo cmd_save ;;
-    ajouter|add|login) echo cmd_add ;;
-    utiliser|use|switch|sw) echo cmd_use ;;
-    suivant|next|n) echo cmd_next ;;
-    actuel|current|whoami) echo cmd_current ;;
-    supprimer|rm|remove|delete) echo cmd_rm ;;
-    renommer|rename|mv) echo cmd_rename ;;
-    appli|gui|app) echo cmd_gui ;;  # détachée du terminal
+    list|liste|ls) echo cmd_list ;;
+    save|enregistrer) echo cmd_save ;;
+    add|ajouter|login) echo cmd_add ;;
+    use|utiliser|switch|sw) echo cmd_use ;;
+    next|suivant|n) echo cmd_next ;;
+    current|actuel|whoami) echo cmd_current ;;
+    remove|supprimer|rm|delete) echo cmd_rm ;;
+    rename|renommer|mv) echo cmd_rename ;;
+    app|appli|gui) echo cmd_gui ;;  # détachée du terminal
     version|--version|-v) echo cmd_version ;;
-    aide|help|-h|--help) echo usage ;;
+    help|aide|-h|--help) echo usage ;;
     *) return 1 ;;
   esac
 }
@@ -482,11 +482,11 @@ is_command() {
 # Profil nommé comme une commande : « ccs <nom> » lancerait la commande.
 warn_masked() {
   is_command "$1" || return 0
-  echo "attention : « $1 » est aussi une commande de ccs ; ce profil ne sera joignable que par « ccs utiliser $1 »" >&2
+  echo "attention : « $1 » est aussi une commande de ccs ; ce profil ne sera joignable que par « ccs use $1 »" >&2
 }
 
 main() {
-  local cmd="${1:-liste}" f
+  local cmd="${1:-list}" f
   [[ $# -gt 0 ]] && shift
   if f="$(own_command "$cmd")"; then
     "$f" "$@"

@@ -1635,7 +1635,7 @@ class MessageList(Gtk.ScrolledWindow):
     def add_reset_separator(self, auto=False):
         """Après `/clear` : les messages d'avant restent lisibles (et sélectionnables) mais
         grisés, sous un séparateur « Nouvelle conversation ». `auto` : effacée par Claude en fin
-        de sujet (`ccs chat effacer`)."""
+        de sujet (`ccs chat clear`)."""
         child = self.box.get_first_child()
         while child is not None:
             if child not in (self.busy_row, self.older_row):

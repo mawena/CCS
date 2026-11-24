@@ -1,0 +1,14 @@
+[Unit]
+Description=CCS — son partagé sur le réseau maillé (annonce, sorties virtuelles, RTP/Opus)
+Documentation=man:ccs(1)
+After=graphical-session.target pipewire-pulse.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/claude-accounts audio agent
+SyslogIdentifier=ccs-audio
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target

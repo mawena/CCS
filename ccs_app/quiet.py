@@ -30,7 +30,7 @@ CHOICES = ("1h", "4h", "demain")
 RESUME = ("off", "reprendre")
 DURATIONS = {"1h": timedelta(hours=1), "4h": timedelta(hours=4)}
 TOMORROW_HHMM = (8, 0)  # « demain » sans plage de silence : 08:00
-USAGE = "usage : ccs silence [1h|4h|demain|off|etat]"
+USAGE = "usage : ccs quiet [1h|4h|demain|off|status]"
 
 # Genres de notification retenue : (clé, singulier, pluriel), dans l'ordre du résumé.
 KINDS = (
@@ -252,7 +252,7 @@ def choices(now, settings=None):
 
 
 def command(args, now=None, settings=None):
-    """`ccs silence [1h|4h|demain|off|etat]` (ancien : status) → (code de sortie, texte). Le service doit
+    """`ccs quiet [1h|4h|demain|off|status]` (ancien : status) → (code de sortie, texte). Le service doit
     ensuite être réveillé (`daemon.request_refresh`) pour que l'état partagé suive."""
     now = now or datetime.now(timezone.utc)
     args = list(args or [])

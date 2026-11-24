@@ -19,14 +19,14 @@ requête suivante.
 .B ccs
 Liste les profils ; le profil actif est marqué d'un rond vert.
 .TP
-.B ccs \fInom\fR [\fB\-\-notifier\fR]
+.B ccs \fInom\fR [\fB\-\-notify\fR]
 Bascule sur le profil \fInom\fR (équivalent à \fBccs use\fR \fInom\fR) ;
 un argument en trop est refusé.
 .TP
-.B ccs next \fR[\fB\-\-notifier\fR]
+.B ccs next \fR[\fB\-\-notify\fR]
 Bascule sur le profil suivant de la liste, en sautant ceux dont la connexion est perdue.
 .TP
-.B ccs best \fR[\fB\-\-notifier\fR]
+.B ccs best \fR[\fB\-\-notify\fR]
 Bascule sur le meilleur compte du moment (marge restante, réinitialisation proche).
 .TP
 .BI "ccs save " nom
@@ -42,12 +42,12 @@ pause en cours.
 .B ccs plan
 Planning des fenêtres de 5 h (en cours et prévues) et recharges à venir.
 .TP
-.B ccs orch on\fR|\fBoff
+.B ccs orchestrator on\fR|\fBoff
 Active ou désactive l'orchestrateur : enchaînement et décalage des fenêtres de
 5 h pendant la plage horaire, bascule vers le quota qui expire, réserve des
 comptes en avance sur leur semaine.
 .TP
-.B ccs pause \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBmanuel\fR|\fBoff\fR|\fBstatus\fR] [\fB\-\-notifier\fR]
+.B ccs pause \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBmanuel\fR|\fBoff\fR|\fBstatus\fR] [\fB\-\-notify\fR]
 Suspend la bascule automatique et l'orchestrateur pendant 1 h, 4 h, jusqu'au
 début de la prochaine plage horaire (\fBdemain\fR) ou jusqu'à reprise
 (\fBmanuel\fR) ; \fBoff\fR (ou \fBreprendre\fR) reprend aussitôt,
@@ -56,7 +56,7 @@ l'orchestrateur. Pendant une pause, CCS ne change plus de compte tout seul, mêm
 une session est bloquée par la limite ; les bascules manuelles, les alertes et
 les warm-up continuent. La pause se lève seule à l'échéance.
 .TP
-.B \-\-notifier
+.B \-\-notify
 Avec \fBccs\fR \fInom\fR, \fBccs use\fR, \fBccs next\fR, \fBccs best\fR et
 \fBccs pause\fR : le résultat s'affiche aussi en notification passagère
 (« Bascule sur \fInom\fR », « Déjà sur \fInom\fR », « Bascule impossible »,
@@ -70,7 +70,7 @@ Sessions Claude Code ouvertes : projet, état, durée, consommation, RAM de
 chaque session et totale, sessions inactives (plus de 2 h, réglable ; rien
 n'est fermé automatiquement) et contexte lourd (plus de 150 000 tokens).
 .TP
-.B ccs conv \fR[\fImots\fR] [\fB\-p \fIprojet\fR] [\fB\-\-vscode\fR|\fB\-\-terminal\fR] [\fB\-\-all\fR] [\fB\-\-json\fR]
+.B ccs conversations \fR[\fImots\fR] [\fB\-p \fIprojet\fR] [\fB\-\-vscode\fR|\fB\-\-terminal\fR] [\fB\-\-all\fR] [\fB\-\-json\fR]
 Historique de toutes les conversations Claude Code du PC, groupées par date,
 avec recherche et filtres.
 .TP
@@ -96,7 +96,7 @@ absolu du fichier écrit. Sans argument, \fI<titre>.md\fR (titre simplifié)
 dans le dossier courant ; un dossier reçoit ce même nom ; un fichier existant
 est remplacé. Alias : \fBccs exporter\fR.
 .TP
-.B ccs integrate on\fR|\fBoff\fR|\fBstatus
+.B ccs integration on\fR|\fBoff\fR|\fBstatus
 Ligne d'état dans Claude Code et bascule automatique quand une session atteint
 la limite (modifie ~/.claude/settings.json, avec sauvegarde).
 .TP
@@ -109,7 +109,7 @@ Active ou désactive la bascule automatique (seuil par défaut : 98 %).
 .BI "ccs analyze \fR[\fB\-\-days \fIN\fR]"
 Consommation locale par projet, modèle, heure et compte, avec conseils.
 .TP
-.B ccs formule
+.B ccs advisor
 Conseiller de formule (alias \fBccs conseil\fR) : la combinaison de comptes
 Pro, Max ou Ultra la moins chère qui couvre l'usage mesuré des 4 dernières
 semaines, 20 % de marge comprise, avec le raisonnement et l'équivalent au
@@ -118,13 +118,13 @@ signalés « à vérifier » après 120 jours ; réglages \fIadvisor.*\fR. Un
 message d'attente s'affiche sur la sortie d'erreur pendant le calcul quand
 c'est un terminal.
 .TP
-.B ccs semaine \fR[\fB\-\-precedente \fIN\fR]
+.B ccs week \fR[\fB\-\-previous \fIN\fR]
 Bilan de la semaine écoulée : usage de chaque compte, conversations, sessions,
 tokens et équivalent API, modèles, projets, bascules et alertes, comparés à la
-semaine précédente ; \fB\-\-precedente\fR \fIN\fR (0 à 520) remonte de
+semaine précédente ; \fB\-\-previous\fR \fIN\fR (0 à 520) remonte de
 \fIN\fR semaines. L'activité ne vient que des journaux de ce PC.
 .TP
-.B ccs mois \fR[\fB\-\-precedent \fIN\fR]
+.B ccs month \fR[\fB\-\-previous \fIN\fR]
 Rapport mensuel : le dernier mois civil terminé (heure locale), ou celui d'il y a
 \fIN\fR mois (0 à 120 ; 0 est le mois en cours, comparé au même nombre de
 jours du mois précédent). Par compte : semaines utilisées, pic hebdomadaire,
@@ -137,17 +137,17 @@ avec au moins 7 jours de relevés) ; réglages \fIalerts.monthly_report\fR et
 \fIalerts.monthly_report_hour\fR (9). L'activité ne vient que des journaux de ce
 PC.
 .TP
-.B ccs moment \fR[\fB\-\-duree \fIdurée\fR] [\fB\-\-sur \fIhorizon\fR]
+.B ccs best-time \fR[\fB\-\-duration \fIdurée\fR] [\fB\-\-within \fIhorizon\fR]
 Meilleur moment pour lancer une grosse tâche : compte les fenêtres de 5 h
 disponibles, tous comptes confondus, pour chaque départ possible (maintenant,
 puis tous les quarts d'heure) ; propose « Lance\-la maintenant » si maintenant
 est à 10 % du meilleur, sinon le meilleur moment et jusqu'à 3 alternatives
 espacées de 90 min. Le plafond hebdomadaire suppose qu'une semaine pleine
-vaut environ 10 fenêtres (estimation). \fB\-\-duree\fR : de 1 à 10 h
-(\fB3h\fR, \fB2h30\fR, \fB90m\fR, \fB1,5h\fR ; défaut 3 h) ; \fB\-\-sur\fR :
+vaut environ 10 fenêtres (estimation). \fB\-\-duration\fR : de 1 à 10 h
+(\fB3h\fR, \fB2h30\fR, \fB90m\fR, \fB1,5h\fR ; défaut 3 h) ; \fB\-\-within\fR :
 horizon de 1 à 72 h (défaut 24 h).
 .TP
-.B ccs silence \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBoff\fR|\fBreprendre\fR|\fBstatus\fR] [\fB\-\-notifier\fR]
+.B ccs quiet \fR[\fB1h\fR|\fB4h\fR|\fBdemain\fR|\fBoff\fR|\fBreprendre\fR|\fBstatus\fR] [\fB\-\-notify\fR]
 Ne pas déranger : retient les notifications pendant 1 h, 4 h ou jusqu'à demain
 (fin de la plage de silence, sinon 08:00) ; \fBoff\fR (ou \fBreprendre\fR) lève
 le silence, \fBstatus\fR (défaut) affiche l'état. Les notifications retenues
@@ -156,28 +156,28 @@ retenue n'est pas renvoyée. Jamais retenus : « attend ta réponse » et son ra
 (réglage \fIalerts.quiet.allow_waiting\fR, vrai par défaut), les sessions
 bloquées par une limite, le résumé et les retours des raccourcis. La plage de
 silence permanente se règle dans \fIalerts.quiet\fR (\fIenabled\fR, \fIstart\fR,
-\fIend\fR, \fIdays\fR). \fB\-\-notifier\fR affiche aussi le résultat en notification passagère.
+\fIend\fR, \fIdays\fR). \fB\-\-notify\fR affiche aussi le résultat en notification passagère.
 \fBccs status\fR affiche le silence. Alias :
 \fBccs quiet\fR.
 .TP
-.B ccs mise\-a\-jour \fR[\fB\-\-verifier\fR]
+.B ccs update \fR[\fB\-\-check\fR]
 Installe la dernière version de CCS publiée sur GitHub : télécharge
 \fIccs_<version>_all.deb\fR et \fISHA256SUMS\fR (adresses et redirections
 limitées à GitHub), vérifie la somme SHA\-256 et le contenu du paquet, puis
 l'installe par \fBpkexec apt\-get install \-y\fR (fenêtre de mot de passe). Si
 \fBpkexec\fR manque ou est refusé, affiche la commande \fBsudo apt install\fR à
-copier. \fB\-\-verifier\fR cherche seulement la dernière version. Une copie de
+copier. \fB\-\-check\fR cherche seulement la dernière version. Une copie de
 développement n'est pas installée : elle se met à jour par git. Alias :
 \fBccs maj\fR.
 .TP
-.B ccs journal \fR[\fB\-\-jours \fIN\fR|\fB\-\-tout\fR]
+.B ccs log \fR[\fB\-\-days \fIN\fR|\fB\-\-all\fR]
 Journal des bascules, groupé par jour, avec la raison de chacune en clair
 (automatique avec le pourcentage, anticipée par l'orchestrateur, après un
 blocage avec le projet, manuelle et son origine, échec, limite atteinte sans
-bascule, démarrage de fenêtre). 7 jours par défaut, \fB\-\-tout\fR pour tout
+bascule, démarrage de fenêtre). 7 jours par défaut, \fB\-\-all\fR pour tout
 l'historique gardé.
 .TP
-.B ccs projet \fR[\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]
+.B ccs project \fR[\fIdossier\fR] [\fIcompte\fR|\fBaucun\fR]
 Compte par projet. Sans argument, liste les dossiers associés à un compte ;
 avec un dossier, affiche son compte (le sien ou celui d'un dossier parent) ;
 avec un compte (dossier courant par défaut), associe le dossier et ses
@@ -186,27 +186,27 @@ sous-dossier hérite encore de son parent). En ouvrant une session de ce projet
 depuis l'application, CCS propose de basculer sur ce compte, sauf pendant une
 pause.
 .TP
-.B ccs raccourcis \fR[\fBstatus\fR|\fBon\fR [\fIaction\fR...]|\fBoff\fR [\fIaction\fR...]|\fBset\fR \fIaction raccourci\fR]
+.B ccs shortcuts \fR[\fBstatus\fR|\fBon\fR [\fIaction\fR...]|\fBoff\fR [\fIaction\fR...]|\fBset\fR \fIaction raccourci\fR]
 Raccourcis clavier globaux du bureau GNOME, actifs même application fermée,
 tous désactivés par défaut. \fBstatus\fR (défaut) affiche leur état,
 \fBon\fR les active (tous, ou les actions données), \fBoff\fR les retire,
 \fBset\fR change une combinaison (par exemple
-\fBccs raccourcis set suivant Super+Alt+B\fR). Actions et raccourcis par
+\fBccs shortcuts set suivant Super+Alt+B\fR). Actions et raccourcis par
 défaut : \fBouvrir\fR (Super+Alt+C), \fBsessions\fR (Super+Alt+V),
 \fBnouvelle\-session\fR (Super+Alt+N), \fBsuivant\fR (Super+Alt+B),
 \fBmeilleur\fR (Super+Alt+M), \fBpause\fR (Super+Alt+P, pause 1 h),
 \fBreprendre\fR (Super+Alt+R), \fBsilence\fR (Super+Alt+D, ne pas déranger
 1 h) ; les commandes de bascule et de pause
-portent \fB\-\-notifier\fR (par exemple \fBccs next \-\-notifier\fR). Un
+portent \fB\-\-notify\fR (par exemple \fBccs next \-\-notify\fR). Un
 raccourci dont la commande a changé (dont ceux activés avant cette option) est
-signalé « à mettre à jour » ; \fBccs raccourcis on\fR \fIaction\fR le
+signalé « à mettre à jour » ; \fBccs shortcuts on\fR \fIaction\fR le
 réécrit. CCS n'écrit que ses propres raccourcis personnalisés, ne retire
 jamais les autres et garde leur ordre. Sur un autre bureau, affiche les
 commandes à associer à la main. Alias : \fBccs shortcuts\fR.
 .TP
-.B ccs tache \fR[\fBajouter\fR \fI"message"\fR [\fB\-C \fIdossier\fR] [\fB\-\-modele \fImodèle\fR] [\fB\-\-droits \fBlecture\fR|\fBmodifications\fR|\fBtout\fR] [\fB\-\-quand \fBquota\fR|\fBnuit\fR|\fIHH:MM\fR]]
+.B ccs task \fR[\fBadd\fR \fI"message"\fR [\fB\-C \fIdossier\fR] [\fB\-\-model \fImodèle\fR] [\fB\-\-rights \fBlecture\fR|\fBmodifications\fR|\fBtout\fR] [\fB\-\-when \fBquota\fR|\fBnuit\fR|\fIHH:MM\fR]]
 .br
-.B ccs tache \fR[\fBvoir\fR|\fBannuler\fR|\fBsupprimer\fR] \fIid\fR
+.B ccs task \fR[\fBshow\fR|\fBcancel\fR|\fBremove\fR] \fIid\fR
 File de tâches : Claude exécute un message sans fenêtre, dans un dossier, pendant
 que tu es ailleurs. Sans argument, liste les tâches. Moments : \fBquota\fR (dès
 qu'un compte a du quota, défaut), \fBnuit\fR (meilleur créneau de la plage de nuit,
@@ -224,25 +224,31 @@ consommation de la semaine ; avec un dossier et un montant, définit le budget ;
 \fBaucun\fR le retire. Alertes à 80 % et 100 %, une fois par seuil et par
 semaine ; rien n'est jamais bloqué.
 .TP
-.B ccs fiche \fIid\fR
+.B ccs recap \fIid\fR
 Fiche « où j'en étais » d'une conversation, lue dans son journal sans appeler
 Claude : dernière demande, début de la dernière réponse, fichiers modifiés,
 dernière liste de tâches, dossier, branche, compte. Marche aussi pour une
 conversation archivée.
 .TP
-.B ccs sauvegarde \fR[\fIfichier\fR]
+.B ccs backup \fR[\fIfichier\fR]
 Sauvegarde chiffrée par gpg (AES\-256) des profils (jetons compris), des
 réglages, des comptes par projet, des budgets et des raccourcis ; pas des
 conversations. Fichier par défaut : \fIccs\-sauvegarde\-AAAA\-MM\-JJ.gpg\fR dans le
 dossier courant, en 600. La phrase de passe est saisie dans la fenêtre de gpg :
 la garder, elle ne peut pas être retrouvée. Alias : \fBbackup\fR.
 .TP
-.B ccs restaurer \fIfichier\fR [\fB\-\-oui\fR]
+.B ccs restore \fIfichier\fR [\fB\-\-yes\fR]
 Restaure une sauvegarde : liste le contenu et demande confirmation avant
-d'écraser un profil existant (\fB\-\-oui\fR : sans confirmation). Le compte
+d'écraser un profil existant (\fB\-\-yes\fR : sans confirmation). Le compte
 actif ne change pas. Alias : \fBrestore\fR.
 .TP
-.B ccs telephone \fR[\fBessai\fR]
+.B ccs audio \fR[\fBlist\fR|\fBsend \fIsource sortie\fR|\fBstop \fR[\fIflux\fR|\fIappareil\fR]|\fBenable \fR[\fB\-\-name \fInom\fR]|\fBdisable\fR|\fBreceive\fR]
+Son partagé sur le réseau maillé : le son d'un appareil CCS joué sur un autre
+(RTP/Opus en UDP direct, mise en relation par le serveur CCS). \fBactiver\fR lance
+le service utilisateur \fBccs\-audio\fR : ce PC est annoncé et chaque autre appareil
+devient une sortie son PipeWire. \fBici\fR désigne ce PC. Voir \fIdocs/audio.md\fR.
+.TP
+.B ccs phone \fR[\fBtest\fR]
 Notifications sur le téléphone par ntfy (désactivées par défaut). Sans argument,
 affiche l'état et le lien d'abonnement à ouvrir dans l'application ntfy ;
 \fBessai\fR envoie un message de test. Seuls le nom du projet et l'état sont
@@ -257,7 +263,7 @@ Claude Code (volet « Changements de la session »). Pour
 chaque problème, affiche la commande qui le corrige, à copier : rien n'est
 exécuté. Voir CODE DE RETOUR.
 .TP
-.B ccs gui
+.B ccs app
 Ouvre l'application « CCS » ; les sessions qu'elle reprend ou démarre
 s'ouvrent dans des chats graphiques (les shells, dans son terminal intégré).
 \fB\-\-page\fR \fIonglet\fR l'ouvre sur un onglet : \fBaccueil\fR, \fBsessions\fR
@@ -271,29 +277,29 @@ Affiche le nom du profil actif.
 .BI "ccs rename " "ancien nouveau"
 Renomme un profil.
 .TP
-.BI "ccs rm " nom
+.BI "ccs remove " nom
 Supprime un profil (le compte n'est pas déconnecté chez Anthropic).
 .TP
-.B ccs distant machines \fR[\fB\-\-vite\fR]
+.B ccs remote machines \fR[\fB\-\-fast\fR]
 Machines du réseau Ricochet : en ligne ou non, charge, outils installés.
 .TP
-.B ccs distant lancer \fR[\fB\-\-machine \fInom\fR] [\fB\-\-outil \fIoutil\fR] [\fB\-\-rapatrier \fIchemin\fR] \fB\-\-\fR \fIcommande\fR
+.B ccs remote run \fR[\fB\-\-machine \fInom\fR] [\fB\-\-tool \fIoutil\fR] [\fB\-\-fetch \fIchemin\fR] \fB\-\-\fR \fIcommande\fR
 Envoie le projet sur une autre machine (tunnel SSH de Ricochet, rsync), y lance la commande
 et rapporte les fichiers demandés.
 .TP
-.B ccs tui \fR[\fB\-\-serveur \fInom\fR]
+.B ccs tui \fR[\fB\-\-server \fInom\fR]
 CCS en plein écran dans le terminal (projets et sessions, chat, feuille de route, comptes
-et usage). Sans option, sur cette machine ; avec \fB\-\-serveur\fR, sur un serveur CCS
+et usage). Sans option, sur cette machine ; avec \fB\-\-server\fR, sur un serveur CCS
 appairé (nom ou adresse).
 .TP
-.B ccs serveur ajouter \fIadresse\fR \fR[\fB\-\-nom \fInom\fR]
+.B ccs server add \fIadresse\fR \fR[\fB\-\-name \fInom\fR]
 Appaire ce poste avec un serveur CCS (mot de passe Ubuntu et code de double
 authentification) ; le jeton d'application obtenu est gardé dans
-\fI~/.claude\-accounts/serveurs.json\fR (droits 600). \fBccs serveur liste\fR affiche les
-serveurs appairés ; \fBccs serveur retirer\fR \fInom\fR en oublie un, sans révoquer son jeton
+\fI~/.claude\-accounts/serveurs.json\fR (droits 600). \fBccs server liste\fR affiche les
+serveurs appairés ; \fBccs server retirer\fR \fInom\fR en oublie un, sans révoquer son jeton
 (à faire dans la version web, Réglages, Appareils).
 .TP
-.B sudo ccs totp reinitialiser \fIutilisateur\fR
+.B sudo ccs totp reset \fIutilisateur\fR
 Sur le serveur, en root : efface le code de double authentification de l'utilisateur ; le
 prochain accès affiche un nouveau QR code. Voir le paquet \fBccs\-serveur\fR.
 .SH FICHIERS
@@ -346,30 +352,30 @@ renvoient 1 pour un profil inconnu, un argument en trop ou une bascule
 impossible.
 .B ccs pause
 renvoie 2 pour un choix inconnu.
-.B ccs formule
+.B ccs advisor
 renvoie 1 si le calcul échoue.
-.B ccs semaine
+.B ccs week
 renvoie 2 pour un nombre de semaines invalide (négatif, illisible, plus de
 520), 1 si le calcul échoue.
-.B ccs mois
+.B ccs month
 renvoie 2 pour un nombre de mois invalide (illisible, hors de 0 à 120), 1 si le
 calcul échoue.
-.B ccs moment
+.B ccs best-time
 renvoie 2 pour une durée ou un horizon hors limites ou illisible, 1 si aucun
 état du service n'est disponible.
-.B ccs silence
+.B ccs quiet
 renvoie 2 pour un choix inconnu.
-.B ccs mise\-a\-jour
-renvoie 0 si CCS est à jour, installé, ou, avec \fB\-\-verifier\fR, si une
+.B ccs update
+renvoie 0 si CCS est à jour, installé, ou, avec \fB\-\-check\fR, si une
 version est signalée ; 1 en cas d'échec ou sur une copie de développement ; 2
 pour un usage incorrect.
-.B ccs journal
+.B ccs log
 renvoie 2 pour un nombre de jours nul, négatif ou illisible, ou
-\fB\-\-jours\fR avec \fB\-\-tout\fR, 1 si l'historique est illisible.
-.B ccs projet
+\fB\-\-days\fR avec \fB\-\-all\fR, 1 si l'historique est illisible.
+.B ccs project
 renvoie 1 si le dossier ou le compte est introuvable, 2 pour un usage
 incorrect.
-.B ccs raccourcis
+.B ccs shortcuts
 renvoie 1 si le bureau n'est pas pris en charge ou si le raccourci est refusé,
 2 pour un usage incorrect.
 .SH ENVIRONNEMENT
@@ -383,7 +389,7 @@ Dossier des profils (défaut : \fI~/.claude-accounts\fR).
 .B CCS_VIA
 Origine d'une bascule notée par \fBccs use\fR pour le journal des bascules
 (\fIswitch\-origin.json\fR). Absente : « ccs », ou « raccourci » avec
-\fB\-\-notifier\fR. Définie avec une origine connue (\fBapplication\fR,
+\fB\-\-notify\fR. Définie avec une origine connue (\fBapplication\fR,
 \fBicone\fR…) : celle-ci. Définie et vide : rien n'est noté (l'application, le
 service, le hook et l'icône lancent \fBccs\fR ainsi et notent leur origine
 eux-mêmes). Une note du même compte de moins de 60 s n'est jamais écrasée.

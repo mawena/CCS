@@ -708,6 +708,7 @@ export class ChatView {
     if (r.options) this.applyOptions(r.options); else if (!this.optionsReady) this.markReady();   // ancien pont : comme avant
     this.stoppedCard?.remove();
     this.stoppedCard = null;
+    this.restoreAgents(r.agents);                    // avant le rejeu : leurs étapes vont dans leur vue
     for (const item of r.events || []) this.receive(item);
     this.setState(r.state);
     this.startHistory(r.history_before);
@@ -839,7 +840,7 @@ export class ChatView {
 
   // Après `/clear` : les messages d'avant restent lisibles (et citables) mais grisés, sous un
   // séparateur ; Claude ne les voit plus.
-  // `auto` : effacée par Claude en fin de sujet (`ccs chat effacer`).
+  // `auto` : effacée par Claude en fin de sujet (`ccs chat clear`).
   newConversation(auto = false) {
     for (const node of this.thread.children) node.classList.add("before-reset");
     this.append(el("div", { class: "reset-sep", role: "separator" },
@@ -935,9 +936,16 @@ export class ChatView {
   // tant qu'il travaille ou qu'on le regarde.
 
   agentCard(ev) {
-    const id = ev.tool_id;
-    const name = String(ev.input?.description || ev.input?.subagent_type || "Sous-agent").slice(0, 60);
-    const background = Boolean(ev.input?.run_in_background);
+    const known = this.agents.get(ev.tool_id);
+    if (known) { this.tools.set(ev.tool_id, known.card); return this.append(known.card); }   // reconstruit à l'attache : la carte prend sa place
+    this.makeAgent(ev.tool_id, ev.input || {});
+    return this.append(this.agents.get(ev.tool_id).card);
+  }
+
+  // Sous-agent (carte, vue, pastille) ; la carte n'est pas encore dans le fil.
+  makeAgent(id, input, { restored = false } = {}) {
+    const name = String(input.description || input.subagent_type || "Sous-agent").slice(0, 60);
+    const background = Boolean(input.run_in_background);
     const status = el("span", { class: "subtle agent-status" }, background ? "en arrière-plan…" : "au travail…");
     const result = el("pre", { class: "tool-result", hidden: true });
     const card = el("div", { class: "agent-card" },
@@ -945,18 +953,47 @@ export class ChatView {
         el("span", { class: "agent-card-title" }, el("strong", {}, "Sous-agent"), " ", name), status,
         el("button", { type: "button", class: "small see-agent", onclick: () => this.showAgent(id) }, "Voir")),
       el("details", { class: "agent-detail" }, el("summary", { class: "subtle" }, "Consigne et résultat"),
-        el("pre", { class: "tool-body" }, String(ev.input?.prompt || JSON.stringify(ev.input || {}, null, 2))), result));
+        el("pre", { class: "tool-body" }, String(input.prompt || JSON.stringify(input, null, 2))), result));
     Object.assign(card, { result, status });
     const view = el("div", { class: "thread agent-view", role: "log", hidden: true });
     const mark = el("span", { class: "spinner" });
     const pill = el("button", { type: "button", class: "agent-pill", title: `Sous-agent : ${name}`,
       onclick: () => this.showAgent(id) }, mark, el("span", { class: "agent-name" }, name));
-    this.agents.set(id, { name, view, pill, mark, card, done: false, background });
+    // seen : étapes déjà affichées (elles peuvent arriver par le fil et par sa transcription)
+    this.agents.set(id, { name, view, pill, mark, card, done: false, background, restored, seen: new Set() });
     this.thread.after(view);
     this.historyBtn.before(pill);               // « Terminés » reste au bout de la barre
     this.tools.set(id, card);
     this.tidyPills();
-    return this.append(card);
+  }
+
+  // Sous-agents connus du pont (`agents` de chat.attach, disque compris) : après un rechargement,
+  // une reprise ou un compactage, ceux dont le lancement n'est plus dans le fil retrouvent leur
+  // pastille et leur vue (remplie depuis leur transcription à l'ouverture) ; les autres, leur état.
+  restoreAgents(list) {
+    for (const a of Array.isArray(list) ? list : []) {
+      if (!a?.tool_id) continue;
+      if (!this.agents.has(a.tool_id)) {
+        this.makeAgent(a.tool_id, { description: a.description, subagent_type: a.type, run_in_background: a.background }, { restored: true });
+      }
+      if (a.state && a.state !== "running") this.agentDone(a.tool_id, { notice: true, stopped: a.state === "stopped" });
+    }
+  }
+
+  // Vue d'un sous-agent reconstruit : ses étapes relues dans sa transcription (une fois), à la place
+  // de ce qui était déjà arrivé par le fil (la transcription contient tout).
+  async loadAgentLog(id) {
+    const a = this.agents.get(id);
+    if (!a?.restored || a.logLoaded) return;
+    a.logLoaded = true;
+    let r;
+    try { r = await this.api.call("chat.agent_log", { chat_id: this.chatId, tool_id: id }); } catch { a.logLoaded = false; return; }
+    const evs = r?.events || [];
+    if (!evs.length) return;
+    clear(a.view);
+    a.seen.clear();
+    for (const ev of evs) this.agentEvent(a, ev);
+    if (this.shownAgent === id) a.view.scrollTop = a.view.scrollHeight;
   }
 
   // Affiche la vue d'un sous-agent, ou la conversation (`null`).
@@ -972,7 +1009,7 @@ export class ChatView {
       a.view.hidden = tid !== next;
       a.pill.classList.toggle("active", tid === next);
     }
-    if (next) { const v = this.agents.get(next).view; v.scrollTop = v.scrollHeight; }
+    if (next) { const v = this.agents.get(next).view; v.scrollTop = v.scrollHeight; this.loadAgentLog(next); }
     else if (this.follow) this.toBottom();
     else this.thread.scrollTop = this.mainTop || 0;
     this.tidyPills();
@@ -1012,6 +1049,8 @@ export class ChatView {
 
   // Événement émis par un sous-agent : dans sa vue, pas dans le fil.
   agentEvent(agent, ev) {
+    const key = ev.type === "ToolUse" ? `u${ev.tool_id}` : ev.type === "AssistantText" ? `t${ev.msg_id}\n${ev.text}` : null;
+    if (key !== null) { if (agent.seen.has(key)) return; agent.seen.add(key); }
     if (ev.type === "ToolUse") { if (ev.name !== "TodoWrite") this.toolCard(ev, agent.view); }
     else if (ev.type === "ToolResult") this.toolResult(ev);
     else if (ev.type === "AssistantText" && ev.text) {

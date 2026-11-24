@@ -68,11 +68,11 @@ out="$("$CCS" perso 2>&1 || true)"; expect "$out" "n'est enregistré dans aucun 
 out="$("$CCS" auto off)"; expect "$out" "désactivée"
 out="$("$CCS" status)"; expect "$out" "Bascule automatique : désactivée"
 out="$("$CCS" auto on)"; expect "$out" "activée"
-out="$("$CCS" help)"; expect "$out" "ccs meilleur"
+out="$("$CCS" help)"; expect "$out" "ccs best"
 out="$("$CCS" orch on)"; expect "$out" "activé"
 out="$("$CCS" status)"; expect "$out" "Orchestrateur : activé"
 out="$("$CCS" help)"; expect "$out" "ccs plan"
-out="$("$CCS" help)"; expect "$out" "ccs titre <id> <titre>"
+out="$("$CCS" help)"; expect "$out" "ccs title <id> <titre>"
 
 # Revue finale C1 : `ccs use` attend le verrou tenu par le service.
 g="$HOME/.claude.json"
@@ -105,8 +105,8 @@ for variant in '.claudeAiOauth.refreshToken=""' 'del(.claudeAiOauth.refreshToken
   before="$(cat "$c" "$HOME/.claude.json" | sha256sum)"
   out="$("$CCS" perso 2>&1)" && fail "bascule acceptée sur un profil sans jeton ($variant)"
   expect "$out" "connexion perdue"
-  expect "$out" "ccs supprimer perso"
-  expect "$out" "ccs ajouter perso"
+  expect "$out" "ccs remove perso"
+  expect "$out" "ccs add perso"
   [[ "$(cat "$c" "$HOME/.claude.json" | sha256sum)" == "$before" ]] || fail "fichiers vivants modifiés ($variant)"
   [[ "$("$CCS" current)" == lockb ]] || fail "compte actif changé ($variant)"
 done
@@ -134,8 +134,8 @@ expect "$out" "basculé sur 'lockb'"
 before="$(cat "$c" "$HOME/.claude.json" | sha256sum)"
 out="$("$CCS" next 2>&1)" && fail "next accepté sans autre profil utilisable"
 expect "$out" "connexion perdue"
-expect "$out" "ccs supprimer aaa"; expect "$out" "ccs ajouter aaa"
-expect "$out" "ccs supprimer perso"; expect "$out" "ccs ajouter perso"
+expect "$out" "ccs remove aaa"; expect "$out" "ccs add aaa"
+expect "$out" "ccs remove perso"; expect "$out" "ccs add perso"
 [[ "$(cat "$c" "$HOME/.claude.json" | sha256sum)" == "$before" ]] || fail "fichiers vivants modifiés par next"
 [[ "$("$CCS" current)" == lockb ]] || fail "compte actif changé par next"
 
@@ -161,7 +161,7 @@ expect "$(tail -1 "$notes")" "Bascule sur zeta2"; expect "$(tail -1 "$notes")" "
   || fail "origine d'un raccourci : $(cat "$origin")"
 [[ "$(stat -c %a "$origin")" == 600 ]] || fail "droits de switch-origin.json"
 out="$("$CCS" next --oups 2>&1)" && fail "option inconnue acceptée par next"
-expect "$out" "usage : ccs suivant"
+expect "$out" "usage : ccs next"
 # À la main : « ccs » ; lancé par l'application ou le service (CCS_VIA vide) : rien ;
 # origine notée juste avant par l'application pour ce compte : gardée ; sans --notifier,
 # aucune notification.
@@ -186,8 +186,8 @@ out="$("$CCS" pause off)"; expect "$out" "Pause levée"
 out="$("$CCS" status)"; grep -q "En pause" <<<"$out" && fail "pause encore affichée : $out"
 out="$("$CCS" pause 2h 2>&1)" && fail "durée inconnue acceptée"
 expect "$out" "usage : ccs pause"
-out="$("$CCS" help)"; expect "$out" "ccs pause"; expect "$out" "ccs bilan"
-expect "$out" "ccs apercu <id>"; expect "$out" "ccs exporter <id>"
+out="$("$CCS" help)"; expect "$out" "ccs pause"; expect "$out" "ccs doctor"
+expect "$out" "ccs preview <id>"; expect "$out" "ccs export <id>"
 
 # Aperçu et export d'une conversation de l'historique (journal synthétique).
 proj="$HOME/Work/App"
@@ -214,7 +214,7 @@ status_of() { local rc=0; "$@" >"$T/out" 2>"$T/err" || rc=$?; echo "$rc"; }
 out="$("$CCS" journal)"; expect "$out" "Aucune bascule sur cette période"
 out="$("$CCS" journal --tout)"; expect "$out" "Aucune bascule"
 [[ "$(status_of "$CCS" journal --jours 0)" == 2 ]] || fail "journal --jours 0 : code de sortie"
-expect "$(cat "$T/err")" "usage : ccs journal"
+expect "$(cat "$T/err")" "usage : ccs log"
 [[ "$(status_of "$CCS" journal --jours 2 --tout)" == 2 ]] || fail "journal --jours et --tout ensemble"
 out="$(cd "$proj" && "$CCS" projet lockb)"; expect "$out" "~/Work/App → lockb"
 out="$("$CCS" projet)"; expect "$out" "~/Work/App  → lockb"
@@ -249,11 +249,11 @@ expect "$(cat "$T/out")" "seulement sous GNOME"; expect "$(cat "$T/out")" "ccs s
 [[ "$(status_of "$CCS" raccourcis set suivant K)" == 1 ]] || fail "raccourci sans modificateur accepté"
 expect "$(cat "$T/err")" "Ajoute Super, Ctrl ou Alt"
 [[ "$(status_of "$CCS" shortcuts on zzz)" == 2 ]] || fail "raccourcis : action inconnue"
-out="$("$CCS" help)"; expect "$out" "ccs formule"; expect "$out" "ccs semaine"
-expect "$out" "ccs journal"; expect "$out" "ccs projet"; expect "$out" "ccs raccourcis"
-expect "$out" "ccs mois"; expect "$out" "ccs moment"; expect "$out" "ccs silence"
-expect "$out" "ccs mise-a-jour"
-expect "$out" "--notifier"
+out="$("$CCS" help)"; expect "$out" "ccs advisor"; expect "$out" "ccs week"
+expect "$out" "ccs log"; expect "$out" "ccs project"; expect "$out" "ccs shortcuts"
+expect "$out" "ccs month"; expect "$out" "ccs best-time"; expect "$out" "ccs quiet"
+expect "$out" "ccs update"
+expect "$out" "--notify"
 # Ligne d'état : contexte de la session sur l'entrée standard, jamais d'attente.
 out="$(timeout 5 "$ROOT/bin/claude-accounts" statusline </dev/null)" || fail "ligne d'état sans entrée"
 [[ -n "$out" ]] || fail "ligne d'état vide"
@@ -263,11 +263,11 @@ out="$(echo '{"model":{"id":"claude-opus-5-5"}}' | timeout 5 "$ROOT/bin/claude-a
 # Commandes de la 0.8 : file de tâches, budget, fiche, sauvegarde, téléphone (dossier de test,
 # aucun service, aucun envoi : le téléphone est désactivé et sans canal).
 out="$("$CCS" help)"
-for w in "ccs tache" "ccs budget" "ccs fiche" "ccs sauvegarde" "ccs restaurer" "ccs telephone"; do
+for w in "ccs task" "ccs budget" "ccs recap" "ccs backup" "ccs restore" "ccs phone"; do
   expect "$out" "$w"
 done
 # Calcul réparti : la commande passe par le lanceur (oubliée dans la 0.21.0).
-expect "$out" "ccs distant lancer"
+expect "$out" "ccs remote run"
 out="$("$CCS" distant machines 2>&1 || true)"; expect "$out" "Ricochet n'est pas réglé"
 for alias in tache taches tasks; do
   out="$("$CCS" "$alias")"; expect "$out" "Aucune tâche"
@@ -289,7 +289,7 @@ out="$("$CCS" budget "$proj" aucun)"; expect "$out" "supprimé"
 [[ "$(status_of "$CCS" budget a b c)" == 2 ]] || fail "budget : usage"
 [[ "$(status_of "$CCS" budget "$proj" beaucoup)" == 2 ]] || fail "budget : montant illisible"
 [[ "$(status_of "$CCS" fiche)" == 2 ]] || fail "fiche sans identifiant"
-expect "$(cat "$T/err")" "usage : ccs fiche"
+expect "$(cat "$T/err")" "usage : ccs recap"
 [[ "$(status_of "$CCS" fiche zzzz)" == 1 ]] || fail "fiche : conversation inconnue"
 [[ "$(status_of "$CCS" restaurer)" == 2 ]] || fail "restaurer sans fichier"
 [[ "$(status_of "$CCS" restore "$T/inexistant.gpg" --oui)" == 1 ]] || fail "restaurer : fichier absent"
@@ -315,8 +315,8 @@ expect "$(cat "$T/err")" "onglet inconnu"
 # Phase 33 : noms français, anciens noms acceptés et cachés de l'aide, profil masqué.
 cur="$("$CCS" actuel)"; [[ "$("$CCS" current)" == "$cur" ]] || fail "actuel / current"
 out="$("$CCS" liste)"; expect "$out" "● $cur"
-out="$("$CCS" aide)"; expect "$out" "ccs utiliser <nom>"; expect "$out" "ccs etat"
-grep -qE '^  ccs (best|status|resume|doctor|list|use|next|save|add|rm|rename|current|gui) ' <<<"$out" \
+out="$("$CCS" aide)"; expect "$out" "ccs use <nom>"; expect "$out" "ccs status"
+grep -qE '^  ccs (meilleur|etat|reprendre|diagnostic|liste|utiliser|suivant|enregistrer|ajouter|supprimer|renommer|actuel|appli) ' <<<"$out" \
   && fail "ancien nom affiché dans l'aide"
 out="$("$CCS" etat)"; expect "$out" "Bascule automatique"
 out="$("$CCS" integration etat)"; expect "$out" "Ligne d'état"
@@ -330,7 +330,7 @@ for d in "$HOME/.claude-accounts"/*/oauth.json; do
 done
 [[ -n "$other" ]] || fail "aucun autre profil pour l'essai du profil masqué"
 "$CCS" renommer "$other" plan >/dev/null 2>"$T/err" || fail "renommer en plan"
-expect "$(cat "$T/err")" "ccs utiliser plan"
+expect "$(cat "$T/err")" "ccs use plan"
 out="$("$CCS" plan 2>&1)"; grep -q "basculé" <<<"$out" && fail "ccs plan a basculé sur le profil"
 [[ "$("$CCS" actuel)" == "$cur" ]] || fail "ccs plan a changé de compte"
 "$CCS" rename plan "$other" >/dev/null 2>"$T/err" || fail "renommer depuis plan"

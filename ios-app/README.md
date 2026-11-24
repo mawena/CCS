@@ -42,8 +42,16 @@ serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` 
   retirer, ajout d'un PC ou d'un téléphone) et le calcul réparti au même endroit : chaque fiche
   qui est une machine de calcul porte sa charge, sa mémoire, ses outils, ses places et sa limite ;
   les machines joignables seulement par Ricochet ont leur fiche « Par Ricochet ». Travaux
-  `ccs distant` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
+  `ccs remote` en cours, à venir et finis, journal en direct, « Arrêter », « Lancer une
   commande » (maintenant, cette nuit ou à une heure), secours Ricochet (réglages du relais).
+- **Son partagé** (Plus → Son, phase 42, `docs/audio.md`) : tant que l'appli est connectée,
+  l'iPhone s'annonce au pont toutes les 30 s (`audio.announce`, nom du pair du réseau maillé qui
+  porte son adresse 100.64.x) comme sortie et comme source. Sortie : écoute UDP 4010, RTP/Opus,
+  tampon de gigue 60-150 ms, lecture `AVAudioEngine`, continue en arrière-plan (mode audio).
+  Source : extension de diffusion ReplayKit `Diffusion` (dans `CCS.app/PlugIns`) qui encode le
+  son des applis en Opus 96 kb/s ; la cible lui est passée par le groupe d'applis
+  `group.<bundle id>` (seul droit demandé, créé par SideStore). Écran Son : flux en cours avec
+  « Arrêter », « Envoyer le son de cet iPhone vers… », envoi d'une source vers une sortie.
 - **Mot de passe root** : quand la machine pilotée demande le mot de passe root (`ccs root`,
   `sudo -A` de Claude), une feuille s'ouvre au premier plan avec la commande, « Envoyer »,
   « Refuser » ou « Plus tard » ; le mot de passe n'est jamais gardé sur le téléphone (il l'est

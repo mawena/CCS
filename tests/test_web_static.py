@@ -107,7 +107,7 @@ class StaticTest(unittest.TestCase):
         self.assertIn("files.write", (WEB / "files.js").read_text(encoding="utf-8"))
         self.assertIn("roadmap.toggle", (WEB / "roadmap.js").read_text(encoding="utf-8"))
         self.assertIn("term.input", (WEB / "terminal.js").read_text(encoding="utf-8"))
-        self.assertIn("ccs ajouter", (WEB / "home.js").read_text(encoding="utf-8"))
+        self.assertIn("ccs add", (WEB / "home.js").read_text(encoding="utf-8"))
 
     def test_ctrl_page_switches_tabs(self):
         sessions = (WEB / "sessions.js").read_text(encoding="utf-8")

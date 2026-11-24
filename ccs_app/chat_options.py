@@ -36,7 +36,7 @@ class ChatOptions:
     rights: str = "manual"
 
     def __post_init__(self):
-        # Mot des droits (« lecture », « modifications », « tout », celui de `ccs tache`) :
+        # Mot des droits (« lecture », « modifications », « tout », celui de `ccs task`) :
         # converti en mode de Claude Code ; un mode reste tel quel.
         if isinstance(self.rights, str) and self.rights.strip().casefold() in launch_options.RIGHTS_WORDS:
             object.__setattr__(self, "rights", launch_options.convert_rights(self.rights, "mode"))

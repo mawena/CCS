@@ -1,9 +1,21 @@
 package com.mawena.ccs
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionConfig
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.mawena.ccs.son.NotifsSon
+import kotlinx.coroutines.launch
 import com.mawena.ccs.logique.AnalysePartage
 import com.mawena.ccs.logique.ElementPartage
 import com.mawena.ccs.logique.Partage
@@ -25,6 +37,52 @@ import com.mawena.ccs.ui.ThemeCcs
 
 class MainActivity : ComponentActivity() {
     private val modele: ModeleAppli by viewModels()
+
+    // Son partagé : envoi du son de ce téléphone, accord demandé à chaque départ (micro puis capture).
+    private var accordEnCours: com.mawena.ccs.son.SonPartage.DemandeAccord? = null
+
+    private val demandeMicro = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) demanderProjection() else {
+            accordEnCours = null
+            son().accordRefuse()
+        }
+    }
+
+    private val demandeProjection = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val d = accordEnCours
+        accordEnCours = null
+        val donnees = r.data
+        if (d != null && r.resultCode == RESULT_OK && donnees != null) son().accordObtenu(d, r.resultCode, donnees)
+        else son().accordRefuse()
+    }
+
+    private fun son() = (application as CcsAppli).depot.son
+
+    private fun demanderAccord(d: com.mawena.ccs.son.SonPartage.DemandeAccord) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        accordEnCours = d
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            demanderProjection()
+        } else {
+            demandeMicro.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun demanderProjection() {
+        val mpm = getSystemService(MediaProjectionManager::class.java) ?: return
+        // tout l'écran (pas une seule appli) : le son de toutes les applis est capté
+        val intention = if (Build.VERSION.SDK_INT >= 34) {
+            mpm.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+        } else {
+            mpm.createScreenCaptureIntent()
+        }
+        try {
+            demandeProjection.launch(intention)
+        } catch (_: Exception) {
+            accordEnCours = null
+            son().accordRefuse()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +106,17 @@ class MainActivity : ComponentActivity() {
             ThemeCcs(sombre) { Racine(modele) }
         }
         if (savedInstanceState == null) recevoir(intent)
+        // demande d'accord de capture (écran Son, notification « Touchez pour envoyer… »)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                son().demandeAccord.collect { d ->
+                    if (d != null) {
+                        son().demandeAccord.value = null
+                        demanderAccord(d)
+                    }
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -84,6 +153,14 @@ class MainActivity : ComponentActivity() {
             return
         }
         when (i?.action) {
+            NotifsSon.ACTION_SON -> {
+                son().reprendre()
+                modele.demande.value = DemandeAppli.Son
+            }
+            NotifsSon.ACTION_ENVOYER -> {
+                NotifsSon.destination(i)?.let { son().accepterEnvoi(it) }
+                modele.demande.value = DemandeAppli.Son
+            }
             Notifs.ACTION_OUVRIR -> {
                 val cwd = i.getStringExtra(Notifs.EXTRA_CWD) ?: return
                 modele.demande.value = DemandeAppli.OuvrirChat(

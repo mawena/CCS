@@ -259,6 +259,62 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         conversations.rename("tit", "Autre", path=str(journal))
         self.assertEqual(title(await c.call("chat.list")), "Autre")
 
+    async def test_background_agent_steps_come_from_its_transcript(self):
+        """Sous-agent de fond : la CLI ne passe pas ses étapes ; le pont les lit dans sa
+        transcription et les envoie rattachées à son appel, jusqu'à sa fin, puis s'arrête."""
+        import json
+        c = await self.client()
+        r = await c.call("chat.open", cwd=str(self.project), session_id="sub")
+        journal = sessions.transcript_path(str(self.project), "sub")
+        folder = journal.with_suffix("") / "subagents"
+        folder.mkdir(parents=True)
+        journal.write_text("{}\n")
+        (folder / "agent-aaa.meta.json").write_text(json.dumps({"toolUseId": "t1", "description": "Fond",
+                                                               "requestShape": "background"}))
+        log = folder / "agent-aaa.jsonl"
+        log.write_text(json.dumps({"type": "user", "message": {"role": "user", "content": "consigne"}}) + "\n")
+
+        def say(text, msg_id):
+            with open(log, "a") as f:
+                f.write(json.dumps({"type": "assistant", "isSidechain": True, "message": {
+                    "id": msg_id, "role": "assistant", "content": [{"type": "text", "text": text}]}}) + "\n")
+
+        def texts():
+            return [d["event"]["text"] for name, d in c.got if name == "chat.event"
+                    and d["event"]["type"] == "AssistantText" and d["event"]["parent_id"] == "t1"]
+        chat = self.hub.chats[r["chat_id"]]
+        with mock.patch.object(bridge_chat, "WATCH_S", 0.05):
+            self.hub._record(chat, chat_protocol.ToolUse("t1", "Agent", {"description": "Fond",
+                                                                         "run_in_background": True}))
+            say("J'avance.", "m1")
+            self.assertTrue(await self.wait(lambda: texts() == ["J'avance."]), texts())
+            say("Fini.", "m2")
+            self.hub._record(chat, chat_protocol.TaskNotice("t1", "completed", "ok"))
+            self.assertTrue(await self.wait(lambda: texts() == ["J'avance.", "Fini."]), texts())
+            self.assertTrue(await self.wait(lambda: self.hub._watch.done()))
+        att = await c.call("chat.attach", chat_id=r["chat_id"], since=0)
+        self.assertEqual([(a["tool_id"], a["state"]) for a in att["agents"]], [("t1", "done")])
+        steps = (await c.call("chat.agent_log", chat_id=r["chat_id"], tool_id="t1"))["events"]
+        self.assertEqual([e["text"] for e in steps], ["J'avance.", "Fini."])
+        self.assertEqual((await c.call("chat.agent_log", chat_id=r["chat_id"], tool_id="inconnu"))["events"], [])
+
+    async def test_attach_lists_agents_launched_before_the_chat(self):
+        """Conversation reprise : les sous-agents d'avant sont rendus (pastilles), arrêtés s'ils
+        ne s'étaient pas finis (ils sont morts avec l'ancien processus)."""
+        import json
+        journal = sessions.transcript_path(str(self.project), "vieux")
+        folder = journal.with_suffix("") / "subagents"
+        folder.mkdir(parents=True)
+        journal.write_text("{}\n")
+        for agent, tool, finished, minute in (("aaa", "t1", True, 0), ("bbb", "t2", False, 5)):
+            (folder / f"agent-{agent}.meta.json").write_text(json.dumps({
+                "toolUseId": tool, "description": agent, "requestShape": "background", "finished": finished}))
+            (folder / f"agent-{agent}.jsonl").write_text(json.dumps({"timestamp": f"2026-01-01T00:0{minute}:00Z"}) + "\n")
+        c = await self.client()
+        r = await c.call("chat.open", cwd=str(self.project), session_id="vieux")
+        att = await c.call("chat.attach", chat_id=r["chat_id"], since=0)
+        self.assertEqual([(a["tool_id"], a["state"]) for a in att["agents"]], [("t1", "done"), ("t2", "stopped")])
+
     async def test_history_before_covers_what_the_buffer_lost(self):
         """history_before : heure d'ouverture du chat tant que le tampon a tout gardé, sinon heure du
         plus vieil événement gardé (le journal montre ce qui précède, sans doublon)."""

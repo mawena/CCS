@@ -72,7 +72,7 @@ class ChangesPanel(Gtk.Box):
             self.content.remove(c)
         if self._unknown:
             self.message.set_label("Le format de l'historique des fichiers de Claude Code n'est "
-                                   "pas reconnu : rien ne peut être annulé d'ici. Voir « ccs bilan ».")
+                                   "pas reconnu : rien ne peut être annulé d'ici. Voir « ccs doctor ».")
             self.message.set_visible(True)
             return
         self.message.set_visible(False)

@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <!-- Bouton « Parler à Jarvis » : le son du micro part vers Jarvis par le serveur CCS. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Son partagé (phase 42) : jouer un flux reçu, capter le son des applis (AudioPlaybackCapture). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <!-- Texte en clair permis : l'adresse du serveur peut être un http:// du réseau local.
          Pas de sauvegarde : le jeton est chiffré par une clé du Keystore qui ne se restaure pas. -->
@@ -68,6 +71,14 @@
             android:name=".notif.ServiceVeille"
             android:exported="false"
             android:foregroundServiceType="remoteMessaging" />
+        <service
+            android:name=".son.ServiceReception"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+        <service
+            android:name=".son.ServiceEmission"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
         <receiver
             android:name=".notif.RecepteurActions"
             android:exported="false" />

@@ -65,6 +65,7 @@ enum Destination: Hashable {
     case terminaux
     case terminal(String)
     case jarvis
+    case son
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
@@ -126,6 +127,13 @@ struct EcranPrincipal: View {
             onglet = .plus
             if piles[.plus]?.last != .jarvis { piles[.plus] = [.jarvis] }
         }
+        // notification du son partagé : Plus → Son, sélecteur de diffusion
+        .onChange(of: modele.ouvrirSon, initial: true) { _, ouvrir in
+            guard ouvrir else { return }
+            modele.ouvrirSon = false
+            onglet = .plus
+            if piles[.plus]?.last != .son { piles[.plus] = [.son] }
+        }
         .onChange(of: modele.aOuvrir) { _, d in
             guard let d = d else { return }
             modele.aOuvrir = nil
@@ -172,6 +180,7 @@ struct EcranPrincipal: View {
         case .terminaux: EcranTerminaux()
         case .terminal(let id): EcranTerminal(id: id)
         case .jarvis: EcranJarvis()
+        case .son: EcranSon()
         }
     }
 }
@@ -254,6 +263,13 @@ struct EcranPlus: View {
                 }
             } footer: {
                 Text("Jarvis, l'assistant vocal de la maison, joint par le serveur CCS et le relais Ricochet. Aussi dans Raccourcis : « Parler à Jarvis ».")
+            }
+            Section {
+                NavigationLink(value: Destination.son) {
+                    Label("Son", systemImage: "hifispeaker.2")
+                }
+            } footer: {
+                Text("Son partagé sur le réseau maillé : jouer ici le son d'un autre appareil, ou envoyer le son de cet iPhone vers un PC ou le Pixel.")
             }
             Section {
                 NavigationLink(value: Destination.reglages) {

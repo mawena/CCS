@@ -3,6 +3,49 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.12.0] — 2026-11-24
+
+### Ajouté
+
+- Son partagé sur le réseau maillé (phase 42) : chaque appareil CCS qui sait jouer du son est une
+  sortie pour les autres, chaque appareil qui sait capter le sien est une source ; on envoie le son
+  dans tous les sens (iPhone → pc-bureau, pc-bureau → Pixel…). Le serveur CCS ne fait que la mise
+  en relation (`audio.announce`, `audio.list`, `audio.send`, `audio.stop`, `audio.forget`) ; le son
+  passe en RTP/Opus, en UDP direct entre les adresses 100.64.x (port 4010). Protocole :
+  `docs/audio.md`.
+- Linux : `ccs audio list | send <source> <sortie> | stop | enable | disable |
+  receive`, service utilisateur `ccs-audio` (désactivé par défaut). Chaque appareil distant
+  apparaît comme une sortie PipeWire (« iPhone de Charles ») : la choisir dans les réglages du son
+  lance l'envoi, ne plus s'en servir l'arrête après 10 s. GStreamer pour le son.
+- macOS et Windows : le même agent (`ccs audio agent`) joue le son reçu ; source par BlackHole
+  (macOS) ou `wasapi2src loopback=true` (Windows), sans sorties virtuelles. Non essayé.
+- Android : écran Son (Plus → Son partagé), lecture en service au premier plan, envoi du son du
+  téléphone par AudioPlaybackCapture (Android 10+, accord à chaque départ).
+- iPhone : écran Son (Plus → Son), lecture en arrière-plan, envoi par une extension de diffusion
+  ReplayKit « CCS » (contenus protégés muets). L'extension compte pour un App ID de plus sur le
+  compte Apple gratuit.
+- Web (Réseau → Son partagé) et bureau GTK (onglet Réseau) : appareils, flux en cours, « Envoyer le
+  son » et « Arrêter ».
+
+### Modifié
+
+- **Toutes les commandes passent en anglais** (`ccs status`, `ccs remote run`, `ccs audio send`,
+  `ccs chat clear`, `ccs task add`, `ccs backup`…), options comprises (`--when night`, `--detach`,
+  `--name`, `--notify`…). Les noms français restent acceptés, sans paraître dans l'aide : rien ne
+  casse dans les scripts, raccourcis ni services. README, manuel et aides suivent.
+
+### Corrigé
+
+- Tests : `test_terminals_gui` ne se chargeait plus (import manquant).
+- Chat web : on voit enfin les sous-agents de fond travailler. La CLI ne passe que leur lancement
+  et leur fin ; le pont lit leur transcription toutes les 3 s et envoie leurs étapes (textes,
+  outils, résultats) dans leur vue, comme pour un sous-agent au premier plan.
+- Chat web : après un rechargement de la page, une reprise de la conversation ou un `/compact`,
+  les pastilles des sous-agents lancés avant reviennent (`agents` dans `chat.attach`) et leur vue
+  se remplit depuis leur transcription (`chat.agent_log`). Ceux d'avant une reprise sont marqués
+  arrêtés s'ils ne s'étaient pas finis.
+- Jarvis : la liste des sous-agents d'un chat compte aussi ceux lancés avant sa reprise.
+
 ## [1.11.0] — 2026-11-24
 
 ### Ajouté

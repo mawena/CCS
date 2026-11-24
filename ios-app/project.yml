@@ -5,8 +5,8 @@ options:
     iOS: "17.0"
 settings:
   base:
-    MARKETING_VERSION: "1.8.1"
-    CURRENT_PROJECT_VERSION: "43"
+    MARKETING_VERSION: "1.12.0"
+    CURRENT_PROJECT_VERSION: "44"
     SWIFT_VERSION: "5.9"
 packages:
   # émulateur de terminal (VT100/xterm) du terminal intégré
@@ -20,6 +20,15 @@ targets:
     sources: [CCS]
     dependencies:
       - package: SwiftTerm
+      # extension de diffusion ReplayKit (son de l'iPhone vers le réseau maillé), dans CCS.app/PlugIns
+      - target: Diffusion
+        embed: true
+    # groupe d'applis partagé avec l'extension (cible de la diffusion) ; seul droit demandé,
+    # SideStore le crée avec un identifiant Apple gratuit
+    entitlements:
+      path: CCS/CCS.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.mawena.ccs]
     info:
       path: CCS/Info.plist
       properties:
@@ -27,6 +36,9 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         ITSAppUsesNonExemptEncryption: false
+        # son partagé : la sortie audio continue de jouer appli en arrière-plan
+        UIBackgroundModes: [audio]
+        NSLocalNetworkUsageDescription: "CCS reçoit en direct le son des autres appareils du réseau maillé pour le jouer sur cet iPhone."
         # dictée dans la saisie du chat (micro + reconnaissance vocale fr-FR), bouton « Parler à Jarvis »
         NSMicrophoneUsageDescription: "CCS utilise le micro pour dicter tes messages à Claude et pour parler à Jarvis."
         NSSpeechRecognitionUsageDescription: "CCS transcrit ta voix en texte dans la saisie du chat ; rien n'est envoyé sans que tu touches « Envoyer »."
@@ -47,6 +59,35 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.mawena.ccs
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
+  # extension de diffusion ReplayKit : le son des applis de l'iPhone, en Opus/RTP vers une sortie
+  # du réseau maillé (docs/audio.md). Partage le transport, le codec et le groupe avec l'appli.
+  Diffusion:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Diffusion
+      - CCS/Logique/Rtp.swift
+      - CCS/Son/GroupeSon.swift
+      - CCS/Son/CodecOpus.swift
+    entitlements:
+      path: Diffusion/Diffusion.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.mawena.ccs]
+    info:
+      path: Diffusion/Info.plist
+      properties:
+        CFBundleDisplayName: CCS
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.broadcast-services-upload
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).GestionDiffusion
+          RPBroadcastProcessMode: RPBroadcastProcessModeSampleBuffer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mawena.ccs.diffusion
+        TARGETED_DEVICE_FAMILY: "1,2"
+        APPLICATION_EXTENSION_API_ONLY: YES
   CCSTests:
     type: bundle.unit-test
     platform: iOS

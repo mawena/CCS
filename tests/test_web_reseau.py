@@ -108,3 +108,51 @@ stop();
 
 if __name__ == "__main__":
     unittest.main()
+
+
+SON_PRELUDE = r"""
+import { installDom, settle } from "./web_dom.mjs";
+installDom();
+const S = await import("./son.js");
+const R = await import("./reseau.js");
+let out = null;
+"""
+
+
+@unittest.skipUnless(NODE, "node absent")
+class SonTest(unittest.TestCase):
+    def run_son(self, body):
+        global PRELUDE
+        old, PRELUDE = PRELUDE, SON_PRELUDE
+        try:
+            return run(body)
+        finally:
+            PRELUDE = old
+
+    def test_choix_et_envoi(self):
+        out = self.run_son(r"""
+const devices = [
+  { device: "iphone", label: "iPhone de Charles", ip: "100.64.0.4", play: true, capture: true, system: "ios" },
+  { device: "pc-bureau", label: "PC du bureau", ip: "100.64.0.2", play: true, capture: true, system: "linux" },
+  { device: "web", label: "Web", ip: "100.64.0.9", play: false, capture: false, system: "web" },
+];
+const calls = [];
+const api = { call: async (m, p) => { calls.push([m, p]); return m === "audio.list"
+  ? { devices, streams: [{ stream: "a1", source: "iphone", target: "pc-bureau" }] } : { stream: "a2" }; } };
+const son = S.createSon(api, R.icon);
+document.body.append(son.box);
+const stop = son.start();
+await settle();
+const text = son.box.textContent;
+const send = [...son.box.querySelectorAll("button")].find((b) => b.textContent.includes("Envoyer"));
+send.click();
+await settle();
+stop();
+out = { text, abilities: S.abilities(devices[2]), outs: S.choices(devices).outputs.length,
+        sent: calls.find((c) => c[0] === "audio.send") };
+""")
+        self.assertIn("iPhone de Charles → PC du bureau", out["text"])
+        self.assertIn("joue · capte", out["text"])
+        self.assertEqual(out["abilities"], "—")
+        self.assertEqual(out["outs"], 2)
+        self.assertEqual(out["sent"][1], {"source": "iphone", "target": "pc-bureau"})
