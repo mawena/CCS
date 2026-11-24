@@ -91,3 +91,11 @@ Conception :
 - [ ] 7. Autres systèmes, dans l'ordre demandé par Charles (Linux, iPhone, Android, puis le reste) :
   agent portable sur macOS (GStreamer, sortie puis source par BlackHole) et Windows (GStreamer,
   `wasapi2src loopback=true`), sans les sorties virtuelles de Linux
+
+## Phase 43 — Sous-agents visibles dans le chat web
+
+Charles (24/11/2026) : dans le chat web, on ne voit pas les sous-agents travailler.
+
+- [x] 1. Sous-agents de fond : le pont lit leur transcription (`subagents/agent-<id>.jsonl`) toutes les 3 s et envoie leurs étapes dans leur vue (`subagents.Tails`)
+- [x] 2. Après un rechargement, une reprise ou un `/compact` : pastilles reconstruites depuis `chat.attach` (`agents`), vue remplie depuis la transcription (`chat.agent_log`)
+- [ ] 3. Essai réel par Charles (web au téléphone : sous-agent de fond, puis rechargement et `/compact` pendant qu'il tourne)

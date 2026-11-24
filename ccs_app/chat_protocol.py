@@ -472,6 +472,19 @@ def parse_line(line):
         return [Unknown(ev)]
 
 
+def sidechain_events(entry, parent_id):
+    """Étapes d'une ligne de la transcription d'un sous-agent (`subagents/agent-<id>.jsonl`, même
+    forme que les messages du flux) : textes, outils et résultats, rattachés à `parent_id` (l'appel
+    Task/Agent qui l'a lancé) comme ceux d'un sous-agent au premier plan. Le reste est ignoré."""
+    if not isinstance(entry, dict) or entry.get("type") not in ("assistant", "user"):
+        return []
+    try:
+        out = _HANDLERS[entry["type"]](dict(entry, parent_tool_use_id=parent_id))
+    except Exception:
+        return []
+    return [ev for ev in out if isinstance(ev, (AssistantText, ToolUse, ToolResult))]
+
+
 # ----------------------------------------------------------------------------- écriture
 
 def _line(obj):

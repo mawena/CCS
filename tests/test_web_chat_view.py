@@ -27,7 +27,8 @@ const api = {
   async call(method, params) {
     calls.push([method, params]);
     switch (method) {
-      case "chat.attach": return { seq: 0, events: [], state: "idle", session_id: "s1", options: { model: "", effort: "", rights: "manual" } };
+      case "chat.attach": return { seq: 0, events: [], state: "idle", session_id: "s1", options: { model: "", effort: "", rights: "manual" }, ...(api.attachExtra || {}) };
+      case "chat.agent_log": return { events: (api.agentLogs || {})[params.tool_id] || [] };
       case "chat.render": if (api.failRender) throw new Error("coupure"); return { html: params.markdown };
       case "chat.send": if (api.failSend) throw new Error("coupure"); return { ok: true, uuid: params.uuid };
       case "chat.tags": return { messages: api.tagMap || {}, known: ["important", "à revoir"] };
@@ -604,6 +605,46 @@ out.reset = [view.agents.size, view.agentBar.hidden, view.thread.hidden, view.ag
         self.assertEqual(out["done"], [True, True])
         self.assertEqual(out["status"], ["arrêté", "arrêté"])
         self.assertEqual(out["reset"], [0, True, False, 2, 0])     # « Conversation » et « Terminés »
+
+    def test_background_agent_steps_fill_its_view_without_duplicates(self):
+        """Étapes d'un sous-agent de fond lues par le pont dans sa transcription : dans sa vue."""
+        out = run(AGENT + """
+const step = { type: "AssistantText", msg_id: "m1", text: "J'avance", parent_id: "a1" };
+await live(view, start("a1", { run_in_background: true }), { type: "ToolResult", tool_id: "a1", text: "lancé", is_error: false },
+  { type: "ToolUse", tool_id: "g1", name: "Grep", input: { pattern: "x" }, parent_id: "a1" }, step, step);
+const agent = view.agents.get("a1");
+out = { inside: agent.view.querySelectorAll(".msg, .tool").length, main: view.thread.children.map((n) => n.className.split(" ")[0]) };
+""")
+        self.assertEqual(out["inside"], 2)
+        self.assertEqual(out["main"], ["agent-card"])
+
+    def test_agents_rebuilt_at_attach_after_reload_or_compaction(self):
+        """Le fil repart sans leur lancement : pastilles reconstruites depuis `agents`, vue remplie
+        depuis la transcription à l'ouverture, puis les étapes en direct s'ajoutent."""
+        out = run(r'''
+api.attachExtra = { agents: [
+  { tool_id: "a1", description: "Ancien", type: "Explore", background: true, state: "done" },
+  { tool_id: "a2", description: "En cours", type: "general-purpose", background: true, state: "running" }] };
+api.agentLogs = { a2: [{ type: "AssistantText", msg_id: "m1", text: "Début", parent_id: "a2" },
+  { type: "ToolUse", tool_id: "g1", name: "Grep", input: { pattern: "x" }, parent_id: "a2" }] };
+''' + AGENT + """
+const a2 = view.agents.get("a2");
+out = { pills: pills(), done: [view.agents.get("a1").done, a2.done], cards: view.thread.querySelectorAll(".agent-card").length };
+a2.pill.click();
+await settle();
+await live(view, { type: "AssistantText", msg_id: "m1", text: "Début", parent_id: "a2" },
+  { type: "AssistantText", msg_id: "m2", text: "Suite", parent_id: "a2" });
+out.inside = a2.view.querySelectorAll(".msg, .tool").map((n) => n.textContent.includes("Suite") ? "suite" : n.className.split(" ")[0]);
+out.logCalls = calls.filter((c) => c[0] === "chat.agent_log").map((c) => c[1].tool_id);
+await live(view, { type: "TaskNotice", tool_id: "a2", summary: "" });
+out.after = [a2.done, pills()];
+""")
+        self.assertEqual(out["pills"], ["Conversation*", "En cours", "Terminés (1)"])
+        self.assertEqual(out["done"], [True, False])
+        self.assertEqual(out["cards"], 0)
+        self.assertEqual(out["inside"], ["msg", "tool", "suite"])
+        self.assertEqual(out["logCalls"], ["a2"])
+        self.assertEqual(out["after"][0], True)
 
 
 if __name__ == "__main__":

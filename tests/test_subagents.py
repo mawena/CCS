@@ -127,6 +127,85 @@ class DiskTest(unittest.TestCase):
         self.assertEqual(merged[0]["task_id"], "aaa")
         self.assertEqual(len(subagents.merge([], subagents.from_transcript(str(self.journal)))), 1)
 
+    def test_merge_adds_agents_launched_before_in_launch_order(self):
+        """Lancés avant une reprise : le pont ne les a pas vus, le disque les rend quand même."""
+        self.agent("aaa", "t1", "Avant", "2026-11-23T10:00:00Z", True)
+        t = subagents.Subagents(clock=lambda: 4e9)
+        t.feed(launch("t2", "Après"))
+        merged = subagents.merge(t.items(), subagents.from_transcript(str(self.journal)))
+        self.assertEqual([i["tool_id"] for i in merged], ["t1", "t2"])
+
+
+def line(kind, content, msg_id="m1"):
+    msg = {"role": kind, "content": content}
+    if kind == "assistant":
+        msg["id"] = msg_id
+    return json.dumps({"type": kind, "isSidechain": True, "agentId": "aaa", "message": msg}) + "\n"
+
+
+class LogTest(unittest.TestCase):
+    """Étapes d'un sous-agent de fond, lues dans sa transcription."""
+
+    agent = DiskTest.agent
+
+    def setUp(self):
+        DiskTest.setUp(self)
+        self.agent("aaa", "t1", "Fond", "2026-11-23T10:00:00Z", False)
+        self.log = self.folder / "agent-aaa.jsonl"
+
+    def write(self, text):
+        with open(self.log, "a", encoding="utf-8") as f:
+            f.write(text)
+
+    def item(self, state="running", task_id=""):
+        return {"tool_id": "t1", "task_id": task_id, "background": True, "state": state}
+
+    def test_steps_attached_to_the_launching_call(self):
+        self.write(line("assistant", [{"type": "text", "text": "Je cherche."},
+                                      {"type": "thinking", "thinking": "…"},
+                                      {"type": "tool_use", "id": "u1", "name": "Grep", "input": {"pattern": "x"}}]))
+        self.write(line("user", [{"type": "tool_result", "tool_use_id": "u1", "content": "trouvé"}]))
+        evs = subagents.read_log(str(self.journal), self.item())
+        self.assertEqual([type(e).__name__ for e in evs], ["AssistantText", "ToolUse", "ToolResult"])
+        self.assertTrue(all(e.parent_id == "t1" for e in evs))
+        self.assertEqual(evs[2].text, "trouvé")
+
+    def test_found_by_task_id_or_meta(self):
+        self.assertEqual(subagents.log_path(str(self.journal), self.item(task_id="aaa")), self.log)
+        self.assertEqual(subagents.log_path(str(self.journal), self.item()), self.log)
+        self.assertIsNone(subagents.log_path(str(self.journal), {"tool_id": "t9", "task_id": "../x"}))
+        self.assertIsNone(subagents.log_path(None, self.item()))
+
+    def test_tail_reads_only_new_complete_lines_then_lets_go(self):
+        tails = subagents.Tails()
+        journal = str(self.journal)
+        self.assertTrue(tails.wants([self.item()]))
+        self.assertEqual(tails.poll(journal, [self.item()]), [])       # rien que la consigne
+        self.write(line("assistant", [{"type": "text", "text": "Un."}], "m1"))
+        half = line("assistant", [{"type": "text", "text": "Deux."}], "m2")
+        self.write(half[:20])                                          # ligne en cours d'écriture
+        self.assertEqual([e.text for e in tails.poll(journal, [self.item()])], ["Un."])
+        self.write(half[20:])
+        self.assertEqual([e.text for e in tails.poll(journal, [self.item()])], ["Deux."])
+        self.write(line("assistant", [{"type": "text", "text": "Fini."}], "m3"))
+        done = self.item("done")
+        self.assertEqual([e.text for e in tails.poll(journal, [done])], ["Fini."])   # lu jusqu'au bout
+        self.assertFalse(tails.wants([done]))
+        self.assertEqual(tails.poll(journal, [done]), [])
+
+    def test_foreground_agents_are_not_tailed(self):
+        """Au premier plan, la CLI passe déjà ses étapes dans le flux : pas de double."""
+        tails = subagents.Tails()
+        fg = dict(self.item(), background=False)
+        self.assertFalse(tails.wants([fg]))
+        self.write(line("assistant", [{"type": "text", "text": "Un."}]))
+        self.assertEqual(tails.poll(str(self.journal), [fg]), [])
+
+    def test_sidechain_ignores_other_entries(self):
+        self.assertEqual(proto.sidechain_events({"type": "attachment"}, "t1"), [])
+        self.assertEqual(proto.sidechain_events({"type": "user", "message": {"content": "consigne"}}, "t1"), [])
+        self.assertEqual(proto.sidechain_events("x", "t1"), [])
+
 
 class StopTaskTest(unittest.TestCase):
     def test_stop_task_writes_the_control_request(self):
