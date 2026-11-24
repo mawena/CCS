@@ -46,7 +46,7 @@ SHOW_PAGE_ACTION = "show-page"
 NEW_SESSION_ACTION = "new-session"
 
 # Onglets de la fenêtre (noms du ViewStack, dans l'ordre) et titres acceptés par « gui --page ».
-PAGES = ("home", "sessions", "network", "files", "analysis", "jarvis", "market")
+PAGES = ("home", "sessions", "network", "files", "analysis", "jarvis")
 # Nom de page (ancien ou nouveau) -> (onglet, sous-partie). « prefs » n'est pas un onglet : il
 # ouvre la fenêtre des réglages.
 SUBPAGES = {"accounts": ("home", "accounts"), "planning": ("home", "planning"),
@@ -54,8 +54,8 @@ SUBPAGES = {"accounts": ("home", "accounts"), "planning": ("home", "planning"),
             "analysis": ("analysis", "analysis"), "prefs": ("prefs", None),
             "home": ("home", None), "sessions": ("sessions", None),
             "network": ("network", None), "machines": ("network", None),
-            "files": ("files", None), "jarvis": ("jarvis", None), "market": ("market", None)}
-PAGE_CHOICES = ("accueil", "sessions", "reseau", "fichiers", "analyse", "jarvis", "market", "comptes", "planning", "historique",
+            "files": ("files", None), "jarvis": ("jarvis", None)}
+PAGE_CHOICES = ("accueil", "sessions", "reseau", "fichiers", "analyse", "jarvis", "comptes", "planning", "historique",
                 "terminaux", "reglages")
 PAGE_ALIASES = {"accueil": "home", "comptes": "accounts",
                 "terminaux": "terminals", "historique": "history", "analyse": "analysis",

@@ -124,6 +124,19 @@ class NewSessionLikeWebTest(HomeTestCase):
         self.assertEqual(got, [("term", str(self.folder)), ("chat", str(self.folder))])
         self.assertFalse(self.make().term_btn.get_visible())      # sans on_term : pas de bouton
 
+    def test_market_option_opens_in_market_workspace(self):
+        from ccs_app import market
+        got = []
+        d = self.make(on_ok=lambda spec: got.append(spec.cwd), on_term=lambda cwd: None)
+        self.assertEqual(d.market_row.get_title(), "Market (Marketplace Facebook)")
+        d.market_row.set_active(True)
+        ws = market.workspace_dir()
+        self.assertTrue((ws / "CLAUDE.md").is_file())
+        self.assertFalse(d.folder_row.get_sensitive())
+        self.assertFalse(d.term_btn.get_sensitive())
+        d.ok_btn.emit("clicked")
+        self.assertEqual(got, [str(ws)])
+
     def test_presented_once_parent_is_mapped(self):
         """`--new-session` au lancement : la fenêtre n'est pas encore affichée ; le dialogue
         attend qu'elle le soit au lieu d'être présenté (et perdu) trop tôt."""

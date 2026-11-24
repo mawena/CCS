@@ -244,7 +244,7 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `jarvis.stop_session` | `session`, `machine?`, `confirme` | arrête une session ; même confirmation |
 | `jarvis.start_session` | `project`, `machine?`, `message?`, `options?` | ouvre un chat dans un projet (→ `chat_id, machine`) |
 | `jarvis.local` / `jarvis.projects` | — | *interne* : sessions, projets de cette machine (appelés par le serveur) |
-| `market.open` | — | onglet Market (phase 45) : prépare `$DATA/ccs/market/` (CLAUDE.md, droits des outils), rejoint le chat Market ouvert ou reprend sa dernière conversation → comme `chat.open` + `title, state` |
+| `market.workspace` | — | option « Market » de la nouvelle session : prépare `$DATA/ccs/market/` (CLAUDE.md, droits des outils) → `cwd` ; la feuille y ouvre ensuite un chat (`chat.open`) |
 
 ### 2.2 Événements
 

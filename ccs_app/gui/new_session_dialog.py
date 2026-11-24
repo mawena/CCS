@@ -13,13 +13,16 @@ terminal intégré).
 Compte présélectionné : celui du projet du dossier choisi (`project_accounts`), sauf
 pendant une pause de CCS ou si le projet ne propose plus la bascule ; sinon le compte
 actif. Un compte choisi à la main n'est plus changé par un changement de dossier.
+
+Option « Market (Marketplace Facebook) » : la session s'ouvre dans le dossier du chat Market
+(`market.workspace()`, avec son CLAUDE.md et les droits des outils du marché) au lieu d'un projet.
 """
 
 import os
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from .. import chat_options, core, launch_options, project_accounts, providers, sessions, settings
+from .. import chat_options, core, launch_options, market, project_accounts, providers, sessions, settings
 from ..launch_options import LaunchSpec
 from .common import in_thread
 from .doctor_dialog import plain_row
@@ -81,6 +84,11 @@ class NewSessionDialog(Adw.Dialog):
         choose.connect("clicked", self.on_choose_folder)
         self.folder_row.add_suffix(choose)
         where.add(self.folder_row)
+        self.market_dir = None
+        self.market_row = Adw.SwitchRow(title="Market (Marketplace Facebook)",
+                                        subtitle="Session dans le dossier du chat Market, au lieu d'un projet")
+        self.market_row.connect("notify::active", self.on_market)
+        where.add(self.market_row)
         page.add(where)
 
         who = Adw.PreferencesGroup(title="Compte")
@@ -161,7 +169,19 @@ class NewSessionDialog(Adw.Dialog):
             self.folder_row.set_selected(self.folders.index(selected))
         self.update()
 
+    def on_market(self, *_):
+        on = self.market_row.get_active()
+        if on and self.market_dir is None:
+            try:
+                self.market_dir = str(market.workspace())
+            except OSError:
+                self.market_dir = None
+        self.folder_row.set_sensitive(not on)
+        self.update()
+
     def selected_folder(self):
+        if hasattr(self, "market_row") and self.market_row.get_active():
+            return self.market_dir
         i = self.folder_row.get_selected()
         return self.folders[i] if 0 <= i < len(self.folders) else None
 
@@ -265,7 +285,7 @@ class NewSessionDialog(Adw.Dialog):
         if hasattr(self, "provider_row"):
             self.provider_row.set_subtitle(problem or "")
         self.ok_btn.set_sensitive(ok and not problem)
-        self.term_btn.set_sensitive(ok)
+        self.term_btn.set_sensitive(ok and not (hasattr(self, "market_row") and self.market_row.get_active()))
         if hasattr(self, "effort_row"):
             self.effort_row.set_visible(not self.selected_provider())
         self.ok_btn.set_tooltip_text(problem if problem else None if ok else "Ce dossier n'existe pas")

@@ -1,7 +1,7 @@
 """Market : chercher sur Facebook Marketplace au Togo (phase 45).
 
-L'onglet Market de CCS est un chat Claude dédié (dossier `~/.local/share/ccs/market/`, voir
-`workspace()`) ; Claude y appelle les commandes `ccs market search|seller|item|status|login`
+Le chat Market est une session Claude ouverte dans un dossier dédié (`~/.local/share/ccs/market/`,
+voir `workspace()`), par l'option « Market » de la feuille « Nouvelle session » ; Claude y appelle les commandes `ccs market search|seller|item|status|login`
 (`market_cli`), qui pilotent ici un Chrome sans interface.
 
 Chemin des requêtes : **toujours par pc-bureau, par le réseau maillé**. Chaque commande ouvre

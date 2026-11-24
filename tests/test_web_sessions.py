@@ -1,6 +1,7 @@
 """Version web, lot « sessions » : modules JS sains (CSP, pas d'alert ni de confirm), méthodes du
 pont appelées qui existent, logique pure du terminal et de la liste (exécutée par node)."""
 
+import json
 import re
 import shutil
 import subprocess
@@ -151,3 +152,50 @@ class ManageProjectsAndTrashTest(unittest.TestCase):
         conv = (WEB / "sessions-conv.js").read_text(encoding="utf-8")
         self.assertIn("ctx.trash", conv)
         self.assertIn("/sessions-manage.js", (WEB / "sw.js").read_text(encoding="utf-8"))
+
+
+def run_dom(body):
+    """Exécute `body` dans node avec le faux DOM (tests/web_dom.mjs) ; `out` est renvoyé en JSON."""
+    tmp = Path(tempfile.mkdtemp(prefix="ccs-websessions-"))
+    try:
+        for p in WEB.glob("*.js"):
+            shutil.copy(p, tmp / p.name)
+        shutil.copy(Path(__file__).with_name("web_dom.mjs"), tmp / "web_dom.mjs")
+        (tmp / "package.json").write_text('{"type": "module"}')
+        script = tmp / "scenario.mjs"
+        script.write_text('import { installDom, settle } from "./web_dom.mjs";\ninstallDom();\n'
+                          "let out = null;\n" + body
+                          + "\nprocess.stdout.write(JSON.stringify(out) + '\\n'); process.exit(0);\n",
+                          encoding="utf-8")
+        r = subprocess.run([NODE, str(script)], capture_output=True, text=True, timeout=60, cwd=tmp)
+        if r.returncode:
+            raise AssertionError(r.stderr[-1500:])
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@unittest.skipUnless(NODE, "node absent")
+class MarketOptionWebTest(unittest.TestCase):
+    def test_market_option_opens_in_market_workspace(self):
+        """L'option « Market » de la nouvelle session ouvre le chat dans le dossier du marché."""
+        out = run_dom("""
+const calls = [];
+const api = { call: async (m) => { calls.push(m);
+  if (m === "market.workspace") return { cwd: "/ws/market" };
+  if (m === "projects.folders") return { folders: [] };
+  return {}; } };
+const { newSession } = await import("./sessions-new.js");
+let opened = null;
+newSession(api, { onOpen: async (cwd) => { opened = cwd; return true; }, onTerm: () => {} });
+await settle();
+const box = [...document.querySelectorAll("input")].find((i) => i.type === "checkbox"
+  && i.parentNode.textContent.includes("Market"));
+box.checked = true;
+box.dispatchEvent(new Event("change"));
+const go = [...document.querySelectorAll("button")].find((b) => b.textContent === "Ouvrir un chat");
+go.click();
+await settle(20);
+out = { opened, asked: calls.includes("market.workspace") };
+""")
+        self.assertEqual(out, {"opened": "/ws/market", "asked": True})
