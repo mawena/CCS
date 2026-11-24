@@ -74,7 +74,6 @@ Le message envoyé contient le titre, puis une ligne `- Libellé : valeur` par c
 - Bureau :
   - partie commune dans `ccs_app/chat_rich.py` ;
   - rendu dans `ccs_app/gui/markdown_view.py`.
-<<<<<<< HEAD
   - Formulaire : le message envoyé est le même que sur le web (titre, puis `- Libellé : valeur`
     par champ rempli) ; bouton ou Entrée dans un champ, une seule fois.
   - Images https : téléchargées dans un fil (8 Mo au plus, 30 gardées en cache), affichées
@@ -82,9 +81,6 @@ Le message envoyé contient le titre, puis une ligne `- Libellé : valeur` par c
   - Sons et vidéos https : rien n'est chargé à l'affichage ; le bouton « Lire » crée le lecteur
     (Gtk.Video, lu en continu par GStreamer).
   - Dans les vues des sous-agents, les boutons et champs restent inactifs.
-=======
-  - Les images Markdown distantes n'y sont pas chargées.
-  - Dans les vues des sous-agents, les boutons restent inactifs.
 
 ## Android
 
@@ -97,4 +93,3 @@ Le message envoyé contient le titre, puis une ligne `- Libellé : valeur` par c
   Rien ne se charge avant le premier toucher.
 - Blocs `ccs` : boutons, menus déroulants et champs Material ; un bouton n'envoie qu'une fois.
   Dans la vue d'un sous-agent, les boutons restent inactifs.
->>>>>>> feature/android-chat-riche
