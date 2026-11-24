@@ -2,13 +2,14 @@ import SwiftUI
 
 /// Onglets de l'appli, comme l'appli Android.
 enum Onglet: String, CaseIterable, Hashable {
-    case accueil, sessions, reseau, fichiers, plus
+    case accueil, sessions, reseau, son, fichiers, plus
 
     var titre: String {
         switch self {
         case .accueil: return "Accueil"
         case .sessions: return "Sessions"
         case .reseau: return "Réseau"
+        case .son: return "Son"
         case .fichiers: return "Fichiers"
         case .plus: return "Plus"
         }
@@ -19,6 +20,7 @@ enum Onglet: String, CaseIterable, Hashable {
         case .accueil: return "house"
         case .sessions: return "bubble.left.and.bubble.right"
         case .reseau: return "point.3.connected.trianglepath.dotted"
+        case .son: return "hifispeaker.2"
         case .fichiers: return "folder"
         case .plus: return "ellipsis"
         }
@@ -65,7 +67,6 @@ enum Destination: Hashable {
     case terminaux
     case terminal(String)
     case jarvis
-    case son
 }
 
 /// Écran principal : bandeau de connexion, onglets, une pile de navigation par onglet.
@@ -127,12 +128,12 @@ struct EcranPrincipal: View {
             onglet = .plus
             if piles[.plus]?.last != .jarvis { piles[.plus] = [.jarvis] }
         }
-        // notification du son partagé : Plus → Son, sélecteur de diffusion
+        // notification du son partagé : onglet Son, sélecteur de diffusion
         .onChange(of: modele.ouvrirSon, initial: true) { _, ouvrir in
             guard ouvrir else { return }
             modele.ouvrirSon = false
-            onglet = .plus
-            if piles[.plus]?.last != .son { piles[.plus] = [.son] }
+            onglet = .son
+            piles[.son] = []
         }
         .onChange(of: modele.aOuvrir) { _, d in
             guard let d = d else { return }
@@ -161,6 +162,7 @@ struct EcranPrincipal: View {
         case .accueil: EcranAccueil()
         case .sessions: EcranSessions()
         case .reseau: EcranReseau()
+        case .son: EcranSon()
         case .fichiers: EcranFichiersOnglet()
         case .plus: EcranPlus()
         }
@@ -180,7 +182,6 @@ struct EcranPrincipal: View {
         case .terminaux: EcranTerminaux()
         case .terminal(let id): EcranTerminal(id: id)
         case .jarvis: EcranJarvis()
-        case .son: EcranSon()
         }
     }
 }
@@ -263,13 +264,6 @@ struct EcranPlus: View {
                 }
             } footer: {
                 Text("Jarvis, l'assistant vocal de la maison, joint par le serveur CCS et le relais Ricochet. Aussi dans Raccourcis : « Parler à Jarvis ».")
-            }
-            Section {
-                NavigationLink(value: Destination.son) {
-                    Label("Son", systemImage: "hifispeaker.2")
-                }
-            } footer: {
-                Text("Son partagé sur le réseau maillé : jouer ici le son d'un autre appareil, ou envoyer le son de cet iPhone vers un PC ou le Pixel.")
             }
             Section {
                 NavigationLink(value: Destination.reglages) {
