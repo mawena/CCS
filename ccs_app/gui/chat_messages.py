@@ -958,7 +958,7 @@ class MessageList(Gtk.ScrolledWindow):
     se construit par paquets de 50 en remontant."""
 
     def __init__(self, on_diff=None, on_open=None, on_link=None, base_dir=None, on_older=None,
-                 on_rewind=None, on_reply=None, on_tag=None):
+                 on_rewind=None, on_reply=None, on_tag=None, on_send=None):
         super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True, hexpand=True)
         install_css()
         self.on_diff, self.on_open, self.on_link = on_diff, on_open, on_link
@@ -966,6 +966,7 @@ class MessageList(Gtk.ScrolledWindow):
         self.on_reply = on_reply      # on_reply(auteur, texte) : « Répondre » en citant un message
         # on_tag(identifiant, étiquettes, texte, rôle) : « Étiqueter » un message
         self.on_tag = on_tag
+        self.on_send = on_send        # on_send(texte) : un choix ou une carte d'un bloc ```ccs répond
         self._tags = {}           # identifiant de message -> entrée de message_tags
         self.known_tags = []      # étiquettes déjà utilisées (suggestions)
         self.on_older = on_older
@@ -1083,7 +1084,8 @@ class MessageList(Gtk.ScrolledWindow):
         return bubble
 
     def _markdown(self, text=""):
-        view = MarkdownView(text, base_dir=self.base_dir, on_link=lambda uri: self.on_link and self.on_link(uri))
+        view = MarkdownView(text, base_dir=self.base_dir, on_link=lambda uri: self.on_link and self.on_link(uri),
+                            on_send=(lambda t: self.on_send(t)) if self.on_send else None)
         view.set_dark(self._dark)
         self._views.append(view)
         return view

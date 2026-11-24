@@ -126,7 +126,8 @@ class ChatTab(Gtk.Box):
                                     on_open=lambda p, line: self.emit("open-file", p, line),
                                     on_link=self.open_link, base_dir=launch.cwd,
                                     on_older=self._show_older, on_rewind=self.rewind_from_bubble,
-                                    on_reply=self._on_reply, on_tag=self._on_tag)
+                                    on_reply=self._on_reply, on_tag=self._on_tag,
+                                    on_send=lambda text: self._on_send(None, text, ()))
         self.composer = Composer(base_dir=launch.cwd)
         self.bar = ChatBar()
         self.bar.set_options(self.options)
