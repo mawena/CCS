@@ -1484,6 +1484,7 @@ class TerminalsPage(Gtk.Box):
         for tab in moved:
             self.emit("tab-state-changed", tab)
         blocked = self.handle_limits(tabs, limits)
+        self.resume_shells(tabs, live, limits)
         for tab in tabs:
             if tab.state.kind == "claude" and (tab.state.queue or tab.queue_reason):
                 self.send_queue(tab, tab in blocked)
@@ -1530,6 +1531,31 @@ class TerminalsPage(Gtk.Box):
                     tab.attention()
             limit_events.consume(event.session_id, event.ts)
         return blocked
+
+    def resume_shells(self, tabs, live, limits):
+        """Onglets shell où `claude` a été lancé à la main et bloqué par une limite : « continue »
+        quand le compte a changé ou que la limite est levée (comme les terminaux du web)."""
+        if not self.options.get("auto_resume", True):
+            return
+        if not any(e.outcome in limit_events.RESUMABLE for e in limits.values()):
+            return
+        shells = {id(t): t.state.pid for t in tabs if t.state.kind == "shell" and t.state.running
+                  and t.state.pid and not getattr(t, "remote", None)}
+        if not shells:
+            return
+        enabled = getattr(self, "limit_cfg", {}).get("enabled", True)
+        history = self.__dict__.setdefault("shell_resumes", {})
+        by_key = {id(t): t for t in tabs}
+
+        def work():
+            return limit_resume.terminal_resumes(limits, live, shells, time.time(), history, enabled)
+
+        def done(found):
+            for key, _sid in found or ():
+                tab = by_key.get(key)
+                if tab is not None and tab.send_auto(limit_resume.TEXT):
+                    tab.show_notice("Limite levée : « continue » envoyé à Claude")
+        in_thread(work, done)
 
     # ---- messages en attente ---------------------------------------------------------
 
