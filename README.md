@@ -1,11 +1,20 @@
-# CCS — plusieurs comptes Claude Code, comme un seul
+# CCS — Claude Code partout : tous tes appareils, toutes tes machines, tous tes comptes
 
-**Pro (20 $) ne te suffit plus, mais Max (100 $) c'est trop ?** CCS fait
-travailler 2 ou 3 comptes Claude Code ensemble sur ton PC Linux : une seule
-commande pour basculer, l'usage de tous les comptes d'un coup d'œil, une bascule
-automatique avant la coupure — les sessions déjà ouvertes continuent sur le
-compte suivant — et un **orchestrateur** qui organise les fenêtres de 5 h pour
-qu'un compte soit disponible quand l'autre est épuisé.
+CCS est un **poste de travail complet autour de Claude Code** :
+
+- **Partout** : application de bureau GNOME (chat graphique, fichiers, feuille de route,
+  Git, terminal), version web et applications **Android** et **iPhone** pour piloter les
+  sessions de tes PC et de ton serveur depuis le téléphone, notifications, vocal
+  (dictée et lecture des réponses).
+- **Toutes tes machines** : un **réseau maillé** privé relie PC, serveur et téléphones
+  comme sur un réseau local (fichiers, son partagé), le **calcul réparti** envoie
+  un build ou une longue suite de tests sur une autre machine, les commandes **root**
+  se valident depuis le téléphone.
+- **Tous tes comptes** : 2 ou 3 comptes Claude Code travaillent comme un seul — bascule
+  en une commande, usage de tous les comptes d'un coup d'œil, bascule automatique avant
+  la coupure, **orchestrateur** des fenêtres de 5 h.
+- **Des outils autour** : assistant vocal Jarvis, Market (recherche sur Facebook
+  Marketplace au Togo).
 
 ```sh
 ccs save perso        # enregistre le compte connecté
@@ -30,7 +39,10 @@ Claude s'y travaillent dans un **chat graphique** (modèle, effort, ultracode et
 en un clic), à côté des **fichiers** du projet et de sa **feuille de route**, avec une
 couleur par compte. Voir [Chat graphique](#chat-graphique).
 
-## Le palier qui manque
+## Plusieurs comptes : le palier qui manque
+
+**Pro (20 $) ne te suffit plus, mais Max (100 $) c'est trop ?** CCS fait
+travailler 2 ou 3 comptes Claude Code ensemble.
 
 | Formule | Prix / mois* | Capacité (Pro = 1×) |
 |---|---|---|
@@ -895,12 +907,14 @@ réseau :
 2. sinon **direct par internet** (percement de NAT) ;
 3. sinon le **relais** du VPS (DERP, STUN sur UDP 3478).
 
-**Onglet « Réseau »** (version web, à droite de Sessions) :
-- une carte du réseau, avec un trait par liaison coloré selon le chemin ;
+**Onglet « Réseau »** (version web à droite de Sessions, même contenu dans l'appli de bureau, qui
+demande l'état au serveur CCS comme le web) :
+- une carte du réseau, avec un trait par liaison coloré selon le chemin (web) ;
 - une fiche par appareil : adresse, adresses publiées (locales, publiques, IPv6), trafic, ping
-  réel (chemin et latence), renommer, retirer ;
+  réel (chemin et latence), renommer, retirer ; la machine de calcul Ricochet s'y rattache ;
 - « Ajouter un appareil » :
-  - **PC Linux** : une ligne à coller, avec une clé jetable valable 15 min ;
+  - **PC Linux** : une ligne à coller, avec une clé jetable valable 15 min (ou le lien Ricochet,
+    si le jeton opérateur est enregistré) ;
   - **Android et iPhone** : l'appli Tailscale avec le serveur personnalisé
     `https://network.mawena.cloud`, puis la clé `hskey-authreq-…` affichée, à valider dans
     l'onglet.
@@ -946,6 +960,39 @@ ccs audio stop                   # arrête les flux de ce PC (ou : ccs audio sto
 ccs audio receive                  # sans le service : au premier plan, pour essayer
 ccs audio disable
 ```
+
+## Market : Facebook Marketplace au Togo
+
+Onglet **Market** (web et bureau) : un chat où l'on pose une question — « le routeur le moins cher
+compatible WireGuard à Lomé » — ou colle le lien d'un vendeur. Market cherche sur Facebook
+Marketplace au Togo et répond **dans le chat** par un classement au meilleur rapport qualité-prix :
+prix en CFA, lien de l'annonce, raisons (caractéristiques vérifiées sur le web), alternatives
+écartées. Pas de surveillance ni d'alerte : seulement la réponse.
+
+- C'est un chat Claude dédié (dossier `~/.local/share/ccs/market/`, avec son `CLAUDE.md`) : l'onglet
+  rouvre toujours le même chat, sur tous les appareils. Claude y lance `ccs market …`.
+- Les requêtes vers Facebook sortent **toujours par pc-bureau**, par le réseau maillé : `ssh -D`
+  vers 100.64.0.2, adresse de sortie vérifiée avant chaque recherche (jamais celle du VPS), puis un
+  Chrome sans interface du VPS (navigateurs de Playwright) branché sur ce tunnel. **Pas de repli** :
+  si pc-bureau ne répond pas, Market le dit et n'envoie rien.
+- Rythme humain (6 à 8 s par page, peu de pages par question), images bloquées, Chrome fermé après
+  chaque commande. Messenger n'est jamais lu.
+- Compte Facebook personnel. La lecture automatique est contraire aux conditions de Facebook.
+
+**Première fois** : `ccs market login` (sur le VPS). Google Chrome s'ouvre sur l'écran de pc-bureau
+(profil dédié) ; connecte-toi à Facebook : les cookies sont exportés et gardés dans
+`~/.config/ccs/market/session.json` (600, jamais affichés), puis ce Chrome se referme. À refaire si
+Market dit que la session a expiré.
+
+```bash
+ccs market status                                   # session, Chrome, tunnel et adresse de sortie
+ccs market search "routeur wireguard" --max 30000   # prix | titre | ville | lien
+ccs market seller https://www.facebook.com/marketplace/profile/100058059515617/
+ccs market item https://www.facebook.com/marketplace/item/2421778705023492/
+```
+
+Réglages facultatifs dans `~/.config/ccs/market/config.json` (ville par défaut, chemin de Chrome,
+pauses, limites).
 
 ## Calcul réparti : lancer un travail sur une autre machine
 
@@ -1230,6 +1277,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs audio list` / `send <source> <sortie>` / `stop [flux\|appareil]` / `receive` / `enable [--name n]` / `disable` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
 | `ccs remote machines [--fast]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--fast` : sans les interroger) |
 | `ccs remote run [--machine m] [--tool o] [--fetch chemin] [--include chemin] [--with-git] [--when night\|HH:MM] [--detach] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
+| `ccs market search "<mots>" [--min N] [--max N] [--city lome]` / `seller <lien>` / `item <lien>` / `status` / `login` | Market : annonces de Facebook Marketplace au Togo (toujours par pc-bureau), vendeur, détails d'une annonce, état, connexion (une fois) ; `--json` |
 | `ccs chat clear` | Dans un chat de CCS (lancé par Claude) : vide la conversation (`/clear`) à la fin du tour en cours |
 | `ccs app` | Application graphique |
 
