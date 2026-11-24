@@ -318,8 +318,9 @@ class VeniceProviderTest(HomeTestCase):
         self.assertEqual(p.api, "openai")
         self.assertEqual(p.base_url, "https://api.venice.ai/api/v1")
         self.assertEqual(p.key_path(), str(self.home / ".config" / "venice" / "cle"))
-        self.assertEqual([m for _, m in p.models], ["glm-5-3-flash-uncensored",
-                                                     "deepseek-v4-1-flash-1017-uncensored", "venice-uncensored"])
+        self.assertEqual([m for _, m in p.models], ["deepseek-v4-1-flash-1017-uncensored",
+                                                     "qwen-3-6-plus", "glm-5-3-flash-uncensored",
+                                                     "venice-uncensored"])
         self.assertEqual(p.claude_url(), "http://127.0.0.1:47447/venice")
 
     def test_claude_args_start_proxy_and_point_to_it(self):

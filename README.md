@@ -612,7 +612,7 @@ $ par million de jetons entrée/sortie) :
 |---|---|---|
 | `openrouter` (compatible Anthropic) | DeepSeek V4.1 Flash 1017 `:floor` (défaut, le moins cher : hébergeur le moins cher choisi par OpenRouter, ~0,03-0,05/0,10-0,50 avec cache), GLM 5.3 (~1,40/4,40 selon l'hébergeur), Grok 4.7 (2/6), Kimi K3.1 Pro, Qwen3 Coder Next… | `~/.config/openrouter/cle` |
 | `deepseek` (API directe compatible Anthropic) | `deepseek-flash` (0,30/1,20, -50 % en heures creuses), `deepseek-v4-pro` | `~/.config/deepseek/cle` |
-| `venice` (compatible OpenAI, par le proxy intégré) | `glm-5-3-flash-uncensored` (défaut), `deepseek-v4-1-flash-1017-uncensored`, `venice-uncensored` | `~/.config/venice/cle` |
+| `venice` (compatible OpenAI, par le proxy intégré) | `deepseek-v4-1-flash-1017-uncensored` (défaut), `qwen-3-6-plus`, `glm-5-3-flash-uncensored`, `venice-uncensored` | `~/.config/venice/cle` |
 
 Budget : plafonner la clé chez le fournisseur (sur OpenRouter, « limit » de la clé, par exemple
 50 $). Claude Code réserve 32 000 jetons de sortie par requête : avec très peu de crédit, une
