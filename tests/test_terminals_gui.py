@@ -4,6 +4,7 @@ import os
 import time
 import unittest
 from unittest import mock
+from tests.helpers import HomeTestCase
 
 try:
     import gi
