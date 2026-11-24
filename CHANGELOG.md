@@ -5,6 +5,12 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.16.1] — 2026-11-27
+
+### Modifié
+
+- **Venice** : modèle par défaut DeepSeek V4.1 Flash 1017 Uncensored (le plus proche de Claude pour coder et piloter des outils) ; Qwen 3.6 Plus Uncensored ajouté à la liste.
+
 ## [1.16.0] — 2026-11-26
 
 ### Ajouté
