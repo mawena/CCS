@@ -82,7 +82,7 @@ Conception :
 - **Limites** : retard de 100 à 200 ms en direct, nettement plus par un relais Tailscale ; pas
   pour une vidéo synchro par un relais.
 
-- [ ] 1. Serveur : registre des sorties audio (annonce, expiration, liste) et méthodes du pont, tests
+- [x] 1. Serveur : registre des sorties audio (annonce, expiration, liste) et méthodes du pont, tests
 - [ ] 2. Linux : `ccs audio` (lister, envoyer, recevoir), récepteur RTP/Opus, sorties PipeWire virtuelles pour chaque appareil distant, annonce automatique par le démon ; essai pc-bureau ↔ VPS
 - [ ] 3. Android : récepteur (service au premier plan) et émetteur (AudioPlaybackCapture), annonce, écran « Son » ; APK sur Codemagic
 - [ ] 4. iPhone : récepteur (lecture en arrière-plan) et extension ReplayKit émettrice, annonce, écran « Son » ; IPA sur Codemagic
