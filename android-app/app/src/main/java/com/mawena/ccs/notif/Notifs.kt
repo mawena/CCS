@@ -27,6 +27,9 @@ object Notifs {
     const val CANAL_FIN = "fin-de-tour"
     const val CANAL_ATTENTE = "attente"
     const val CANAL_CONNEXION = "connexion"
+    /** Son partagé : services de lecture et d'envoi (discrets), demandes à toucher. */
+    const val CANAL_SON = "son"
+    const val CANAL_SON_DEMANDE = "son-demande"
 
     const val ID_SERVICE = 1
     private const val ID_FIN = 2
@@ -57,6 +60,13 @@ object Notifs {
                 NotificationChannel(CANAL_CONNEXION, "Connexion en arrière-plan", NotificationManager.IMPORTANCE_MIN).apply {
                     description = "Notification discrète tant que l'appli reste connectée pour te prévenir. Tu peux la masquer ici."
                     setShowBadge(false)
+                },
+                NotificationChannel(CANAL_SON, "Son partagé", NotificationManager.IMPORTANCE_LOW).apply {
+                    description = "Son reçu ou envoyé par le réseau maillé, avec le bouton Arrêter."
+                    setShowBadge(false)
+                },
+                NotificationChannel(CANAL_SON_DEMANDE, "Demandes de son partagé", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Un autre appareil veut le son de ce téléphone : touche pour donner l'accord."
                 },
             ),
         )
