@@ -981,8 +981,8 @@ ne fait que la mise en relation ; le son passe en direct entre les appareils (RT
 les adresses 100.64.x, 48 kHz stéréo, 100 à 200 ms de retard en direct, plus par un relais).
 Protocole : [`docs/audio.md`](docs/audio.md).
 
-- **PC Linux** : `ccs audio enable` (ou l'interrupteur « Son partagé sur ce PC » de l'onglet
-  Réseau du bureau) lance le service utilisateur `ccs-audio`. Le PC est annoncé, et chaque autre
+- **PC Linux** : `ccs audio enable` (ou l’interrupteur « Son partagé sur ce PC » de l’onglet
+  Son du bureau) lance le service utilisateur `ccs-audio`. Le PC est annoncé, et chaque autre
   appareil apparaît comme une **vraie sortie son** (« iPhone de Charles ») dans les réglages du son
   de Linux : choisis-la pour une appli et le son part vers l'appareil ; muette 10 s, l'envoi
   s'arrête. Il faut GStreamer et pactl (`gstreamer1.0-tools gstreamer1.0-plugins-good
@@ -991,7 +991,7 @@ Protocole : [`docs/audio.md`](docs/audio.md).
   reçoit dès que CCS est ouvert ; pour envoyer son propre son, « Envoyer le son de ce téléphone
   vers… » (Android demande l'accord de capture à chaque fois ; l'iPhone passe par la diffusion
   d'écran ReplayKit, et les contenus protégés comme Apple Music ou Netflix y restent muets).
-- **Web et bureau** : section « Son partagé » de l'onglet Réseau : appareils, flux en cours,
+- **Web et bureau** : onglet « Son » (après Réseau) : appareils, flux en cours,
   « Envoyer le son de … vers … » entre deux appareils quelconques.
 - **Lecteurs** : les lecteurs audio des PC Linux (VLC, Firefox… par MPRIS) se pilotent depuis
   tous les clients (section « Lecteurs » de l'écran Son) : lecture/pause, précédent, suivant,

@@ -6,6 +6,7 @@ import { mountFiles } from "./files-browser.js";
 import { mountHome } from "./home.js";
 import { mountJarvis } from "./jarvis.js";
 import { mountReseau } from "./reseau.js";
+import { mountSon } from "./son.js";
 import { mountSessions } from "./sessions.js";
 import { mountSettings } from "./settings.js";
 
@@ -17,6 +18,7 @@ export const VIEWS = {
   accueil: { title: "Accueil", icon: "⌂", mount: mountHome },
   sessions: { title: "Sessions", icon: "💬", mount: mountSessions },
   reseau: { title: "Réseau", icon: "🌐", mount: mountReseau },
+  son: { title: "Son", icon: "🔊", mount: mountSon },
   fichiers: { title: "Fichiers", icon: "📁", mount: mountFiles },
   jarvis: { title: "Jarvis", icon: "🎙", mount: mountJarvis },
   analyse: { title: "Analyse", icon: "▤", mount: mountAnalysis },

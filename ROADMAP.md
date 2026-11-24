@@ -92,11 +92,11 @@ Conception :
 - [x] 6b. iPhone : recevoir aussi appli en arrière-plan (iOS la suspend : elle rate l'ordre « receive » du pont) — interrupteur « Rester à l'écoute » (écran Son)
 - [x] 6c. Latence réduite (trames 10 ms, tampons adaptatifs)
 - [x] 6d. Lecteurs MPRIS (VLC, Firefox…) des PC Linux pilotés depuis tous les clients : agent (`audio.report`), pont (`audio.players`, `audio.control`), `ccs audio players` et `control`, section « Lecteurs » de l'écran Son (web, bureau, iPhone, Android)
-- [ ] 6e. Onglet Son sur toutes les plateformes
+- [x] 6e. Onglet Son sur toutes les plateformes
   - [x] iPhone : onglet « Son » après Réseau (retiré de Plus)
   - [x] Android : onglet « Son » après Réseau (retiré de Plus)
-  - [ ] Web
-  - [ ] Bureau
+  - [x] Web : onglet « Son » (#/son) après Réseau, retiré de Réseau
+  - [x] Bureau : onglet « Son » (SonPage, Ctrl+4) après Réseau, retiré de Réseau
 - [ ] Idée : le téléphone comme lecteur piloté. iOS l'interdit (aucune appli ne peut piloter la lecture des autres) ; Android le permet avec l'accès aux notifications (`MediaSessionManager.getActiveSessions`), à accorder à la main dans les réglages
 - [ ] 7. Autres systèmes, dans l'ordre demandé par Charles (Linux, iPhone, Android, puis le reste) :
   agent portable sur macOS (GStreamer, sortie puis source par BlackHole) et Windows (GStreamer,

@@ -46,20 +46,21 @@ SHOW_PAGE_ACTION = "show-page"
 NEW_SESSION_ACTION = "new-session"
 
 # Onglets de la fenêtre (noms du ViewStack, dans l'ordre) et titres acceptés par « gui --page ».
-PAGES = ("home", "sessions", "network", "files", "jarvis", "analysis")
+PAGES = ("home", "sessions", "network", "son", "files", "jarvis", "analysis")
 # Nom de page (ancien ou nouveau) -> (onglet, sous-partie). « prefs » n'est pas un onglet : il
 # ouvre la fenêtre des réglages.
 SUBPAGES = {"accounts": ("home", "accounts"), "planning": ("home", "planning"),
             "terminals": ("sessions", None), "history": ("analysis", "history"),
             "analysis": ("analysis", "analysis"), "prefs": ("prefs", None),
             "home": ("home", None), "sessions": ("sessions", None),
-            "network": ("network", None), "machines": ("network", None),
+            "network": ("network", None), "machines": ("network", None), "son": ("son", None),
             "files": ("files", None), "jarvis": ("jarvis", None)}
-PAGE_CHOICES = ("accueil", "sessions", "reseau", "fichiers", "jarvis", "analyse", "comptes", "planning", "historique",
+PAGE_CHOICES = ("accueil", "sessions", "reseau", "son", "fichiers", "jarvis", "analyse", "comptes", "planning", "historique",
                 "terminaux", "reglages")
 PAGE_ALIASES = {"accueil": "home", "comptes": "accounts",
                 "terminaux": "terminals", "historique": "history", "analyse": "analysis",
                 "reglages": "prefs", "reseau": "network", "fichiers": "files",
+                "son": "son", "audio": "son",
                 "conversations": "sessions"}   # ancien onglet, réuni à l'onglet Sessions
 
 
