@@ -157,7 +157,8 @@ class Pipewire:
 
     def create(self, device, label):
         self._pactl("load-module", "module-null-sink", f"sink_name={sink_name(device)}",
-                    f'sink_properties=device.description="{clean_label(label)}"')
+                    # toute la valeur entre apostrophes : sans elles, PipeWire coupe au premier espace
+                    f"""sink_properties='device.description="{clean_label(label)}"'""")
 
     def remove(self, sink):
         module = self.modules().get(sink)

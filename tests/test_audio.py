@@ -237,3 +237,15 @@ class BoutEnBoutTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([x["device"] for x in (await phone.call("audio.list"))["devices"]], ["iphone"])
             await phone.close()
             await b.stop()
+
+
+class PipewireTest(unittest.TestCase):
+    def test_nom_affiche_entier(self):
+        import subprocess
+        calls = []
+
+        def run(argv, **kw):
+            calls.append(argv)
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        audio.Pipewire(run).create("iphone", "iPhone de Charles")
+        self.assertEqual(calls[0][-1], """sink_properties='device.description="iPhone de Charles"'""")
