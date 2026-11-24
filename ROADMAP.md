@@ -85,7 +85,7 @@ Conception :
 - [x] 1. Serveur : registre des sorties audio (annonce, expiration, liste) et méthodes du pont, tests
 - [ ] 2. Linux : `ccs audio` (lister, envoyer, recevoir), récepteur RTP/Opus, sorties PipeWire virtuelles pour chaque appareil distant, annonce automatique par le démon ; essai pc-bureau ↔ VPS
 - [x] 3. Android : récepteur (service au premier plan) et émetteur (AudioPlaybackCapture), annonce, écran « Son » ; APK sur Codemagic
-- [ ] 4. iPhone : récepteur (lecture en arrière-plan) et extension ReplayKit émettrice, annonce, écran « Son » ; IPA sur Codemagic
+- [x] 4. iPhone : récepteur (lecture en arrière-plan) et extension ReplayKit émettrice, annonce, écran « Son » ; IPA sur Codemagic
 - [x] 5. Web et bureau GTK : liste des sorties et bouton « Envoyer le son vers… »
 - [ ] 6. Essais réels dans les six sens, README, CHANGELOG, release
 - [ ] 7. Autres systèmes, dans l'ordre demandé par Charles (Linux, iPhone, Android, puis le reste) :
