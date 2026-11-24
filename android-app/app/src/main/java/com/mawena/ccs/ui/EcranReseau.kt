@@ -276,11 +276,12 @@ fun EcranReseau(modele: ModeleAppli) {
         if (e.server) item {
             AjoutAppareil(e,
                 ricochet = Calcul.peutAjouterPc(reglages),
-                ajouterPc = { id, compte, nom ->
+                ajouterPc = { id, compte, nom, complet ->
                     runCatching {
                         client.appeler("machines.add", PcAjoute.serializer(), buildJsonObject {
                             put("machine", id); put("user", compte)
                             if (nom.isNotEmpty()) put("name", nom)
+                            if (complet) put("full", true)
                         })
                     }.onSuccess { rechargerCalcul() }.onFailure { avis.dire(it.message ?: "Ajout impossible.") }.getOrNull()
                 },
@@ -613,7 +614,7 @@ private fun AjoutAppareil(
     e: EtatReseau,
     /** Relais, jeton et jeton opérateur Ricochet réglés : le PC s'ajoute par `machines.add`. */
     ricochet: Boolean,
-    ajouterPc: suspend (id: String, compte: String, nom: String) -> PcAjoute?,
+    ajouterPc: suspend (id: String, compte: String, nom: String, complet: Boolean) -> PcAjoute?,
     creerCle: suspend (String) -> CleReseau?, valider: suspend (String) -> Boolean,
 ) {
     val presse = LocalClipboardManager.current

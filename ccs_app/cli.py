@@ -1041,7 +1041,8 @@ def cmd_distant(args):
             print("\n".join(lines) if lines else "Aucune machine (Ricochet ni réseau maillé).")
             return 0
         if args.action == "ajouter":
-            r = distant.add_machine(args.id, name=args.nom, user=args.utilisateur, limit=args.limite)
+            r = distant.add_machine(args.id, name=args.nom, user=args.utilisateur, limit=args.limite,
+                                    full=args.complet)
             print(f"« {r['id']} » est déclarée. Sur la nouvelle machine, colle dans un terminal "
                   f"(lien valable {r['expires_s'] // 60} min, une seule fois) :\n\n  {r['command']}\n\n"
                   "Elle installe l'agent Ricochet et le serveur SSH, autorise la clé SSH de ce "
@@ -1437,6 +1438,8 @@ def build_parser():
     diaj.add_argument("--utilisateur", required=True, help="ton compte sur cette machine")
     diaj.add_argument("--nom", help="nom affiché")
     diaj.add_argument("--limite", type=int, help="travaux à la fois sur cette machine (1 à 8)")
+    diaj.add_argument("--complet", action="store_true",
+                      help="installe aussi CCS et Claude Code (sessions entières sur la machine)")
     di_sub.add_parser("travaux", help="commandes lancées : en attente, en cours et finies")
     dia = di_sub.add_parser("arreter", help="arrête un travail (ou le retire de la file)")
     dia.add_argument("id")

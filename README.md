@@ -641,7 +641,7 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Chat graphique** | Les sessions Claude dans des chats : réponses en Markdown, cartes d'actions repliables, demandes d'autorisation (Autoriser / Toujours / Refuser), barre modèle / effort / ultracode / droits, `@` fichiers, `/` commandes, images, file de messages, bouton Arrêter, mise en veille après 30 min, « Ouvrir dans un terminal ». |
 | **Panneau Fichiers** | Arbre du projet avec marques git, fichiers ouverts à côté du chat (coloration, aperçu Markdown, édition Ctrl+S, diff des modifications de Claude, conflits signalés), dispositions A et B, volets redimensionnables, Ctrl+B. |
 | **Feuille de route** | Le `ROADMAP.md` du projet dans l'onglet de session : phases, barres de progression, cases cliquables ; la case que Claude coche s'allume. |
-| **Terminal intégré** | Onglets shell (VTE) et sortie de secours des chats ; deux sessions côte à côte, messages en attente, onglets rouverts au redémarrage (chats compris), reprise après une limite, copier/coller, liens, confirmation avant fermeture. |
+| **Terminal intégré** | Onglets shell (VTE) et sortie de secours des chats ; deux sessions côte à côte, messages en attente, onglets rouverts au redémarrage (chats compris), reprise après une limite (aussi quand `claude` est lancé à la main dans un onglet shell), copier/coller, liens, confirmation avant fermeture. |
 | **Conversations** | Historique de toutes les conversations du PC (onglet Sessions), recherche, aperçu, export Markdown, coût, reprise dans l'application, VS Code ou un terminal externe, renommage, projets déplacés. |
 | **Journal des bascules** | Chaque changement de compte avec sa raison en clair, groupé par jour (partie Historique de l'onglet Analyse, `ccs journal`). |
 | **Raccourcis clavier** | Raccourcis globaux GNOME, même application fermée : ouvrir, sessions, nouvelle session, compte suivant ou meilleur, pause. |
@@ -976,15 +976,19 @@ fondue ; `#/machines` y mène) : chaque fiche d'appareil montre sa charge, sa m�
 ses places et sa limite ; sous les appareils, les travaux avec « Journal » et « Arrêter », le
 formulaire pour lancer une commande (dossier, machine, maintenant / cette nuit / à une heure) et,
 replié, « Secours Ricochet » (adresse et jeton du relais, le jeton n'est jamais réaffiché). Le
-calcul se recharge toutes les 5 s tant que la page est visible. Dans l'appli du PC : Réglages →
-Machines.
+calcul se recharge toutes les 5 s tant que la page est visible. Dans l'appli du PC : onglet
+Réseau (avec « Ajouter un PC »).
 
 **Ajouter un PC au réseau** (le plus simple) : onglet Réseau → Ajouter un appareil → « PC Linux » (identifiant,
-ton compte sur ce PC), ou
+ton compte sur ce PC ; case « Installer aussi CCS et Claude Code » pour ouvrir des sessions
+entières sur ce PC), ou
 
 ```sh
-ccs distant ajouter pc-salon --utilisateur charles [--nom "PC du salon"] [--limite 2]
+ccs distant ajouter pc-salon --utilisateur charles [--nom "PC du salon"] [--limite 2] [--complet]
 ```
+
+Avec `--complet` (ou la case), la ligne installe ensuite CCS depuis le dépôt APT et Claude Code
+(`curl -fsSL https://claude.ai/install.sh | bash`).
 
 CCS déclare la machine dans Ricochet et donne **une ligne à coller** dans un terminal du PC
 (Ubuntu ou Debian) : `curl -fsSL https://<relais>/rejoindre/<code> | sudo sh`. Elle installe

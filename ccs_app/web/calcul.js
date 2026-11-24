@@ -281,13 +281,16 @@ export function createCompute(api, { onMachines = () => {}, onSettings = () => {
     const user = el("input", { required: true, pattern: "[a-z_][a-z0-9_\\-]{0,31}", autocomplete: "off",
       autocapitalize: "off", spellcheck: "false", placeholder: "charles", "aria-label": "Compte" });
     const name = el("input", { maxlength: "100", placeholder: "PC du salon", "aria-label": "Nom affiché" });
+    const full = el("input", { type: "checkbox" });
     const error2 = el("p", { class: "form-error", role: "alert" });
     const go = el("button", { type: "submit", class: "primary" }, "Créer le lien");
     const result = el("div", { class: "stack" });
     const f = el("form", { class: "stack" },
       field("Identifiant", id, "lettres, chiffres, - et _"),
       field("Ton compte sur ce PC", user, "terminal, fichiers et travaux tournent sous ce compte"),
-      field("Nom affiché (facultatif)", name), error2,
+      field("Nom affiché (facultatif)", name),
+      el("div", {}, el("label", { class: "check" }, full, "Installer aussi CCS et Claude Code"),
+        el("div", { class: "subtle" }, "pour ouvrir des sessions entières sur ce PC")), error2,
       el("div", { class: "sheet-actions" }, go));
     f.addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -295,6 +298,7 @@ export function createCompute(api, { onMachines = () => {}, onSettings = () => {
       clear(result);
       const params = { machine: id.value.trim(), user: user.value.trim() };
       if (name.value.trim()) params.name = name.value.trim();
+      if (full.checked) params.full = true;
       busy(go, async () => {
         let r;
         try { r = await api.call("machines.add", params); } catch (e) { error2.textContent = e.message; return; }
@@ -306,6 +310,7 @@ export function createCompute(api, { onMachines = () => {}, onSettings = () => {
           el("pre", { class: "log" }, r.command),
           el("p", { class: "subtle" }, "Elle installe le serveur SSH et l'agent Ricochet (secours), autorise la clé de ce serveur"
             + (r.mesh ? " et inscrit la machine au réseau maillé" : "")
+            + (r.full ? ", puis installe CCS et Claude Code" : "")
             + " ; elle apparaît ensuite ici, avec sa charge et ses outils."),
           el("div", { class: "sheet-actions" }, copy));
         refresh();

@@ -92,5 +92,6 @@ data class PcAjoute(
     val id: String = "",
     val command: String = "",
     val mesh: Boolean = false,
+    val full: Boolean = false,
     @SerialName("expires_s") val expireS: Int = 900,
 )

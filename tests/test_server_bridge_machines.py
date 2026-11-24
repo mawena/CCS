@@ -238,7 +238,12 @@ class MachinesTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(distant, "add_machine", return_value={"id": "pc", "command": "curl", "expires_s": 900}) as add:
             r = await c.call("machines.add", machine="pc", user="charles", name="PC")
         self.assertEqual(r["command"], "curl")
-        add.assert_called_once_with("pc", name="PC", user="charles", limit=None)
+        add.assert_called_once_with("pc", name="PC", user="charles", limit=None, full=False)
+        with mock.patch.object(distant, "add_machine", return_value={"id": "pc", "command": "curl"}) as add:
+            await c.call("machines.add", machine="pc", user="charles", full=True)
+        add.assert_called_once_with("pc", name=None, user="charles", limit=None, full=True)
+        with self.assertRaises(rpc.RpcError):
+            await c.call("machines.add", machine="pc", user="charles", full="oui")
         with mock.patch.object(distant, "add_machine", side_effect=distant.DistantError("refusé")):
             with self.assertRaises(rpc.RpcError) as e:
                 await c.call("machines.add", machine="pc", user="charles")

@@ -74,6 +74,10 @@ class FakeBackend:
     def set_limit(self, machine_id, limite):
         self.calls.append(("limit", machine_id, limite))
 
+    def add(self, machine_id, name=None, user=None, full=False):
+        self.calls.append(("add", machine_id, name, user, full))
+        return {"id": machine_id, "command": "curl -fsSL https://r/rejoindre/x | sudo sh", "expires_s": 900}
+
 
 @unittest.skipUnless(GTK, "affichage graphique requis (CCS_GUI_TESTS=1 sous xvfb-run)")
 class MachinesPageTest(HomeTestCase):
@@ -173,6 +177,19 @@ class MachinesPageTest(HomeTestCase):
         p.stop_refresh()
         self.assertIsNone(p._timer)
         self.assertEqual(machines_page.REFRESH_S, 5)
+
+    def test_add_pc_gives_the_command(self):
+        page = self.make()
+        page.submit_add()
+        self.assertTrue(page.a_error.get_visible())          # identifiant et compte requis
+        page.a_id.set_text("pc-salon")
+        page.a_user.set_text("charles")
+        page.a_full.set_active(True)
+        page.submit_add()
+        self.assertIn(("add", "pc-salon", None, "charles", True), self.backend.calls)
+        self.assertTrue(page.a_result.get_visible())
+        self.assertIn("rejoindre", page.a_result.get_text())
+        self.assertTrue(page.a_copy.get_visible())
 
     def test_prefs_dialog_proposes_selected_project(self):
         from ccs_app.gui.prefs_dialog import current_project
