@@ -36,6 +36,8 @@ class Depot(context: Context) {
     val veille = com.mawena.ccs.notif.Veille(context.applicationContext, client, portee)
     /** Mot de passe root demandé par la machine pilotée (phase 34). */
     val root = com.mawena.ccs.notif.SuiviRoot(context.applicationContext, client, portee)
+    /** Son partagé sur le réseau maillé (phase 42) : annonce, lecture et envoi. */
+    val son = com.mawena.ccs.son.SonPartage(context.applicationContext, client, portee)
 
     /** Oreille « bouton » de Jarvis (Plus → Parler à Jarvis, raccourci d'appli). */
     val jarvis = com.mawena.ccs.jarvis.OreilleJarvis(
