@@ -97,7 +97,7 @@ Conception :
   - [x] Android : onglet « Son » après Réseau (retiré de Plus)
   - [x] Web : onglet « Son » (#/son) après Réseau, retiré de Réseau
   - [x] Bureau : onglet « Son » (SonPage, Ctrl+4) après Réseau, retiré de Réseau
-- [ ] Idée : le téléphone comme lecteur piloté. iOS l'interdit (aucune appli ne peut piloter la lecture des autres) ; Android le permet avec l'accès aux notifications (`MediaSessionManager.getActiveSessions`), à accorder à la main dans les réglages
+- [x] Le téléphone Android comme lecteur piloté (accès aux notifications, rapport au pont). Idée d’origine : iOS l'interdit (aucune appli ne peut piloter la lecture des autres) ; Android le permet avec l'accès aux notifications (`MediaSessionManager.getActiveSessions`), à accorder à la main dans les réglages
 - [ ] 7. Autres systèmes, dans l'ordre demandé par Charles (Linux, iPhone, Android, puis le reste) :
   agent portable sur macOS (GStreamer, sortie puis source par BlackHole) et Windows (GStreamer,
   `wasapi2src loopback=true`), sans les sorties virtuelles de Linux
