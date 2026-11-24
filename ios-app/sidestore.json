@@ -14,6 +14,15 @@
       "category": "developer",
       "versions": [
         {
+          "version": "1.13.0",
+          "buildVersion": "45",
+          "date": "2026-11-24",
+          "localizedDescription": "Version 1.13.0 : version de l'appli alignée sur CCS 1.13.0 (Market, onglet Réseau du bureau et fournisseurs de modèles côté serveur et bureau).",
+          "downloadURL": "https://github.com/mawena/CCS/releases/download/v1.13.0/CCS-1.13.0.ipa",
+          "size": 2500493,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.12.0",
           "buildVersion": "44",
           "date": "2026-11-24",
