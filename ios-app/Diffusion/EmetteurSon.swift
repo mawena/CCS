@@ -4,13 +4,18 @@ import Network
 
 /**
  * Source audio de l'iPhone, dans l'extension de diffusion : son des applis (`.audioApp`) →
- * flottants stéréo → 48 kHz (`AVAudioConverter`) → trames de 20 ms → Opus 96 kb/s → RTP en UDP
+ * flottants stéréo → 48 kHz (`AVAudioConverter`) → trames de 10 ms → Opus 96 kb/s → RTP en UDP
  * vers la cible du réseau maillé. Rien n'est encodé tant qu'il n'y a pas de cible. Peu de
- * mémoire (limite de 50 Mo des extensions) : quelques tampons de 20 ms seulement.
+ * mémoire (limite de 50 Mo des extensions) et peu de retard : au plus 100 ms en attente.
  *
  * Tout se passe sur la file passée à `init`.
  */
 final class EmetteurSon {
+    /// Plus de 100 ms en attente d'encodage (retard qui s'accumule) : on jette le plus vieux…
+    static let attenteMaxMs = 100
+    /// … pour ne garder que les 20 ms les plus récentes.
+    static let attenteGardeeMs = 20
+
     private let file: DispatchQueue
     private let encodeur: EncodeurOpus?
     private var paqueteur = PaqueteurRtp()
@@ -25,7 +30,7 @@ final class EmetteurSon {
 
     init(file: DispatchQueue) {
         self.file = file
-        encodeur = EncodeurOpus(debit: 96_000)
+        encodeur = EncodeurOpus(debit: 96_000, echantillons: Rtp.echantillonsParTrame)
     }
 
     var pret: Bool { return encodeur != nil }
@@ -121,12 +126,14 @@ final class EmetteurSon {
         droite += UnsafeBufferPointer(start: cs[1], count: k)
     }
 
-    /// Chaque bloc de 960 échantillons devient une trame Opus, envoyée dans un paquet RTP.
+    /// Chaque bloc de 480 échantillons (10 ms ; 960 si l'encodeur s'est replié sur 20 ms) devient
+    /// une trame Opus, envoyée dans un paquet RTP.
     private func envoyerTrames() {
-        let t = Rtp.echantillonsParTrame
-        // retard qui s'accumule (plus de 200 ms en attente) : on jette le plus vieux
-        if gauche.count > 10 * t {
-            let trop = gauche.count - 2 * t
+        guard let e = encodeur else { return }
+        let t = e.echantillons
+        let parMs = Rtp.frequence / 1000
+        if gauche.count > EmetteurSon.attenteMaxMs * parMs {
+            let trop = gauche.count - max(t, EmetteurSon.attenteGardeeMs * parMs)
             gauche.removeFirst(trop)
             droite.removeFirst(trop)
         }
@@ -145,7 +152,8 @@ final class EmetteurSon {
     private func envoyer(_ b: AVAudioPCMBuffer) {
         guard let e = encodeur, let n = connexion else { return }
         for trame in e.encoder(b) {
-            n.send(content: paqueteur.paquet(trame), completion: .idempotent)
+            let echantillons = Rtp.echantillonsOpus(trame) ?? e.echantillons
+            n.send(content: paqueteur.paquet(trame, echantillons: echantillons), completion: .idempotent)
             dernierEnvoi = Date()
         }
     }
@@ -153,7 +161,8 @@ final class EmetteurSon {
     /// Pendant un silence (ReplayKit ne donne plus rien), une trame muette par seconde garde
     /// le flux vivant : le récepteur n'abandonne qu'après 10 s sans paquet.
     func entretenir() {
-        guard cible != nil, Date().timeIntervalSince(dernierEnvoi) > 1, let s = FormatsSon.silence() else { return }
+        guard cible != nil, Date().timeIntervalSince(dernierEnvoi) > 1, let e = encodeur,
+              let s = FormatsSon.silence(AVAudioFrameCount(e.echantillons)) else { return }
         envoyer(s)
     }
 }

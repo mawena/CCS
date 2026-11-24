@@ -6,8 +6,10 @@ import Network
  * Sortie audio de l'iPhone : écoute en UDP (Network.framework) le flux RTP/Opus d'une source du
  * réseau maillé, le remet en ordre (tampon de gigue), le décode (Opus d'Apple) et le joue par
  * `AVAudioEngine`. L'horloge est celle de la carte son : chaque tampon joué en demande un autre
- * au tampon de gigue (trois de 20 ms toujours programmés d'avance). Session `.playback` : le son
- * continue en arrière-plan (`UIBackgroundModes: audio`). Arrêt sur demande ou après 10 s sans paquet.
+ * au tampon de gigue adaptatif (`GigueAdaptative` : 30 ms au départ, de 20 à 150 ms selon les
+ * pertes ; trames de 10 ou 20 ms). Au moins 20 ms (et deux tampons) toujours programmés d'avance ;
+ * tampon matériel demandé à 5 ms. Session `.playback` : le son continue en arrière-plan
+ * (`UIBackgroundModes: audio`). Arrêt sur demande ou après 10 s sans paquet.
  *
  * Tout se passe sur la file `file` ; `surFin` est rappelé sur le fil principal.
  */
@@ -22,8 +24,10 @@ final class RecepteurSon: @unchecked Sendable {
     private var moteur: AVAudioEngine?
     private var lecteur: AVAudioPlayerNode?
     private var decodeur: DecodeurOpus?
-    private var tampon = TamponGigue()
+    private var gigue = GigueAdaptative()
+    /// Tampons programmés sur le lecteur et pas encore joués, et leur durée (échantillons).
     private var enVol = 0
+    private var enVolEchantillons = 0
     private var actif = false
     private var dernierPaquet = Date()
     private var veille: DispatchSourceTimer?
@@ -32,7 +36,12 @@ final class RecepteurSon: @unchecked Sendable {
 
     /// Paquets reçus et perdus depuis le départ (pour l'écran Son).
     var bilan: (recues: Int, perdues: Int) {
-        return file.sync { (tampon.recues, tampon.perdues) }
+        return file.sync { (gigue.recues, gigue.perdues) }
+    }
+
+    /// Retard visé par le tampon de gigue (ms), pour l'écran Son.
+    var retardMs: Int {
+        return file.sync { gigue.cibleMs }
     }
 
     /// Se met à écouter sur `port` (UDP). Lance l'erreur si le port ou le son sont indisponibles.
@@ -41,10 +50,13 @@ final class RecepteurSon: @unchecked Sendable {
             arreterSurFile()
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            // simples souhaits : iOS peut garder sa fréquence et un tampon plus grand
+            try? session.setPreferredSampleRate(Double(Rtp.frequence))
+            try? session.setPreferredIOBufferDuration(Son.tamponMateriel)
             try session.setActive(true)
             guard let d = DecodeurOpus() else { throw ErreurSon("Décodeur Opus indisponible sur cet iPhone.") }
             decodeur = d
-            tampon = TamponGigue(depart: 3, maximum: 7)
+            gigue = GigueAdaptative()
             source = nil
             guard let p = NWEndpoint.Port(rawValue: UInt16(clamping: port)) else { throw ErreurSon("Port UDP invalide.") }
             let params = NWParameters.udp
@@ -67,7 +79,8 @@ final class RecepteurSon: @unchecked Sendable {
             actif = true
             dernierPaquet = Date()
             enVol = 0
-            for _ in 0..<3 { programmer() }
+            enVolEchantillons = 0
+            remplir()
             observateur = NotificationCenter.default.addObserver(
                 forName: .AVAudioEngineConfigurationChange, object: m, queue: nil) { [weak self] _ in
                 self?.file.async { self?.relancerMoteur() }
@@ -116,28 +129,42 @@ final class RecepteurSon: @unchecked Sendable {
     private func recu(_ d: Data) {
         guard let (e, trame) = Rtp.lire(d), e.type == Rtp.typeOpus, !trame.isEmpty else { return }
         // une autre source a pris la place (nouvel envoi) : on repart de zéro
-        if let s = source, s != e.ssrc { tampon = TamponGigue(depart: 3, maximum: 7) }
+        if let s = source, s != e.ssrc { gigue = GigueAdaptative() }
         source = e.ssrc
         dernierPaquet = Date()
-        tampon.ajouter(sequence: e.sequence, trame)
+        gigue.ajouter(sequence: e.sequence, trame)
     }
 
     // MARK: lecture
 
-    /// Programme les 20 ms suivantes : trame décodée, ou silence (perte, attente).
-    private func programmer() {
-        guard actif, let lecteur = lecteur else { return }
-        var tampon20: AVAudioPCMBuffer?
-        if case .trame(let t) = tampon.sortir() { tampon20 = decodeur?.decoder(t) }
-        guard let b = tampon20 ?? FormatsSon.silence() else { return }
+    /// Programme d'avance au moins `Son.avanceMinMs` (20 ms) et `Son.tamponsEnVolMin` tampons.
+    private func remplir() {
+        let minimum = Son.avanceMinMs * Rtp.frequence / 1000
+        while actif && (enVol < Son.tamponsEnVolMin || enVolEchantillons < minimum) {
+            if !programmer() { return }
+        }
+    }
+
+    /// Programme la trame suivante (10 ou 20 ms) : trame décodée, ou silence de même durée
+    /// (perte, attente). False si rien n'a pu être programmé.
+    @discardableResult
+    private func programmer() -> Bool {
+        guard actif, let lecteur = lecteur else { return false }
+        var decode: AVAudioPCMBuffer?
+        if case .trame(let t) = gigue.sortir() { decode = decodeur?.decoder(t) }
+        guard let b = decode ?? FormatsSon.silence(AVAudioFrameCount(gigue.echantillons)) else { return false }
+        let n = Int(b.frameLength)
         enVol += 1
+        enVolEchantillons += n
         lecteur.scheduleBuffer(b, completionCallbackType: .dataConsumed) { [weak self] _ in
             guard let s = self else { return }
             s.file.async {
                 s.enVol = max(0, s.enVol - 1)
-                if s.actif && s.enVol < 3 { s.programmer() }
+                s.enVolEchantillons = max(0, s.enVolEchantillons - n)
+                s.remplir()
             }
         }
+        return true
     }
 
     private func relancerMoteur() {
@@ -145,7 +172,8 @@ final class RecepteurSon: @unchecked Sendable {
         if !moteur.isRunning { try? moteur.start() }
         if !lecteur.isPlaying { lecteur.play() }
         enVol = 0
-        for _ in 0..<3 { programmer() }
+        enVolEchantillons = 0
+        remplir()
     }
 
     // MARK: arrêt

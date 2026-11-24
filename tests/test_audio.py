@@ -87,8 +87,25 @@ class ParseTest(unittest.TestCase):
         s = audio.sender_argv("ccs_audio_iphone.monitor", "100.64.0.4", 4010)
         self.assertIn("device=ccs_audio_iphone.monitor", s)
         self.assertIn("host=100.64.0.4", s)
-        self.assertIn("frame-size=20", s)
+        self.assertIn("frame-size=10", s)
+        self.assertIn("audio-type=restricted-lowdelay", s)
+        self.assertIn("buffer-time=20000", s)
+        self.assertIn("latency-time=5000", s)
         self.assertIn("pt=96", s)
+        self.assertIn("latency=40", r)
+        self.assertIn("buffer-time=40000", r)
+        self.assertIn("latency=80", audio.receiver_argv(4010, 80))
+
+    def test_latence_reglable(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "audio.toml"
+            p.write_text("active = true\nlatency_ms = 60\n", encoding="utf-8")
+            self.assertEqual(audio.load_config(p)["latency_ms"], 60)
+            p.write_text("latency_ms = 5\n", encoding="utf-8")
+            self.assertNotIn("latency_ms", audio.load_config(p))
+            audio.save_config({"active": True, "port": 4010, "label": "", "latency_ms": 80}, p)
+            self.assertEqual(audio.load_config(p)["latency_ms"], 80)
 
     def test_resoudre(self):
         devs = [{"device": "iphone", "label": "iPhone de Charles"},

@@ -16,14 +16,15 @@ import java.nio.ByteBuffer
 
 /**
  * Joue un flux RTP/Opus reçu en UDP sur [port] : un fil reçoit les paquets dans le tampon de gigue,
- * un autre prend une trame toutes les 20 ms, la décode (MediaCodec `audio/opus`) et l'écrit dans
- * un AudioTrack. [fin] est appelé (une fois) quand la lecture s'arrête d'elle-même : 10 s sans
+ * un autre prend une trame à chaque tic (10 ou 20 ms selon la durée lue dans le paquet), la décode
+ * (MediaCodec `audio/opus`) et l'écrit dans un AudioTrack en mode faible latence. Le tampon de gigue
+ * est adaptatif ([Audio.GigueAdaptative], 20 à 150 ms). [fin] est appelé (une fois) quand la lecture s'arrête d'elle-même : 10 s sans
  * paquet, port déjà pris, décodeur introuvable.
  */
 class LecteurRtp(private val port: Int, private val canaux: Int, private val fin: (String?) -> Unit) {
     @Volatile private var actif = true
     @Volatile private var dernierPaquet = SystemClock.elapsedRealtime()
-    private val tampon = Audio.TamponGigue()
+    private val gigue = Audio.GigueAdaptative()
     private var ssrc: Long? = null
     private var socket: DatagramSocket? = null
     private var filReception: Thread? = null
@@ -83,12 +84,12 @@ class LecteurRtp(private val port: Int, private val canaux: Int, private val fin
             val p = Audio.lireRtp(tampon2, dp.length) ?: continue
             if (p.donnees.isEmpty()) continue
             dernierPaquet = SystemClock.elapsedRealtime()
-            synchronized(tampon) {
+            synchronized(gigue) {
                 if (ssrc != p.ssrc) {
-                    tampon.vider()       // autre émetteur, ou émetteur relancé
+                    gigue.vider()        // autre émetteur, ou émetteur relancé
                     ssrc = p.ssrc
                 }
-                tampon.ajouter(p.sequence, p.donnees)
+                gigue.ajouter(p.sequence, p.donnees)
             }
         }
         runCatching { s.close() }
@@ -117,7 +118,7 @@ class LecteurRtp(private val port: Int, private val canaux: Int, private val fin
             terminer("Décodeur Opus indisponible : ${e.message}")
             return
         }
-        val octetsTrame = Audio.ECHANTILLONS_TRAME * canaux * 2
+        val octetsEchantillon = canaux * 2
         val piste: AudioTrack = try {
             val masque = if (canaux == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
             val min = AudioTrack.getMinBufferSize(Audio.FREQUENCE, masque, AudioFormat.ENCODING_PCM_16BIT)
@@ -130,7 +131,9 @@ class LecteurRtp(private val port: Int, private val canaux: Int, private val fin
                     AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                         .setSampleRate(Audio.FREQUENCE).setChannelMask(masque).build(),
                 )
-                .setBufferSizeInBytes(maxOf(min, octetsTrame * 6))
+                // tampon minimal : le tampon de gigue absorbe déjà les retards du réseau
+                .setBufferSizeInBytes(maxOf(min, Audio.FREQUENCE / 1000 * PISTE_MS * octetsEchantillon))
+                .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
                 .also { it.play() }
@@ -140,9 +143,9 @@ class LecteurRtp(private val port: Int, private val canaux: Int, private val fin
             terminer("Sortie audio indisponible : ${e.message}")
             return
         }
-        val silence = ByteArray(octetsTrame)
+        val silence = ByteArray(Audio.FREQUENCE / 1000 * maxOf(AVANCE_MS, 20) * octetsEchantillon)
         val info = MediaCodec.BufferInfo()
-        var pcm = ByteArray(octetsTrame * 2)
+        var pcm = ByteArray(Audio.ECHANTILLONS_ANCIENNE_TRAME * octetsEchantillon * 2)
         var pts = 0L
         var enLecture = false
 
@@ -180,16 +183,23 @@ class LecteurRtp(private val port: Int, private val canaux: Int, private val fin
                     if (ms > 0) Thread.sleep(ms) else Thread.yield()
                     continue
                 }
-                tic += TRAME_NS
-                if (tic < maintenant - 5 * TRAME_NS) tic = maintenant + TRAME_NS     // fil en retard : on se recale
-                when (val s = synchronized(tampon) { tampon.prendre() }) {
+                // durée d'un tic : celle des trames reçues (10 ms, ou 20 ms d'un ancien émetteur)
+                var echantillons = 0
+                val s = synchronized(gigue) {
+                    echantillons = gigue.echantillons
+                    gigue.prendre()
+                }
+                val trameNs = echantillons * 1_000_000_000L / Audio.FREQUENCE
+                val octetsTrame = minOf(silence.size, echantillons * octetsEchantillon)
+                tic += trameNs
+                if (tic < maintenant - 5 * trameNs) tic = maintenant + trameNs     // fil en retard : on se recale
+                when (s) {
                     Audio.Sortie.Attente -> enLecture = false
-                    Audio.Sortie.Perte -> piste.write(silence, 0, silence.size)
+                    Audio.Sortie.Perte -> piste.write(silence, 0, octetsTrame)
                     is Audio.Sortie.Trame -> {
                         if (!enLecture) {
-                            // départ : 40 ms de marge dans l'AudioTrack contre les retards du fil
-                            piste.write(silence, 0, silence.size)
-                            piste.write(silence, 0, silence.size)
+                            // départ : un peu de marge dans l'AudioTrack contre les retards du fil
+                            piste.write(silence, 0, Audio.FREQUENCE / 1000 * AVANCE_MS * octetsEchantillon)
                             enLecture = true
                         }
                         val i = decodeur.dequeueInputBuffer(10_000)
@@ -199,7 +209,7 @@ class LecteurRtp(private val port: Int, private val canaux: Int, private val fin
                                 b.clear()
                                 b.put(s.donnees)
                                 decodeur.queueInputBuffer(i, 0, s.donnees.size, pts, 0)
-                                pts += Audio.TRAME_MS * 1000L
+                                pts += (Audio.echantillonsOpus(s.donnees) ?: echantillons) * 1_000_000L / Audio.FREQUENCE
                             } else {
                                 decodeur.queueInputBuffer(i, 0, 0, pts, 0)
                             }
@@ -221,6 +231,9 @@ class LecteurRtp(private val port: Int, private val canaux: Int, private val fin
 
     private companion object {
         const val TAG = "LecteurRtp"
-        const val TRAME_NS = Audio.TRAME_MS * 1_000_000L
+        /** Tampon de l'AudioTrack (au moins le minimum du matériel). */
+        const val PISTE_MS = 40
+        /** Silence écrit au départ d'un flux, contre les retards du fil de lecture. */
+        const val AVANCE_MS = 20
     }
 }
