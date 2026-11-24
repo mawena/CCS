@@ -21,7 +21,9 @@ log = logging.getLogger("ccs.web")
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 DEFAULT_CONFIG = {"listen": "127.0.0.1:8420", "origin": "https://ccs.mawena.cloud"}
-CSP = ("default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
+# img-src et media-src https : images et lecteurs du chat riche ; blob: pour les fichiers locaux
+# lus par l'explorateur (docs/chat-riche.md).
+CSP = ("default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 SESSION, DEVICE = "ccs_session", "ccs_device"
 RECHECK_S = 300          # une session expirée ou révoquée ferme ses WebSocket au plus tard après ce délai
