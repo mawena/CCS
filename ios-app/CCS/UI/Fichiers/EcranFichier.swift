@@ -132,7 +132,9 @@ struct EcranFichier: View {
                         .padding(.horizontal, 4)
                 } else if Fichiers.estMarkdown(nom) && apercu {
                     ScrollView {
+                        // images et médias relatifs au dossier du fichier ; blocs ccs sans envoi
                         MarkdownVue(texte: original).padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                            .environment(\.chatRiche, ChatRiche(cwd: (chemin as NSString).deletingLastPathComponent, envoyer: nil))
                     }
                 } else {
                     VueCode(texte: original, langue: Fichiers.langue(nom), ligne: ligne, retourLigne: retourLigne)
