@@ -14,6 +14,15 @@
       "category": "developer",
       "versions": [
         {
+          "version": "1.14.0",
+          "buildVersion": "46",
+          "date": "2026-11-24",
+          "localizedDescription": "Version 1.14.0 : version de l'appli alignée sur CCS 1.14.0 (fenêtre Nouvelle session uniformisée entre bureau et web, choix de l'effort).",
+          "downloadURL": "https://github.com/mawena/CCS/releases/download/v1.14.0/CCS-1.14.0.ipa",
+          "size": 2500492,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.13.0",
           "buildVersion": "45",
           "date": "2026-11-24",
