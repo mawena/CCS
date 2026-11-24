@@ -48,9 +48,9 @@ RETRY_S = 300           # attente avant de réessayer quand aucun compte n'est d
 NIGHT_DURATION_H = 3.0  # durée supposée d'une tâche de nuit pour choisir le créneau
 TIME_RE = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 ID_RE = re.compile(r"^[0-9]{1,9}$")
-USAGE = ('usage : ccs tache [ajouter "<message>" [-C dossier] [--modele m] '
-         '[--droits lecture|modifications|tout] [--quand quota|nuit|HH:MM]]\n'
-         '       ccs tache [voir <id>] [annuler <id>] [supprimer <id>]')
+USAGE = ('usage : ccs task [add "<message>" [-C dossier] [--model m] '
+         '[--rights read|edit|all] [--when quota|night|HH:MM]]\n'
+         '       ccs task [show <id>] [cancel <id>] [remove <id>]')
 
 
 @dataclass
@@ -180,7 +180,7 @@ def _write(tasks, nxt):
                                     "tasks": [t.to_dict() for t in tasks]})
 
 
-def all():  # noqa: A001 — nom de l'API demandée (ccs tache)
+def all():  # noqa: A001 — nom de l'API demandée (ccs task)
     """Tâches enregistrées, dans l'ordre d'ajout."""
     return _read()[0]
 
@@ -193,8 +193,8 @@ def get(task_id):
 def normalize_when(text):
     """`quota`, `nuit` ou `HH:MM` (zéro initial ajouté) ; ValueError sinon."""
     w = str(text or "quota").strip().lower()
-    if w in ("quota", "nuit"):
-        return w
+    if w in ("quota", "nuit", "night"):
+        return "nuit" if w == "night" else w
     m = TIME_RE.match(w)
     if not m:
         raise ValueError(f"moment inconnu : {text!r} (quota, nuit ou HH:MM)")
@@ -224,6 +224,7 @@ def normalize_rights(rights):
     from . import launch_options
     if rights is None or rights == "":
         return DEFAULT_RIGHTS
+    rights = {"read": "lecture", "edit": "modifications", "all": "tout"}.get(rights, rights)
     return launch_options.convert_rights(rights, "droits")
 
 
@@ -545,10 +546,11 @@ def line(task):
 
 
 def parse_add(args):
-    """Arguments de `ccs tache ajouter` : dict (message, cwd, model, rights, when) ; ValueError."""
+    """Arguments de `ccs task add` : dict (message, cwd, model, rights, when) ; ValueError."""
     out = {"message": None, "cwd": None, "model": None, "rights": DEFAULT_RIGHTS, "when": "quota"}
-    keys = {"-C": "cwd", "--dossier": "cwd", "--modele": "model", "--modèle": "model",
-            "--droits": "rights", "--quand": "when"}
+    keys = {"-C": "cwd", "--dir": "cwd", "--dossier": "cwd", "--model": "model", "--modele": "model",
+            "--modèle": "model", "--rights": "rights", "--droits": "rights", "--when": "when",
+            "--quand": "when"}
     args = list(args)
     i = 0
     while i < len(args):
@@ -604,7 +606,7 @@ def follow(task_id, out, wait=True, sleep=None):
 
 
 def command(args, out=None, err=None, now=None):
-    """`ccs tache [ajouter|voir|annuler|supprimer]` : renvoie le code de sortie."""
+    """`ccs task [ajouter|voir|annuler|supprimer]` : renvoie le code de sortie."""
     import sys
     out, err = out or sys.stdout, err or sys.stderr
     args = list(args)
@@ -613,7 +615,7 @@ def command(args, out=None, err=None, now=None):
         if sub in ("liste", "list", "ls"):
             tasks = all()
             if not tasks:
-                print("Aucune tâche. Ajoute-en une : ccs tache ajouter \"<message>\"", file=out)
+                print("Aucune tâche. Ajoute-en une : ccs task add \"<message>\"", file=out)
             for t in tasks:
                 print(line(t), file=out)
             return 0

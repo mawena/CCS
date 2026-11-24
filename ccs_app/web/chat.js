@@ -840,7 +840,7 @@ export class ChatView {
 
   // Après `/clear` : les messages d'avant restent lisibles (et citables) mais grisés, sous un
   // séparateur ; Claude ne les voit plus.
-  // `auto` : effacée par Claude en fin de sujet (`ccs chat effacer`).
+  // `auto` : effacée par Claude en fin de sujet (`ccs chat clear`).
   newConversation(auto = false) {
     for (const node of this.thread.children) node.classList.add("before-reset");
     this.append(el("div", { class: "reset-sep", role: "separator" },

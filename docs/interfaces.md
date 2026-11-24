@@ -26,8 +26,8 @@ Deux points d'entrée, une seule table des noms :
   (code 1).
 
 `ccs <nom>` bascule sur le profil `<nom>`, sauf si `<nom>` est aussi une commande (nouveau ou
-ancien nom) : la commande l'emporte, et le profil se joint par `ccs utiliser <nom>`.
-`ccs enregistrer`, `ccs ajouter` et `ccs renommer` préviennent (sur la sortie d'erreur) quand le
+ancien nom) : la commande l'emporte, et le profil se joint par `ccs use <nom>`.
+`ccs save`, `ccs add` et `ccs rename` préviennent (sur la sortie d'erreur) quand le
 nom choisi est masqué ainsi.
 
 ### 1.1 Commandes propres à `ccs` (Bash)
@@ -35,7 +35,7 @@ nom choisi est masqué ainsi.
 | Commande (anciens noms) | Arguments, options | Rôle |
 |---|---|---|
 | `ccs` / `liste` (`list`, `ls`) | — | liste les profils (● = actif) |
-| `ccs <nom>` | `[--notifier]` | bascule sur le profil `<nom>` (raccourci de `utiliser`) |
+| `ccs <nom>` | `[--notify]` | bascule sur le profil `<nom>` (raccourci de `utiliser`) |
 | `utiliser` (`use`, `switch`, `sw`) | `<nom> [--notifier]` | bascule sur un profil |
 | `suivant` (`next`, `n`) | `[--notifier]` | profil suivant utilisable |
 | `enregistrer` (`save`) | `<nom>` | enregistre le compte connecté |
@@ -43,7 +43,7 @@ nom choisi est masqué ainsi.
 | `actuel` (`current`, `whoami`) | — | profil actif |
 | `supprimer` (`rm`, `remove`, `delete`) | `<nom>` | supprime un profil |
 | `renommer` (`rename`, `mv`) | `<a> <b>` | renomme un profil |
-| `appli` (`gui`, `app`) | tous les arguments de `claude-accounts appli` | application graphique, détachée du terminal |
+| `appli` (`gui`, `app`) | tous les arguments de `claude-accounts app` | application graphique, détachée du terminal |
 | `version` (`--version`, `-v`) | — | version |
 | `aide` (`help`, `-h`, `--help`) | — | aide |
 
@@ -378,7 +378,7 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | Fichier | Clés |
 |---|---|
 | `$STORE/settings.json` | voir 4.2 |
-| `$STORE/project-accounts.json` | compte par dossier (`ccs projet`) |
+| `$STORE/project-accounts.json` | compte par dossier (`ccs project`) |
 | `$STORE/budgets.json` | budget hebdomadaire par dossier |
 | `$STORE/serveurs.json` (0600) | liste de `{name, url, user, token}` ; deviendra `servers.json` (voir § 6) |
 | `$CONFIG/ccs/machines.toml` | `[machines.<id>]` : `user`, `port`, `limit` (anciennes clés `utilisateur`, `limite` lues) |
@@ -423,7 +423,7 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | `$STORE/.lock`, `.tasks.lock`, `.pause.lock`, … | verrous |
 | `<projet>/.ccs/messages.json` | messages enregistrés du projet |
 | `$DATA/ccs/` | `projects.json` (projets ajoutés ou retirés à la main), `archive/` (+ `index.json`), `trash/` |
-| `$CACHE/ccs/` | `machines.json` (inventaire : `{<machine>: {path, tools, checked_at}}`), `machines/jobs/<id>.json` et `.log`, `icons-*`, `clear/` (demandes `ccs chat effacer`) |
+| `$CACHE/ccs/` | `machines.json` (inventaire : `{<machine>: {path, tools, checked_at}}`), `machines/jobs/<id>.json` et `.log`, `icons-*`, `clear/` (demandes `ccs chat clear`) |
 | `~/.cache/ccs-distant/` (machine distante) | copies des projets |
 | `${XDG_RUNTIME_DIR:-/tmp/ccs-UID}/ccs/bridge.sock` | pont local du bureau |
 | `${XDG_RUNTIME_DIR:-/run/user/UID ou /tmp/ccs-UID}/ccs/root.sock` | gardien du mot de passe root (dossier 0700, socket 0600, même uid seulement) ; le mot de passe n'est jamais écrit sur disque |
@@ -441,7 +441,7 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | `CLAUDE_CONFIG_DIR` | dossier de Claude Code (comme Claude Code) |
 | `CCS_VIA` | origine d'une bascule pour le journal (`bin/ccs`) |
 | `CCS_BIN` | chemin de `claude-accounts` à relancer |
-| `CCS_CHAT_TOKEN` | jeton du chat, posé par CCS pour `ccs chat effacer` (l'ancienne `CCS_CHAT_JETON` est encore lue, plus posée) |
+| `CCS_CHAT_TOKEN` | jeton du chat, posé par CCS pour `ccs chat clear` (l'ancienne `CCS_CHAT_JETON` est encore lue, plus posée) |
 | `CCS_SERVER_ROOT` | racine des chemins du serveur (tests) |
 | `CCS_APP_ID` | identifiant d'application distinct (essais) |
 | `CCS_NO_VTE` | force le terminal externe (essais) |
@@ -552,7 +552,7 @@ numéros de ligne sont ceux de la 0.37.0.*
   `project-accounts.json` (l'autre `projects.json`, sous `$DATA/ccs/`, garde son nom) ;
   `~/.claude-accounts/` garde le sien ;
 - XDG respecté partout (`core.xdg_home`), y compris `XDG_CONFIG_HOME` ;
-- la sauvegarde (`ccs sauvegarde`) passe au format 2 : `profiles/`, `settings/`,
+- la sauvegarde (`ccs backup`) passe au format 2 : `profiles/`, `settings/`,
   `shortcuts.json`, manifeste `created` ; le format 1 reste lisible ;
 - `LEGACY_KINDS` (ancien format de l'API d'usage, `core.py`) : gardé, c'est un format externe ;
 - état sans `fetched_at` (`cli.py`, `_usable_best`) : gardé pendant la 1.x (un service d'avant

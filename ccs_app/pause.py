@@ -173,7 +173,7 @@ def choices(now, hours=None):
 # Commande « ccs pause » (à brancher dans cli.py)
 # --------------------------------------------------------------------------
 
-USAGE = "usage : ccs pause [1h|4h|demain|manuel|off|etat]"
+USAGE = "usage : ccs pause [1h|4h|demain|manuel|off|status]"
 
 
 def command(choice="status", now=None, hours=None):

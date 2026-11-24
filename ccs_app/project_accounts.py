@@ -26,7 +26,7 @@ from . import core, migrate
 FILE_VERSION = 1
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 NONE_WORDS = ("aucun", "none")
-USAGE = "usage : ccs projet [<dossier>] [<compte>|aucun]"
+USAGE = "usage : ccs project [<dossier>] [<compte>|aucun]"
 
 
 @dataclass(frozen=True)
@@ -82,7 +82,7 @@ def _write(projects):
         a.cwd: {"profile": a.profile, "ask": a.ask} for a in sorted(projects.values(), key=lambda a: a.cwd)}})
 
 
-def all():  # noqa: A001 — nom de l'API demandée (ccs projet)
+def all():  # noqa: A001 — nom de l'API demandée (ccs project)
     """Associations enregistrées, triées par dossier."""
     return sorted(_read().values(), key=lambda a: a.cwd)
 
@@ -105,7 +105,7 @@ def get(cwd):
     return resolve(cwd, _read().values())
 
 
-def set(cwd, profile):  # noqa: A001 — nom de l'API demandée (ccs projet)
+def set(cwd, profile):  # noqa: A001 — nom de l'API demandée (ccs project)
     """Associe le dossier `cwd` au compte `profile` (None : retire l'association du dossier).
     Le même compte garde son réglage « demander » ; un autre compte le remet à True.
     Renvoie l'association enregistrée (None après un retrait). Lève OSError, ValueError."""
@@ -226,11 +226,11 @@ def card_text(cwd, active, paused=False, associations=None, home=None):
 
 
 # --------------------------------------------------------------------------
-# Texte et commande « ccs projet »
+# Texte et commande « ccs project »
 # --------------------------------------------------------------------------
 
 def format_text(associations=None, home=None):
-    """Liste des projets associés (texte de « ccs projet » sans argument)."""
+    """Liste des projets associés (texte de « ccs project » sans argument)."""
     associations = _associations(associations)
     if not associations:
         return "Aucun projet associé à un compte."
@@ -256,7 +256,7 @@ def _path_like(arg):
 
 
 def command(args, cwd=None, profiles=None, home=None):
-    """(code de sortie, texte) de « ccs projet [<dossier>] [<compte>|aucun] ».
+    """(code de sortie, texte) de « ccs project [<dossier>] [<compte>|aucun] ».
 
     Sans argument : liste. Un argument : un dossier (chemin, ou dossier existant qui ne
     porte pas le nom d'un compte) est affiché ; un compte ou « aucun » s'applique au
@@ -289,7 +289,7 @@ def command(args, cwd=None, profiles=None, home=None):
         return 1, f"dossier introuvable : {where}"
     remove = account.lower() in NONE_WORDS
     if not remove and account not in profiles:
-        return 1, f"compte inconnu : {account} (voir « ccs liste »)"
+        return 1, f"compte inconnu : {account} (voir « ccs list »)"
     try:
         had = remove and folder in _read()
         set(folder, None if remove else account)

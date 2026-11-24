@@ -46,7 +46,7 @@ SPAN_RANGE = (1.0, 72.0)
 DEFAULT_DURATION_H = 3.0
 DEFAULT_SPAN_H = 24.0
 
-USAGE = "usage : ccs moment [--duree 3h] [--sur 24h]   (durée de 1 h à 10 h, horizon de 1 h à 72 h)"
+USAGE = "usage : ccs best-time [--duration 3h] [--within 24h]   (durée de 1 h à 10 h, horizon de 1 h à 72 h)"
 
 
 @dataclass
@@ -327,7 +327,7 @@ def _parse_args(args):
 
 
 def command(args, state=None, now=None):
-    """`ccs moment [--duree 3h] [--sur 24h]` → (code de sortie, texte) : 0, 1 sans état, 2 usage."""
+    """`ccs best-time [--duration 3h] [--within 24h]` → (code de sortie, texte) : 0, 1 sans état, 2 usage."""
     parsed = _parse_args(args)
     if isinstance(parsed, str):
         return 2, parsed
@@ -335,6 +335,6 @@ def command(args, state=None, now=None):
         from . import daemon
         state = core.load_json(daemon.state_path())
     if not state or not state.get("accounts"):
-        return 1, "Aucun état : le service n'a pas encore relevé les comptes (ccs etat)."
+        return 1, "Aucun état : le service n'a pas encore relevé les comptes (ccs status)."
     now = now or datetime.now(timezone.utc)
     return 0, format_text(compute(state, parsed[0], parsed[1], now))

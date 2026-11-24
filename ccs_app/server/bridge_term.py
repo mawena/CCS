@@ -28,7 +28,7 @@ from .bridge_data import safe_path
 CHUNK = 64 * 1024
 KEEP = 64 * 1024
 ABANDON = 12 * 3600
-COMMANDS = ("ccs ajouter", "ccs add")   # « ccs add » : pages d'avant la 1.0.0
+COMMANDS = ("ccs add", "ccs ajouter")   # anciens noms : pages d'avant la 1.12.0
 _NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 

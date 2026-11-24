@@ -34,22 +34,22 @@ raccourcis clavier.
 | `forecast` | Fonctions pures : fin de session (régression linéaire), rythme hebdo, fin de semaine prévue (`weekly_forecast` : rythme moyen depuis le début de la semaine, rien avant 12 h), capacité, meilleur compte (`best_account` écarte les comptes en erreur bloquante) ; `account_issue` / `accounts_from_state` : comptes inutilisables pour `ccs best` (connexion perdue ou refusée, relevé absent ou plus vieux que `STALE_S` = 600 s) |
 | `autoswitch` | Décision de bascule (pure) et exécution via `ccs use` ; `Decision.detail` (pourcentage, seuil, projection, quota qui expire) gardé dans l'événement pour le journal |
 | `alerts` / `notify` | Quoi notifier (pur, anti-doublon par fenêtre ; fin de semaine prévue une fois par semaine, prioritaire sur l'avance hebdomadaire ; conseil de modèle et bilan de la semaine, qui ne font jamais échouer un relevé ; `Alert.default` : action d'un clic sur la notification) / envoi D-Bus (`actions_for`, `send(…, transient=)` ; `message(titre, texte)` : notification passagère de `claude-accounts notify`) |
-| `switch_log` | Journal des bascules : entrées lisibles d'après les événements (`build`, pur), groupes par jour, texte de `ccs journal` ; note d'origine d'une bascule manuelle (`note_origin`, `take_origin`), échec d'une bascule lancée par l'application (`record_failure`) |
-| `project_accounts` | Compte par projet : `project-accounts.json` (sous verrou), héritage par dossier parent (`resolve`), décisions pures (`proposal`, `preferred_profile`, `origin_for`), textes, `command()` de `ccs projet` |
+| `switch_log` | Journal des bascules : entrées lisibles d'après les événements (`build`, pur), groupes par jour, texte de `ccs log` ; note d'origine d'une bascule manuelle (`note_origin`, `take_origin`), échec d'une bascule lancée par l'application (`record_failure`) |
+| `project_accounts` | Compte par projet : `project-accounts.json` (sous verrou), héritage par dossier parent (`resolve`), décisions pures (`proposal`, `preferred_profile`, `origin_for`), textes, `command()` de `ccs project` |
 | `advisor` | Conseiller de formule : formules et tarifs datés, formule de chaque compte, besoin mesuré en unités Pro (fenêtres hebdomadaires et de 5 h), combinaison la moins chère, raisonnement, équivalent API (`compute`, `analyze` pur, `format_text`) |
 | `model_advice` | Conseil de modèle près des limites : usage des 30 dernières minutes (fin des journaux, cache), famille moins chère, gain « ×N », notification une fois par fenêtre, indice de la ligne d'état |
 | `weekly_report` | Bilan de la semaine : début de semaine (majorité des comptes ou jour fixe), agrégats (`aggregate`, pur), textes, notification hebdomadaire calculée dans un fil |
-| `monthly_report` | Rapport mensuel : mois civil en heure locale (`month_start`, `month_choices`), agrégats par période (`build_report`, mois en cours comparé au même nombre de jours du précédent), tendance (`TREND_MONTHS`, affichée à partir de `TREND_MIN`), textes, notification mensuelle (`pending_alert`, clé `monthly_report:<mois>`), `command()` de `ccs mois` |
-| `best_time` | Meilleur moment pour une grosse tâche (pur) : départs candidats (`candidates`), fenêtres de 5 h par compte et plafond hebdomadaire (`WEEK_WINDOWS`), créneaux et alternatives (`compute`), `command()` de `ccs moment` |
-| `quiet` | Ne pas déranger : plage `alerts.quiet` et silence temporaire (`quiet.json`), décision de retenir (`should_hold`), notifications retenues et comptées (`quiet-held.json`), résumé de fin (`flush`), `command()` de `ccs silence` |
-| `installer` | Mise à jour en un clic : plan d'après la release GitHub, liste blanche d'URL, téléchargement borné, SHA-256, contrôle du paquet, installation par `pkexec apt-get`, `command()` de `ccs mise-a-jour` |
-| `shortcuts` | Raccourcis clavier globaux GNOME : actions, lecture et validation des raccourcis, moteurs `GioBackend` / `MemoryBackend`, installation sous les seuls chemins de CCS, conflits, `command()` de `ccs raccourcis` ; `NOTIFIER` (`--notifier` des commandes de bascule et de pause) |
-| `tasks` | File de tâches : `~/.claude-accounts/tasks.json` (600, écriture atomique sous verrou), états (`queued`, `running`, `waiting`, `done`, `failed`, `cancelled`), moments (`quota`, `nuit`, `HH:MM`), décision pure (`due`, `decide`), `tick(now, settings, state, paused)` appelé par le service (renvoie les alertes `task:<id>:…`), `command()` de `ccs tache` |
+| `monthly_report` | Rapport mensuel : mois civil en heure locale (`month_start`, `month_choices`), agrégats par période (`build_report`, mois en cours comparé au même nombre de jours du précédent), tendance (`TREND_MONTHS`, affichée à partir de `TREND_MIN`), textes, notification mensuelle (`pending_alert`, clé `monthly_report:<mois>`), `command()` de `ccs month` |
+| `best_time` | Meilleur moment pour une grosse tâche (pur) : départs candidats (`candidates`), fenêtres de 5 h par compte et plafond hebdomadaire (`WEEK_WINDOWS`), créneaux et alternatives (`compute`), `command()` de `ccs best-time` |
+| `quiet` | Ne pas déranger : plage `alerts.quiet` et silence temporaire (`quiet.json`), décision de retenir (`should_hold`), notifications retenues et comptées (`quiet-held.json`), résumé de fin (`flush`), `command()` de `ccs quiet` |
+| `installer` | Mise à jour en un clic : plan d'après la release GitHub, liste blanche d'URL, téléchargement borné, SHA-256, contrôle du paquet, installation par `pkexec apt-get`, `command()` de `ccs update` |
+| `shortcuts` | Raccourcis clavier globaux GNOME : actions, lecture et validation des raccourcis, moteurs `GioBackend` / `MemoryBackend`, installation sous les seuls chemins de CCS, conflits, `command()` de `ccs shortcuts` ; `NOTIFIER` (`--notify` des commandes de bascule et de pause) |
+| `tasks` | File de tâches : `~/.claude-accounts/tasks.json` (600, écriture atomique sous verrou), états (`queued`, `running`, `waiting`, `done`, `failed`, `cancelled`), moments (`quota`, `nuit`, `HH:MM`), décision pure (`due`, `decide`), `tick(now, settings, state, paused)` appelé par le service (renvoie les alertes `task:<id>:…`), `command()` de `ccs task` |
 | `task_runner` | Exécution d'une tâche : `claude -p --output-format stream-json --verbose` dans le dossier (droits via `launch_options`), journal `tasks/<id>.jsonl`, passage par `gagarine file --priorite fond` quand la commande existe, une tâche à la fois, bascule avant lancement (jamais en pause), reprise `--resume` après une limite (3 tentatives) |
 | `phone` | Notifications sur le téléphone (ntfy, désactivées par défaut) : canal secret, message sans contenu (projet et état seulement), « ne pas déranger », envoi dans un fil sans exception, `send_test`, lien d'abonnement ; appelé par le service au seul endroit où les alertes sont envoyées |
 | `archive` | Archive des conversations : copies gzip dans `${XDG_DATA_HOME:-~/.local/share}/ccs/archive` (700), `index.json`, passages bornés (20 fichiers ou 100 Mo, toutes les 30 min, dans un fil du service), restauration à la reprise, élagage par âge |
-| `fiche` | Fiche « où j'en étais » lue dans le journal (dernière demande, réponse, fichiers, tâches, branche, compte d'après le journal des bascules), `command()` de `ccs fiche` ; encart de l'aperçu |
-| `backup` | Sauvegarde chiffrée : tar en mémoire, `gpg --symmetric --cipher-algo AES256` (phrase de passe saisie dans pinentry, jamais en argument), contenu, restauration atomique en 600 avec confirmation, `command()` de `ccs sauvegarde` et `ccs restaurer` |
+| `fiche` | Fiche « où j'en étais » lue dans le journal (dernière demande, réponse, fichiers, tâches, branche, compte d'après le journal des bascules), `command()` de `ccs recap` ; encart de l'aperçu |
+| `backup` | Sauvegarde chiffrée : tar en mémoire, `gpg --symmetric --cipher-algo AES256` (phrase de passe saisie dans pinentry, jamais en argument), contenu, restauration atomique en 600 avec confirmation, `command()` de `ccs backup` et `ccs restore` |
 | `session_memory` | RAM par session (PSS du processus et de ses descendants, à défaut RSS), inactivité, total, textes du bandeau ; lu par `ccs sessions` et l'onglet Sessions |
 | `context_alert` | Taille du contexte (dernier usage du journal), seuil, une alerte `context:<session_id>` par session (état `context-alerts.json`), indice de la ligne d'état ; `AutoCompact` : décision du compactage automatique des chats, commune au pont et au bureau |
 | `budget` | Budgets hebdomadaires par projet : `budgets.json`, dépensé de la semaine (cache par chemin, date, taille), alertes à 80 % et 100 % (`pending_alerts`, une fois par seuil, projet et semaine), `command()` de `ccs budget` |
@@ -85,7 +85,7 @@ raccourcis clavier.
 | `chat_quote` | Répondre en citant un message : `compose` (citation en bloc Markdown `> **Claude :**` ou `> **Moi :**`, puis la réponse), `split` (la retrouver à la relecture), `excerpt` (début d'un long message), `reply_text` (la réponse sans sa citation) ; sans entrée-sortie, même code que `web/chat-quote.js` |
 | `message_tags` | Étiquettes sur les messages : `labels/<session_id>.json` dans le dossier de CCS, `{identifiant: {tags, role, excerpt, ts}}` ; `set_tags` (liste vide : retire), `clean_tags` / `parse` (même nettoyage que `web/chat-tags.js`), `by_tag`, `known_tags` (suggestions) ; fichier illisible = aucune étiquette |
 | `saved_messages` | Messages enregistrés du chat : `messages.json` commun, `.ccs/messages.json` par projet (le nom du projet l'emporte) ; fichier illisible = liste vide |
-| `distant` | Calcul réparti (`ccs distant`) : machines du relais Ricochet (API, jeton des tunnels), choix de la machine (outil puis charge), options SSH par `ricochet-agent tunnel` (ProxyCommand, connexion partagée), inventaire des outils gardé une heure (`~/.cache/ccs/machines.json`), ajout d'un PC (`add_machine` : jeton opérateur, clé SSH publique, lien `/rejoindre/<code>` de Ricochet, compte noté dans `machines.toml`), envoi et rapatriement par `rsync`, consigne ajoutée aux chats (`hint`) |
+| `distant` | Calcul réparti (`ccs remote`) : machines du relais Ricochet (API, jeton des tunnels), choix de la machine (outil puis charge), options SSH par `ricochet-agent tunnel` (ProxyCommand, connexion partagée), inventaire des outils gardé une heure (`~/.cache/ccs/machines.json`), ajout d'un PC (`add_machine` : jeton opérateur, clé SSH publique, lien `/rejoindre/<code>` de Ricochet, compte noté dans `machines.toml`), envoi et rapatriement par `rsync`, consigne ajoutée aux chats (`hint`) |
 | `distant_jobs` | Registre des travaux distants (`~/.cache/ccs/machines/jobs/<id>.json`, verrou fcntl) : états `waiting` / `scheduled` / `sending` / `running` / `done` / `failed` / `stopped`, places par machine, travaux détachés et leur journal, arrêt par SIGTERM |
 | `shell_command` | Commande `!` du chat : `bash -lc` dans son propre groupe de processus, sortie bornée (`MAX_OUTPUT` = 20 000 caractères), arrêt de la commande et de ses enfants |
 | `phone_reply` | Autoriser ou Refuser depuis le téléphone : `Replies` (jetons à usage unique, `TOKEN_TTL` = 600 s), `Listener` (écoute du canal `phone.reply_topic`), en-tête d'actions ntfy, message de la demande |
@@ -475,7 +475,7 @@ fenêtre (le dialogue une fois la fenêtre affichée). `Window.show_page(nom)` :
                                       ~/.claude-accounts/switch-origin.json (600)
  daemon.detect_manual_switch ──► switch_log.take_origin(profil)   (lue puis retirée)
                                       switch {mode: manual, from, via, project}
- partie Historique de l'onglet Analyse, ccs journal ──► switch_log.load(store, jours)
+ partie Historique de l'onglet Analyse, ccs log ──► switch_log.load(store, jours)
                                       build(événements, marqueurs limits/, compte d'avant) ──► group_by_day
 ```
 
@@ -494,9 +494,9 @@ jamais exigé) :
 - Note d'origine `{"profile", "via", "ts", "project"?}` : écrite juste avant
   `ccs use` par `launch_options.switch_if_needed` (nouvelle session, compte du
   projet), `Window.switch` (« application »), `tray.switch_to` (« icone ») et
-  `claude-accounts best` (« ccs », ou « raccourci » avec `--notifier`), et
+  `claude-accounts best` (« ccs », ou « raccourci » avec `--notify`), et
   effacée si la bascule échoue. `ccs use` (bash) l'écrit lui-même avec `jq`
-  (« ccs » à la main, « raccourci » avec `--notifier`), sauf si `CCS_VIA` est
+  (« ccs » à la main, « raccourci » avec `--notify`), sauf si `CCS_VIA` est
   définie et vide (`core.run_ccs` la vide toujours) et sans jamais écraser une
   note du même compte de moins de 60 s ; `take_origin` ne la rend
   que pour le compte constaté et pendant 10 min (une note d'un autre compte est
@@ -581,7 +581,7 @@ jamais exigé) :
 - **Équivalent API** : `costs.period_cost(~/.claude/projects, début, maintenant)`
   (journaux de ce PC, sous-agents compris), ramené à 30,44 jours.
 - `compute()` lit tout (store, profils, journaux) ; `analyze()` est pur ;
-  `format_text` pour `ccs formule`, `AdvisorCard` dans l'onglet Analyse.
+  `format_text` pour `ccs advisor`, `AdvisorCard` dans l'onglet Analyse.
 
 ### Conseil de modèle (`model_advice`)
 
@@ -623,7 +623,7 @@ jamais exigé) :
 
 - Mois civil en heure locale ; le mois en cours est comparé au même nombre de
   jours du mois précédent (la comparaison « ×N » avec les formules payées est
-  omise sur un mois incomplet). `ccs mois --precedent N` remonte de N mois
+  omise sur un mois incomplet). `ccs month --previous N` remonte de N mois
   (0 à 120).
 - `pending_alert`, appelé à chaque relevé : dû le 1er du mois à
   `alerts.monthly_report_hour` (9), encore le 2 si le PC dormait ; rien sans
@@ -691,13 +691,13 @@ jamais exigé) :
 - `install_command` : `pkexec apt-get install -y <chemin>` ; sans `pkexec` ou
   s'il est refusé, `manual_command` donne `sudo apt install '<chemin>'` à
   copier. `is_package_install` distingue un paquet dpkg d'une copie de
-  développement (« mise à jour par git », code 1 pour `ccs mise-a-jour`).
-- `command(args)` : `ccs mise-a-jour [--verifier]` (alias `maj`) ; codes 0, 1, 2.
+  développement (« mise à jour par git », code 1 pour `ccs update`).
+- `command(args)` : `ccs update [--check]` (alias `maj`) ; codes 0, 1, 2.
 
 ## Raccourcis clavier
 
 ```
- Réglages › Raccourcis clavier (ShortcutsGroup), ccs raccourcis ──► shortcuts.install / remove / set_binding
+ Réglages › Raccourcis clavier (ShortcutsGroup), ccs shortcuts ──► shortcuts.install / remove / set_binding
      moteur GioBackend (Gio.Settings, dconf) — MemoryBackend pour les tests
  org.gnome.settings-daemon.plugins.media-keys  custom-keybindings = [… chemins, dans l'ordre …]
  …/custom-keybindings/ccs-<action>/            name « CCS : … », command, binding
@@ -705,12 +705,12 @@ jamais exigé) :
 ```
 
 - Actions (`ACTIONS`) : `ouvrir`, `sessions`, `nouvelle-session`, `suivant`,
-  `meilleur`, `pause`, `reprendre`, `silence` (`ccs silence 1h --notifier`, Super+Alt+D) ; aucune n'est installée par défaut. La
+  `meilleur`, `pause`, `reprendre`, `silence` (`ccs quiet 1h --notify`, Super+Alt+D) ; aucune n'est installée par défaut. La
   commande est écrite avec un chemin absolu (`/usr/bin`, sinon `bin/` du
   dépôt, sinon le `PATH`), échappée par `shlex.join` (le bureau la découpe
   sans shell). Les commandes de bascule et de pause portent `--notifier`
-  (`ccs next --notifier`, `ccs best --notifier`, `ccs pause 1h --notifier`,
-  `ccs pause off --notifier`) : résultat en notification passagère, bascule
+  (`ccs next --notify`, `ccs best --notify`, `ccs pause 1h --notify`,
+  `ccs pause off --notify`) : résultat en notification passagère, bascule
   notée « raccourci ». Une commande installée différente de l'attendue (dont
   celles d'avant `--notifier`) rend l'élément `outdated` : signalé, jamais
   réécrit d'office ; `update_commands` (bouton « Mettre à jour les
@@ -741,7 +741,7 @@ Qui appelle quoi :
   `budget.pending_alerts` dans un fil comme le bilan de la semaine. Toutes les alertes
   passent par le chemin habituel (`notify`, ne pas déranger) ; `phone.send` est
   branché à l'envoi des alertes, au seul endroit.
-- **Commandes** : `ccs tache`, `budget`, `fiche`, `sauvegarde`, `restaurer`,
+- **Commandes** : `ccs task`, `budget`, `fiche`, `sauvegarde`, `restaurer`,
   `telephone` appellent le `command()` du module (`bin/ccs` délègue à Python).
   `ccs sessions` ajoute `session_memory`.
 - **Application** : `TasksView` dans Planning, `BudgetGroup` dans Analyse, `PhoneGroup`
@@ -1022,7 +1022,7 @@ piloter un compte. La clé est gardée par root et jamais lue à travers un lien
   que venant de `127.0.0.1`.
 - **Chemins** : fichiers lus ou écrits seulement dans le dossier personnel de l'utilisateur,
   `/var/www` et `/srv`.
-- **Jetons d'application** (bureau, `ccs tui --serveur`) : longs, nommés, révocables
+- **Jetons d'application** (bureau, `ccs tui --server`) : longs, nommés, révocables
   (Réglages → Appareils de la version web) ; gardés dans `~/.claude-accounts/serveurs.json`
   (`0600`). Retirer un serveur côté bureau ne les révoque pas.
 - Les WebSocket se ferment (code 4001) à la déconnexion et à l'expiration de la session.

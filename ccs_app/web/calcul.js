@@ -1,6 +1,6 @@
 // Calcul réparti, affiché dans l'onglet Réseau (#/reseau) : la charge, la mémoire, les outils et
 // les places de chaque machine (rattachées à leur fiche du réseau maillé), les commandes lancées
-// dessus (`ccs distant lancer`), un formulaire pour en lancer une, l'ajout d'un PC et les réglages
+// dessus (`ccs remote run`), un formulaire pour en lancer une, l'ajout d'un PC et les réglages
 // du relais Ricochet (le secours quand le réseau maillé ne joint pas une machine). Les méthodes
 // `machines.*` répondent toujours sur ce serveur, même quand le web pilote une autre machine.
 // Rechargement toutes les 5 s tant que la page est visible.

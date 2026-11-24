@@ -339,7 +339,7 @@ class AccountsPage(Gtk.ScrolledWindow):
 def add_account(window, name):
     term = shutil.which("gnome-terminal")
     if not term:
-        window.toast(f"Lance « ccs ajouter {name} » dans un terminal")
+        window.toast(f"Lance « ccs add {name} » dans un terminal")
         return
     script = (f"{GLib.shell_quote(core.ccs_bin())} add {GLib.shell_quote(name)}; echo; "
               'read -rp "Appuie sur Entrée pour fermer…"')

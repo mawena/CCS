@@ -91,7 +91,7 @@ class TestSettings(DistantCase):
     def test_client_and_errors(self):
         self.assertEqual(distant.load_client(), {"relais": "https://r.example", "jeton": "secret"})
         self.assertTrue(distant.configured())
-        self.assertIn("ccs distant lancer", distant.hint())
+        self.assertIn("ccs remote run", distant.hint())
         distant.client_path().unlink()
         self.assertIsNone(distant.hint())
         with self.assertRaisesRegex(distant.DistantError, "client.toml"):
@@ -394,7 +394,7 @@ class TestChatHint(DistantCase):
         engine._claude, engine.options, engine.session_id, engine.auto_clear = "claude", ChatOptions(), None, False
         argv = engine._argv()
         self.assertEqual(argv[-2], "--append-system-prompt")
-        self.assertIn("ccs distant lancer", argv[-1])
+        self.assertIn("ccs remote run", argv[-1])
         distant.client_path().unlink()
         self.assertNotIn("--append-system-prompt", engine._argv())
 

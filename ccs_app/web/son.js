@@ -52,7 +52,7 @@ export function createSon(api, icon) {
     const streams = data.streams || [];
     if (!devices.length) {
       box.append(el("p", { class: "subtle" },
-        "Aucun appareil annoncé. Ouvre CCS sur le téléphone (écran Son), ou lance `ccs audio activer` sur un PC Linux."));
+        "Aucun appareil annoncé. Ouvre CCS sur le téléphone (écran Son), ou lance `ccs audio enable` sur un PC Linux."));
       return;
     }
     box.append(el("ul", { class: "son-list" }, ...devices.map((d) =>

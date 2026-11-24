@@ -191,7 +191,7 @@ class TasksView(Gtk.Box):
                        "pendant une pause.")
         head.append(Gtk.Label(label="Tâches Claude", xalign=0, css_classes=["heading"]))
         # Sans tâche : une ligne, pas un grand écran vide (l'Accueil reste court).
-        self.empty = caption("Aucune tâche en attente. « + » ou « ccs tache ajouter \"…\" » en ajoute une, "
+        self.empty = caption("Aucune tâche en attente. « + » ou « ccs task add \"…\" » en ajoute une, "
                              "traitée sans fenêtre quand il y a du quota.")
         self.empty.set_hexpand(True)
         head.append(self.empty)
