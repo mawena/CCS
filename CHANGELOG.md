@@ -5,6 +5,14 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Ajouté
+
+- **`ccs audio status`** : réglages, outils, serveur de son, sorties virtuelles et service.
+
+### Corrigé
+
+- **Audio sous Linux** : une machine sans serveur de son ne s’annonce plus comme sortie ni source ; un flux qui s’arrête est relancé une fois puis signalé ; erreurs GStreamer dans le journal.
+
 ## [1.15.1] — 2026-11-25
 
 ### Corrigé
