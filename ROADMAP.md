@@ -99,3 +99,14 @@ Charles (24/11/2026) : dans le chat web, on ne voit pas les sous-agents travaill
 - [x] 1. Sous-agents de fond : le pont lit leur transcription (`subagents/agent-<id>.jsonl`) toutes les 3 s et envoie leurs étapes dans leur vue (`subagents.Tails`)
 - [x] 2. Après un rechargement, une reprise ou un `/compact` : pastilles reconstruites depuis `chat.attach` (`agents`), vue remplie depuis la transcription (`chat.agent_log`)
 - [ ] 3. Essai réel par Charles (web au téléphone : sous-agent de fond, puis rechargement et `/compact` pendant qu'il tourne)
+
+## Phase 44 — Onglet Réseau du bureau au niveau du web
+
+Charles (24/11/2026) : dans CCS bureau, la partie Réseau n'affiche pas le réseau maillé comme sur
+les versions web et mobile.
+
+- [x] 1. `network.overview` partagé par le pont et le bureau ; le bureau appelle `network.*` par le pont du serveur CCS (comme le son partagé), repli sur ce PC
+- [x] 2. « Appareils » : fiche dépliable par appareil (genre, en ligne, chemin, adresse à copier, adresses publiées, trafic, Mesurer, Renommer, Retirer confirmé), machine de calcul rattachée
+- [x] 3. « Ajouter un appareil » : PC Linux (lien Ricochet ou clé jetable), Android, iPhone
+- [x] 4. Ordre du web : Appareils, Son partagé, Travaux, Lancer une commande, Ajouter un appareil, Secours Ricochet ; tests GTK
+- [ ] 5. Essai réel par Charles sur pc-bureau (fiches, Mesurer, Renommer/Retirer, clé d'inscription)

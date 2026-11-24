@@ -895,12 +895,14 @@ réseau :
 2. sinon **direct par internet** (percement de NAT) ;
 3. sinon le **relais** du VPS (DERP, STUN sur UDP 3478).
 
-**Onglet « Réseau »** (version web, à droite de Sessions) :
-- une carte du réseau, avec un trait par liaison coloré selon le chemin ;
+**Onglet « Réseau »** (version web à droite de Sessions, même contenu dans l'appli de bureau, qui
+demande l'état au serveur CCS comme le web) :
+- une carte du réseau, avec un trait par liaison coloré selon le chemin (web) ;
 - une fiche par appareil : adresse, adresses publiées (locales, publiques, IPv6), trafic, ping
-  réel (chemin et latence), renommer, retirer ;
+  réel (chemin et latence), renommer, retirer ; la machine de calcul Ricochet s'y rattache ;
 - « Ajouter un appareil » :
-  - **PC Linux** : une ligne à coller, avec une clé jetable valable 15 min ;
+  - **PC Linux** : une ligne à coller, avec une clé jetable valable 15 min (ou le lien Ricochet,
+    si le jeton opérateur est enregistré) ;
   - **Android et iPhone** : l'appli Tailscale avec le serveur personnalisé
     `https://network.mawena.cloud`, puis la clé `hskey-authreq-…` affichée, à valider dans
     l'onglet.

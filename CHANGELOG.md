@@ -26,6 +26,16 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - Web (Réseau → Son partagé) et bureau GTK (onglet Réseau) : appareils, flux en cours, « Envoyer le
   son » et « Arrêter ».
 
+### Modifié
+
+- Bureau, onglet Réseau au niveau du web (phase 44) : « Appareils » donne une fiche dépliable par
+  appareil du réseau maillé (genre, en ligne ou non, chemin réel, adresse à copier, adresses
+  publiées avec leur type, trafic, « Mesurer », « Renommer », « Retirer du réseau » confirmé), la
+  machine de calcul Ricochet rattachée à sa fiche ; « Ajouter un appareil » (PC Linux par lien
+  Ricochet ou clé jetable, Android, iPhone) ; sections dans l'ordre du web, « Secours Ricochet » en
+  bas. Mêmes méthodes `network.*` que le web, par le pont du serveur CCS (repli sur ce PC s'il est
+  injoignable).
+
 ### Corrigé
 
 - Chat web : on voit enfin les sous-agents de fond travailler. La CLI ne passe que leur lancement
