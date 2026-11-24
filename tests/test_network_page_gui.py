@@ -179,7 +179,7 @@ class NetworkPageTest(HomeTestCase):
 
     def test_sections_in_web_order(self):
         p = self.make()
-        self.assertEqual(self.groups(p), ["Appareils", "Son partagé", "Travaux", "Lancer une commande",
+        self.assertEqual(self.groups(p), ["Appareils", "Son partagé", "Lecteurs", "Travaux", "Lancer une commande",
                                           "Ajouter un appareil", "Secours Ricochet"])
         p.mesh.refresh()
         self.assertIn("pc-bureau", [r.get_title() for r in p.mesh._rows])
