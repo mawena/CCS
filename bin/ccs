@@ -384,8 +384,10 @@ ${c_bold}ccs${c_off} — Claude Code partout : appareils, machines et comptes
   ccs sessions             sessions Claude Code ouvertes : projet, état, consommation, mémoire (RAM)
                            et badge « contexte lourd »
   ccs task [add "<message>" [-C dossier] [--model m] [--rights read|edit|all]
-            [--when quota|night|HH:MM] | show <id> | cancel <id> | remove <id>]
+            [--when quota|night|HH:MM] [--provider nom] | show <id> | cancel <id> | remove <id>]
                            file de tâches lancées par le service, sans fenêtre
+  ccs provider [list|show|models|key|test] [nom]
+                           autres fournisseurs de modèles que Claude (OpenRouter…)
   ccs budget [<dossier> <montant>|aucun]
                            budget hebdomadaire par projet (équivalent dollars) : état, fixer, retirer
   ccs recap <id>           fiche « où j'en étais » d'une conversation (marche aussi sur une archivée)

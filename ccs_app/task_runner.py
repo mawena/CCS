@@ -72,7 +72,8 @@ def claude_argv(task, resume=False, claude=None):
     if resume and not session:
         raise ValueError("pas de conversation à reprendre")
     message = CONTINUE_MESSAGE if resume else task.message
-    args = launch_options.claude_args(task.model, tasks.RIGHTS[task.rights], resume=session)
+    args = launch_options.claude_args(task.model, tasks.RIGHTS[task.rights], resume=session,
+                                      provider=getattr(task, "provider", None), check=False)
     return [claude or claude_bin(), "-p", "--output-format", "stream-json", "--verbose", *args, "--", message]
 
 
@@ -342,6 +343,8 @@ def prepare(task, state, settings, now, switch=None, active=None):
     from .settings import load_settings
     if pause.pause_state(now) is not None:
         return False, "CCS est en pause"
+    if getattr(task, "provider", None):
+        return True, ""                      # autre fournisseur : les comptes Claude n'y sont pour rien
     active = active or core.active_profile_name()
     full = settings if settings and "auto_switch" in settings else load_settings()
     states = states_from_state(state)

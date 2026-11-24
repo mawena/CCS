@@ -79,7 +79,7 @@ def convert_rights(value, to):
 
 DEFAULT_WORDS = {"default", "défaut", "par défaut"}
 # Alias ou nom complet (« claude-opus-5-5 », « claude-opus-5-5[1m] ») : jamais une option.
-MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@\-\[\]]*$")
+MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/\-\[\]]*$")   # « / » : modèles des fournisseurs
 
 
 def _model(model):
@@ -106,11 +106,15 @@ def _permission_mode(mode):
     return mode
 
 
-def claude_args(model=None, permission_mode=None, resume=None, extra=()):
-    """Arguments de `claude` (sans le nom du programme) pour ces options."""
+def claude_args(model=None, permission_mode=None, resume=None, extra=(), provider=None, check=True):
+    """Arguments de `claude` (sans le nom du programme) pour ces options. `provider` : autre
+    fournisseur que Claude (providers.py) ; `check` : refuser une clé de fournisseur absente."""
+    from . import providers
     args = []
     model = _model(model)
-    if model:
+    if not providers.is_claude(provider):
+        args += providers.claude_args(provider, model, check=check)
+    elif model:
         args += ["--model", model]
     mode = _permission_mode(permission_mode)
     if mode:
@@ -152,6 +156,7 @@ class LaunchSpec:
     profile: str | None
     model: str | None = None
     permission_mode: str | None = None
+    provider: str | None = None      # autre fournisseur que Claude (providers.py)
     # Origine d'une éventuelle bascule, pour le journal (switch_log.VIA) : « projet » quand
     # le compte est celui du projet, présélectionné ; None : « nouvelle-session ».
     origin: str | None = None
@@ -161,12 +166,14 @@ class LaunchSpec:
             raise ValueError("dossier de la session manquant")
         _model(self.model)
         _permission_mode(self.permission_mode)
+        from . import providers
+        object.__setattr__(self, "provider", providers.normalize(self.provider))
         from .switch_log import VIA
         if self.origin is not None and self.origin not in VIA:
             raise ValueError(f"origine de bascule inconnue : {self.origin!r}")
 
     def args(self, resume=None, extra=()):
-        return claude_args(self.model, self.permission_mode, resume, extra)
+        return claude_args(self.model, self.permission_mode, resume, extra, self.provider)
 
     def needs_switch(self, active_profile):
         """Vrai si la session doit tourner sur un autre compte que le compte actif."""

@@ -88,6 +88,11 @@ def cmd_tache(args):
     return tasks.command(list(args.args))
 
 
+def cmd_provider(args):
+    from . import providers
+    return providers.command(list(args.args))
+
+
 def cmd_root(args):
     from . import root_keeper
     return root_keeper.command(list(args.args))
@@ -1324,6 +1329,8 @@ SELF_PARSED = (
     ("backup", ("sauvegarde",), "sauvegarde chiffrée des profils et réglages", cmd_sauvegarde),
     ("restore", ("restaurer",), "restaure une sauvegarde chiffrée", cmd_restaurer),
     ("phone", ("telephone", "téléphone"), "notifications sur le téléphone : état, lien, essai", cmd_telephone),
+    ("provider", ("fournisseur", "fournisseurs", "providers"),
+     "autres fournisseurs de modèles que Claude (OpenRouter…) : liste, modèles, clé, essai", cmd_provider),
     ("root", (), "commande root, mot de passe demandé aux appareils : root -- <commande>, etat, oublier",
      cmd_root),
 )

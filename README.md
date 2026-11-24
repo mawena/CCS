@@ -586,6 +586,48 @@ ccs root forget    # l'effacer tout de suite
   `SUDO_ASKPASS` : `sudo -A` y marche aussi, mais `ccs root` reste préférable (chaque commande
   y est signalée).
 
+## Autres fournisseurs de modèles (OpenRouter, DeepSeek…)
+
+Claude Code peut tourner sur un autre service que Claude, pour des modèles ouverts moins filtrés
+ou moins chers. CCS le lance avec `claude --settings '<json>' --model <id>` : adresse du service
+(`ANTHROPIC_BASE_URL`), même modèle derrière opus, sonnet, haiku et les sous-agents, et
+`apiKeyHelper` qui lit la clé dans son fichier. La clé n'apparaît jamais dans la ligne de commande.
+Les comptes Claude ne sont pas concernés (pas de bascule ni de quota pour ces sessions).
+
+```sh
+ccs provider                      # fournisseurs connus et état de leur clé
+ccs provider key openrouter       # enregistre la clé (sans écho) dans ~/.config/openrouter/cle, droits 600
+ccs provider test openrouter      # envoie « ok » au modèle par défaut (quelques jetons)
+ccs provider models openrouter glm   # catalogue du moment, filtré (« free » : gratuits)
+ccs task add "…" --provider openrouter --model x-ai/grok-4.7
+```
+
+Dans l'appli (Nouvelle session) et sur le web (nouvelle session, options du chat), choisir le
+fournisseur puis le modèle. Un fournisseur sans clé est signalé et refusé avant le lancement.
+
+Préréglages (modèles avec appel d'outils, indispensable à Claude Code ; prix du 24/11/2026,
+$ par million de jetons entrée/sortie) :
+
+| Fournisseur | Modèles | Clé |
+|---|---|---|
+| `openrouter` (compatible Anthropic) | GLM 5.3 (défaut, ~1,40/4,40 selon l'hébergeur), Grok 4.7 (2/6), DeepSeek V4.1 Flash 1017 (0,03/0,20), Kimi K3.1 Pro, Qwen3 Coder Next… | `~/.config/openrouter/cle` |
+| `deepseek` (API directe compatible Anthropic) | `deepseek-flash` (0,30/1,20, -50 % en heures creuses), `deepseek-v4-pro` | `~/.config/deepseek/cle` |
+
+Budget : plafonner la clé chez le fournisseur (sur OpenRouter, « limit » de la clé, par exemple
+50 $). Claude Code réserve 32 000 jetons de sortie par requête : avec très peu de crédit, une
+requête peut être refusée (402) ; `ccs provider test` se limite à 256.
+
+Ajouter ou modifier un fournisseur : `~/.config/ccs/providers.json`, par exemple
+
+```json
+{"ollama": {"label": "Ollama", "base_url": "http://100.64.0.5:11434", "key_file": null,
+            "models": [["Qwen3 Coder 30B", "qwen3-coder:30b"]]},
+ "openrouter": {"default_model": "x-ai/grok-4.7"}}
+```
+
+`key_file` null : service sans clé. Le service doit parler l'API Anthropic (`/v1/messages`) ;
+pour un service seulement compatible OpenAI (Venice…), passer par un proxy (claude-code-router).
+
 ## Raccourcis clavier
 
 Des raccourcis **globaux**, qui marchent même application fermée, tous
@@ -1266,7 +1308,8 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `… --notify` | Avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`, `ccs pause`, `ccs quiet` : résultat aussi en notification (option des raccourcis clavier) |
 | `ccs save <nom>` / `ccs add <nom>` | Enregistre le compte connecté / connecte un nouveau compte |
 | `ccs rename <a> <b>` / `ccs remove <nom>` | Renomme / supprime un profil |
-| `ccs task` | File de tâches pour Claude : liste ; `add "<message>" [-C dossier] [--model m] [--rights read\|edit\|all] [--when quota\|night\|HH:MM]`, `show <id>`, `cancel <id>`, `remove <id>` |
+| `ccs task` | File de tâches pour Claude : liste ; `add "<message>" [-C dossier] [--model m] [--rights read\|edit\|all] [--when quota\|night\|HH:MM] [--provider nom]`, `show <id>`, `cancel <id>`, `remove <id>` |
+| `ccs provider [list\|show\|models\|key\|test] [nom]` | Autres fournisseurs de modèles (OpenRouter, DeepSeek…) : liste, détail, catalogue, clé (600), essai |
 | `ccs budget [<dossier> <montant>\|aucun]` | Budgets hebdomadaires par projet : état, définition (en dollars, équivalent API) ou retrait |
 | `ccs recap <id>` | Fiche « où j'en étais » d'une conversation, sans appeler Claude |
 | `ccs backup [fichier]` / `ccs restore <fichier> [--yes]` | Sauvegarde chiffrée (gpg) des comptes et réglages / restauration |

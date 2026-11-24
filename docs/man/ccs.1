@@ -210,7 +210,7 @@ réécrit. CCS n'écrit que ses propres raccourcis personnalisés, ne retire
 jamais les autres et garde leur ordre. Sur un autre bureau, affiche les
 commandes à associer à la main. Alias : \fBccs shortcuts\fR.
 .TP
-.B ccs task \fR[\fBadd\fR \fI"message"\fR [\fB\-C \fIdossier\fR] [\fB\-\-model \fImodèle\fR] [\fB\-\-rights \fBlecture\fR|\fBmodifications\fR|\fBtout\fR] [\fB\-\-when \fBquota\fR|\fBnuit\fR|\fIHH:MM\fR]]
+.B ccs task \fR[\fBadd\fR \fI"message"\fR [\fB\-C \fIdossier\fR] [\fB\-\-model \fImodèle\fR] [\fB\-\-rights \fBlecture\fR|\fBmodifications\fR|\fBtout\fR] [\fB\-\-when \fBquota\fR|\fBnuit\fR|\fIHH:MM\fR] [\fB\-\-provider \fInom\fR]]
 .br
 .B ccs task \fR[\fBshow\fR|\fBcancel\fR|\fBremove\fR] \fIid\fR
 File de tâches : Claude exécute un message sans fenêtre, dans un dossier, pendant
@@ -222,6 +222,19 @@ une permission est refusé), \fBmodifications\fR (défaut) ou \fBtout\fR
 une tâche à la fois, par la file de Gagarine en priorité « fond » quand elle
 existe, avec le compte actif ; après une limite, il bascule puis reprend (3
 tentatives). \fBvoir\fR suit le journal. Alias : \fBtaches\fR, \fBtasks\fR.
+Avec \fB\-\-provider\fR, la tâche tourne chez un autre fournisseur de modèles
+(voir \fBccs provider\fR), sans compte Claude.
+.TP
+.B ccs provider \fR[\fBlist\fR|\fBshow\fR \fInom\fR|\fBmodels\fR \fInom\fR [\fImots\fR]|\fBkey\fR \fInom\fR|\fBtest\fR \fInom\fR [\fImodèle\fR]]
+Autres fournisseurs de modèles que Claude, compatibles avec l'API Anthropic
+(préréglages \fBopenrouter\fR et \fBdeepseek\fR). CCS lance \fBclaude \-\-settings\fR
+avec l'adresse du service, le modèle choisi pour tous les alias et un
+\fBapiKeyHelper\fR qui lit la clé dans son fichier (jamais dans la ligne de
+commande). \fBlist\fR (défaut) : fournisseurs et état de la clé ; \fBshow\fR :
+modèles proposés ; \fBmodels\fR : catalogue public du moment, filtré par mots ;
+\fBkey\fR : enregistre la clé (lue sans écho ou sur l'entrée standard), droits
+600 ; \fBtest\fR : envoie « ok » au modèle (256 jetons de sortie au plus).
+Alias cachés : \fBfournisseur\fR, \fBproviders\fR.
 .TP
 .B ccs budget \fR[\fIdossier\fR \fImontant\fR|\fBaucun\fR]
 Budgets hebdomadaires par projet, en dollars (équivalent API). Sans argument,
@@ -340,6 +353,13 @@ tâches \fItasks.json\fR et leurs journaux \fItasks/\fR, budgets par projet
 .I ~/.local/share/ccs/archive/
 Copies compressées des conversations (dossier 700) et leur index
 \fIindex.json\fR.
+.TP
+.I ~/.config/ccs/providers.json
+Fournisseurs de modèles ajoutés ou modifiés (\fBbase_url\fR, \fBkey_file\fR,
+\fBdefault_model\fR, \fBmodels\fR), fusionnés avec les préréglages.
+.TP
+.I ~/.config/openrouter/cle\fR, \fI~/.config/deepseek/cle
+Clés des fournisseurs (droits 600 exigés).
 .TP
 .I ~/.claude/.credentials.json\fR, \fI~/.claude.json
 Fichiers de Claude Code réécrits lors d'une bascule.

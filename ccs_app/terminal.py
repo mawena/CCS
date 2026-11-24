@@ -129,8 +129,12 @@ def claude_launch(cwd, resume=None, title=None, environ=None, extra_args=()):
     extra_args = tuple(str(a) for a in extra_args or ())
     claude = [sessions._claude_bin()] + (["--resume", resume] if resume else []) + list(extra_args)
     argv = _unset_prefix(environ) + [_tool("bash", "/bin/bash"), "-lc", "exec " + shlex.join(claude)]
-    return Launch("claude", cwd, tuple(argv), _env(environ), title or sessions.project_name(cwd), resume,
-                  extra_args)
+    title = title or sessions.project_name(cwd)
+    from . import providers
+    origin = providers.label_for_args(extra_args)   # autre fournisseur que Claude : visible sur l'onglet
+    if origin and origin not in title:
+        title = f"{title} · {origin}"
+    return Launch("claude", cwd, tuple(argv), _env(environ), title, resume, extra_args)
 
 
 def _user_shell(environ):
