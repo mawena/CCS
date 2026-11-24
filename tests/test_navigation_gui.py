@@ -115,18 +115,18 @@ class NavigationTest(HomeTestCase):
                                   ("files", "Fichiers"), ("analysis", "Analyse"), ("jarvis", "Jarvis")])
 
     def test_network_tab_lists_mesh_devices(self):
-        from ccs_app.gui.network_page import MeshGroup
+        from ccs_app.gui.network_page import MeshApi, MeshGroup
         dev = {"name": "pixel", "ips": ["100.64.0.3"], "os": "android", "online": True,
                "path": "direct", "endpoint": "1.2.3.4:41641", "relay": ""}
+        st = {"state": "Running", "installed": True, "server": False, "self": None, "peers": [dev]}
         group = MeshGroup(runner=lambda work, done: done(work(), None),
-                          status=lambda: {"state": "Running", "self": None, "peers": [dev]})
+                          api=MeshApi(call=lambda m, **p: st))
         group.refresh()
         self.assertEqual([r.get_title() for r in group._rows], ["pixel"])
-        self.assertIn("100.64.0.3", group._rows[0].get_subtitle())
-        group.status = lambda: {"state": "Stopped", "self": None, "peers": []}
+        self.assertIn("Direct par internet", group._rows[0].get_subtitle())
+        st.update(state="Stopped", peers=[])
         group.refresh()
-        self.assertEqual(len(group._rows), 1)
-        self.assertIn("Stopped", group._rows[0].get_title())
+        self.assertIn("Stopped", group.get_description())
 
     def test_network_tab_lists_sound_devices(self):
         from ccs_app.gui.network_page import SoundGroup

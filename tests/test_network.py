@@ -80,5 +80,33 @@ class KeyTest(unittest.TestCase):
         self.assertTrue(lines[1].endswith("--hostname pc-x"))
 
 
+class DisplayTest(unittest.TestCase):
+    def test_addr_kind_like_the_web(self):
+        self.assertEqual(network.addr_kind("192.168.1.20:41641"), ("192.168.1.20", "lan"))
+        self.assertEqual(network.addr_kind("1.2.3.4:41641"), ("1.2.3.4", "public"))
+        self.assertEqual(network.addr_kind("[2a02::1]:41641"), ("2a02::1", "v6"))
+        self.assertEqual(network.addr_kind("[fe80::1]:41641"), ("fe80::1", "lan"))
+        self.assertEqual(network.addr_kind("100.64.0.3:41641"), ("100.64.0.3", "mesh"))
+
+    def test_kind_summary_bytes(self):
+        self.assertEqual(network.device_kind({"os": "iOS", "name": "iphone-14-pro"}), "apple")
+        self.assertEqual(network.device_kind({"os": "android", "name": "pixel-4-xl"}), "phone")
+        self.assertEqual(network.device_kind({"os": "linux", "name": "srv-mawena-cloud"}), "server")
+        self.assertEqual(network.device_kind({"os": "linux", "name": "laptop-maison"}), "laptop")
+        st = {"self": {"name": "vps"}, "peers": [{"online": True, "path": "direct"},
+                                                 {"online": False, "path": "offline"}]}
+        self.assertEqual(network.summary(st), {"total": 3, "online": 2, "lan": 0, "direct": 1, "relay": 0})
+        self.assertEqual([network.human_bytes(n) for n in (500, 1536, 300 * 2 ** 30)],
+                         ["500 o", "1,5 Ko", "300 Go"])
+
+    def test_overview_without_tailscale_nor_headscale(self):
+        from unittest import mock
+        with mock.patch("shutil.which", return_value=None):
+            st = network.overview()
+        self.assertFalse(st["installed"])
+        self.assertFalse(st["server"])
+        self.assertEqual(st["peers"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

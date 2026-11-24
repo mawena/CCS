@@ -110,8 +110,6 @@ def job_subtitle(j, now=None):
 class MachinesPage(Adw.PreferencesPage):
     def __init__(self, toast=None, runner=None, backend=None, default_cwd=None, first_groups=()):
         super().__init__(title="Machines", icon_name="network-server-symbolic")
-        for group in first_groups:       # onglet Réseau : le réseau maillé avant les machines
-            self.add(group)
         self.toast = toast or (lambda _t: None)
         self.runner = runner or _threaded
         self.backend = backend or Backend()
@@ -127,16 +125,21 @@ class MachinesPage(Adw.PreferencesPage):
 
         self.machines_group = Adw.PreferencesGroup(title="Machines")
         self.jobs_group = Adw.PreferencesGroup(title="Travaux")
-        self.add(self.machines_group)
-        self.add(self.jobs_group)
-        self.add(self._add_group())
-        self.add(self._launch_group(default_cwd or os.path.expanduser("~")))
-        self.add(self._relay_group())
+        self.add_pc_group = self._add_group()
+        self.launch_group = self._launch_group(default_cwd or os.path.expanduser("~"))
+        self._relay_group()
+        for group in self.page_groups(first_groups):
+            self.add(group)
 
         self.connect("map", lambda _w: self.start_refresh())
         self.connect("unmap", lambda _w: self.stop_refresh())
         self.refresh()
         self.load_settings()
+
+    def page_groups(self, first_groups=()):
+        """Les groupes de la page, dans l'ordre (l'onglet Réseau en change)."""
+        return (*first_groups, self.machines_group, self.jobs_group, self.add_pc_group,
+                self.launch_group, self.relay_group)
 
     # ---- rechargement ----------------------------------------------------------------------
 
@@ -386,6 +389,12 @@ class MachinesPage(Adw.PreferencesPage):
             title="Ajouter un PC",
             description="Crée la commande à coller sur le nouveau PC (Ubuntu ou Debian) : serveur SSH, "
                         "agent Ricochet en secours et réseau maillé. Lien valable 15 min, une seule fois.")
+        for w in self.add_pc_widgets():
+            g.add(w)
+        return g
+
+    def add_pc_widgets(self):
+        """Les champs et boutons de « Ajouter un PC » (lien Ricochet), à placer dans un groupe."""
         self.a_id = Adw.EntryRow(title="Identifiant (lettres, chiffres, - et _)")
         self.a_user = Adw.EntryRow(title="Ton compte sur ce PC")
         self.a_name = Adw.EntryRow(title="Nom affiché (facultatif)")
@@ -398,16 +407,13 @@ class MachinesPage(Adw.PreferencesPage):
         self.a_copy.connect("clicked", lambda _b: self._copy_command())
         self.b_add = Gtk.Button(label="Créer le lien", css_classes=["suggested-action"])
         self.b_add.connect("clicked", lambda _b: self.submit_add())
-        for w in (self.a_id, self.a_user, self.a_name, self.a_full):
-            g.add(w)
         buttons = Gtk.Box(spacing=6, halign=Gtk.Align.END)
         buttons.append(self.a_copy)
         buttons.append(self.b_add)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=6)
         for w in (self.a_error, self.a_result, buttons):
             box.append(w)
-        g.add(box)
-        return g
+        return [self.a_id, self.a_user, self.a_name, self.a_full, box]
 
     def _copy_command(self):
         self.get_clipboard().set(self.a_result.get_text())
@@ -452,6 +458,9 @@ class MachinesPage(Adw.PreferencesPage):
         self.relay_group = g
         return g
 
+    def settings_loaded(self):
+        """Appelé quand les réglages du relais sont lus (l'onglet Réseau s'en sert)."""
+
     def load_settings(self):
         def done(s, error):
             if error is not None:
@@ -463,6 +472,7 @@ class MachinesPage(Adw.PreferencesPage):
             self.token_row.set_subtitle("Jeton enregistré" if s.get("token_set") else "Aucun jeton")
             self.relay_group.set_description(f"Fichier : {s.get('path', '')} · limite par défaut : "
                                              f"{s.get('default_limit', 2)} travaux à la fois par machine")
+            self.settings_loaded()
         self.runner(self.backend.settings, done)
 
     def save_relay(self):
