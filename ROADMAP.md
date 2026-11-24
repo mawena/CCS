@@ -161,7 +161,7 @@ jamais dans la ligne de commande).
 - [x] 9. Documentation : README, `docs/man/ccs.1`, CHANGELOG
 - [x] 10. Essai réel sur le VPS : `ccs provider test openrouter` répond (GLM 5.3 et Nemotron gratuit) ; l'essai se limite à 256 jetons de sortie (sinon 402 avec peu de crédit)
 - [ ] 11. Charles : créditer OpenRouter, clé plafonnée à 50 $/mois ; essai d'une vraie session (bureau, web, tâche)
-- [ ] 12. Release 1.13.0 (par Charles)
+- [x] 12. Release 1.13.0
 
 ## Phase 47 — Venice et autres services compatibles OpenAI (proposée)
 
