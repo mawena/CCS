@@ -56,6 +56,9 @@ class SonPartage(private val ctx: Context, private val client: CcsClient, privat
     private val _identite = MutableStateFlow<Identite?>(null)
     val identite: StateFlow<Identite?> = _identite.asStateFlow()
 
+    /** Lecteurs du téléphone rapportés au pont et pilotés à distance (phase 42). */
+    val lecteurs = LecteursTelephone(ctx, client, portee, identite)
+
     /** Pourquoi ce téléphone n'est pas annoncé (pas d'adresse maillée, refus du pont), sinon null. */
     private val _probleme = MutableStateFlow<String?>(null)
     val probleme: StateFlow<String?> = _probleme.asStateFlow()
