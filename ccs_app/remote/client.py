@@ -232,7 +232,8 @@ class BridgeClient:
         self._reader = asyncio.ensure_future(self._read_loop(link))
         if self.transport.needs_hello:
             try:
-                hello = await self.call("hello", protocol=protocol.PROTOCOL)
+                extra = getattr(self.transport, "hello_params", None)
+                hello = await self.call("hello", protocol=protocol.PROTOCOL, **(extra() if extra else {}))
             except rpc.RpcError:
                 await self._drop(link)
                 raise ConnectionError("pont : bonjour refusé") from None

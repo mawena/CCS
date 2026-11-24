@@ -62,7 +62,9 @@ Depends: ${misc:Depends},
          gir1.2-gtk-3.0,
          gir1.2-ayatanaappindicator3-0.1,
          python3-aiohttp
-Recommends: speech-dispatcher, pipewire-bin | pulseaudio-utils | alsa-utils
+Recommends: speech-dispatcher, pipewire-bin | pulseaudio-utils | alsa-utils,
+            pulseaudio-utils, gstreamer1.0-tools, gstreamer1.0-plugins-base,
+            gstreamer1.0-plugins-good, gstreamer1.0-pulseaudio
 Replaces: ccs (<< 0.11.0)
 Breaks: ccs (<< 0.11.0)
 Description: CCS desktop application (GTK) for several Claude Code accounts
