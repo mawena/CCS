@@ -169,7 +169,8 @@ const calls = [];
 const api = { call: async (m, p) => { calls.push([m, p]); return m === "audio.list" ? { devices, streams: [] } : { ok: true }; } };
 const root = document.createElement("div");
 document.body.append(root);
-const stop = S.mountSon(root, api, R.icon);
+// Comme app.js : le 3e argument est le contexte de la vue, pas une fonction pour les icônes.
+const stop = S.mountSon(root, api, { user: "charles", banner: null, sub: null });
 await settle();
 const text = root.textContent;
 const buttons = [...root.querySelectorAll("button")];

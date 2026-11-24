@@ -1,3 +1,9 @@
+ccs (1.16.2) noble; urgency=medium
+
+  * Web : l'onglet Son n'affichait plus rien (plantage au montage).
+
+ -- Charles GAMLIGO <gamligocharles3@gmail.com>  Fri, 27 Nov 2026 01:30:00 +0100
+
 ccs (1.16.1) unstable; urgency=medium
 
   * Venice : DeepSeek V4.1 Flash Uncensored par défaut.
