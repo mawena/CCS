@@ -396,7 +396,10 @@ class TestChatHint(DistantCase):
         self.assertEqual(argv[-2], "--append-system-prompt")
         self.assertIn("ccs remote run", argv[-1])
         distant.client_path().unlink()
-        self.assertNotIn("--append-system-prompt", engine._argv())
+        argv = engine._argv()
+        self.assertNotIn("ccs remote run", argv[-1])
+        from ccs_app.chat_engine import RICH_HINT
+        self.assertEqual(argv[-1], RICH_HINT)   # seule reste la consigne du chat riche
 
 
 if __name__ == "__main__":
