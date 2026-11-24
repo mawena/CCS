@@ -1,11 +1,10 @@
 """Réglages : fenêtre à part (Adw.PreferencesDialog), ouverte par ☰ → Réglages ou Ctrl+,.
-Deux pages : « Général » (les réglages) et « Machines » (relais Ricochet, travaux distants)."""
+Machines, travaux distants et relais Ricochet sont dans l'onglet Réseau (network_page)."""
 
 import os
 
 from gi.repository import Adw
 
-from .machines_page import MachinesPage
 from .prefs import PrefsPage
 
 
@@ -25,5 +24,3 @@ class PrefsDialog(Adw.PreferencesDialog):
         self.page.set_icon_name("preferences-system-symbolic")
         self.page.render()
         self.add(self.page)
-        self.machines = MachinesPage(toast=getattr(window, "toast", None), default_cwd=current_project(window))
-        self.add(self.machines)

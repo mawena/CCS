@@ -3,6 +3,22 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.10.0] — 2026-11-24
+
+### Ajouté
+
+- Bureau : trois nouveaux onglets, comme la version web. **Réseau** : appareils du réseau maillé
+  (adresse, chemin, « Mesurer » par `tailscale ping`), puis machines, travaux distants, lancement
+  d'une commande et secours Ricochet. **Fichiers** : arbre d'un dossier (personnel au départ,
+  « Changer de dossier ») et éditeur. **Jarvis** : ouvre la page Jarvis du serveur CCS, ou mène
+  aux Réglages s'il n'y a pas de serveur. `gui --page reseau|fichiers|jarvis`, Ctrl+1 à Ctrl+6.
+
+### Modifié
+
+- Bureau : la page Machines quitte les Réglages pour l'onglet Réseau.
+- Feuille de route rangée : ce qui reste à faire en tête de `ROADMAP.md`, phases terminées dans
+  `docs/ROADMAP-fait.md`.
+
 ## [1.9.0] — 2026-11-23
 
 ### Ajouté
