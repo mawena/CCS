@@ -5,6 +5,11 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.16.2] — 2026-11-27
+
+### Corrigé
+- Web : l'onglet Son restait vide. La vue recevait le contexte de l'appli à la place de la fonction des icônes et plantait au montage.
+
 ## [1.16.1] — 2026-11-27
 
 ### Modifié
