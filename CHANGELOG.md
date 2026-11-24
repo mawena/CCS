@@ -5,6 +5,18 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Ajouté
+
+- Onglet **Market** (phase 45, web et bureau) : un chat Claude dédié qui cherche sur Facebook
+  Marketplace au Togo et répond par un classement au meilleur rapport qualité-prix (prix en CFA,
+  liens des annonces, raisons) ; on peut aussi lui donner le lien d'un vendeur. Le pont rouvre
+  toujours le même chat (`market.open`).
+- `ccs market search | seller | item | status | login` : Chrome sans interface du VPS, branché sur
+  un tunnel `ssh -D` vers pc-bureau par le réseau maillé (adresse de sortie vérifiée, pas de repli
+  direct), images bloquées, rythme humain, Chrome fermé après chaque commande ; Messenger jamais
+  lu. Connexion une fois par `ccs market login` (Chrome sur l'écran de pc-bureau, cookies exportés
+  par CDP et gardés en 600).
+
 ### Modifié
 
 - Bureau, onglet Réseau au niveau du web (phase 44) : « Appareils » donne une fiche dépliable par

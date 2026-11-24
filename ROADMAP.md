@@ -110,3 +110,33 @@ les versions web et mobile.
 - [x] 3. « Ajouter un appareil » : PC Linux (lien Ricochet ou clé jetable), Android, iPhone
 - [x] 4. Ordre du web : Appareils, Son partagé, Travaux, Lancer une commande, Ajouter un appareil, Secours Ricochet ; tests GTK
 - [ ] 5. Essai réel par Charles sur pc-bureau (fiches, Mesurer, Renommer/Retirer, clé d'inscription)
+
+## Phase 45 — Market : Facebook Marketplace au Togo
+
+Charles (24/11/2026) : un onglet Market où il pose une question (« le routeur le moins cher
+compatible WireGuard à Lomé ») ; Market cherche sur Facebook Marketplace au Togo et répond dans le
+chat par un classement avec les liens des annonces. Il peut aussi donner le lien d'un vendeur. Pas
+de surveillance ni d'alertes. Décisions : requêtes **toujours par pc-bureau** (`ssh -D` par le
+réseau maillé, sortie vérifiée, pas de repli direct) ; compte Facebook personnel (risque connu).
+
+Conception : l'onglet = un chat Claude dédié (`~/.local/share/ccs/market/`, `CLAUDE.md` : mission,
+outils, format de réponse) ; Claude appelle `ccs market search|seller|item|status|login` (Bash) et
+vérifie les caractéristiques avec WebSearch/WebFetch. Chrome sans interface du VPS (navigateurs de
+Playwright, `--no-sandbox` : Ubuntu 24.04 bloque son bac à sable), piloté par CDP avec un petit
+client WebSocket écrit dans `market.py` ; cookies exportés une fois par CDP depuis Google Chrome
+de pc-bureau (ceux de Chrome Linux sont chiffrés par le trousseau).
+
+- [x] 1. `ccs_app/market.py` : tunnel `ssh -D` vers pc-bureau et vérification de l'adresse de sortie (refus net sans pc-bureau), Chrome sans interface par le tunnel (images bloquées, User-Agent de pc-bureau, fermé après chaque commande), client WebSocket + CDP
+- [x] 2. Lecture : cartes `prix | titre | ville` (prix en CFA, ancien prix), page d'annonce (`Détails` → état, description ; `Informations vendeur` → vendeur), page de connexion détectée
+- [x] 3. Vendeur : fenêtre `div[role="dialog"]` du vendeur, jamais Messenger ; défilement et union des annonces jusqu'à 5 tours sans nouveauté (limite 600)
+- [x] 4. Session : `ccs market login` (Chrome sur l'écran de pc-bureau, export des cookies par CDP, fichier 600), cookies réinjectés et remis à jour à chaque commande
+- [x] 5. CLI `ccs market search|seller|item|status|login` (`--json`, anciens noms français cachés), codes de sortie 2 (pc-bureau absent) et 3 (session)
+- [x] 6. Chat Market : dossier, `CLAUDE.md`, droits des outils ; `market.open` du pont (rejoint le chat ouvert ou reprend la dernière conversation)
+- [x] 7. Onglet Market du web (chat monté dans l'onglet) et du bureau GTK (ouvre le chat dans Sessions)
+- [x] 8. Tests (fixtures, faux CDP, faux SOCKS, pont, web dans node, GTK), README, man, interfaces
+- [x] 9. Tunnel SOCKS réel vers pc-bureau vérifié depuis le VPS (sortie 156.38.73.89, pas 84.46.246.202) ; Chrome sans interface par ce tunnel
+- [ ] 10. Connexion réelle par Charles : `ccs market login` devant pc-bureau
+- [ ] 11. Essai réel par Charles : vendeur https://www.facebook.com/marketplace/profile/100058059515617/ (Mozich Trompa, Lomé), « routeur le moins cher compatible WireGuard » → attendu : Cudy AC1200 dual band 22 000 CFA (https://www.facebook.com/marketplace/item/2421778705023492/, client WireGuard d'origine, WR1200) ; alternatives Cudy WR1300 25 000, MikroTik hAP lite 22 000 (déconseillé, instable sous RouterOS 7), TP-Link 842N 7 000 (OpenWrt seulement)
+- [ ] 12. Essai réel de la recherche par mot-clé (`/marketplace/lome/search?query=…`) : ville `lome` à confirmer, sélecteurs des cartes à ajuster si besoin
+- [ ] 13. Plus tard : onglet Market dans les applis Android et iPhone
+

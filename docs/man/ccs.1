@@ -248,6 +248,19 @@ Son partagé sur le réseau maillé : le son d'un appareil CCS joué sur un autr
 le service utilisateur \fBccs\-audio\fR : ce PC est annoncé et chaque autre appareil
 devient une sortie son PipeWire. \fBici\fR désigne ce PC. Voir \fIdocs/audio.md\fR.
 .TP
+.B ccs market \fR[\fBsearch \fImots\fR [\fB\-\-min \fIN\fR] [\fB\-\-max \fIN\fR] [\fB\-\-city \fIville\fR]|\fBseller \fIlien\fR|\fBitem \fIlien\fR|\fBstatus\fR|\fBlogin\fR] [\fB\-\-json\fR]
+Market : recherche sur Facebook Marketplace au Togo, surtout appelée par Claude dans
+l'onglet Market (chat dédié, dossier \fI~/.local/share/ccs/market/\fR). \fBsearch\fR
+liste les annonces d'une recherche (\fIprix | titre | ville | lien\fR ; ville par
+défaut \fBlome\fR), \fBseller\fR toutes les annonces d'un vendeur, \fBitem\fR les
+détails d'une annonce (état, description, vendeur). Les requêtes sortent toujours
+par pc-bureau (\fBssh \-D\fR par le réseau maillé, adresse de sortie vérifiée), dans
+un Chrome sans interface fermé après chaque commande ; sans pc-bureau, rien n'est
+envoyé. \fBlogin\fR ouvre Chrome sur l'écran de pc-bureau, attend la connexion à
+Facebook et garde les cookies dans \fI~/.config/ccs/market/session.json\fR (600).
+\fBstatus\fR : session, Chrome, tunnel. Anciens noms : \fBchercher\fR, \fBvendeur\fR,
+\fBannonce\fR, \fBetat\fR, \fBconnexion\fR.
+.TP
 .B ccs phone \fR[\fBtest\fR]
 Notifications sur le téléphone par ntfy (désactivées par défaut). Sans argument,
 affiche l'état et le lien d'abonnement à ouvrir dans l'application ntfy ;
@@ -337,6 +350,9 @@ renommage (\fBccs title\fR).
 Raccourcis clavier de CCS dans les réglages de GNOME (dconf), écrits par
 \fBccs raccourcis\fR.
 .SH CODE DE RETOUR
+.B ccs market
+renvoie 2 si pc-bureau ne répond pas (rien n'est envoyé à Facebook), 3 si la
+session Facebook est absente ou expirée, 1 pour une autre erreur.
 .B ccs doctor
 renvoie 0 si toutes les vérifications sont bonnes, 1 s'il y a au moins un
 avertissement ou une erreur.

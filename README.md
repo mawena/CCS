@@ -949,6 +949,39 @@ ccs audio receive                  # sans le service : au premier plan, pour ess
 ccs audio disable
 ```
 
+## Market : Facebook Marketplace au Togo
+
+Onglet **Market** (web et bureau) : un chat où l'on pose une question — « le routeur le moins cher
+compatible WireGuard à Lomé » — ou colle le lien d'un vendeur. Market cherche sur Facebook
+Marketplace au Togo et répond **dans le chat** par un classement au meilleur rapport qualité-prix :
+prix en CFA, lien de l'annonce, raisons (caractéristiques vérifiées sur le web), alternatives
+écartées. Pas de surveillance ni d'alerte : seulement la réponse.
+
+- C'est un chat Claude dédié (dossier `~/.local/share/ccs/market/`, avec son `CLAUDE.md`) : l'onglet
+  rouvre toujours le même chat, sur tous les appareils. Claude y lance `ccs market …`.
+- Les requêtes vers Facebook sortent **toujours par pc-bureau**, par le réseau maillé : `ssh -D`
+  vers 100.64.0.2, adresse de sortie vérifiée avant chaque recherche (jamais celle du VPS), puis un
+  Chrome sans interface du VPS (navigateurs de Playwright) branché sur ce tunnel. **Pas de repli** :
+  si pc-bureau ne répond pas, Market le dit et n'envoie rien.
+- Rythme humain (6 à 8 s par page, peu de pages par question), images bloquées, Chrome fermé après
+  chaque commande. Messenger n'est jamais lu.
+- Compte Facebook personnel. La lecture automatique est contraire aux conditions de Facebook.
+
+**Première fois** : `ccs market login` (sur le VPS). Google Chrome s'ouvre sur l'écran de pc-bureau
+(profil dédié) ; connecte-toi à Facebook : les cookies sont exportés et gardés dans
+`~/.config/ccs/market/session.json` (600, jamais affichés), puis ce Chrome se referme. À refaire si
+Market dit que la session a expiré.
+
+```bash
+ccs market status                                   # session, Chrome, tunnel et adresse de sortie
+ccs market search "routeur wireguard" --max 30000   # prix | titre | ville | lien
+ccs market seller https://www.facebook.com/marketplace/profile/100058059515617/
+ccs market item https://www.facebook.com/marketplace/item/2421778705023492/
+```
+
+Réglages facultatifs dans `~/.config/ccs/market/config.json` (ville par défaut, chemin de Chrome,
+pauses, limites).
+
 ## Calcul réparti : lancer un travail sur une autre machine
 
 Avec [Ricochet](https://github.com/mawena/Ricochet) (0.3.0 ou plus), CCS se sert des autres
@@ -1232,6 +1265,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs audio list` / `send <source> <sortie>` / `stop [flux\|appareil]` / `receive` / `enable [--name n]` / `disable` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
 | `ccs remote machines [--fast]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--fast` : sans les interroger) |
 | `ccs remote run [--machine m] [--tool o] [--fetch chemin] [--include chemin] [--with-git] [--when night\|HH:MM] [--detach] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
+| `ccs market search "<mots>" [--min N] [--max N] [--city lome]` / `seller <lien>` / `item <lien>` / `status` / `login` | Market : annonces de Facebook Marketplace au Togo (toujours par pc-bureau), vendeur, détails d'une annonce, état, connexion (une fois) ; `--json` |
 | `ccs chat clear` | Dans un chat de CCS (lancé par Claude) : vide la conversation (`/clear`) à la fin du tour en cours |
 | `ccs app` | Application graphique |
 

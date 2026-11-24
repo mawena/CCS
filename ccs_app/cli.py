@@ -1581,6 +1581,8 @@ def build_parser():
     ch_sub = ch.add_subparsers(dest="action", required=True, metavar="<action>")
     _action(ch_sub, "clear", "effacer", help="vide la conversation (/clear) à la fin du tour en cours")
     ch.set_defaults(func=cmd_chat)
+    from . import market_cli
+    market_cli.add_parser(sub, _command, _action)
 
     # Internes (services systemd, pont, hooks de Claude Code, `ccs … --notify`) : absentes
     # de l'aide, hors du gel de la 1.0.

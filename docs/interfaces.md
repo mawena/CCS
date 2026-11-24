@@ -244,6 +244,7 @@ Transport : un objet JSON par ligne (socket Unix du pont, ou WebSocket `/api/ws`
 | `jarvis.stop_session` | `session`, `machine?`, `confirme` | arrête une session ; même confirmation |
 | `jarvis.start_session` | `project`, `machine?`, `message?`, `options?` | ouvre un chat dans un projet (→ `chat_id, machine`) |
 | `jarvis.local` / `jarvis.projects` | — | *interne* : sessions, projets de cette machine (appelés par le serveur) |
+| `market.open` | — | onglet Market (phase 45) : prépare `$DATA/ccs/market/` (CLAUDE.md, droits des outils), rejoint le chat Market ouvert ou reprend sa dernière conversation → comme `chat.open` + `title, state` |
 
 ### 2.2 Événements
 
@@ -383,6 +384,7 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | `$STORE/serveurs.json` (0600) | liste de `{name, url, user, token}` ; deviendra `servers.json` (voir § 6) |
 | `$CONFIG/ccs/machines.toml` | `[machines.<id>]` : `user`, `port`, `limit` (anciennes clés `utilisateur`, `limite` lues) |
 | `$CONFIG/ricochet/client.toml` (0600, partagé avec Ricochet) | `relais`, `jeton` (clés de Ricochet, gardées) |
+| `$CONFIG/ccs/market/config.json` | Market : `host`, `hostname`, `host_key_alias`, `vps_ip`, `city`, `chrome`, `sandbox`, `remote_chrome`, `remote_port`, `page_delay`, `scroll_delay`, `search_rounds`, `search_limit`, `seller_limit`, `seller_rounds`, `patience` (tous facultatifs) |
 | `/etc/ccs/web.json` (serveur) | `listen`, `origin`, `portier {enabled, users, url, logout}` (anciennes clés `actif`, `utilisateurs`, `deconnexion` lues) |
 
 ### 4.2 Clés de `settings.json` (`ccs_app/settings.py`)
@@ -414,6 +416,8 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | Emplacement | Contenu |
 |---|---|
 | `$STORE/<profil>/oauth.json`, `account.json`, `usage.json` | jeton OAuth, compte, dernier usage |
+| `$CONFIG/ccs/market/session.json` (0600, dossier 0700) | Market : cookies Facebook et User-Agent du Chrome de pc-bureau (`ccs market login`), jamais affichés |
+| `$DATA/ccs/market/` | dossier du chat Market : `CLAUDE.md`, `.claude/settings.json` |
 | `$STORE/state.json`, `daemon.pid`, `history.db` | état du service, historique d'usage |
 | `$STORE/pause.json`, `quiet.json`, `quiet-held.json` | pause, ne pas déranger, notifications retenues |
 | `$STORE/switch-origin.json`, `updates.json`, `context-alerts.json` | origine de bascule, mises à jour, alertes de contexte |
@@ -445,6 +449,7 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | `CCS_SERVER_ROOT` | racine des chemins du serveur (tests) |
 | `CCS_APP_ID` | identifiant d'application distinct (essais) |
 | `CCS_NO_VTE` | force le terminal externe (essais) |
+| `CCS_MARKET_CHROME` | Market : Chrome sans interface à utiliser sur cette machine (sinon ceux de Playwright) |
 | `CCS_CHAT_IN_PROCESS` | `1` : chats du bureau dans l'application, sans le pont local (essais, tests) |
 | `CCS_PATH`, `CCS_TOOL` | lignes de l'inventaire d'une machine distante (`CCS_TOOL=<outil>=<chemin>` ; l'ancienne `CCS_OUTIL` est encore lue) |
 | `HOME`, `PATH`, `SHELL`, `TZ`, `USER`, `PYTHONPATH`, `GNUPGHOME`, `NO_COLOR`, `GIT_SSH`, `GIT_SSH_COMMAND` | usage habituel |
