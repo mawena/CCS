@@ -917,6 +917,35 @@ ccs reseau serveur         # appareils connus du serveur
 Sur le VPS, le compte qui fait tourner CCS doit être dans le groupe `headscale` (clés, renommage,
 retrait).
 
+## Son partagé : le son d'un appareil joué sur un autre
+
+Chaque appareil CCS du réseau maillé qui sait jouer du son devient une **sortie audio** pour les
+autres, et le son part dans tous les sens : iPhone → PC, PC → Pixel, Pixel → iPhone… Le serveur CCS
+ne fait que la mise en relation ; le son passe en direct entre les appareils (RTP/Opus en UDP sur
+les adresses 100.64.x, 48 kHz stéréo, 100 à 200 ms de retard en direct, plus par un relais).
+Protocole : [`docs/audio.md`](docs/audio.md).
+
+- **PC Linux** : `ccs audio activer` (ou l'interrupteur « Son partagé sur ce PC » de l'onglet
+  Réseau du bureau) lance le service utilisateur `ccs-audio`. Le PC est annoncé, et chaque autre
+  appareil apparaît comme une **vraie sortie son** (« iPhone de Charles ») dans les réglages du son
+  de Linux : choisis-la pour une appli et le son part vers l'appareil ; muette 10 s, l'envoi
+  s'arrête. Il faut GStreamer et pactl (`gstreamer1.0-tools gstreamer1.0-plugins-good
+  gstreamer1.0-pulseaudio pulseaudio-utils`, recommandés par `ccs-bureau`).
+- **Android** (10 ou plus pour envoyer) et **iPhone** : écran « Son » de l'appli. Le téléphone
+  reçoit dès que CCS est ouvert ; pour envoyer son propre son, « Envoyer le son de ce téléphone
+  vers… » (Android demande l'accord de capture à chaque fois ; l'iPhone passe par la diffusion
+  d'écran ReplayKit, et les contenus protégés comme Apple Music ou Netflix y restent muets).
+- **Web et bureau** : section « Son partagé » de l'onglet Réseau : appareils, flux en cours,
+  « Envoyer le son de … vers … » entre deux appareils quelconques.
+
+```bash
+ccs audio lister                    # appareils annoncés et flux en cours
+ccs audio envoyer ici iphone        # le son de ce PC vers l'iPhone
+ccs audio envoyer pixel pc-bureau   # télécommande : du Pixel vers pc-bureau
+ccs audio arreter                   # arrête les flux de ce PC (ou : ccs audio arreter a3)
+ccs audio desactiver
+```
+
 ## Calcul réparti : lancer un travail sur une autre machine
 
 Avec [Ricochet](https://github.com/mawena/Ricochet) (0.3.0 ou plus), CCS se sert des autres
@@ -1197,6 +1226,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs tui [--serveur <nom>]` | CCS en plein écran dans le terminal (ce poste, ou un serveur appairé) |
 | `ccs serveur ajouter <adresse> [--nom n]` / `liste` / `retirer <nom>` | Serveurs CCS distants : appairage (mot de passe et code), liste, retrait |
 | `sudo ccs totp reinitialiser <utilisateur>` | Sur le serveur : efface le code de double authentification d'un utilisateur |
+| `ccs audio lister` / `envoyer <source> <sortie>` / `arreter [flux\|appareil]` / `activer [--nom n]` / `desactiver` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
 | `ccs distant machines [--vite]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--vite` : sans les interroger) |
 | `ccs distant lancer [--machine m] [--outil o] [--rapatrier chemin] [--inclure chemin] [--avec-git] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
 | `ccs chat effacer` | Dans un chat de CCS (lancé par Claude) : vide la conversation (`/clear`) à la fin du tour en cours |

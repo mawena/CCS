@@ -13,7 +13,12 @@ L'agent (`ccs audio agent`, service utilisateur `ccs-audio`) :
 Le pont est joint par son socket quand cette machine héberge le serveur CCS (ticket fait avec la
 clé du pont, lisible par l'utilisateur), sinon par le premier serveur appairé (`servers.json`).
 
-Réglages : `~/.config/ccs/audio.toml` (`active`, `port`, `label`). `ccs audio activer` l'écrit et
+Autres systèmes (même agent, `ccs audio agent` lancé à la main) : macOS et Windows jouent par
+`autoaudiosink` ; Windows capte le son de sa sortie par `wasapi2src loopback=true`, macOS par un
+périphérique de bouclage (BlackHole) donné dans `capture_device`. Pas de sorties virtuelles hors
+de Linux : l'envoi se lance depuis `ccs audio envoyer` ou une autre appli CCS.
+
+Réglages : `~/.config/ccs/audio.toml` (`active`, `port`, `label`, `capture_device` sur macOS). `ccs audio activer` l'écrit et
 lance le service.
 """
 
@@ -23,6 +28,7 @@ import hmac
 import ipaddress
 import logging
 import os
+import platform
 import re
 import secrets
 import shutil
@@ -70,16 +76,21 @@ def load_config(path=None):
     if not isinstance(port, int) or not 1024 <= port <= 65535:
         port = DEFAULT_PORT
     label = data.get("label") if isinstance(data.get("label"), str) else ""
-    return {"active": data.get("active") is True, "port": port, "label": label.strip()}
+    out = {"active": data.get("active") is True, "port": port, "label": label.strip()}
+    if isinstance(data.get("capture_device"), str) and data["capture_device"].strip():
+        out["capture_device"] = data["capture_device"].strip()
+    return out
 
 
 def save_config(cfg, path=None):
     path = Path(path or config_path())
     path.parent.mkdir(parents=True, exist_ok=True)
     label = cfg.get("label", "").replace("\\", "").replace('"', "")
+    dev = str(cfg.get("capture_device") or "").replace("\\", "").replace('"', "")
+    capture = f'capture_device = "{dev}"\n' if dev else ""
     path.write_text(f'active = {"true" if cfg.get("active") else "false"}\n'
                     f'port = {int(cfg.get("port", DEFAULT_PORT))}\n'
-                    f'label = "{label}"\n', encoding="utf-8")
+                    f'label = "{label}"\n' + capture, encoding="utf-8")
 
 
 # ---- identité sur le réseau maillé -----------------------------------------------------------
@@ -175,23 +186,48 @@ class Pipewire:
 
 # ---- GStreamer ---------------------------------------------------------------------------------
 
-def receiver_argv(port, latency=LATENCY_MS):
+def this_system(name=None):
+    """linux | macos | windows | autre."""
+    name = (name or platform.system()).lower()
+    return {"linux": "linux", "darwin": "macos", "windows": "windows"}.get(name, "autre")
+
+
+def player_element(system):
+    return ["pulsesink", "client-name=CCS"] if system == "linux" else ["autoaudiosink"]
+
+
+def capture_elements(system, monitor=None, device=None):
+    """Élément GStreamer qui capte le son joué par la machine, ou None si elle ne sait pas."""
+    if system == "linux":
+        return ["pulsesrc", f"device={monitor or '@DEFAULT_MONITOR@'}", "buffer-time=40000",
+                "latency-time=10000", "client-name=CCS"]
+    if system == "windows":
+        return ["wasapi2src", "loopback=true", "low-latency=true"]
+    if system == "macos" and device:
+        return ["osxaudiosrc", f"device={device}"]
+    return None
+
+
+def receiver_argv(port, latency=LATENCY_MS, system="linux"):
     return ["gst-launch-1.0", "-q", "udpsrc", f"port={port}", f"caps={RTP_CAPS}", "!",
             "rtpjitterbuffer", f"latency={latency}", "drop-on-latency=true", "!",
             "rtpopusdepay", "!", "opusdec", "plc=true", "!", "audioconvert", "!", "audioresample",
-            "!", "pulsesink", "client-name=CCS"]
+            "!", *player_element(system)]
 
 
-def sender_argv(monitor, ip, port):
-    return ["gst-launch-1.0", "-q", "pulsesrc", f"device={monitor}", "buffer-time=40000",
-            "latency-time=10000", "client-name=CCS", "!", "audioconvert", "!", "audioresample", "!",
+def sender_argv(monitor, ip, port, system="linux", device=None):
+    src = capture_elements(system, monitor, device)
+    if src is None:
+        raise AudioError("Cette machine ne sait pas capter son son (macOS : capture_device).")
+    return ["gst-launch-1.0", "-q", *src, "!", "audioconvert", "!", "audioresample", "!",
             "audio/x-raw,rate=48000,channels=2", "!", "opusenc", "bitrate=96000", "frame-size=20",
             "audio-type=generic", "!", "rtpopuspay", "pt=96", "!", "udpsink", f"host={ip}",
             f"port={port}", "sync=false", "async=false"]
 
 
-def missing_tools(which=shutil.which):
-    return [t for t in ("gst-launch-1.0", "pactl") if which(t) is None]
+def missing_tools(which=shutil.which, system=None):
+    tools = ("gst-launch-1.0", "pactl") if (system or this_system()) == "linux" else ("gst-launch-1.0",)
+    return [t for t in tools if which(t) is None]
 
 
 class Process:
@@ -322,10 +358,12 @@ def describe(listing, me=None):
 
 class Agent:
     def __init__(self, transport, name, ip, cfg, pipewire=None, popen=subprocess.Popen,
-                 clock=time.monotonic):
+                 clock=time.monotonic, system="linux"):
         self.transport = transport
+        self.system = system
         self.name, self.ip, self.cfg = name, ip, cfg
-        self.pw = pipewire or Pipewire()
+        # sorties virtuelles : Linux seulement (PipeWire / PulseAudio)
+        self.pw = pipewire or (Pipewire() if system == "linux" else None)
         self._popen = popen
         self.clock = clock
         self.client = None
@@ -360,7 +398,8 @@ class Agent:
     def start_receiver(self, data):
         self.stop_receiver()
         log.info("réception de %s (flux %s)", data.get("from"), data.get("stream"))
-        self.receiver = (data.get("stream"), Process(receiver_argv(self.cfg["port"]), self._popen))
+        self.receiver = (data.get("stream"),
+                         Process(receiver_argv(self.cfg["port"], system=self.system), self._popen))
 
     def stop_receiver(self):
         if self.receiver:
@@ -375,13 +414,17 @@ class Agent:
         self.stop_sender()
         sink = sink_name(target)
         try:
-            from_sink = self.pw.sinks().get(sink) == "RUNNING"
+            from_sink = self.pw is not None and self.pw.sinks().get(sink) == "RUNNING"
         except AudioError:
             from_sink = False
         monitor = f"{sink}.monitor" if from_sink else "@DEFAULT_MONITOR@"
+        try:
+            argv = sender_argv(monitor, ip, port, self.system, self.cfg.get("capture_device"))
+        except AudioError as e:
+            log.warning("%s", e)
+            return
         log.info("émission vers %s (%s:%s) depuis %s", target, ip, port, monitor)
-        self.sender = (data.get("stream"), target, Process(sender_argv(monitor, ip, port), self._popen),
-                       from_sink)
+        self.sender = (data.get("stream"), target, Process(argv, self._popen), from_sink)
 
     def stop_sender(self):
         if self.sender:
@@ -391,7 +434,8 @@ class Agent:
     # annonce et sorties virtuelles
     def announcement(self):
         return {"device": self.name, "label": self.cfg.get("label") or self.name, "ip": self.ip,
-                "port": self.cfg["port"], "play": True, "capture": True, "system": "linux"}
+                "port": self.cfg["port"], "play": True, "system": self.system,
+                "capture": capture_elements(self.system, device=self.cfg.get("capture_device")) is not None}
 
     async def announce(self):
         r = await self.client.call("audio.announce", **self.announcement())
@@ -408,6 +452,8 @@ class Agent:
 
     def sync_sinks(self):
         """Une sortie virtuelle par appareil distant qui sait jouer ; les autres retirées."""
+        if self.pw is None:
+            return
         wanted = {sink_name(d): d for d, info in self.devices.items() if info.get("play")}
         have = self.pw.modules()
         for sink, device in wanted.items():
@@ -419,6 +465,8 @@ class Agent:
 
     async def watch_sinks(self):
         """Sortie virtuelle utilisée → envoi ; muette 10 s → arrêt."""
+        if self.pw is None:
+            return
         try:
             states = self.pw.sinks()
         except AudioError:
@@ -453,7 +501,8 @@ class Agent:
         self.client.on_event = self.on_event
         await self.client.connect()
         try:
-            self.pw.remove_all()             # restes d'un agent précédent
+            if self.pw is not None:
+                self.pw.remove_all()         # restes d'un agent précédent
         except AudioError as e:
             log.warning("%s", e)
         last = -1e9
@@ -480,7 +529,8 @@ class Agent:
         self.stop_sender()
         self.stop_receiver()
         try:
-            self.pw.remove_all()
+            if self.pw is not None:
+                self.pw.remove_all()
         except AudioError:
             pass
         if self.client:
@@ -506,18 +556,24 @@ def run_agent():
         name, ip = identity(network.status())
     except network.NetworkError as e:
         raise AudioError(str(e)) from None
-    agent = Agent(server_transport(), name, ip, load_config())
+    agent = Agent(server_transport(), name, ip, load_config(), system=this_system())
 
     async def main():
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, agent.stop)
+            try:
+                loop.add_signal_handler(sig, agent.stop)
+            except (NotImplementedError, RuntimeError):   # Windows : Ctrl+C arrête asyncio.run
+                pass
         await agent.run()
     asyncio.run(main())
 
 
 def service(action, run=subprocess.run):
-    """systemctl --user enable --now / disable --now ccs-audio."""
+    """systemctl --user enable --now / disable --now ccs-audio (Linux) ; ailleurs, l'agent se
+    lance à la main."""
+    if this_system() != "linux":
+        return False, "pas de systemd ici : lance `ccs audio agent` (au démarrage de la session)"
     argv = ["systemctl", "--user", *(["enable", "--now"] if action == "on" else ["disable", "--now"]),
             SERVICE]
     r = run(argv, capture_output=True, text=True)

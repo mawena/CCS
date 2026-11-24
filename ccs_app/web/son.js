@@ -6,7 +6,7 @@ import { clear, el, toast } from "./dom.js";
 import { busy } from "./pages-util.js";
 
 const REFRESH_MS = 5_000;
-const SYSTEMS = { linux: "PC", android: "Android", ios: "iPhone", web: "Web", autre: "Appareil" };
+const SYSTEMS = { linux: "PC Linux", macos: "Mac", windows: "PC Windows", android: "Android", ios: "iPhone", web: "Web", autre: "Appareil" };
 
 export function abilities(d) {
   return [d.play && "joue", d.capture && "capte"].filter(Boolean).join(" · ") || "—";

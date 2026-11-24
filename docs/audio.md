@@ -21,7 +21,7 @@ tourne). Le pont l'oublie **90 s** après sa dernière annonce.
      "port": 4010,                  // port UDP où il écoute quand il reçoit (défaut 4010)
      "play": true,                  // sait jouer un flux reçu
      "capture": true,               // sait capter son propre son et l'émettre
-     "system": "ios"}}              // linux | android | ios | web | autre
+     "system": "ios"}}              // linux | android | ios | macos | windows | web | autre
 ← {"ok": true, "every": 30, "forget_after": 90, "streams": [ …flux en cours qui le concernent… ]}
 ```
 
@@ -103,6 +103,8 @@ gst-launch-1.0 pulsesrc device=<sortie>.monitor ! audioconvert ! audioresample \
 | Linux | GStreamer → sortie PipeWire par défaut | moniteur d'une sortie PipeWire ; chaque appareil distant est une **sortie virtuelle** (« iPhone de Charles ») : l'utiliser dans les réglages du son lance l'envoi |
 | Android | service au premier plan, MediaCodec (décodeur Opus) → AudioTrack | Android 10+ : AudioPlaybackCapture (accord MediaProjection), MediaCodec (encodeur Opus) ; certaines applis interdisent la capture |
 | iPhone | lecture en arrière-plan (`UIBackgroundModes: audio`), AudioConverter (Opus) → AVAudioEngine | extension de diffusion ReplayKit (centre de contrôle) ; contenus protégés (Apple Music, Netflix…) muets |
+| macOS | même agent (`ccs audio agent`), GStreamer → `autoaudiosink` | périphérique de bouclage (BlackHole) donné dans `capture_device` de `audio.toml` |
+| Windows | même agent, GStreamer → `autoaudiosink` | `wasapi2src loopback=true` (son de la sortie par défaut) |
 | Web | — (liste et télécommande seulement) | — |
 
 Linux : `ccs audio lister`, `ccs audio envoyer <source> <sortie>`, `ccs audio arreter`,

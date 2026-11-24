@@ -249,3 +249,32 @@ class PipewireTest(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0, "", "")
         audio.Pipewire(run).create("iphone", "iPhone de Charles")
         self.assertEqual(calls[0][-1], """sink_properties='device.description="iPhone de Charles"'""")
+
+
+class AutresSystemesTest(unittest.TestCase):
+    def test_systeme(self):
+        self.assertEqual(audio.this_system("Darwin"), "macos")
+        self.assertEqual(audio.this_system("Windows"), "windows")
+        self.assertEqual(audio.this_system("FreeBSD"), "autre")
+
+    def test_pipelines(self):
+        self.assertIn("autoaudiosink", audio.receiver_argv(4010, system="windows"))
+        self.assertIn("wasapi2src", audio.sender_argv(None, "100.64.0.4", 4010, "windows"))
+        self.assertIn("device=73", audio.sender_argv(None, "100.64.0.4", 4010, "macos", device="73"))
+        with self.assertRaises(audio.AudioError):
+            audio.sender_argv(None, "100.64.0.4", 4010, "macos")
+        self.assertEqual(audio.missing_tools(lambda t: None, "windows"), ["gst-launch-1.0"])
+
+    def test_agent_mac_sans_bouclage(self):
+        a = audio.Agent(None, "mac", "100.64.0.8", {"port": 4010, "label": ""}, system="macos",
+                        popen=lambda argv, **kw: FakeProc(argv))
+        self.assertIsNone(a.pw)
+        ann = a.announcement()
+        self.assertEqual((ann["system"], ann["play"], ann["capture"]), ("macos", True, False))
+        a.devices = {"iphone": {"device": "iphone", "label": "iPhone", "play": True}}
+        a.sync_sinks()                                   # rien à faire, pas d'erreur
+        a.on_event("audio", {"action": "emit", "device": "mac", "stream": "a1", "to": "iphone",
+                             "ip": "100.64.0.4", "port": 4010})
+        self.assertIsNone(a.sender)                       # ne sait pas capter : ignoré
+        a.on_event("audio", {"action": "receive", "device": "mac", "stream": "a2"})
+        self.assertIn("autoaudiosink", a.receiver[1].argv)
