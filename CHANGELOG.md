@@ -10,7 +10,7 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - **Venice et services compatibles OpenAI** : proxy local intégré (traduction Anthropic → OpenAI, outils et streaming), lancé à la demande et arrêté 90 s après la dernière session ; préréglage `venice` ; `ccs provider proxy [stop]`.
 - **`ccs audio status`** : réglages, outils, serveur de son, sorties virtuelles et service.
 - **Android, lecteurs du téléphone pilotés** : avec l’accès aux notifications, Spotify, YouTube… du Pixel apparaissent dans l’onglet Son de tous les appareils et se pilotent à distance (lecture, pause, suivant, volume).
-- **iPhone, rendu riche du chat** : blocs de code, tableaux, cartes d’outils et liens, comme sur le web et le bureau.
+- **iPhone et Android, rendu riche du chat** : blocs de code, tableaux, cartes d’outils et liens, comme sur le web et le bureau.
 
 ### Corrigé
 
