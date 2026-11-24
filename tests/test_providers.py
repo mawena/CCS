@@ -36,6 +36,15 @@ class ProvidersTest(HomeTestCase):
         self.assertEqual(known["openrouter"].default_model, "x/y")
         self.assertEqual(known["openrouter"].base_url, "https://openrouter.ai/api")
 
+    def test_presets_default_first_and_deepseek_direct(self):
+        """Le modèle par défaut est le premier proposé (menus) ; DeepSeek direct, compatible Anthropic."""
+        for name in providers.PRESETS:
+            p = providers.get(name)
+            self.assertEqual(p.models[0][1], p.default_model, name)
+        ds = providers.get("deepseek")
+        self.assertEqual(ds.base_url, "https://api.deepseek.com/anthropic")
+        self.assertTrue(ds.key_path().endswith("/.config/deepseek/cle"))
+
     def test_bad_config_is_reported(self):
         cfg = providers.config_path()
         cfg.parent.mkdir(parents=True, exist_ok=True)

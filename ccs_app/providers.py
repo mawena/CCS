@@ -12,7 +12,7 @@ La clé n'est jamais dans la ligne de commande ni dans l'environnement de CCS : 
 lui-même dans le fichier (droits 600). Ces arguments passent partout où passent déjà les
 autres (`extra_args` des onglets, relance, sauvegarde des onglets, tâches, chats).
 
-Fournisseurs connus : `PRESETS` (OpenRouter), complétés ou remplacés par
+Fournisseurs connus : `PRESETS` (OpenRouter, DeepSeek), complétés ou remplacés par
 `~/.config/ccs/providers.json` :
 
   {"ollama": {"label": "Ollama", "base_url": "http://100.64.0.5:11434", "key_file": null,
@@ -36,22 +36,39 @@ CLAUDE_WORDS = {"claude", "anthropic", "default", "défaut", "par défaut", "auc
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 MARK = "CCS_PROVIDER"   # variable posée dans les réglages : retrouve le fournisseur d'un onglet
 
+# Préréglages vérifiés le 24/11/2026 (catalogue OpenRouter, docs DeepSeek) : modèles avec appel
+# d'outils, indispensable à Claude Code. Prix indicatifs en $ par million de jetons (entrée/sortie).
 PRESETS = {
     "openrouter": {
         "label": "OpenRouter",
         "base_url": "https://openrouter.ai/api",
         "key_file": "~/.config/openrouter/cle",
         "models_url": "https://openrouter.ai/api/v1/models",
-        "default_model": "nousresearch/hermes-4-70b",
+        "default_model": "z-ai/glm-5.3",
         "models": [
-            ["Hermes 4 70B (peu filtré)", "nousresearch/hermes-4-70b"],
-            ["Hermes 4 405B (peu filtré)", "nousresearch/hermes-4-405b"],
-            ["Dolphin Venice 24B (non censuré, gratuit)",
-             "cognitivecomputations/dolphin-mistral-24b-venice-edition:free"],
-            ["Kimi K2", "moonshotai/kimi-k2"],
+            ["GLM 5.3 (défaut, peu filtré)", "z-ai/glm-5.3"],
+            ["Grok 4.7 (le plus puissant, 2/6 $)", "x-ai/grok-4.7"],
+            ["DeepSeek V4.1 Flash 1017 (très bon marché)", "deepseek/deepseek-v4.1-flash-1017"],
+            ["DeepSeek V4.1 Flash", "deepseek/deepseek-v4.1-flash"],
+            ["DeepSeek V4 Pro", "deepseek/deepseek-v4-pro-0813"],
+            ["Kimi K3.1 Pro", "moonshotai/kimi-k3.1-pro"],
+            ["Qwen3 Coder Next", "qwen/qwen3-coder-next"],
+            ["GLM 5.3 Flash", "z-ai/glm-5.3-flash"],
             ["GLM 4.6", "z-ai/glm-4.6"],
             ["Qwen3 Coder", "qwen/qwen3-coder"],
-            ["Qwen3 Coder (gratuit)", "qwen/qwen3-coder:free"],
+            ["Nemotron 3 Ultra (gratuit)", "nvidia/nemotron-3-ultra-550b-a55b:free"],
+        ],
+    },
+    # API directe, compatible Anthropic : la moins chère pour DeepSeek (heures creuses -50 %).
+    # `claude-opus*` part sur V4 Pro, le reste sur Flash ; ici le modèle est donné explicitement.
+    "deepseek": {
+        "label": "DeepSeek",
+        "base_url": "https://api.deepseek.com/anthropic",
+        "key_file": "~/.config/deepseek/cle",
+        "default_model": "deepseek-flash",
+        "models": [
+            ["DeepSeek V4.1 Flash (0,30/1,20 $)", "deepseek-flash"],
+            ["DeepSeek V4 Pro (1,32/3,96 $)", "deepseek-v4-pro"],
         ],
     },
 }
@@ -234,7 +251,7 @@ def short_model(model):
 
 
 def label_for_args(args):
-    """« OpenRouter · hermes-4-70b » pour un onglet lancé chez un fournisseur, sinon None."""
+    """« OpenRouter · glm-5.3 » pour un onglet lancé chez un fournisseur, sinon None."""
     name, model = from_args(args)
     if not name:
         return None
@@ -362,8 +379,11 @@ def _test(name, model, out):
 
     from . import sessions
     args = claude_args(name, model)
+    # claude réserve 32 000 jetons de sortie par défaut : une clé plafonnée (ou peu de crédit)
+    # serait refusée (402) alors que l'essai n'en coûte que quelques-uns
+    env = {**os.environ, "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "256"}
     r = subprocess.run([sessions._claude_bin(), "-p", "Réponds seulement : ok", *args],
-                       capture_output=True, text=True, timeout=180, stdin=subprocess.DEVNULL)
+                       capture_output=True, text=True, timeout=180, stdin=subprocess.DEVNULL, env=env)
     text = (r.stdout or "").strip() or (r.stderr or "").strip()
     print(text[-2000:], file=out)
     return r.returncode

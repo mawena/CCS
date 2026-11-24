@@ -7,6 +7,14 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ### Ajouté
 
+- **Fournisseurs de modèles** (phase 46) : faire tourner Claude Code chez OpenRouter ou DeepSeek
+  (API compatibles Anthropic) pour des modèles ouverts moins filtrés ou moins chers. Choix du
+  fournisseur et du modèle dans la Nouvelle session (bureau et web), les options du chat et les
+  tâches (`--provider`) ; le libellé de l'onglet le montre. Clé lue par `apiKeyHelper` dans un
+  fichier 600, jamais dans la ligne de commande ; fournisseur sans clé refusé avant le lancement.
+  Préréglages vérifiés : GLM 5.3 par défaut, Grok 4.7, DeepSeek V4.1 Flash, Kimi K3.1 Pro, Qwen3
+  Coder Next… ; fournisseurs ajoutés dans `~/.config/ccs/providers.json`.
+- `ccs provider list | show | models | key | test` (ancien nom `fournisseur` caché).
 - Onglet **Market** (phase 45, web et bureau) : un chat Claude dédié qui cherche sur Facebook
   Marketplace au Togo et répond par un classement au meilleur rapport qualité-prix (prix en CFA,
   liens des annonces, raisons) ; on peut aussi lui donner le lien d'un vendeur. Le pont rouvre

@@ -155,9 +155,19 @@ jamais dans la ligne de commande).
 - [x] 3. Branchements : options de lancement, onglets du terminal (libellé), tâches (`--provider`), exécuteur de tâches, chats (fournisseur figé à l'ouverture)
 - [x] 4. Dialogue GTK « Nouvelle session » (fournisseur, modèles, clé absente signalée) et web (nouvelle session, chat, `chat.providers` du pont)
 - [x] 5. Fusion de develop (commandes en anglais) ; test du pont `chat.open` corrigé (option `provider`)
-- [ ] 6. Comparatif des prix (OpenRouter, Venice, DeepInfra, Together, Featherless, Chutes, API directes DeepSeek, Moonshot, Z.ai) : modèles puissants avec outils, peu filtrés
-- [ ] 7. Modèles par défaut à jour dans les préréglages (identifiants vérifiés au catalogue OpenRouter) ; API directe compatible Anthropic en préréglage si nettement moins chère
-- [ ] 8. Essai du dialogue GTK sous Xvfb et tests web
-- [ ] 9. Documentation : README, `docs/man/ccs.1`, CHANGELOG
-- [ ] 10. Charles : compte OpenRouter, clé plafonnée à 50 $, `ccs provider key openrouter`, `ccs provider test openrouter`
-- [ ] 11. Release 1.13.0 (par Charles)
+- [x] 6. Comparatif des prix (OpenRouter, Venice, DeepInfra, Together, Featherless, Chutes, API directes DeepSeek, Moonshot, Z.ai) : modèles puissants avec outils, peu filtrés
+- [x] 7. Modèles par défaut à jour dans les préréglages (identifiants vérifiés au catalogue OpenRouter) ; préréglage `deepseek` (API directe compatible Anthropic, la moins chère pour DeepSeek)
+- [x] 8. Essai du dialogue GTK sous Xvfb et tests web
+- [x] 9. Documentation : README, `docs/man/ccs.1`, CHANGELOG
+- [x] 10. Essai réel sur le VPS : `ccs provider test openrouter` répond (GLM 5.3 et Nemotron gratuit) ; l'essai se limite à 256 jetons de sortie (sinon 402 avec peu de crédit)
+- [ ] 11. Charles : créditer OpenRouter, clé plafonnée à 50 $/mois ; essai d'une vraie session (bureau, web, tâche)
+- [ ] 12. Release 1.13.0 (par Charles)
+
+## Phase 47 — Venice et autres services compatibles OpenAI (proposée)
+
+Venice (modèles « uncensored » avec outils : `glm-5-3-flash-uncensored`,
+`deepseek-v4-1-flash-1017-uncensored`, Venice Uncensored 1.2) ne parle que l'API OpenAI.
+
+- [ ] 1. Proxy local claude-code-router (ou LiteLLM) lancé à la demande par CCS, traduit `/v1/messages` vers l'API OpenAI
+- [ ] 2. Préréglage `venice` (clé `~/.config/venice/cle`) pointant sur ce proxy ; vérifier l'appel d'outils de bout en bout
+- [ ] 3. Arrêt du proxy avec la dernière session (RAM)
