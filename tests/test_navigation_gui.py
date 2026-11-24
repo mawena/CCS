@@ -157,6 +157,26 @@ class NavigationTest(HomeTestCase):
         group.refresh()
         self.assertEqual(group._rows[0].get_title(), "Son partagé indisponible")
 
+    def test_sound_players_group(self):
+        from ccs_app.gui.son_page import PlayersGroup, SonPage
+        calls = []
+        listing = {"devices": [{"device": "pc", "label": "PC", "players": [
+            {"id": "vlc", "name": "VLC", "status": "Playing", "title": "Nuit", "artist": "A",
+             "volume": 40, "can_prev": False, "can_next": True, "can_play": True, "can_pause": True,
+             "can_seek": True}]}, {"device": "pixel", "label": "Pixel"}]}
+
+        def call(method, **params):
+            calls.append((method, params))
+            return listing
+        group = PlayersGroup(runner=lambda work, done: done(work(), None), call=call)
+        group.refresh()
+        self.assertEqual([r.get_title() for r in group._rows], ["▶ VLC · PC"])
+        self.assertEqual(group._rows[0].get_subtitle(), "Nuit — A")
+        group.control("pc", {"id": "vlc"}, "seek", 10)
+        self.assertIn(("audio.control", {"device": "pc", "player": "vlc", "command": "seek", "value": 10}), calls)
+        page = SonPage(sound=Adw.PreferencesGroup(), players=group)
+        self.assertEqual(page.get_title(), "Son")
+
     def test_files_tab_opens_a_file(self):
         import tempfile
         from pathlib import Path

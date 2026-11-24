@@ -118,5 +118,53 @@ class AudioApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.call("audio.list"))["streams"], [])
 
 
+class LecteursApiTest(unittest.IsolatedAsyncioTestCase):
+    VLC = {"id": "vlc", "name": "VLC", "status": "Playing", "title": "Titre", "artist": "A",
+           "position": 3, "length": 200, "volume": 50, "can_seek": True, "can_next": True}
+
+    def setUp(self):
+        self.b = FakeBridge()
+        bridge_audio.AudioApi(self.b, clock=lambda: 1000.0)
+
+    async def call(self, method, **params):
+        return await self.b.handlers[method](None, params)
+
+    async def test_annonce_rapport_et_liste(self):
+        await self.call("audio.announce", device="pc-bureau", ip="100.64.0.2", system="linux",
+                        players=[self.VLC, {"id": "../mal"}, "pas un dict"])
+        await self.call("audio.announce", device="iphone", ip="100.64.0.4", system="ios")
+        devs = {d["device"]: d for d in (await self.call("audio.list"))["devices"]}
+        self.assertEqual([p["id"] for p in devs["pc-bureau"]["players"]], ["vlc"])
+        self.assertIsNone(devs["iphone"]["players"])
+        # Annonce sans « players » : la liste connue est gardée.
+        await self.call("audio.announce", device="pc-bureau", ip="100.64.0.2")
+        r = await self.call("audio.players")
+        self.assertEqual([d["device"] for d in r["devices"]], ["pc-bureau"])
+        self.assertEqual(self.b.events[-1], ("audio", {"action": "players_refresh", "device": None}))
+        await self.call("audio.report", device="pc-bureau", players=[])
+        self.assertEqual(self.b.events[-1][1]["action"], "players")
+        self.assertEqual((await self.call("audio.players", device="pc-bureau"))["devices"][0]["players"], [])
+        with self.assertRaises(rpc.RpcError):
+            await self.call("audio.report", device="inconnu", players=[])
+
+    async def test_commande(self):
+        await self.call("audio.announce", device="pc-bureau", ip="100.64.0.2", players=[self.VLC])
+        await self.call("audio.announce", device="iphone", ip="100.64.0.4")
+        r = await self.call("audio.control", device="pc-bureau", player="vlc", command="seek", value=-10)
+        self.assertTrue(r["ok"])
+        self.assertEqual(self.b.events[-1], ("audio", {"action": "control", "device": "pc-bureau",
+                                                       "player": "vlc", "command": "seek", "value": -10}))
+        for params in ({"device": "pc-bureau", "player": "vlc", "command": "danse"},
+                       {"device": "pc-bureau", "player": "vlc", "command": "volume"},
+                       {"device": "pc-bureau", "player": "vlc", "command": "volume", "value": True},
+                       {"device": "pc-bureau", "player": "vlc", "command": "seek", "value": [1]},
+                       {"device": "pc-bureau", "player": "spotify", "command": "play"},
+                       {"device": "pc-bureau", "player": "../x", "command": "play"},
+                       {"device": "iphone", "player": "vlc", "command": "play"},
+                       {"device": "absent", "player": "vlc", "command": "play"}):
+            with self.assertRaises(rpc.RpcError, msg=params):
+                await self.call("audio.control", **params)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -12,7 +12,6 @@ object Routes {
     const val TERMINAUX = "terminaux"
     const val TERMINAL = "terminal?id={id}"
     const val JARVIS = "jarvis"
-    const val SON = "son"
 
     const val FICHIER = "fichier?chemin={chemin}&ligne={ligne}&appareil={appareil}"
     const val FICHIERS_PROJET = "fichiers-projet?cwd={cwd}"

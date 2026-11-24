@@ -131,3 +131,37 @@ après 10 s de silence. L'appli continue d'annoncer toutes les 30 s et de suivre
 Linux : `ccs audio list`, `ccs audio send <source> <sortie>`, `ccs audio stop`,
 `ccs audio receive` (au premier plan, pour essayer). Le démon CCS annonce la machine et crée les
 sorties virtuelles tout seul quand le réglage « son partagé » est actif.
+
+## 6. Lecteurs : piloter VLC, Firefox… à distance
+
+L'agent `ccs audio` d'une machine Linux lit ses lecteurs **MPRIS** (D-Bus de session :
+`org.mpris.MediaPlayer2.*`) et les rapporte au pont quand ils changent :
+
+```json
+{"method": "audio.report", "params": {"device": "pc-bureau", "players": [
+  {"id": "vlc", "name": "VLC", "status": "Playing", "title": "…", "artist": "…", "volume": 80,
+   "can_prev": true, "can_next": true, "can_play": true, "can_pause": true, "can_seek": true}]}}
+```
+
+- `status` : `Playing`, `Paused` ou `Stopped` ; `volume` : 0-100, ou `null` si le lecteur ne le
+  donne pas. `audio.list` donne ces lecteurs avec chaque appareil (`players`, absent sur les
+  appareils qui n'en rapportent pas : téléphones, web).
+- `audio.players {device?}` : lecteurs connus (d'une machine, ou de toutes) ; le pont pousse aussi
+  `{"action": "players_refresh"}` pour que les agents les relisent tout de suite.
+- `audio.control {device, player, command, value?}` : `command` parmi `play`, `pause`, `toggle`,
+  `next`, `prev`, `seek` (relatif, en secondes : `-10`, `10`) et `volume` (0-100, obligatoire).
+  Le pont pousse `{"action": "control", …}` à la machine, qui exécute puis rapporte l'état
+  (`audio.report`) ; erreurs : appareil non annoncé, lecteur inconnu, commande ou valeur invalide.
+- Événements `audio` diffusés aux clients : `players` (nouvel état d'une machine), `control`,
+  `players_refresh`.
+
+Clients : section « Lecteurs » de l'écran Son (web, bureau, iPhone, Android) : nom, morceau,
+⏮ ⏯ ⏭, ±10 s si le lecteur sait se déplacer, curseur de volume (envoyé au relâchement).
+
+```bash
+ccs audio players                     # lecteurs de cette machine (D-Bus)
+ccs audio players pc-bureau           # ceux d'un appareil, par le pont (« toutes » : tous)
+ccs audio control toggle              # le seul lecteur, ou celui qui joue
+ccs audio control vlc seek -10        # lecteur par nom ou numéro
+ccs audio control --device pc-bureau firefox volume 40
+```

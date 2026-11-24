@@ -987,14 +987,19 @@ Protocole : [`docs/audio.md`](docs/audio.md).
   de Linux : choisis-la pour une appli et le son part vers l'appareil ; muette 10 s, l'envoi
   s'arrête. Il faut GStreamer et pactl (`gstreamer1.0-tools gstreamer1.0-plugins-good
   gstreamer1.0-pulseaudio pulseaudio-utils`, recommandés par `ccs-bureau`).
-- **Android** (10 ou plus pour envoyer) et **iPhone** : écran « Son » de l'appli. Le téléphone
+- **Android** (10 ou plus pour envoyer) et **iPhone** : onglet « Son » de l'appli (après Réseau). Le téléphone
   reçoit dès que CCS est ouvert ; pour envoyer son propre son, « Envoyer le son de ce téléphone
   vers… » (Android demande l'accord de capture à chaque fois ; l'iPhone passe par la diffusion
   d'écran ReplayKit, et les contenus protégés comme Apple Music ou Netflix y restent muets).
 - **Web et bureau** : section « Son partagé » de l'onglet Réseau : appareils, flux en cours,
   « Envoyer le son de … vers … » entre deux appareils quelconques.
+- **Lecteurs** : les lecteurs audio des PC Linux (VLC, Firefox… par MPRIS) se pilotent depuis
+  tous les clients (section « Lecteurs » de l'écran Son) : lecture/pause, précédent, suivant,
+  ±10 s, volume.
 
 ```bash
+ccs audio players pc-bureau      # lecteurs d'un appareil (sans nom : ce PC)
+ccs audio control --device pc-bureau vlc toggle   # ou : seek -10, volume 40, next, prev
 ccs audio list                    # appareils annoncés et flux en cours
 ccs audio send here iphone       # le son de ce PC vers l'iPhone
 ccs audio send pixel pc-bureau   # télécommande : du Pixel vers pc-bureau

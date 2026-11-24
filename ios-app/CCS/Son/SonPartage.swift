@@ -213,6 +213,19 @@ final class SonPartage {
         await rafraichir()
     }
 
+    /// Commande à un lecteur d'un PC (`audio.control`) : play, pause, toggle, next, prev,
+    /// seek (secondes, relatif) ou volume (0-100) ; relecture peu après (l'agent rapporte ~0,3 s après).
+    func piloter(_ appareil: AppareilSon, _ lecteur: LecteurSon, _ commande: String, valeur: Double? = nil) async {
+        var p: [String: JSON] = ["device": .chaine(appareil.device), "player": .chaine(lecteur.id),
+                                 "command": .chaine(commande)]
+        if let v = valeur { p["value"] = .nombre(v) }
+        do {
+            _ = try await client.appeler("audio.control", p, delai: 10)
+        } catch { dire(texteErreur(error)); return }
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        await rafraichir()
+    }
+
     func arreter(flux: String) async {
         do {
             _ = try await client.appeler("audio.stop", ["stream": .chaine(flux)], delai: 10)

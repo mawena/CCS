@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -63,6 +64,7 @@ enum class Onglet(val route: String, val titre: String, val icone: ImageVector) 
     Accueil("accueil", "Accueil", Icons.Filled.Home),
     Sessions("sessions", "Sessions", Icons.Filled.Forum),
     Reseau("reseau", "Réseau", Icons.Filled.Hub),
+    Son("son", "Son", Icons.Filled.Speaker),
     Fichiers("fichiers", "Fichiers", Icons.Filled.Folder),
     Plus("plus", "Plus", Icons.Filled.MoreHoriz),
 }
@@ -106,7 +108,11 @@ fun EcranPrincipal(modele: ModeleAppli) {
             DemandeAppli.Sessions -> versSessions()
             DemandeAppli.NouveauChat -> { modele.nouvelleSession.value = true; versSessions() }
             DemandeAppli.Jarvis -> nav.navigate(Routes.JARVIS) { launchSingleTop = true }
-            DemandeAppli.Son -> nav.navigate(Routes.SON) { launchSingleTop = true }
+            DemandeAppli.Son -> nav.navigate(Onglet.Son.route) {
+                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
         }
     }
     val partage by modele.partage.collectAsStateWithLifecycle()
@@ -210,6 +216,7 @@ fun EcranPrincipal(modele: ModeleAppli) {
                     )
                 }
                 composable(Onglet.Reseau.route) { EcranReseau(modele) }
+                composable(Onglet.Son.route) { EcranSon(modele) }
                 composable(Onglet.Fichiers.route) {
                     EcranFichiersOnglet(modele, ouvrirFichier = { chemin, appareil -> nav.navigate(Routes.fichier(chemin, appareil = appareil)) })
                 }
@@ -240,11 +247,9 @@ fun EcranPrincipal(modele: ModeleAppli) {
                         ouvrirReglages = { nav.navigate(Routes.REGLAGES) },
                         ouvrirTerminaux = { nav.navigate(Routes.TERMINAUX) },
                         ouvrirJarvis = { nav.navigate(Routes.JARVIS) },
-                        ouvrirSon = { nav.navigate(Routes.SON) },
                     )
                 }
                 composable(Routes.JARVIS) { com.mawena.ccs.ui.jarvis.EcranJarvis(modele, retour = { nav.popBackStack() }) }
-                composable(Routes.SON) { EcranSon(modele, retour = { nav.popBackStack() }) }
                 composable(Routes.REGLAGES) { com.mawena.ccs.ui.reglages.EcranReglages(modele, retour = { nav.popBackStack() }) }
                 composable(Routes.TERMINAUX) {
                     com.mawena.ccs.ui.terminal.EcranTerminaux(modele, retour = { nav.popBackStack() }, ouvrir = { nav.navigate(Routes.terminal(it)) })

@@ -296,3 +296,10 @@ h2.job-cmd { font-size: 1em; white-space: normal; overflow-wrap: anywhere; }
 .son-dev, .son-stream { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .son-form { align-items: center; }
 .son-form select { flex: 1 1 140px; min-width: 0; }
+.son-h3 { font-size: 0.95rem; margin: 14px 0 6px; }
+.son-machine + .son-machine { margin-top: 8px; }
+.son-player { display: grid; gap: 4px; padding: 6px 0; border-top: 1px solid var(--line); }
+.son-track { overflow-wrap: anywhere; }
+.son-keys { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.son-key { min-width: 36px; justify-content: center; }
+.son-volume { flex: 1 1 120px; min-width: 90px; max-width: 220px; }

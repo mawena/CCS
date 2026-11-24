@@ -16,6 +16,13 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PhoneIphone
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -25,11 +32,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -41,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mawena.ccs.reseau.AppareilAudio
 import com.mawena.ccs.reseau.EnvoiAudio
+import com.mawena.ccs.reseau.LecteurAudio
 import com.mawena.ccs.reseau.ListeAudio
 import com.mawena.ccs.son.SonPartage
 import kotlinx.coroutines.flow.first
@@ -58,12 +68,13 @@ private fun iconeSysteme(system: String): ImageVector = when (system) {
 }
 
 /**
- * Plus → Son partagé (phase 42) : les sorties et sources du réseau maillé (`audio.list`), les flux
+ * Onglet « Son » (après Réseau, phase 42) : les lecteurs MPRIS des machines Linux (VLC, Firefox…)
+ * pilotés par `audio.control`, les sorties et sources du réseau maillé (`audio.list`), les flux
  * en cours (Arrêter), l'envoi du son de ce téléphone vers une sortie (accord de capture demandé à
  * chaque départ), et l'envoi de n'importe quelle source vers n'importe quelle sortie (`audio.send`).
  */
 @Composable
-fun EcranSon(modele: ModeleAppli, retour: () -> Unit) {
+fun EcranSon(modele: ModeleAppli, retour: (() -> Unit)? = null) {
     val avis = LocalAvis.current
     val portee = rememberCoroutineScope()
     val client = modele.depot.client
@@ -116,9 +127,24 @@ fun EcranSon(modele: ModeleAppli, retour: () -> Unit) {
         }
     }
 
+    fun piloter(a: AppareilAudio, l: LecteurAudio, commande: String, valeur: Double? = null) {
+        portee.launch {
+            try {
+                client.appeler("audio.control", buildJsonObject {
+                    put("device", a.device); put("player", l.id); put("command", commande)
+                    if (valeur != null) put("value", valeur)
+                })
+            } catch (e: Exception) {
+                avis.dire("${l.name} : ${e.texte()}")
+            }
+            kotlinx.coroutines.delay(600)
+            recharger()
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
         BarreHaut(
-            "Son partagé",
+            "Son",
             sousTitre = identite?.let { "${it.device} · ${it.ip}" } ?: "Ce téléphone n'est pas annoncé",
             retour = retour,
             actions = {
@@ -195,6 +221,13 @@ fun EcranSon(modele: ModeleAppli, retour: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Envoyer") }
 
+            // ---- lecteurs MPRIS des machines Linux ----
+            val lecteurs = appareils.flatMap { a -> a.players.orEmpty().map { a to it } }
+            if (lecteurs.isNotEmpty()) {
+                TitreSection("Lecteurs (${lecteurs.size})")
+                lecteurs.forEach { (a, l) -> LigneLecteur(a, l) { c, v -> piloter(a, l, c, v) } }
+            }
+
             // ---- appareils ----
             TitreSection("Sorties (${sorties.size})")
             if (sorties.isEmpty() && liste != null) Text("Aucune sortie annoncée.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -227,6 +260,41 @@ fun EcranSon(modele: ModeleAppli, retour: () -> Unit) {
         ) { a ->
             if (quoi == "source") source = a else cible = a
             choix = null
+        }
+    }
+}
+
+@Composable
+private fun LigneLecteur(a: AppareilAudio, l: LecteurAudio, piloter: (String, Double?) -> Unit) {
+    // valeur du curseur pendant qu'on le glisse : la relecture toutes les 5 s ne le fait pas sauter
+    var glisse by remember { mutableStateOf(false) }
+    var tire by remember { mutableFloatStateOf(0f) }
+    val volume = if (glisse) tire else l.volume?.toFloat() ?: 0f
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text("${if (l.joue) "▶" else "⏸"} ${l.name} · ${a.nom}", style = MaterialTheme.typography.titleSmall)
+            Text(l.morceau, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                IconButton(onClick = { piloter("prev", null) }, enabled = l.can_prev) { Icon(Icons.Filled.SkipPrevious, "Précédent") }
+                if (l.can_seek) IconButton(onClick = { piloter("seek", -10.0) }) { Icon(Icons.Filled.Replay10, "Reculer de 10 s") }
+                IconButton(onClick = { piloter("toggle", null) }, enabled = l.can_play || l.can_pause) {
+                    Icon(if (l.joue) Icons.Filled.Pause else Icons.Filled.PlayArrow, if (l.joue) "Pause" else "Lecture")
+                }
+                if (l.can_seek) IconButton(onClick = { piloter("seek", 10.0) }) { Icon(Icons.Filled.Forward10, "Avancer de 10 s") }
+                IconButton(onClick = { piloter("next", null) }, enabled = l.can_next) { Icon(Icons.Filled.SkipNext, "Suivant") }
+            }
+            if (l.volume != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Filled.VolumeUp, "Volume")
+                    Slider(
+                        value = volume,
+                        onValueChange = { glisse = true; tire = it },
+                        onValueChangeFinished = { glisse = false; piloter("volume", tire.toDouble()) },
+                        valueRange = 0f..100f,
+                        modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    )
+                }
+            }
         }
     }
 }

@@ -12,6 +12,8 @@ struct AppareilSon: LisibleJSON, Hashable, Identifiable {
     var system = ""
     /// Secondes depuis sa dernière annonce.
     var age: Double = 0
+    /// Lecteurs MPRIS publiés par l'agent `ccs audio` d'un PC Linux ; nil : il n'en publie pas.
+    var players: [LecteurSon]? = nil
 
     var id: String { return device }
     var nom: String { return label.isEmpty ? device : label }
@@ -24,6 +26,38 @@ struct AppareilSon: LisibleJSON, Hashable, Identifiable {
         device = j.texte("device"); label = j.texte("label"); ip = j.texte("ip")
         port = j.entier("port", Rtp.portParDefaut); play = j.bool("play"); capture = j.bool("capture")
         system = j.texte("system"); age = j.double("age")
+        players = j["players"]?.tableau.map { $0.map { LecteurSon(json: $0) } }
+    }
+}
+
+/// Un lecteur MPRIS d'un PC (VLC, Firefox…), piloté par `audio.control` (`docs/audio.md`).
+struct LecteurSon: LisibleJSON, Hashable, Identifiable {
+    var id = ""
+    var name = ""
+    /// Playing | Paused | Stopped
+    var status = "Stopped"
+    var title = ""
+    var artist = ""
+    /// 0-100 ; nil : le lecteur ne donne pas son volume.
+    var volume: Double? = nil
+    var canPrev = true
+    var canNext = true
+    var canPlay = true
+    var canPause = true
+    var canSeek = false
+
+    var joue: Bool { return status == "Playing" }
+    var morceau: String { return [title, artist].filter { !$0.isEmpty }.joined(separator: " — ") }
+
+    init(id: String, name: String = "", status: String = "Stopped") {
+        self.id = id; self.name = name; self.status = status
+    }
+
+    init(json j: JSON) {
+        id = j.texte("id"); name = j.texte("name"); status = j.texte("status")
+        title = j.texte("title"); artist = j.texte("artist"); volume = j.doubleOuNul("volume")
+        canPrev = j.bool("can_prev", true); canNext = j.bool("can_next", true)
+        canPlay = j.bool("can_play", true); canPause = j.bool("can_pause", true); canSeek = j.bool("can_seek")
     }
 }
 
@@ -59,6 +93,8 @@ struct ListeSon: LisibleJSON {
 
     var sorties: [AppareilSon] { return devices.filter { $0.play } }
     var sources: [AppareilSon] { return devices.filter { $0.capture } }
+    /// Appareils qui publient leurs lecteurs (PC Linux dont l'agent tourne).
+    var avecLecteurs: [AppareilSon] { return devices.filter { $0.players != nil } }
 
     func nom(_ device: String) -> String {
         return devices.first { $0.device == device }?.nom ?? device

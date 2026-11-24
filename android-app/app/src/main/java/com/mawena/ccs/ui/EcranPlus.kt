@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -41,7 +40,6 @@ fun EcranPlus(
     ouvrirReglages: () -> Unit = {},
     ouvrirTerminaux: () -> Unit = {},
     ouvrirJarvis: () -> Unit = {},
-    ouvrirSon: () -> Unit = {},
 ) {
     val identifiants by modele.identifiants.collectAsStateWithLifecycle()
     val contexte = LocalContext.current
@@ -68,12 +66,6 @@ fun EcranPlus(
             supportingContent = { Text("L'assistant vocal de la maison, par le serveur CCS et le relais Ricochet") },
             leadingContent = { Icon(Icons.Filled.GraphicEq, null) },
             modifier = Modifier.clickable(onClick = ouvrirJarvis),
-        )
-        ListItem(
-            headlineContent = { Text("Son partagé") },
-            supportingContent = { Text("Écouter le son d'un autre appareil, ou envoyer celui de ce téléphone, par le réseau maillé") },
-            leadingContent = { Icon(Icons.Filled.Speaker, null) },
-            modifier = Modifier.clickable(onClick = ouvrirSon),
         )
         ListItem(
             headlineContent = { Text("Réglages") },

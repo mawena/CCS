@@ -202,6 +202,190 @@ class AgentTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(a.client.calls[-1], ("audio.stop", {"stream": "a3"}))
 
 
+def faux_lecteur(nom="VLC", statut="Playing", volume=0.5, peut_avancer=True):
+    root = {"Identity": nom}
+    props = {"PlaybackStatus": statut, "Volume": volume, "Position": 12_000_000,
+             "Metadata": {"xesam:title": "Titre", "xesam:artist": ["Artiste"], "mpris:length": 220_000_000},
+             "CanPlay": True, "CanPause": True, "CanGoNext": True, "CanGoPrevious": False,
+             "CanSeek": peut_avancer, "CanControl": True}
+    return root, props
+
+
+class FakeDbus:
+    """Imite `_gio_call` : ListNames, GetAll, Get, Set et les méthodes du lecteur."""
+
+    def __init__(self, lecteurs):
+        self.lecteurs = lecteurs          # {nom de bus: (root, props)}
+        self.appels = []
+
+    def __call__(self, dest, path, iface, method, signature=None, args=()):
+        self.appels.append((dest, method, tuple(args)))
+        if method == "ListNames":
+            return (["org.freedesktop.DBus", ":1.4", *self.lecteurs],)
+        if dest not in self.lecteurs:
+            raise audio.AudioError("lecteur parti")
+        root, props = self.lecteurs[dest]
+        if method == "GetAll":
+            return (root if args[0] == audio.MPRIS_ROOT else props,)
+        if method == "Get":
+            return (props[args[1]],)
+        return ()
+
+
+class MprisTest(unittest.TestCase):
+    def setUp(self):
+        self.dbus = FakeDbus({"org.mpris.MediaPlayer2.vlc": faux_lecteur(),
+                              "org.mpris.MediaPlayer2.firefox.instance_1_2":
+                                  faux_lecteur("Firefox", "Paused", None, False)})
+        self.m = audio.Mpris(call=self.dbus)
+
+    def test_liste(self):
+        ps = self.m.players()
+        self.assertEqual(sorted(p["id"] for p in ps), ["firefox.instance_1_2", "vlc"])
+        ps = sorted(ps, key=lambda p: p["id"] != "vlc")
+        vlc = ps[0]
+        self.assertEqual((vlc["name"], vlc["status"], vlc["title"], vlc["artist"]),
+                         ("VLC", "Playing", "Titre", "Artiste"))
+        self.assertEqual((vlc["position"], vlc["length"], vlc["volume"]), (12, 220, 50))
+        self.assertFalse(vlc["can_prev"])
+        self.assertIsNone(ps[1]["volume"])
+        self.assertFalse(ps[1]["can_seek"])
+        lignes = audio.describe_players(ps)
+        self.assertTrue(any("VLC" in l and "0:12/3:40" in l for l in lignes))
+
+    def test_lecteur_qui_plante_ignore(self):
+        self.dbus.lecteurs["org.mpris.MediaPlayer2.mort"] = None
+        real = self.dbus.__call__
+
+        def call(dest, *a, **kw):
+            if dest.endswith(".mort") and a[2] == "GetAll":
+                raise audio.AudioError("ne répond pas")
+            return real(dest, *a, **kw)
+        self.assertEqual(len(audio.Mpris(call=call).players()), 2)
+
+    def test_commandes(self):
+        self.m.control("vlc", "toggle")
+        self.m.control("vlc", "seek", "-10")
+        self.m.control("vlc", "volume", 80)
+        self.m.control("vlc", "volume", "+10")          # relatif : lit le volume (50) d'abord
+        meth = [(m, a) for _, m, a in self.dbus.appels]
+        self.assertEqual(meth[0], ("PlayPause", ()))
+        self.assertEqual(meth[1], ("Seek", (-10_000_000,)))
+        self.assertEqual(meth[2][0], "Set")
+        self.assertAlmostEqual(meth[2][1][2][1], 0.8)
+        self.assertEqual(meth[3][0], "Get")
+        self.assertAlmostEqual(meth[4][1][2][1], 0.6)
+        with self.assertRaises(audio.AudioError):
+            self.m.control("vlc", "danse")
+
+    def test_sans_bus(self):
+        def call(*a, **kw):
+            raise audio.AudioError("Pas de bus D-Bus de session")
+        with self.assertRaises(audio.AudioError):
+            audio.Mpris(call=call).players()
+
+
+class ChoixLecteurTest(unittest.TestCase):
+    def setUp(self):
+        self.ps = [{"id": "vlc", "name": "VLC", "status": "Paused"},
+                   {"id": "firefox.instance_1", "name": "Mozilla Firefox", "status": "Playing"},
+                   {"id": "spotify", "name": "Spotify", "status": "Stopped"}]
+
+    def ids(self, texte):
+        return [p["id"] for p in audio.pick_players(self.ps, texte)]
+
+    def test_choix(self):
+        self.assertEqual(self.ids(None), ["firefox.instance_1"])     # celui qui joue
+        self.assertEqual(self.ids("1"), ["vlc"])
+        self.assertEqual(self.ids("vlc"), ["vlc"])
+        self.assertEqual(self.ids("fire"), ["firefox.instance_1"])
+        self.assertEqual(len(self.ids("toutes")), 3)
+        for mauvais in ("4", "rien"):
+            with self.assertRaises(audio.AudioError):
+                self.ids(mauvais)
+        with self.assertRaises(audio.AudioError):
+            audio.pick_players([], None)
+
+    def test_ambigu(self):
+        self.ps[1]["status"] = "Paused"
+        with self.assertRaises(audio.AudioError):
+            self.ids(None)                         # deux en pause, aucun ne joue
+
+    def test_analyse(self):
+        self.assertEqual(audio.parse_control(["toggle"]), (None, "toggle", None))
+        self.assertEqual(audio.parse_control(["vlc", "pause"]), ("vlc", "pause", None))
+        self.assertEqual(audio.parse_control(["2", "seek", "-30"]), ("2", "seek", "-30"))
+        self.assertEqual(audio.parse_control(["volume", "40"])[1:], ("volume", "40"))
+        self.assertEqual(audio.parse_control(["suivant"])[1], "next")
+        self.assertEqual(audio.parse_control(["vlc", "volume"]), ("vlc", "volume", None))
+        for mauvais in (["vlc"], ["seek", "1", "2"]):
+            with self.assertRaises(audio.AudioError):
+                audio.parse_control(mauvais)
+
+    def test_volume_et_saut(self):
+        self.assertEqual(audio.volume_level("40", 10), 40)
+        self.assertEqual(audio.volume_level("+20", 90), 100)
+        self.assertEqual(audio.volume_level("-20", 10), 0)
+        self.assertEqual(audio.seek_seconds(None), 10)
+        self.assertEqual(audio.seek_seconds("-5"), -5)
+        self.assertEqual(audio.volume_level("150"), 100)
+        for mauvais in ("abc", None, "+5"):        # « +5 » sans volume actuel connu
+            with self.assertRaises(audio.AudioError):
+                audio.volume_level(mauvais)
+
+
+class FakeMpris:
+    def __init__(self):
+        self.liste = [{"id": "vlc", "name": "VLC", "status": "Paused", "position": 3, "volume": 50}]
+        self.ordres = []
+
+    def players(self):
+        return [dict(p) for p in self.liste]
+
+    def control(self, pid, command, value=None, current=None):
+        self.ordres.append((pid, command, value, current and current["volume"]))
+        self.liste[0]["status"] = "Playing"
+
+
+class AgentLecteursTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.mpris = FakeMpris()
+        self.agent = audio.Agent(None, "pc-bureau", "100.64.0.2", {"port": 4010, "label": ""},
+                                 pipewire=FakePw(), popen=FakeProc, mpris=self.mpris)
+        self.agent.client = FakeClient()
+
+    def rapports(self):
+        return [p for m, p in self.agent.client.calls if m == "audio.report"]
+
+    async def test_rapport_seulement_si_change(self):
+        a = self.agent
+        await a.refresh_players()
+        await a.refresh_players()
+        self.assertEqual(len(self.rapports()), 1)
+        self.mpris.liste[0]["position"] = 9        # la position seule ne compte pas
+        await a.refresh_players()
+        self.assertEqual(len(self.rapports()), 1)
+        self.mpris.liste[0]["status"] = "Playing"
+        await a.refresh_players()
+        self.assertEqual(len(self.rapports()), 2)
+        self.assertEqual(a.announcement()["players"][0]["status"], "Playing")
+
+    async def test_commande_du_pont(self):
+        a = self.agent
+        await a.refresh_players()
+        await a.control_player({"player": "vlc", "command": "volume", "value": "+10"})
+        self.assertEqual(self.mpris.ordres, [("vlc", "volume", "+10", 50)])
+        self.assertEqual(self.rapports()[-1]["players"][0]["status"], "Playing")
+        await a.control_player({"player": None, "command": "play"})
+        self.assertEqual(len(self.mpris.ordres), 1)
+
+    async def test_evenement_pour_un_autre(self):
+        self.agent.on_event("audio", {"action": "control", "device": "pixel", "player": "vlc",
+                                      "command": "play"})
+        await asyncio.sleep(0)
+        self.assertEqual(self.mpris.ordres, [])
+
+
 if __name__ == "__main__":
     unittest.main()
 
