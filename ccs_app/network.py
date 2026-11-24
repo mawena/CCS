@@ -207,6 +207,29 @@ def server_nodes(run=None):
     return out
 
 
+def is_server(run=None):
+    """Cette machine héberge le réseau (headscale présent) : clés, renommage, retrait."""
+    return run is not None or shutil.which("headscale") is not None
+
+
+def overview(run=None):
+    """Tout ce qu'affichent les pages Réseau (`network.status` du pont) : état du client local,
+    ses pairs et, sur le serveur du réseau, les appareils qu'il connaît."""
+    out = {"url": SERVER_URL, "domain": BASE_DOMAIN, "installed": run is not None or installed(),
+           "server": is_server(run), "state": "", "self": None, "peers": [], "nodes": []}
+    if out["installed"]:
+        try:
+            out.update(status(run=run))
+        except NetworkError as e:
+            out["error"] = str(e)
+    if out["server"]:
+        try:
+            out["nodes"] = server_nodes(run=run)
+        except NetworkError as e:
+            out["server_error"] = str(e)
+    return out
+
+
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
 
@@ -257,4 +280,65 @@ def register(key, user=DEFAULT_USER, run=None):
         raise NetworkError("Clé d'inscription invalide.")
     data = _headscale(["auth", "register", "--user", user, "--auth-id", key], run=run) or {}
     return data.get("given_name") or data.get("name") or "appareil"
+
+
+# --- Affichage (onglet Réseau du bureau ; mêmes règles que reseau.js du web) -------------------
+
+ADDR_LABELS = {"lan": "Local", "public": "Public", "v6": "IPv6", "mesh": "Réseau"}
+
+
+def addr_kind(addr):
+    """« 192.168.1.20:41641 » → (ip, type) : type = lan | public | v6 | mesh."""
+    s = str(addr or "")
+    if s.startswith("[") and "]" in s:
+        host = s[1:s.index("]")]
+    else:
+        host = s.rsplit(":", 1)[0] if s.count(":") == 1 else s
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return host, "public"
+    if ip.version == 6:
+        return host, "lan" if (ip.is_link_local or ip.is_private) else "v6"
+    if ip in ipaddress.ip_network("100.64.0.0/10"):
+        return host, "mesh"
+    return host, "lan" if (ip.is_private or ip.is_link_local) else "public"
+
+
+def device_kind(d):
+    """Genre d'appareil d'après son système et son nom : apple, phone, laptop, server, desktop."""
+    os_name, name = str(d.get("os") or "").lower(), str(d.get("name") or "").lower()
+    if os_name == "ios" or "iphone" in name or "ipad" in name:
+        return "apple"
+    if os_name == "android" or "pixel" in name or "phone" in name:
+        return "phone"
+    if os_name == "macos":
+        return "laptop"
+    if any(k in name for k in ("vps", "cloud", "server", "serveur")):
+        return "server"
+    if "laptop" in name or "portable" in name:
+        return "laptop"
+    return "desktop"
+
+
+def summary(st):
+    """Appareils en ligne / au total, et liaisons par chemin."""
+    peers = st.get("peers") or []
+    me = 1 if st.get("self") else 0
+    out = {"total": len(peers) + me, "online": sum(1 for d in peers if d.get("online")) + me}
+    for p in ("lan", "direct", "relay"):
+        out[p] = sum(1 for d in peers if d.get("path") == p)
+    return out
+
+
+def human_bytes(n):
+    """Octets lisibles : « 512 o », « 1,5 Ko », « 300 Go »."""
+    x = float(n or 0)
+    if x < 1024:
+        return f"{int(x)} o"
+    for unit in ("Ko", "Mo", "Go", "To"):
+        x /= 1024
+        if x < 1024 or unit == "To":
+            break
+    return (f"{x:.1f}" if x < 10 else f"{x:.0f}").replace(".", ",") + f" {unit}"
 

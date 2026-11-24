@@ -352,7 +352,8 @@ export class ChatView {
 
   updateSummary() {
     const label = (sel) => sel.selectedOptions[0]?.textContent || "";
-    const parts = [this.model.value ? label(this.model) : "", this.effort.value ? label(this.effort) : "", label(this.rights)];
+    // autre fournisseur que Claude (OpenRouter…) : toujours visible
+    const parts = [this.opts?.provider || "", this.model.value ? label(this.model) : "", this.effort.value ? label(this.effort) : "", label(this.rights)];
     this.summary.textContent = parts.filter(Boolean).join(" · ");
   }
 

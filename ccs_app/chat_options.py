@@ -34,8 +34,12 @@ class ChatOptions:
     effort: str | None = None
     ultracode: bool = False
     rights: str = "manual"
+    provider: str | None = None   # autre fournisseur que Claude (providers.py) ; None : Claude
 
     def __post_init__(self):
+        from . import providers
+        object.__setattr__(self, "provider", None if providers.is_claude(self.provider)
+                           else str(self.provider).strip().casefold())
         # Mot des droits (« lecture », « modifications », « tout », celui de `ccs task`) :
         # converti en mode de Claude Code ; un mode reste tel quel.
         if isinstance(self.rights, str) and self.rights.strip().casefold() in launch_options.RIGHTS_WORDS:
@@ -57,10 +61,15 @@ def ultracode_possible(model, resolved=None):
 
 def launch_args(options):
     """Arguments de `claude` propres aux options (modèle, effort, droits)."""
+    from . import providers
     args = []
-    if options.model:
+    if options.provider:
+        args += providers.claude_args(options.provider, options.model)
+    elif options.model:
         args += ["--model", options.model]
-    if options.ultracode:
+    if options.provider:
+        pass   # l'effort (réflexion) est propre aux modèles Claude
+    elif options.ultracode:
         args += ["--effort", "ultracode"]
     elif options.effort:
         args += ["--effort", options.effort]
@@ -86,8 +95,10 @@ def merge_hello(hello):
 def from_args(extra_args):
     """ChatOptions tirées des arguments d'une session (`--model`, `--permission-mode`,
     `--effort`, en deux mots ou avec `=`). Le reste est ignoré."""
+    from . import providers
     values = {}
     args = [a for a in (extra_args or ()) if isinstance(a, str)]
+    provider, _model = providers.from_args(args)
     i = 0
     while i < len(args):
         name, sep, inline = args[i].partition("=")
@@ -109,7 +120,7 @@ def from_args(extra_args):
     effort = values.get("--effort")
     ultracode = effort == "ultracode"
     return ChatOptions(model=model, effort=effort if effort in EFFORTS else None,
-                       ultracode=ultracode, rights=rights)
+                       ultracode=ultracode, rights=rights, provider=provider)
 
 
 def default_rights(settings):

@@ -114,6 +114,11 @@ a.button.portier[hidden] { display: none; }
 .nav a.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 .view { flex: 1; width: 100%; max-width: 1280px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; align-content: start; }
 .view[data-view="sessions"] { max-width: none; padding: 0; }
+/* Market (phase 45) : un chat seul, toute la hauteur sous la barre du haut */
+.view[data-view="market"] { max-width: none; padding: 0; }
+.market { display: flex; flex-direction: column; height: calc(100dvh - 57px - var(--root-bar-h, 0px)); }
+.market > .holder { min-height: 0; }
+.market-hint { margin: 8px 14px 0; font-size: 0.9em; }
 
 /* ---- téléphone : barre de navigation en bas ---- */
 @media (max-width: 719px) {
@@ -129,6 +134,9 @@ a.button.portier[hidden] { display: none; }
   .nav-icon { font-size: 1.3em; line-height: 1.2; }
   .view { padding: 10px; padding-bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom)); }
   .view[data-view="sessions"] { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
+  .view[data-view="market"] { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
+  .market { height: calc(100dvh - 49px - var(--nav-h) - env(safe-area-inset-bottom) - var(--root-bar-h, 0px)); }
+  .market-hint { display: none; }
 }
 #logout { margin-left: auto; }
 .machine-btn { min-height: 36px; padding: 0 10px; border-radius: 10px; font-weight: 600; white-space: nowrap; }

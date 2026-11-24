@@ -3,6 +3,43 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.13.0] — 2026-11-24
+
+### Ajouté
+
+- **Fournisseurs de modèles** (phase 46) : faire tourner Claude Code chez OpenRouter ou DeepSeek
+  (API compatibles Anthropic) pour des modèles ouverts moins filtrés ou moins chers. Choix du
+  fournisseur et du modèle dans la Nouvelle session (bureau et web), les options du chat et les
+  tâches (`--provider`) ; le libellé de l'onglet le montre. Clé lue par `apiKeyHelper` dans un
+  fichier 600, jamais dans la ligne de commande ; fournisseur sans clé refusé avant le lancement.
+  Préréglages vérifiés : DeepSeek V4.1 Flash par défaut chez OpenRouter, au moins cher
+  (`deepseek/deepseek-v4.1-flash-1017:floor`), GLM 5.3, Grok 4.7, Kimi K3.1 Pro, Qwen3
+  Coder Next… ; fournisseurs ajoutés dans `~/.config/ccs/providers.json`.
+- `ccs provider list | show | models | key | test` (ancien nom `fournisseur` caché).
+- Onglet **Market** (phase 45, web et bureau) : un chat Claude dédié qui cherche sur Facebook
+  Marketplace au Togo et répond par un classement au meilleur rapport qualité-prix (prix en CFA,
+  liens des annonces, raisons) ; on peut aussi lui donner le lien d'un vendeur. Le pont rouvre
+  toujours le même chat (`market.open`).
+- `ccs market search | seller | item | status | login` : Chrome sans interface du VPS, branché sur
+  un tunnel `ssh -D` vers pc-bureau par le réseau maillé (adresse de sortie vérifiée, pas de repli
+  direct), images bloquées, rythme humain, Chrome fermé après chaque commande ; Messenger jamais
+  lu. Connexion une fois par `ccs market login` (Chrome sur l'écran de pc-bureau, cookies exportés
+  par CDP et gardés en 600).
+
+### Modifié
+
+- Descriptions de CCS revues partout (README, site, paquets, page man, aide, appli web, dépôt
+  GitHub) : CCS n'est plus seulement un outil multi-comptes, mais Claude Code partout — appareils,
+  machines et comptes.
+
+- Bureau, onglet Réseau au niveau du web (phase 44) : « Appareils » donne une fiche dépliable par
+  appareil du réseau maillé (genre, en ligne ou non, chemin réel, adresse à copier, adresses
+  publiées avec leur type, trafic, « Mesurer », « Renommer », « Retirer du réseau » confirmé), la
+  machine de calcul Ricochet rattachée à sa fiche ; « Ajouter un appareil » (PC Linux par lien
+  Ricochet ou clé jetable, Android, iPhone) ; sections dans l'ordre du web, « Secours Ricochet » en
+  bas. Mêmes méthodes `network.*` que le web, par le pont du serveur CCS (repli sur ce PC s'il est
+  injoignable).
+
 ## [1.12.0] — 2026-11-24
 
 ### Ajouté

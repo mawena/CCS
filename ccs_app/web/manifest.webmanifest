@@ -1,7 +1,7 @@
 {
   "name": "CCS",
   "short_name": "CCS",
-  "description": "Plusieurs comptes Claude Code, comme un seul — piloté depuis le téléphone.",
+  "description": "Claude Code partout : vos sessions, machines et comptes, depuis le téléphone.",
   "lang": "fr",
   "start_url": "/",
   "scope": "/",

@@ -7,7 +7,6 @@ serveur du réseau, compte dans le groupe `headscale`) crée les clés et gère 
 """
 
 import asyncio
-import shutil
 import time
 
 from .. import network
@@ -30,23 +29,10 @@ class NetworkApi:
             "network.register": self.register})
 
     def _server(self):
-        return self._run is not None or shutil.which("headscale") is not None
+        return network.is_server(self._run)
 
     def _status(self):
-        out = {"url": network.SERVER_URL, "domain": network.BASE_DOMAIN,
-               "installed": self._run is not None or network.installed(),
-               "server": self._server(), "state": "", "self": None, "peers": [], "nodes": []}
-        if out["installed"]:
-            try:
-                out.update(network.status(run=self._run))
-            except network.NetworkError as e:
-                out["error"] = str(e)
-        if out["server"]:
-            try:
-                out["nodes"] = network.server_nodes(run=self._run)
-            except network.NetworkError as e:
-                out["server_error"] = str(e)
-        return out
+        return network.overview(run=self._run)
 
     async def status(self, _conn, _params):
         return await asyncio.to_thread(self._status)

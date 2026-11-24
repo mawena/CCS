@@ -27,11 +27,15 @@ Recommends: ccs-bureau,
             pinentry-gnome3,
             curl
 Suggests: ccs-serveur, gnome-shell-extension-appindicator, ricochet-agent, rsync
-Description: multi-account switcher and usage assistant for Claude Code
- CCS keeps several Claude Code accounts on one machine and switches between
- them with a single command, without logging out and in again.
+Description: Claude Code everywhere: devices, machines and accounts
+ CCS is a complete workspace around Claude Code: a graphical chat on the
+ desktop, on the web and in Android and iPhone apps; PCs, servers and phones
+ linked by a private mesh network, with distributed jobs between machines
+ (`ccs distant`) and root commands approved from the phone; and several
+ Claude Code accounts working as one.
  .
- It also watches the usage of every account (5-hour session and weekly
+ For accounts, it switches with a single command, without logging out and
+ in again. It also watches the usage of every account (5-hour session and weekly
  limits), forecasts when a session will run out, recommends the best account,
  switches automatically before a limit is reached (running sessions follow
  on their next request), orchestrates the 5-hour windows of all accounts
@@ -67,7 +71,7 @@ Recommends: speech-dispatcher, pipewire-bin | pulseaudio-utils | alsa-utils,
             gstreamer1.0-plugins-good, gstreamer1.0-pulseaudio
 Replaces: ccs (<< 0.11.0)
 Breaks: ccs (<< 0.11.0)
-Description: CCS desktop application (GTK) for several Claude Code accounts
+Description: CCS desktop application (GTK): Claude Code workspace
  The "CCS" GTK application of ccs: accounts and usage, Claude Code chat,
  files and roadmap of each project, history, analysis, settings, and the
  top bar indicator. It can also drive the projects of a CCS server (VPS).

@@ -1,5 +1,9 @@
 # Guide d'utilisation
 
+CCS, c'est Claude Code partout : l'application de bureau, la version web et les applis Android et
+iPhone pilotent les sessions de tous tes appareils ; le réseau maillé, le calcul réparti et
+`ccs root` relient tes machines ; plusieurs comptes Claude Code travaillent comme un seul.
+
 Site : <https://mawena.github.io/CCS/>. Installation sur Ubuntu par le dépôt APT
 signé (les nouvelles versions arrivent ensuite avec `sudo apt update && sudo apt
 upgrade`) :

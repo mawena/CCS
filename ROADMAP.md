@@ -1,6 +1,7 @@
 # Feuille de route — CCS
 
-Plusieurs comptes Claude Code sur un PC Linux, comme un seul. Détails de chaque
+Claude Code partout : tous les appareils (bureau, web, Android, iPhone), toutes les machines
+(réseau maillé, calcul réparti), tous les comptes (comme un seul). Détails de chaque
 version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`. Phases terminées
 (1 à 35, 38, 39, 41, correctifs) : `docs/ROADMAP-fait.md`.
 
@@ -99,3 +100,75 @@ Charles (24/11/2026) : dans le chat web, on ne voit pas les sous-agents travaill
 - [x] 1. Sous-agents de fond : le pont lit leur transcription (`subagents/agent-<id>.jsonl`) toutes les 3 s et envoie leurs étapes dans leur vue (`subagents.Tails`)
 - [x] 2. Après un rechargement, une reprise ou un `/compact` : pastilles reconstruites depuis `chat.attach` (`agents`), vue remplie depuis la transcription (`chat.agent_log`)
 - [ ] 3. Essai réel par Charles (web au téléphone : sous-agent de fond, puis rechargement et `/compact` pendant qu'il tourne)
+
+## Phase 44 — Onglet Réseau du bureau au niveau du web
+
+Charles (24/11/2026) : dans CCS bureau, la partie Réseau n'affiche pas le réseau maillé comme sur
+les versions web et mobile.
+
+- [x] 1. `network.overview` partagé par le pont et le bureau ; le bureau appelle `network.*` par le pont du serveur CCS (comme le son partagé), repli sur ce PC
+- [x] 2. « Appareils » : fiche dépliable par appareil (genre, en ligne, chemin, adresse à copier, adresses publiées, trafic, Mesurer, Renommer, Retirer confirmé), machine de calcul rattachée
+- [x] 3. « Ajouter un appareil » : PC Linux (lien Ricochet ou clé jetable), Android, iPhone
+- [x] 4. Ordre du web : Appareils, Son partagé, Travaux, Lancer une commande, Ajouter un appareil, Secours Ricochet ; tests GTK
+- [ ] 5. Essai réel par Charles sur pc-bureau (fiches, Mesurer, Renommer/Retirer, clé d'inscription)
+
+## Phase 45 — Market : Facebook Marketplace au Togo
+
+Charles (24/11/2026) : un onglet Market où il pose une question (« le routeur le moins cher
+compatible WireGuard à Lomé ») ; Market cherche sur Facebook Marketplace au Togo et répond dans le
+chat par un classement avec les liens des annonces. Il peut aussi donner le lien d'un vendeur. Pas
+de surveillance ni d'alertes. Décisions : requêtes **toujours par pc-bureau** (`ssh -D` par le
+réseau maillé, sortie vérifiée, pas de repli direct) ; compte Facebook personnel (risque connu).
+
+Conception : l'onglet = un chat Claude dédié (`~/.local/share/ccs/market/`, `CLAUDE.md` : mission,
+outils, format de réponse) ; Claude appelle `ccs market search|seller|item|status|login` (Bash) et
+vérifie les caractéristiques avec WebSearch/WebFetch. Chrome sans interface du VPS (navigateurs de
+Playwright, `--no-sandbox` : Ubuntu 24.04 bloque son bac à sable), piloté par CDP avec un petit
+client WebSocket écrit dans `market.py` ; cookies exportés une fois par CDP depuis Google Chrome
+de pc-bureau (ceux de Chrome Linux sont chiffrés par le trousseau).
+
+- [x] 1. `ccs_app/market.py` : tunnel `ssh -D` vers pc-bureau et vérification de l'adresse de sortie (refus net sans pc-bureau), Chrome sans interface par le tunnel (images bloquées, User-Agent de pc-bureau, fermé après chaque commande), client WebSocket + CDP
+- [x] 2. Lecture : cartes `prix | titre | ville` (prix en CFA, ancien prix), page d'annonce (`Détails` → état, description ; `Informations vendeur` → vendeur), page de connexion détectée
+- [x] 3. Vendeur : fenêtre `div[role="dialog"]` du vendeur, jamais Messenger ; défilement et union des annonces jusqu'à 5 tours sans nouveauté (limite 600)
+- [x] 4. Session : `ccs market login` (Chrome sur l'écran de pc-bureau, export des cookies par CDP, fichier 600), cookies réinjectés et remis à jour à chaque commande
+- [x] 5. CLI `ccs market search|seller|item|status|login` (`--json`, anciens noms français cachés), codes de sortie 2 (pc-bureau absent) et 3 (session)
+- [x] 6. Chat Market : dossier, `CLAUDE.md`, droits des outils ; `market.open` du pont (rejoint le chat ouvert ou reprend la dernière conversation)
+- [x] 7. Onglet Market du web (chat monté dans l'onglet) et du bureau GTK (ouvre le chat dans Sessions)
+- [x] 8. Tests (fixtures, faux CDP, faux SOCKS, pont, web dans node, GTK), README, man, interfaces
+- [x] 9. Tunnel SOCKS réel vers pc-bureau vérifié depuis le VPS (sortie 156.38.73.89, pas 84.46.246.202) ; Chrome sans interface par ce tunnel
+- [ ] 10. Connexion réelle par Charles : `ccs market login` devant pc-bureau
+- [ ] 11. Essai réel par Charles : vendeur https://www.facebook.com/marketplace/profile/100058059515617/ (Mozich Trompa, Lomé), « routeur le moins cher compatible WireGuard » → attendu : Cudy AC1200 dual band 22 000 CFA (https://www.facebook.com/marketplace/item/2421778705023492/, client WireGuard d'origine, WR1200) ; alternatives Cudy WR1300 25 000, MikroTik hAP lite 22 000 (déconseillé, instable sous RouterOS 7), TP-Link 842N 7 000 (OpenWrt seulement)
+- [ ] 12. Essai réel de la recherche par mot-clé (`/marketplace/lome/search?query=…`) : ville `lome` à confirmer, sélecteurs des cartes à ajuster si besoin
+- [ ] 13. Plus tard : onglet Market dans les applis Android et iPhone
+
+
+## Phase 46 — Fournisseurs de modèles (OpenRouter et autres, budget 50 $/mois)
+
+Charles (24/11/2026) : faire tourner Claude Code chez d'autres fournisseurs (OpenRouter d'abord)
+pour des modèles peu censurés, avec un budget de 50 $/mois au plus (clé plafonnée côté fournisseur).
+Principe : `claude --settings '<json>' --model <id>` (ANTHROPIC_BASE_URL, alias opus/sonnet/haiku
+et sous-agents sur le modèle choisi, `apiKeyHelper` qui lit la clé dans un fichier 600 ; clé
+jamais dans la ligne de commande).
+
+- [x] 1. `ccs_app/providers.py` : préréglage OpenRouter, `~/.config/ccs/providers.json`, clé `~/.config/openrouter/cle` (600)
+- [x] 2. `ccs provider list|show|models|key|test` (ancien nom `fournisseur` caché), variable `CCS_PROVIDER`
+- [x] 3. Branchements : options de lancement, onglets du terminal (libellé), tâches (`--provider`), exécuteur de tâches, chats (fournisseur figé à l'ouverture)
+- [x] 4. Dialogue GTK « Nouvelle session » (fournisseur, modèles, clé absente signalée) et web (nouvelle session, chat, `chat.providers` du pont)
+- [x] 5. Fusion de develop (commandes en anglais) ; test du pont `chat.open` corrigé (option `provider`)
+- [x] 6. Comparatif des prix (OpenRouter, Venice, DeepInfra, Together, Featherless, Chutes, API directes DeepSeek, Moonshot, Z.ai) : modèles puissants avec outils, peu filtrés
+- [x] 7. Modèles par défaut à jour dans les préréglages (identifiants vérifiés au catalogue OpenRouter) ; préréglage `deepseek` (API directe compatible Anthropic, la moins chère pour DeepSeek)
+- [x] 8. Essai du dialogue GTK sous Xvfb et tests web
+- [x] 9. Documentation : README, `docs/man/ccs.1`, CHANGELOG
+- [x] 10. Essai réel sur le VPS : `ccs provider test openrouter` répond (GLM 5.3 et Nemotron gratuit) ; l'essai se limite à 256 jetons de sortie (sinon 402 avec peu de crédit)
+- [x] 10b. Défaut OpenRouter : DeepSeek V4.1 Flash `deepseek/deepseek-v4.1-flash-1017:floor` (OpenRouter choisit l'hébergeur le moins cher, ~0,03-0,05/0,10-0,50 $ avec cache), choix de Charles ; GLM 5.3 reste dans la liste
+- [ ] 11. Charles : créditer OpenRouter, clé plafonnée à 50 $/mois ; essai d'une vraie session (bureau, web, tâche)
+- [x] 12. Release 1.13.0
+
+## Phase 47 — Venice et autres services compatibles OpenAI (proposée)
+
+Venice (modèles « uncensored » avec outils : `glm-5-3-flash-uncensored`,
+`deepseek-v4-1-flash-1017-uncensored`, Venice Uncensored 1.2) ne parle que l'API OpenAI.
+
+- [ ] 1. Proxy local claude-code-router (ou LiteLLM) lancé à la demande par CCS, traduit `/v1/messages` vers l'API OpenAI
+- [ ] 2. Préréglage `venice` (clé `~/.config/venice/cle`) pointant sur ce proxy ; vérifier l'appel d'outils de bout en bout
+- [ ] 3. Arrêt du proxy avec la dernière session (RAM)

@@ -316,7 +316,7 @@ def build(user, key, local=False, chat=None, **kwargs):
     (projets, fichiers, feuille de route, tâches, analyse) et terminaux. `chat` : options du
     moteur de chat (`claude`, `environ`), pour le banc d'essai."""
     from . import (bridge_admin, bridge_audio, bridge_chat, bridge_data, bridge_files, bridge_git,
-                   bridge_jarvis, bridge_machines, bridge_network, bridge_pilot, bridge_root,
+                   bridge_jarvis, bridge_machines, bridge_market, bridge_network, bridge_pilot, bridge_root,
                    bridge_term, bridge_work)
     b = Bridge(user, key, local=local, **kwargs)
     b.hubs = {"chat": bridge_chat.ChatHub(b, **(chat or {})), "data": bridge_data.DataApi(b),
@@ -328,4 +328,5 @@ def build(user, key, local=False, chat=None, **kwargs):
               "audio": bridge_audio.AudioApi(b)}
     # Jarvis aux commandes du réseau : s'appuie sur les chats et les liens vers les machines
     b.hubs["pilot"] = bridge_pilot.PilotApi(b, b.hubs["machines"], b.hubs["chat"])
+    b.hubs["market"] = bridge_market.MarketApi(b, b.hubs["chat"])        # onglet Market (phase 45)
     return b

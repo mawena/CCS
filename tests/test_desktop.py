@@ -154,7 +154,7 @@ class PageNameTest(unittest.TestCase):
 
     def test_names_shown_to_the_user(self):
         self.assertEqual(desktop.PAGE_CHOICES, ("accueil", "sessions", "reseau", "fichiers", "analyse",
-                                                "jarvis", "comptes", "planning", "historique",
+                                                "jarvis", "market", "comptes", "planning", "historique",
                                                 "terminaux", "reglages"))
         for text in desktop.PAGE_CHOICES:
             self.assertIn(desktop.page_name(text)[0], desktop.PAGES + ("prefs",))
@@ -165,7 +165,7 @@ class PageNameTest(unittest.TestCase):
         self.assertEqual(desktop.page_name("planning"), ("home", "planning"))
         self.assertEqual(desktop.page_name("Réseau"), ("network", None))
         self.assertEqual(desktop.page_name("machines"), ("network", None))
-        self.assertEqual(desktop.PAGES, ("home", "sessions", "network", "files", "analysis", "jarvis"))
+        self.assertEqual(desktop.PAGES, ("home", "sessions", "network", "files", "analysis", "jarvis", "market"))
 
     def test_canonical_names_are_the_subpage_keys(self):
         for text, key in (("comptes", "accounts"), ("accueil", "home"),

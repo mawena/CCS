@@ -112,21 +112,22 @@ class NavigationTest(HomeTestCase):
         titles = [(pages.get_item(i).get_name(), pages.get_item(i).get_title())
                   for i in range(pages.get_n_items())]
         self.assertEqual(titles, [("home", "Accueil"), ("sessions", "Sessions"), ("network", "Réseau"),
-                                  ("files", "Fichiers"), ("analysis", "Analyse"), ("jarvis", "Jarvis")])
+                                  ("files", "Fichiers"), ("analysis", "Analyse"), ("jarvis", "Jarvis"),
+                                  ("market", "Market")])
 
     def test_network_tab_lists_mesh_devices(self):
-        from ccs_app.gui.network_page import MeshGroup
+        from ccs_app.gui.network_page import MeshApi, MeshGroup
         dev = {"name": "pixel", "ips": ["100.64.0.3"], "os": "android", "online": True,
                "path": "direct", "endpoint": "1.2.3.4:41641", "relay": ""}
+        st = {"state": "Running", "installed": True, "server": False, "self": None, "peers": [dev]}
         group = MeshGroup(runner=lambda work, done: done(work(), None),
-                          status=lambda: {"state": "Running", "self": None, "peers": [dev]})
+                          api=MeshApi(call=lambda m, **p: st))
         group.refresh()
         self.assertEqual([r.get_title() for r in group._rows], ["pixel"])
-        self.assertIn("100.64.0.3", group._rows[0].get_subtitle())
-        group.status = lambda: {"state": "Stopped", "self": None, "peers": []}
+        self.assertIn("Direct par internet", group._rows[0].get_subtitle())
+        st.update(state="Stopped", peers=[])
         group.refresh()
-        self.assertEqual(len(group._rows), 1)
-        self.assertIn("Stopped", group._rows[0].get_title())
+        self.assertIn("Stopped", group.get_description())
 
     def test_network_tab_lists_sound_devices(self):
         from ccs_app.gui.network_page import SoundGroup
@@ -231,7 +232,7 @@ class NavigationTest(HomeTestCase):
         app2 = self.appmod.App()
         with mock.patch.object(self.appmod, "Window", return_value=self.win):
             app2.window()
-        for key, tab in enumerate(("home", "sessions", "network", "files", "analysis", "jarvis"), 1):
+        for key, tab in enumerate(("home", "sessions", "network", "files", "analysis", "jarvis", "market"), 1):
             self.assertEqual(app2.get_actions_for_accel(f"<Control>{key}"), [f"win.show-tab::{tab}"])
         self.assertEqual(app2.get_actions_for_accel("<Control>comma"), ["win.prefs"])
         for tab in ("analysis", "sessions", "home"):

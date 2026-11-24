@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# ccs — Claude Code account Switcher
-# Gère plusieurs comptes Claude Code sur ce PC et bascule de l'un à l'autre.
+# ccs — Claude Code partout : appareils, machines et comptes.
+# Ce script : comptes (profils et bascule) et porte d'entrée des autres commandes.
 #
 # Principe : chaque profil stocke le token OAuth (claudeAiOauth) et les infos
 # du compte (oauthAccount). Basculer = réinjecter ces données dans
@@ -360,7 +360,7 @@ cmd_current() {
 
 usage() {
   cat <<EOF
-${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
+${c_bold}ccs${c_off} — Claude Code partout : appareils, machines et comptes
 
   ccs                      liste les profils (● = actif) ; aussi : ccs list
   ccs <nom>                bascule sur le profil <nom> (ou : ccs use <nom>)
@@ -384,8 +384,10 @@ ${c_bold}ccs${c_off} — bascule entre plusieurs comptes Claude Code
   ccs sessions             sessions Claude Code ouvertes : projet, état, consommation, mémoire (RAM)
                            et badge « contexte lourd »
   ccs task [add "<message>" [-C dossier] [--model m] [--rights read|edit|all]
-            [--when quota|night|HH:MM] | show <id> | cancel <id> | remove <id>]
+            [--when quota|night|HH:MM] [--provider nom] | show <id> | cancel <id> | remove <id>]
                            file de tâches lancées par le service, sans fenêtre
+  ccs provider [list|show|models|key|test] [nom]
+                           autres fournisseurs de modèles que Claude (OpenRouter…)
   ccs budget [<dossier> <montant>|aucun]
                            budget hebdomadaire par projet (équivalent dollars) : état, fixer, retirer
   ccs recap <id>           fiche « où j'en étais » d'une conversation (marche aussi sur une archivée)
