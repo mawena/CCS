@@ -318,7 +318,7 @@ class GuiCliTest(HomeTestCase):
             self.run_gui("gui", "--page", "inconnu")
         self.assertEqual(raised.exception.code, 2)
         self.assertIn("onglet inconnu", err.getvalue())
-        self.assertIn("accueil, sessions, reseau, fichiers, analyse, jarvis", err.getvalue())
+        self.assertIn("accueil, sessions, reseau, fichiers, jarvis, analyse", err.getvalue())
 
     def test_task_from_a_notification(self):
         code, launched = self.run_gui("gui", "--page", "planning", "--task", "12")

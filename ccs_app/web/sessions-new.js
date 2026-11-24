@@ -2,7 +2,8 @@
 // compte, fournisseur, modèle, effort et droits, dans cet ordre. Les listes et les droits par
 // défaut viennent du pont (chat.providers → form, chat_options.new_session_form), les mêmes que
 // le bureau. Le compte demande une bascule globale (accounts.switch) avant l'ouverture, comme le
-// bureau ; la feuille le dit.
+// bureau ; la feuille le dit. L'option « Market » ouvre la session dans le dossier du chat Market
+// (market.workspace : CLAUDE.md et droits des outils du marché) au lieu d'un projet.
 import { clear, el, errorState, loading } from "./dom.js";
 import { sheet } from "./sessions-conv.js";
 
@@ -73,6 +74,10 @@ export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
     refreshProvider();
   }, () => {});
   const picker = el("div", { class: "folder-picker" });
+  const market = el("input", { type: "checkbox", "aria-label": "Market (Marketplace Facebook)" });
+  const marketBox = el("label", { class: "check" }, market, el("span", {}, "Market (Marketplace Facebook)"));
+  const folderBox = el("label", {}, "Dossier", folder);
+  market.addEventListener("change", () => { folderBox.hidden = picker.hidden = market.checked; term.disabled = market.checked; });
   const msg = el("p", { class: "message", role: "alert" });
 
   // ---- dossiers : récents d'abord, puis les dépôts du disque, filtrés par ce qui est tapé ----
@@ -136,7 +141,10 @@ export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
 
   // ---- validation -----------------------------------------------------------------------------
   const open = async () => {
-    const path = folder.value.trim();
+    let path = folder.value.trim();
+    if (market.checked) {
+      try { path = (await api.call("market.workspace")).cwd; } catch (e) { msg.textContent = e.message; return; }
+    }
     if (!path) { msg.textContent = "Choisis ou tape un dossier."; folder.focus(); return; }
     msg.textContent = "";
     go.disabled = true;
@@ -149,13 +157,13 @@ export function newSession(api, { known = [], initial = "", onOpen, onTerm }) {
       const chosen = provider.value && provider.value !== "claude" ? provider.value : null;
       const ok = await onOpen(path, { model: model.value || null, effort: chosen ? null : effort.value || null,
         rights: rights.value || form.default_rights, provider: chosen });
-      if (ok !== false) { rememberFolder(path); close(); }
+      if (ok !== false) { if (!market.checked) rememberFolder(path); close(); }
     } catch (e) { msg.textContent = e.message; } finally { go.disabled = false; }
   };
   const term = el("button", { type: "button", onclick: () => { const p = folder.value.trim(); if (!p) { msg.textContent = "Choisis ou tape un dossier."; return; } rememberFolder(p); close(); onTerm(p); } }, "Terminal");
   const go = el("button", { type: "button", class: "primary", onclick: open }, "Ouvrir un chat");
   const sheetForm = el("form", { class: "new-sheet", onsubmit: (e) => { e.preventDefault(); open(); } },
-    el("label", {}, "Dossier", folder), picker, accountBox, providerBox,
+    marketBox, folderBox, picker, accountBox, providerBox,
     el("div", { class: "two" }, el("label", {}, "Modèle", model), effortBox), el("label", {}, "Droits", rights), danger, msg);
   const { close } = sheet("Nouvelle session", sheetForm, [el("button", { type: "button", class: "flat", onclick: () => close() }, "Annuler"), term, go]);
 

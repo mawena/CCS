@@ -211,3 +211,34 @@ dialog.saved { width: min(520px, calc(100vw - 24px)); }
 .composer-foot .context.ctx-ok { color: #2e9d5b; }
 .composer-foot .context.ctx-warn { color: #d08a12; }
 .composer-foot .context.ctx-crit { color: #d0383e; font-weight: 600; }
+
+/* Chat riche (docs/chat-riche.md) : images, lecteurs et composants des blocs ```ccs */
+.rich-img { display: block; max-width: min(100%, 420px); max-height: 320px; height: auto; margin: 6px 0;
+  border-radius: var(--radius); box-shadow: var(--shadow); cursor: zoom-in; object-fit: contain; }
+.rich-media { margin: 6px 0; }
+.rich-audio { width: min(100%, 420px); }
+.rich-video { max-width: min(100%, 520px); max-height: 360px; border-radius: var(--radius); background: #000; }
+.rich-missing { color: var(--subtle); font-style: italic; }
+dialog.lightbox { padding: 0; border: none; background: transparent; max-width: 96vw; max-height: 96vh; cursor: zoom-out; }
+dialog.lightbox::backdrop { background: rgb(0 0 0 / 0.8); }
+dialog.lightbox img { display: block; max-width: 96vw; max-height: 96vh; object-fit: contain; }
+.rich { margin: 8px 0; }
+.rich-title { margin: 0 0 6px; font-weight: 600; }
+.rich-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.rich-row a.button { text-decoration: none; }
+.rich.sent { opacity: 0.6; }
+.rich-form { display: grid; gap: 8px; padding: 10px; max-width: 420px; background: var(--card);
+  border: 1px solid var(--line); border-radius: var(--radius); }
+.rich-field { display: grid; gap: 3px; font-size: 0.92em; }
+.rich-field input, .rich-field select { width: 100%; }
+.rich-form button[type="submit"] { justify-self: start; }
+.rich-cards { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; margin: 8px 0; scroll-snap-type: x mandatory; }
+.rich-card { flex: 0 0 auto; width: 240px; margin: 0; overflow: hidden; scroll-snap-align: start;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.rich-cards > .rich-card:only-child { width: min(100%, 320px); }
+.rich-card .rich-img { width: 100%; max-width: none; height: 150px; max-height: none; margin: 0;
+  border-radius: 0; box-shadow: none; object-fit: cover; }
+.rich-card-body { padding: 8px 10px 10px; display: grid; gap: 4px; }
+.rich-card-body p { margin: 2px 0; font-size: 0.92em; }
+.rich-card-title { font-size: 1em; }
+.rich-price { color: var(--accent); font-weight: 700; }

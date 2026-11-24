@@ -112,6 +112,61 @@ class MarkdownViewTest(unittest.TestCase):
             self.assertEqual(len(pics), 1)
             self.assertLessEqual(pics[0].get_size_request()[0], 600)
 
+    # -- chat riche (docs/chat-riche.md) ------------------------------------------------------
+
+    def test_ccs_choice_sends_once(self):
+        sent = []
+        v = self.view('```ccs\n{"type":"choix","titre":"Que faire ?","options":["Oui",'
+                      '{"label":"Voir","message":"Montre les détails"}]}\n```', on_send=sent.append)
+        self.assertFalse([w for w in walk(v) if isinstance(w, GtkSource.View)])
+        buttons = [w for w in walk(v) if isinstance(w, Gtk.Button)]
+        self.assertEqual([b.get_label() for b in buttons], ["Oui", "Voir"])
+        buttons[1].emit("clicked")
+        self.assertEqual(sent, ["Montre les détails"])
+        self.assertFalse(any(b.get_sensitive() for b in buttons))
+        labels = [w.get_label() for w in walk(v) if isinstance(w, Gtk.Label)]
+        self.assertIn("Que faire ?", labels)
+
+    def test_ccs_cards(self):
+        import ccs_app.gui.markdown_view as mv
+        sent, fetched = [], []
+        old = mv._fetch
+        mv._fetch = lambda url: fetched.append(url)      # pas de réseau dans les tests
+        try:
+            spec = ('{"type":"cartes","items":[{"titre":"Vélo","image":"https://ex.com/v.jpg",'
+                    '"prix":"45 000 FCFA","lien":"https://ex.com/v","description":"Bon état",'
+                    '"actions":[{"label":"Plus","message":"Plus sur le vélo"},{"label":"Site","lien":"https://ex.com"}]},'
+                    '{"titre":"Mauvais","lien":"javascript:alert(1)"},{"pas":"de titre"}]}')
+            v = self.view(f"```ccs\n{spec}\n```", on_send=sent.append)
+            cards = [w for w in walk(v) if w.has_css_class("ccs-rich-card")]
+            self.assertEqual(len(cards), 2)
+            labels = [w.get_label() for w in walk(cards[0]) if isinstance(w, Gtk.Label)]
+            self.assertIn('<b><a href="https://ex.com/v">Vélo</a></b>', labels)
+            self.assertIn("<b>45 000 FCFA</b>", labels)
+            self.assertEqual(len([w for w in walk(cards[0]) if isinstance(w, Gtk.Picture)]), 1)
+            bad = [w.get_label() for w in walk(cards[1]) if isinstance(w, Gtk.Label)]
+            self.assertNotIn("href", " ".join(bad))
+            plus = next(w for w in walk(cards[0]) if isinstance(w, Gtk.Button) and w.get_label() == "Plus")
+            plus.emit("clicked")
+            self.assertEqual(sent, ["Plus sur le vélo"])
+        finally:
+            mv._fetch = old
+
+    def test_ccs_form_and_invalid_stay_code(self):
+        for body in ('{"type":"formulaire","champs":[{"nom":"a"}]}', "{pas du json", '{"type":"inconnu"}'):
+            v = self.view(f"```ccs\n{body}\n```")
+            self.assertEqual(len([w for w in walk(v) if isinstance(w, GtkSource.View)]), 1, body)
+
+    def test_local_media_get_a_player(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "son.ogg").write_bytes(b"")
+            (Path(tmp) / "clip.mp4").write_bytes(b"")
+            v = self.view("Écoute `son.ogg` et [la vidéo](clip.mp4), pas [ça](https://ex.com/a.mp3).\n\n"
+                          "![démo](clip.mp4)", base_dir=tmp)
+            videos = [w for w in walk(v) if isinstance(w, Gtk.Video)]
+            self.assertEqual(len(videos), 3)
+            self.assertTrue(videos[0].has_css_class("ccs-rich-audio"))
+
     def test_set_text_replaces_content(self):
         v = self.view("a\n\nb")
         self.assertEqual(len(children(v)), 2)

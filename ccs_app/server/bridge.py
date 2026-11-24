@@ -328,5 +328,5 @@ def build(user, key, local=False, chat=None, **kwargs):
               "audio": bridge_audio.AudioApi(b)}
     # Jarvis aux commandes du réseau : s'appuie sur les chats et les liens vers les machines
     b.hubs["pilot"] = bridge_pilot.PilotApi(b, b.hubs["machines"], b.hubs["chat"])
-    b.hubs["market"] = bridge_market.MarketApi(b, b.hubs["chat"])        # onglet Market (phase 45)
+    b.hubs["market"] = bridge_market.MarketApi(b)        # dossier du chat Market (phase 45)
     return b

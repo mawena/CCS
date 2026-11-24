@@ -8,6 +8,7 @@ import { Completer } from "./chat-complete.js";
 import { contextAlert, contextLevel, fmtTokens, usageSummary } from "./chat-context.js";
 import { diffCard, editDiffs } from "./chat-diff.js";
 import { linkify } from "./chat-links.js";
+import { enrich } from "./chat-rich.js";
 import { claudeNode, icon, quoteOf, REPLY_ICON, selectionIn, userNode } from "./chat-message.js";
 import { CLAUDE, ME, compose, oneLine, sourceText } from "./chat-quote.js";
 import { openTagSheet, TAG_ICON, TagsPanel, tagChips } from "./chat-tags.js";
@@ -874,6 +875,9 @@ export class ChatView {
       setHtml(node, r.html);
       addCopyButtons(node);
       linkify(node, this.cwd, (await this.fileIndex()).set, (p, o) => this.openFile(p, o));
+      // images, lecteurs et blocs ```ccs ; le cache des fichiers locaux sert à tous les rendus
+      this.richCache ||= new Map();
+      enrich(node, { api: this.api, cwd: this.cwd, send: (t) => this.sendText(t), cache: this.richCache });
       if (follow) this.toBottom();
     } catch { if (!node.firstChild) node.textContent = markdown; }
   }

@@ -37,7 +37,14 @@ function clean(node) {
       const keep = ATTRS[child.tagName] || [];
       for (const a of [...child.attributes]) if (!keep.includes(a.name)) child.removeAttribute(a.name);
       const url = child.getAttribute("href") || child.getAttribute("src") || "";
-      if (url && !/^(https?:|mailto:|#|\/(?!\/))/i.test(url)) { child.removeAttribute("href"); child.removeAttribute("src"); }
+      if (child.tagName === "IMG" && url && !/^https:/i.test(url)) {
+        // image locale (« ![](captures/a.png) », « ![](/home/…) ») : gardée sans src, le chat la
+        // charge par l'explorateur (chat-rich.js) ; tout autre schéma est retiré.
+        if (!/^([a-z][\w+.-]*:|\/\/)/i.test(url)) child.dataset.path = url;
+        child.removeAttribute("src");
+      } else if (url && !/^(https?:|mailto:|#|\/(?!\/))/i.test(url)) {
+        child.removeAttribute("href"); child.removeAttribute("src");
+      }
       if (child.tagName === "A") { child.setAttribute("target", "_blank"); child.setAttribute("rel", "noopener noreferrer"); }
       clean(child);
     } else if (child.nodeType !== Node.TEXT_NODE) {
