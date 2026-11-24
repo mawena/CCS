@@ -1,4 +1,4 @@
-// Chat riche (phase 46) : dans une réponse de Claude déjà rendue (Markdown du pont, nettoyé par
+// Chat riche (phase 49) : dans une réponse de Claude déjà rendue (Markdown du pont, nettoyé par
 // dom.js), les images restent en taille limitée et s'ouvrent en grand d'un clic, les liens et
 // chemins de sons et de vidéos gagnent un lecteur, et les blocs ```ccs (JSON) deviennent des
 // composants : choix, formulaire, carte, cartes. Format : docs/chat-riche.md.
