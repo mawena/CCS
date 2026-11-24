@@ -554,9 +554,10 @@ class CliTest(Env):
         parser = argparse.ArgumentParser()
         sub = parser.add_subparsers(dest="cmd")
         from ccs_app import cli
-        market_cli.add_parser(sub, cli._command)
+        market_cli.add_parser(sub, cli._command, cli._action)
         a = parser.parse_args(["market", "search", "routeur wireguard", "--max", "30000", "--city", "lome"])
-        self.assertEqual((a.action, a.query, a.max, a.city), ("search", "routeur wireguard", 30000, "lome"))
+        self.assertEqual((market_cli.ALIASES.get(a.action, a.action), a.query, a.max, a.city),
+                         ("search", "routeur wireguard", 30000, "lome"))
         a = parser.parse_args(["market", "vendeur", "100058059515617", "--json"])
         self.assertEqual((market_cli.ALIASES.get(a.action, a.action), a.json), ("seller", True))
         with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):

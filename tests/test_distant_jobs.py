@@ -355,7 +355,7 @@ class TestCli(JobsCase):
         self.assertTrue(launch.call_args.kwargs["detached"])
 
     def test_hint_mentions_parallel_and_night(self):
-        self.assertIn("--quand nuit", distant.HINT)
+        self.assertIn("--when night", distant.HINT)
         self.assertIn("parallèle", distant.HINT)
 
 

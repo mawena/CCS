@@ -55,7 +55,7 @@ data class ListeMachines(
     val autres: List<Machine> get() = machines.filter { !it.local }
 }
 
-/** Un travail de `machines.jobs` (commande lancée par `ccs distant lancer` ou l'onglet Réseau). */
+/** Un travail de `machines.jobs` (commande lancée par `ccs remote run` ou l'onglet Réseau). */
 @Serializable
 data class TravailDistant(
     val id: String = "",

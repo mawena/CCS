@@ -53,7 +53,7 @@ sealed interface EvChat {
     data class CacheExpire(val contexte: Long, val ttlS: Long, val reecritureUsd: Double?, val texte: String) : EvChat
     data object Compacte : EvChat
     data class Reinitialise(val declencheur: String) : EvChat {
-        /** Effacée par Claude en fin de sujet (`ccs chat effacer`), pas par `/clear`. */
+        /** Effacée par Claude en fin de sujet (`ccs chat clear`), pas par `/clear`. */
         val auto: Boolean get() = declencheur == "ccs_auto"
     }
     data class Note(val texte: String, val genre: String) : EvChat

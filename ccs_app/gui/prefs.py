@@ -488,7 +488,7 @@ class PrefsPage(Adw.PreferencesPage):
         monthly = self.switch_row(
             "Rapport mensuel",
             "Le 1er du mois, une notification résume le mois écoulé : usage, coût équivalent API, "
-            "modèles, projets et évolution (détail dans l'onglet Analyse ou avec « ccs mois »)",
+            "modèles, projets et évolution (détail dans l'onglet Analyse ou avec « ccs month »)",
             "alerts", "monthly_report")
         monthly_hour = self.spin_row("Heure du rapport mensuel", "Heure d'envoi, le 1er du mois",
                                      "alerts", "monthly_report_hour", 0, 23)
@@ -501,7 +501,7 @@ class PrefsPage(Adw.PreferencesPage):
         g = Adw.PreferencesGroup(
             title="Conseiller de formule",
             description="Combien de comptes Pro, Max ou Ultra pour ton usage réel, d'après les relevés "
-                        "du service : onglet Analyse et « ccs formule ».")
+                        "du service : onglet Analyse et « ccs advisor ».")
         g.add(self.spin_row("Semaines analysées", "Historique des relevés pris en compte",
                             "advisor", "weeks", 1, 12))
         g.add(self.spin_row("Marge de sécurité (%)", "Ajoutée au besoin le plus haut mesuré",
@@ -755,7 +755,7 @@ class PrefsPage(Adw.PreferencesPage):
         night = self.s["tasks"]["night"]
         g = Adw.PreferencesGroup(
             title="Tâches",
-            description="Messages que Claude traite sans fenêtre (section Planning de l'Accueil, « ccs tache »), "
+            description="Messages que Claude traite sans fenêtre (section Planning de l'Accueil, « ccs task »), "
                         "avec le compte actif, une seule à la fois.")
         enabled = self.switch_row("Exécuter les tâches", "Sinon elles restent en file", "tasks", "enabled")
         hours = Adw.ActionRow(title="Plage de nuit", subtitle="Pour les tâches « cette nuit » (peut passer minuit)")

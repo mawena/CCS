@@ -365,7 +365,7 @@ def _model_line(report):
 
 
 def format_text(report):
-    """Texte de `ccs mois`."""
+    """Texte de `ccs month`."""
     lines = [title(report)]
     for head, rows in sections(report):
         lines += ["", head] + [f"• {row}" for row in rows]
@@ -398,7 +398,7 @@ def notification(report, key):
 
 
 # --------------------------------------------------------------------------
-# Commande `ccs mois`
+# Commande `ccs month`
 # --------------------------------------------------------------------------
 
 class _Usage(Exception):
@@ -416,11 +416,11 @@ def _months_back(text):
 
 
 def add_arguments(parser):
-    """Options de `ccs mois` (pour le sous-analyseur de cli)."""
-    parser.add_argument("--precedent", type=_months_back, default=0, metavar="N",
+    """Options de `ccs month` (pour le sous-analyseur de cli)."""
+    parser.add_argument("--previous", dest="precedent", type=_months_back, default=0, metavar="N",
                         help="N mois avant le mois écoulé (0 = le dernier mois terminé)")
-    # Même mot que `ccs semaine --precedente` : accepté, absent de l'aide.
-    parser.add_argument("--precedente", type=_months_back, dest="precedent", default=argparse.SUPPRESS,
+    # Anciens noms français : acceptés, absents de l'aide.
+    parser.add_argument("--precedent", "--precedente", type=_months_back, dest="precedent", default=argparse.SUPPRESS,
                         help=argparse.SUPPRESS)
 
 
@@ -428,22 +428,22 @@ def _parse(argv):
     class Parser(argparse.ArgumentParser):
         def error(self, message):
             raise _Usage(message)
-    parser = Parser(prog="ccs mois", add_help=False)
+    parser = Parser(prog="ccs month", add_help=False)
     add_arguments(parser)
     return parser.parse_args(list(argv)).precedent
 
 
 def command(args, now=None, build=None):
-    """`ccs mois [--precedent N]` : (code, texte). `args` est la liste des arguments ou un
+    """`ccs month [--previous N]` : (code, texte). `args` est la liste des arguments ou un
     objet portant `precedent` ; codes : 0 réussi, 1 échec, 2 usage."""
     try:
         back = args.precedent if hasattr(args, "precedent") else _parse(args or [])
         if not isinstance(back, int) or not 0 <= back <= MAX_MONTHS_BACK:
             raise _Usage(f"nombre de mois entre 0 et {MAX_MONTHS_BACK}")
     except _Usage as e:
-        return 2, f"Usage : ccs mois [--precedent N] ({e})"
+        return 2, f"Usage : ccs month [--previous N] ({e})"
     except SystemExit:
-        return 2, "Usage : ccs mois [--precedent N]"
+        return 2, "Usage : ccs month [--previous N]"
     from datetime import timezone
     now = now or datetime.now(timezone.utc)
     start = shift(month_of(now), -(back + 1))

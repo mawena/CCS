@@ -8,12 +8,12 @@ compte suivant — et un **orchestrateur** qui organise les fenêtres de 5 h pou
 qu'un compte soit disponible quand l'autre est épuisé.
 
 ```sh
-ccs enregistrer perso        # enregistre le compte connecté
-ccs ajouter boulot        # connecte et enregistre un deuxième compte
-ccs orchestrateur on        # l'orchestrateur gère le reste
+ccs save perso        # enregistre le compte connecté
+ccs add boulot        # connecte et enregistre un deuxième compte
+ccs orchestrator on        # l'orchestrateur gère le reste
 ccs integration on      # l'état des comptes en bas de chaque session Claude Code
-ccs etat            # où j'en suis, quel compte utiliser
-ccs formule           # la formule qu'il te faut, d'après ton usage réel
+ccs status            # où j'en suis, quel compte utiliser
+ccs advisor           # la formule qu'il te faut, d'après ton usage réel
 ```
 
 **Site :** [mawena.github.io/CCS](https://mawena.github.io/CCS/) ·
@@ -106,14 +106,14 @@ reprend tout de suite.
 Aussi dans le menu de l'icône (« Mettre en pause ») et par le bouton **Pause** du
 bandeau **Meilleur compte** de l'Accueil. Pendant la pause, l'en-tête de la fenêtre affiche
 « Auto ⏸ jusqu'à 14:00 » (un clic propose « Reprendre maintenant ») ;
-`ccs etat`, la section Planning de l'Accueil, l'icône et la ligne d'état de Claude Code la
+`ccs status`, la section Planning de l'Accueil, l'icône et la ligne d'état de Claude Code la
 rappellent aussi.
 
 ## Conseils
 
 En haut de l'onglet **Analyse**, et dans le terminal :
 
-- **Conseiller de formule** (`ccs formule`) : combien de comptes Pro, Max ou
+- **Conseiller de formule** (`ccs advisor`) : combien de comptes Pro, Max ou
   Ultra pour ton usage réel. CCS mesure ton besoin sur les 4 dernières semaines
   de relevés, en « unités Pro » (1 = la limite d'un compte Pro), ajoute 20 % de
   marge et cherche la combinaison la moins chère qui le couvre, jusqu'à
@@ -130,12 +130,12 @@ En haut de l'onglet **Analyse**, et dans le terminal :
   de 5 h — propose la famille suivante (Fable → Opus → Sonnet → Haiku) et le
   gain en ordre de grandeur (« ferait durer ce qui reste environ ×1,7 ») ; la
   ligne d'état de Claude Code ajoute « → sonnet ? ».
-- **Bilan de la semaine** (`ccs semaine`) : usage de chaque compte,
+- **Bilan de la semaine** (`ccs week`) : usage de chaque compte,
   conversations, sessions, tokens et équivalent API, modèles, projets, bascules
   et alertes, comparés à la semaine précédente. Une notification le résume au
   début de chaque semaine ; la carte de l'onglet Analyse laisse choisir la
   semaine (aussi « Bilan de la semaine » dans le menu de l'icône).
-- **Rapport mensuel** (`ccs mois`) : le même exercice sur le mois civil, mois en
+- **Rapport mensuel** (`ccs month`) : le même exercice sur le mois civil, mois en
   cours comparé au même nombre de jours du mois précédent, avec les 10 premiers
   projets et, à partir de 3 mois d'activité, la tendance sur 3 à 6 mois. Une
   notification le résume le 1er du mois ; la carte **Rapport mensuel** de
@@ -153,7 +153,7 @@ figurent pas.
 
 Une refonte, une migration, une longue session d'agents : **quand la lancer ?**
 La carte « Meilleur moment pour une grosse tâche » de la section **Planning** de l'Accueil
-(et `ccs moment --duree 3h`) compte, pour chaque heure de départ possible sur
+(et `ccs best-time --duration 3h`) compte, pour chaque heure de départ possible sur
 24 h, les **fenêtres de 5 h** disponibles tous comptes confondus (le reste de la
 fenêtre en cours, une fenêtre neuve à chaque réinitialisation, une fenêtre
 fraîche démarrée au départ), plafond hebdomadaire compris. Elle dit « Lance-la
@@ -168,7 +168,7 @@ plafond hebdomadaire est une **estimation** (une semaine pleine vaut environ
 jours au choix, passage de minuit) pendant laquelle les notifications sont
 retenues, puis un seul résumé « Fin du silence » dit combien il y en a eu. Le
 menu de l'icône (« Ne pas déranger » : 1 heure, 4 heures, Jusqu'à demain 08:00,
-Reprendre les notifications), `ccs silence 1h` et le raccourci clavier
+Reprendre les notifications), `ccs quiet 1h` et le raccourci clavier
 Super+Alt+D (désactivé au départ) posent un silence temporaire ; l'indicateur
 affiche 🔕 pendant un silence. Restent **toujours** affichées : une session qui attend ta réponse
 (sauf si tu le décides dans les Réglages), une session bloquée par une limite, le
@@ -182,7 +182,7 @@ Quand une nouvelle version est annoncée, le bandeau de la fenêtre (et l'entré
 téléchargement, **vérification de la somme SHA-256**, installation (fenêtre de
 mot de passe de `pkexec`), puis « Redémarrer l'application ». Détails et
 sécurité : [docs/utilisation.md](docs/utilisation.md#mises-à-jour) ; en
-ligne de commande : `ccs mise-a-jour`.
+ligne de commande : `ccs update`.
 
 ## Dans Claude Code
 
@@ -247,7 +247,7 @@ session », et l'indicateur affiche « · 💬 n » quand n sessions attendent.
 
 **Nouvelle session…** (bouton de l'onglet Sessions, menu ☰ de la fenêtre,
 « Avec des options… » dans le menu « Nouvelle session » d'un projet, ou
-`claude-accounts appli --nouvelle-session`) ouvre un dialogue : dossier,
+`claude-accounts app --new-session`) ouvre un dialogue : dossier,
 compte (celui du projet est présélectionné), modèle (`--model`) et mode de
 permissions (`--permission-mode`). Si tu choisis un autre compte que le compte
 actif, CCS bascule avant de lancer la session — et toutes les sessions ouvertes
@@ -257,7 +257,7 @@ suivent, le dialogue te le rappelle. Le mode « Aucune vérification »
 ## Compte par projet
 
 Le compte « boulot » pour les projets du travail, « perso » pour le reste ?
-Associe un dossier à un compte : `ccs projet ~/Work/App boulot`, ou « Compte de
+Associe un dossier à un compte : `ccs project ~/Work/App boulot`, ou « Compte de
 ce projet… » en tête d'un projet de l'onglet Sessions. Les sous-dossiers
 héritent du compte de leur dossier parent.
 
@@ -316,7 +316,7 @@ dans le fil garde un bouton « Voir ».
   Claude Code n'y verrait que du texte).
 - **Effacement automatique** (réglage `chat.auto_clear`, activé par défaut) : quand un sujet
   est vraiment fini (travail commité et publié, mémoire et feuille de route à jour), Claude
-  lance `ccs chat effacer` ; CCS envoie `/clear` dès la fin de son tour (jamais pendant qu'un
+  lance `ccs chat clear` ; CCS envoie `/clear` dès la fin de son tour (jamais pendant qu'un
   sous-agent de fond tourne), et le séparateur dit « Sujet terminé : Claude a effacé la
   conversation ». Moins de contexte, donc moins de quota par message.
 - **Nouvelle version du serveur** (web) : une page restée ouverte pendant une mise à jour
@@ -421,7 +421,7 @@ Ctrl+virgule pour les réglages. Le thème suit le système (ou clair, sombre au
 choix) et chaque compte a **sa couleur**, reprise sur les cartes, les jauges, les
 courbes et la barre du chat (Réglages → Apparence). Les anciens noms de page
 (`comptes`, `planning`, `terminaux`, `historique`…) restent acceptés par
-`claude-accounts appli --page`.
+`claude-accounts app --page`.
 
 ## Terminal intégré et onglets de session
 
@@ -471,7 +471,7 @@ s'affiche partout, VS Code compris.
 
 ## Historique des conversations
 
-L'onglet **Sessions** (« Tous les projets » pour tout voir) et `ccs conv` listent
+L'onglet **Sessions** (« Tous les projets » pour tout voir) et `ccs conversations` listent
 **toutes** les conversations Claude Code du PC, comme la liste des conversations
 passées de l'extension VS Code, mais tous projets confondus : titre (celui que
 tu as donné, sinon le titre automatique de Claude Code, sinon ta première
@@ -496,9 +496,9 @@ tarif de l'API. Ton abonnement ne facture pas au token : ce montant sert
 seulement à comparer les conversations.
 
 ```bash
-ccs conv                 # les 30 dernières conversations, groupées par date
-ccs conv export csv      # recherche
-ccs conv -p Portail      # un projet
+ccs conversations                 # les 30 dernières conversations, groupées par date
+ccs conversations export csv      # recherche
+ccs conversations -p Portail      # un projet
 ccs resume 4f3a          # reprend ici (4 premiers caractères de l'identifiant)
 ccs resume 4f3a --vscode # ou dans VS Code
 ccs title 4f3a Export CSV des prêts   # renomme la conversation
@@ -509,7 +509,7 @@ ccs export 4f3a          # l'enregistre en Markdown (<titre>.md ici)
 ## Journal des bascules
 
 Pourquoi CCS a-t-il changé de compte ? L'onglet **Historique** (et
-`ccs journal`) raconte chaque bascule, groupée par jour, avec sa raison en
+`ccs log`) raconte chaque bascule, groupée par jour, avec sa raison en
 clair :
 
 ```
@@ -552,8 +552,8 @@ Claude (ou toi) lance une commande root par CCS, sans rester bloqué sur une inv
 
 ```bash
 ccs root -- apt install ripgrep
-ccs root etat       # mot de passe gardé ? combien de temps encore ?
-ccs root oublier    # l'effacer tout de suite
+ccs root status       # mot de passe gardé ? combien de temps encore ?
+ccs root forget    # l'effacer tout de suite
 ```
 
 - Si CCS n'a pas le mot de passe, une fenêtre le demande sur **tous tes appareils** connectés :
@@ -569,7 +569,7 @@ ccs root oublier    # l'effacer tout de suite
   les sauvegardes et les copies. 3 essais par demande ; une demande sans réponse abandonne après
   5 minutes.
 - Chaque commande root est signalée sur tes appareils, avec un bouton « Révoquer » qui efface le
-  mot de passe et le coffre (`ccs root oublier` aussi).
+  mot de passe et le coffre (`ccs root forget` aussi).
 - Chaque machine (VPS, PC…) garde son propre mot de passe. Les chats lancés par CCS ont
   `SUDO_ASKPASS` : `sudo -A` y marche aussi, mais `ccs root` reste préférable (chaque commande
   y est signalée).
@@ -578,18 +578,18 @@ ccs root oublier    # l'effacer tout de suite
 
 Des raccourcis **globaux**, qui marchent même application fermée, tous
 désactivés au départ : **Réglages → Raccourcis clavier**, ou
-`ccs raccourcis on`.
+`ccs shortcuts on`.
 
 | Action | Raccourci | Commande |
 |---|---|---|
-| Ouvrir CCS | Super+Alt+C | `claude-accounts appli` |
-| Afficher les sessions | Super+Alt+V | `claude-accounts appli --page sessions` |
-| Nouvelle session | Super+Alt+N | `claude-accounts appli --nouvelle-session` |
-| Basculer sur le compte suivant | Super+Alt+B | `ccs suivant --notifier` |
-| Basculer sur le meilleur compte | Super+Alt+M | `ccs meilleur --notifier` |
-| Pause 1 h | Super+Alt+P | `ccs pause 1h --notifier` |
-| Reprendre (lever la pause) | Super+Alt+R | `ccs pause off --notifier` |
-| Ne pas déranger 1 h | Super+Alt+D | `ccs silence 1h --notifier` |
+| Ouvrir CCS | Super+Alt+C | `claude-accounts app` |
+| Afficher les sessions | Super+Alt+V | `claude-accounts app --page sessions` |
+| Nouvelle session | Super+Alt+N | `claude-accounts app --new-session` |
+| Basculer sur le compte suivant | Super+Alt+B | `ccs next --notify` |
+| Basculer sur le meilleur compte | Super+Alt+M | `ccs best --notify` |
+| Pause 1 h | Super+Alt+P | `ccs pause 1h --notify` |
+| Reprendre (lever la pause) | Super+Alt+R | `ccs pause off --notify` |
+| Ne pas déranger 1 h | Super+Alt+D | `ccs quiet 1h --notify` |
 
 Dans la fenêtre : Ctrl+1 à Ctrl+3 (onglets), Ctrl+virgule (réglages), Ctrl+B
 (replie l'arbre des fichiers), Ctrl+S (enregistre le fichier ouvert), Ctrl+F
@@ -599,13 +599,13 @@ Sans terminal pour le lire, le résultat s'affiche en notification passagère
 (« Bascule sur boulot », « Déjà sur perso », « Pause jusqu'à 14:00 »,
 « Bascule impossible »…) : c'est l'option `--notifier`. « Modifier » change la
 combinaison (ou
-`ccs raccourcis set suivant Super+Alt+B`) ; une combinaison déjà prise par le
+`ccs shortcuts set suivant Super+Alt+B`) ; une combinaison déjà prise par le
 bureau ou par un autre raccourci est signalée. Ce sont des raccourcis
 personnalisés de GNOME (Paramètres › Clavier › Raccourcis personnalisés) : CCS
 ne touche qu'aux siens, jamais aux tiens. Sur un autre bureau, CCS affiche les
 commandes, à associer toi-même à un raccourci. Des raccourcis activés avec une
 version précédente (sans `--notifier`) sont signalés « à mettre à jour » :
-bouton **Mettre à jour les commandes** des Réglages, ou `ccs raccourcis on`.
+bouton **Mettre à jour les commandes** des Réglages, ou `ccs shortcuts on`.
 
 ## Bilan de santé
 
@@ -631,8 +631,8 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Pause** | Bascule automatique et orchestrateur suspendus 1 h, 4 h, jusqu'à la prochaine plage horaire ou jusqu'à reprise ; levée automatique. |
 | **Alertes** | 80 % et 95 % (avec un bouton « Basculer sur … »), fin de session imminente, semaine épuisée dans 2 jours ou moins, bascule effectuée, tous comptes épuisés, compte réinitialisé, connexion expirée, session terminée ou en attente (avec un rappel après 10 min), pause terminée, nouvelle version, conseil de modèle près des limites, bilan de la semaine. Une fois par seuil et par fenêtre. |
 | **Conseils** | Conseiller de formule (combinaison Pro / Max / Ultra la moins chère pour ton usage, équivalent API), conseil de modèle près des limites, bilan de la semaine. |
-| **Rapport mensuel** | Le mois civil : comptes, activité, tokens, équivalent API, modèles, projets, évolution et tendance ; carte Analyse, notification le 1er du mois, `ccs mois`. |
-| **Meilleur moment** | Quand lancer une grosse tâche : fenêtres de 5 h disponibles par heure de départ, alternatives, frise des 24 h (section Planning de l'Accueil, `ccs moment`). |
+| **Rapport mensuel** | Le mois civil : comptes, activité, tokens, équivalent API, modèles, projets, évolution et tendance ; carte Analyse, notification le 1er du mois, `ccs month`. |
+| **Meilleur moment** | Quand lancer une grosse tâche : fenêtres de 5 h disponibles par heure de départ, alternatives, frise des 24 h (section Planning de l'Accueil, `ccs best-time`). |
 | **Ne pas déranger** | Plage de silence et silence temporaire : notifications retenues puis résumées en une seule ; les sessions qui attendent et les blocages passent toujours. |
 | **Mise à jour en un clic** | Bouton « Installer » du bandeau : téléchargement, SHA-256, `pkexec`, redémarrage de l'application. |
 | **Intégration Claude Code** | Ligne d'état dans chaque session, bascule automatique quand une session est bloquée. |
@@ -643,15 +643,15 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 | **Feuille de route** | Le `ROADMAP.md` du projet dans l'onglet de session : phases, barres de progression, cases cliquables ; la case que Claude coche s'allume. |
 | **Terminal intégré** | Onglets shell (VTE) et sortie de secours des chats ; deux sessions côte à côte, messages en attente, onglets rouverts au redémarrage (chats compris), reprise après une limite (aussi quand `claude` est lancé à la main dans un onglet shell), copier/coller, liens, confirmation avant fermeture. |
 | **Conversations** | Historique de toutes les conversations du PC (onglet Sessions), recherche, aperçu, export Markdown, coût, reprise dans l'application, VS Code ou un terminal externe, renommage, projets déplacés. |
-| **Journal des bascules** | Chaque changement de compte avec sa raison en clair, groupé par jour (partie Historique de l'onglet Analyse, `ccs journal`). |
+| **Journal des bascules** | Chaque changement de compte avec sa raison en clair, groupé par jour (partie Historique de l'onglet Analyse, `ccs log`). |
 | **Raccourcis clavier** | Raccourcis globaux GNOME, même application fermée : ouvrir, sessions, nouvelle session, compte suivant ou meilleur, pause. |
 | **Analyse** | Où part l'usage : par projet, modèle, heure et compte, avec des conseils concrets ; gros consommateurs (conversations et cause probable) ; bilan de la semaine et conseiller de formule. |
 | **Tokens de chaque réponse** | Sous chaque réponse d'un chat : tokens lus, écrits, produits et coût du tour ; indicateur de contexte coloré ; à l'expiration du cache (5 min ou 1 h), note « Cache expiré » avec Compacter / Nouvelle session et confirmation avant d'envoyer. Bureau, web, Android, iPhone, TUI. |
-| **File de tâches** | Des tâches pour Claude quand tu n'es pas là : « dès qu'il y a du quota », « cette nuit » ou à une heure. Exécutées sans fenêtre, une à la fois, par la file de Gagarine quand elle existe ; reprise après une limite ; notification à la fin (section Planning de l'Accueil, `ccs tache`). |
-| **Notifications sur le téléphone** | Optionnel, désactivé par défaut : via ntfy, le nom du projet et l'état (session qui attend, tâche finie, bascule, comptes épuisés), jamais le contenu ; lien et QR code dans les Réglages, `ccs telephone`. Une demande d'autorisation du chat porte les boutons **Autoriser** et **Refuser** (réponse signée, à usage unique, valable 10 min). |
+| **File de tâches** | Des tâches pour Claude quand tu n'es pas là : « dès qu'il y a du quota », « cette nuit » ou à une heure. Exécutées sans fenêtre, une à la fois, par la file de Gagarine quand elle existe ; reprise après une limite ; notification à la fin (section Planning de l'Accueil, `ccs task`). |
+| **Notifications sur le téléphone** | Optionnel, désactivé par défaut : via ntfy, le nom du projet et l'état (session qui attend, tâche finie, bascule, comptes épuisés), jamais le contenu ; lien et QR code dans les Réglages, `ccs phone`. Une demande d'autorisation du chat porte les boutons **Autoriser** et **Refuser** (réponse signée, à usage unique, valable 10 min). |
 | **Archive des conversations** | Claude Code efface les conversations de plus de 30 jours : CCS en garde une copie compressée, cherchable, avec aperçu, export et reprise comme les autres. |
-| **Fiche « où j'en étais »** | En un coup d'œil : dernière demande, début de la dernière réponse, fichiers modifiés, liste de tâches, branche, compte. Lue dans le journal, sans appeler Claude (`ccs fiche <id>`, aperçu d'une conversation). |
-| **Sauvegarde chiffrée** | Comptes (jetons compris), réglages, comptes par projet et budgets dans un seul fichier chiffré par gpg ; restauration avec confirmation (Réglages, `ccs sauvegarde`, `ccs restaurer`). |
+| **Fiche « où j'en étais »** | En un coup d'œil : dernière demande, début de la dernière réponse, fichiers modifiés, liste de tâches, branche, compte. Lue dans le journal, sans appeler Claude (`ccs recap <id>`, aperçu d'une conversation). |
+| **Sauvegarde chiffrée** | Comptes (jetons compris), réglages, comptes par projet et budgets dans un seul fichier chiffré par gpg ; restauration avec confirmation (Réglages, `ccs backup`, `ccs restore`). |
 | **Mémoire des sessions** | RAM de chaque session ouverte, total, sessions inactives, bouton « Fermer » avec confirmation ; rien n'est jamais fermé tout seul (onglet Sessions, `ccs sessions`). |
 | **Alerte de contexte lourd** | Une notification par session quand son contexte dépasse 150 000 tokens (réglable), avec le coût d'un message ; badge dans l'onglet Sessions et la ligne d'état. **Compactage automatique** des chats au-delà du seuil (activé par défaut, désactivable). |
 | **Budget par projet** | Un budget hebdomadaire en équivalent dollars par projet, alertes à 80 % et 100 % ; ne bloque jamais rien (onglet Analyse, `ccs budget`). |
@@ -668,7 +668,7 @@ bandeau « Un problème a été détecté… — Voir le bilan » en cas d'erreu
 CCS peut tourner sur un serveur pour piloter Claude Code sans être devant le PC :
 
 - **depuis le téléphone ou n'importe quel navigateur** : `https://ccs.mawena.cloud` (version web, installable sur l'écran d'accueil) ; elle fait presque tout ce que fait le bureau (voir plus bas) ;
-- **depuis un terminal** : `ccs tui`, par SSH sur le serveur, ou `ccs tui --serveur <nom>` depuis un autre poste ;
+- **depuis un terminal** : `ccs tui`, par SSH sur le serveur, ou `ccs tui --server <nom>` depuis un autre poste ;
 - **depuis l'application GTK du bureau**, connectée aux projets du serveur.
 
 Le même chat, les mêmes sessions : on les retrouve d'un écran à l'autre.
@@ -749,7 +749,7 @@ mot de passe.
 > **Fais cette première connexion juste après l'installation.** Tant qu'aucun code n'est
 > enregistré pour un utilisateur, le premier qui se connecte avec son mot de passe l'inscrit.
 
-Code perdu ou téléphone changé : `sudo ccs totp reinitialiser <utilisateur>` efface le code,
+Code perdu ou téléphone changé : `sudo ccs totp reset <utilisateur>` efface le code,
 le prochain accès affiche un nouveau QR code.
 
 ### Mode Portier (connexion unique)
@@ -798,8 +798,8 @@ Côté nginx, chaque `location` de la version web inclut `snippets/portier-prote
 
 ```sh
 ccs tui                        # sur le serveur (par SSH) : projets, chat, feuille de route, comptes
-ccs tui --serveur <nom>        # depuis un autre poste, serveur appairé
-ccs serveur ajouter ccs.mawena.cloud   # appairage (mot de passe et code) ; ccs serveur liste, ccs serveur retirer <nom>
+ccs tui --server <nom>        # depuis un autre poste, serveur appairé
+ccs server add ccs.mawena.cloud   # appairage (mot de passe et code) ; ccs server list, ccs server remove <nom>
 ```
 
 ### Depuis le bureau
@@ -908,10 +908,10 @@ réseau :
 **En ligne de commande** :
 
 ```bash
-ccs reseau                 # appareils et chemin de chaque liaison
-ccs reseau ping pc-bureau  # chemin et latence réels
-ccs reseau cle --nom pc-x  # clé jetable et lignes d'inscription (sur le VPS)
-ccs reseau serveur         # appareils connus du serveur
+ccs network                 # appareils et chemin de chaque liaison
+ccs network ping pc-bureau  # chemin et latence réels
+ccs network key --name pc-x  # clé jetable et lignes d'inscription (sur le VPS)
+ccs network server         # appareils connus du serveur
 ```
 
 Sur le VPS, le compte qui fait tourner CCS doit être dans le groupe `headscale` (clés, renommage,
@@ -925,7 +925,7 @@ ne fait que la mise en relation ; le son passe en direct entre les appareils (RT
 les adresses 100.64.x, 48 kHz stéréo, 100 à 200 ms de retard en direct, plus par un relais).
 Protocole : [`docs/audio.md`](docs/audio.md).
 
-- **PC Linux** : `ccs audio activer` (ou l'interrupteur « Son partagé sur ce PC » de l'onglet
+- **PC Linux** : `ccs audio enable` (ou l'interrupteur « Son partagé sur ce PC » de l'onglet
   Réseau du bureau) lance le service utilisateur `ccs-audio`. Le PC est annoncé, et chaque autre
   appareil apparaît comme une **vraie sortie son** (« iPhone de Charles ») dans les réglages du son
   de Linux : choisis-la pour une appli et le son part vers l'appareil ; muette 10 s, l'envoi
@@ -939,12 +939,12 @@ Protocole : [`docs/audio.md`](docs/audio.md).
   « Envoyer le son de … vers … » entre deux appareils quelconques.
 
 ```bash
-ccs audio lister                    # appareils annoncés et flux en cours
-ccs audio envoyer ici iphone        # le son de ce PC vers l'iPhone
-ccs audio envoyer pixel pc-bureau   # télécommande : du Pixel vers pc-bureau
-ccs audio arreter                   # arrête les flux de ce PC (ou : ccs audio arreter a3)
-ccs audio recevoir                  # sans le service : au premier plan, pour essayer
-ccs audio desactiver
+ccs audio list                    # appareils annoncés et flux en cours
+ccs audio send here iphone       # le son de ce PC vers l'iPhone
+ccs audio send pixel pc-bureau   # télécommande : du Pixel vers pc-bureau
+ccs audio stop                   # arrête les flux de ce PC (ou : ccs audio stop a3)
+ccs audio receive                  # sans le service : au premier plan, pour essayer
+ccs audio disable
 ```
 
 ## Market : Facebook Marketplace au Togo
@@ -987,12 +987,12 @@ machines : un build Flutter part sur le PC de bureau quand Flutter n'est pas sur
 longue suite de tests tourne ailleurs pendant que le VPS reste tranquille.
 
 ```sh
-ccs distant machines                       # machines en ligne, charge, outils trouvés
-ccs distant lancer -- flutter build apk    # la machine qui a flutter, la moins chargée
-ccs distant lancer --machine pc-bureau --rapatrier build/app/outputs -- flutter build apk
+ccs remote machines                       # machines en ligne, charge, outils trouvés
+ccs remote run -- flutter build apk    # la machine qui a flutter, la moins chargée
+ccs remote run --machine pc-bureau --fetch build/app/outputs -- flutter build apk
 ```
 
-`ccs distant lancer`, depuis le dossier du projet :
+`ccs remote run`, depuis le dossier du projet :
 
 1. choisit la machine : `--machine`, sinon celle qui a l'outil (le premier mot de la commande,
    ou `--outil`), la moins chargée d'abord ;
@@ -1007,15 +1007,15 @@ ccs distant lancer --machine pc-bureau --rapatrier build/app/outputs -- flutter 
 « Réseau » plus haut), SSH va directement à son adresse 100.64.x, par le réseau local quand les
 deux machines y sont ensemble ; sinon le tunnel Ricochet sert comme avant. Nom cherché dans le
 réseau : `reseau = "lp-work"` dans `[machines.<id>]` de `machines.toml` (`reseau = false` pour
-toujours passer par Ricochet), puis l'identifiant de la machine. `ccs distant machines` affiche
+toujours passer par Ricochet), puis l'identifiant de la machine. `ccs remote machines` affiche
 le chemin pris.
 
-Interrompre `ccs distant lancer` (Ctrl+C, arrêt de Claude, connexion perdue) arrête aussi la
+Interrompre `ccs remote run` (Ctrl+C, arrêt de Claude, connexion perdue) arrête aussi la
 commande sur l'autre machine, avec tout ce qu'elle a lancé : signal TERM, puis KILL 5 s plus
 tard. Le code de retour est alors 130.
 
 Les chats de CCS le savent : quand le calcul réparti est réglé, Claude reçoit la consigne de
-passer par `ccs distant lancer` si un outil manque ou pour un travail lourd.
+passer par `ccs remote run` si un outil manque ou pour un travail lourd.
 
 **Plusieurs travaux, file d'attente et nuit.** Chaque machine a un nombre de places (`limite`,
 2 par défaut) : le choix saute les machines pleines, et quand toutes sont pleines le travail
@@ -1023,12 +1023,12 @@ attend qu'une place se libère. On peut lancer plusieurs commandes à la fois (t
 build de l'autre).
 
 ```sh
-ccs distant lancer --detache -- npm test          # en arrière-plan, journal gardé
-ccs distant lancer --quand nuit -- make test-long # au début de la plage de nuit des tâches
-ccs distant lancer --quand 02:30 -- cargo bench   # à une heure donnée
-ccs distant travaux                               # en cours, en attente, programmés, finis
-ccs distant journal <id>                          # fin du journal d'un travail
-ccs distant arreter <id>                          # arrêt (la commande distante s'arrête aussi)
+ccs remote run --detach -- npm test          # en arrière-plan, journal gardé
+ccs remote run --when night -- make test-long # au début de la plage de nuit des tâches
+ccs remote run --when 02:30 -- cargo bench   # à une heure donnée
+ccs remote jobs                               # en cours, en attente, programmés, finis
+ccs remote log <id>                          # fin du journal d'un travail
+ccs remote stop <id>                          # arrêt (la commande distante s'arrête aussi)
 ```
 
 Le registre des travaux est dans `~/.cache/ccs/machines/jobs/` (les 30 derniers finis et ceux
@@ -1047,7 +1047,7 @@ ton compte sur ce PC ; case « Installer aussi CCS et Claude Code » pour ouvrir
 entières sur ce PC), ou
 
 ```sh
-ccs distant ajouter pc-salon --utilisateur charles [--nom "PC du salon"] [--limite 2] [--complet]
+ccs remote add pc-salon --user charles [--name "PC du salon"] [--limit 2] [--full]
 ```
 
 Avec `--complet` (ou la case), la ligne installe ensuite CCS depuis le dépôt APT et Claude Code
@@ -1057,7 +1057,7 @@ CCS déclare la machine dans Ricochet et donne **une ligne à coller** dans un t
 (Ubuntu ou Debian) : `curl -fsSL https://<relais>/rejoindre/<code> | sudo sh`. Elle installe
 l'agent Ricochet et le serveur SSH, autorise la clé SSH de ce serveur pour ce compte, ouvre le
 port 22 aux tunnels, active terminal et fichiers, puis démarre l'agent : la machine apparaît en
-ligne et `ccs distant` peut s'en servir tout de suite. Lancée depuis le serveur du réseau
+ligne et `ccs remote` peut s'en servir tout de suite. Lancée depuis le serveur du réseau
 maillé (le VPS), la ligne inscrit aussi le PC au réseau maillé sous son identifiant (clé jetable,
 15 min). Le lien ne sert qu'une fois, pendant
 15 minutes, et le jeton de la machine n'est jamais affiché. Il faut Ricochet 0.6.0 ou plus et
@@ -1190,7 +1190,7 @@ Réglages).
 - **En un clic** : CCS te prévient quand une nouvelle version est publiée
   (notification, icône, bandeau de la fenêtre, Réglages ; vérification sur
   GitHub au plus une fois par jour). Le bouton **Installer** du bandeau, ou
-  `ccs mise-a-jour`, télécharge, vérifie et installe le paquet.
+  `ccs update`, télécharge, vérifie et installe le paquet.
 - **À la main** : installe le nouveau `.deb` avec `sudo apt install ./ccs_*_all.deb`.
 
 Le service se relance seul avec la nouvelle version (dans les 5 min), l'icône
@@ -1211,61 +1211,61 @@ make deb                  # construit dist/ccs_<version>_all.deb
 
 ## Démarrage rapide
 
-1. **Enregistre le compte déjà connecté** : `ccs enregistrer perso`
-2. **Ajoute les autres** : `ccs ajouter boulot` ouvre la connexion dans le
+1. **Enregistre le compte déjà connecté** : `ccs save perso`
+2. **Ajoute les autres** : `ccs add boulot` ouvre la connexion dans le
    navigateur ; choisis bien un *autre* compte (`--email` pré-remplit).
 3. **Démarre le service** : `systemctl --user enable --now ccs-daemon`
-4. **Active l'orchestrateur** : `ccs orch on`, puis règle ta plage horaire dans
-   l'application (« CCS » dans le menu, ou `ccs appli`).
+4. **Active l'orchestrateur** : `ccs orchestrator on`, puis règle ta plage horaire dans
+   l'application (« CCS » dans le menu, ou `ccs app`).
 
 ## Commandes
 
 | Commande | Effet |
 |---|---|
 | `ccs` | Liste les profils (● = actif) |
-| `ccs <nom>` | Bascule sur un profil (ou `ccs utiliser <nom>`) |
-| `ccs suivant` / `ccs meilleur` | Profil suivant / meilleur compte du moment |
-| `ccs etat` | Compte actif, prévision, meilleur compte, capacité, orchestrateur, pause, service |
+| `ccs <nom>` | Bascule sur un profil (ou `ccs use <nom>`) |
+| `ccs next` / `ccs best` | Profil suivant / meilleur compte du moment |
+| `ccs status` | Compte actif, prévision, meilleur compte, capacité, orchestrateur, pause, service |
 | `ccs plan` | Planning des fenêtres et recharges à venir |
 | `ccs sessions` | Sessions Claude Code ouvertes : projet, état, consommation, RAM par session et totale, sessions inactives, contexte lourd |
-| `ccs conv [mots]` | Historique des conversations du PC, recherche, `-p <projet>`, `--vscode`/`--terminal` |
+| `ccs conversations [mots]` | Historique des conversations du PC, recherche, `-p <projet>`, `--vscode`/`--terminal` |
 | `ccs resume <id>` | Reprend une conversation ici, `--vscode`, `--new-terminal`, `--dir <dossier>` |
 | `ccs title <id> <titre>` | Renomme une conversation (comme `/rename`) |
-| `ccs preview <id>` | Affiche la conversation en Markdown, coût en en-tête (alias `ccs apercu`) |
+| `ccs preview <id>` | Affiche la conversation en Markdown, coût en en-tête |
 | `ccs export <id> [fichier.md]` | Enregistre la conversation en Markdown (défaut : `<titre>.md` dans le dossier courant) |
 | `ccs integration on\|off\|status` | Ligne d'état et bascule après blocage dans Claude Code |
 | `ccs usage` | Usage détaillé de tous les comptes, prévisions, rythme hebdo |
-| `ccs orch on\|off` | Orchestrateur |
+| `ccs orchestrator on\|off` | Orchestrateur |
 | `ccs auto on\|off` | Bascule automatique à 98 % |
 | `ccs pause [1h\|4h\|demain\|manuel\|off\|status]` | Met en pause la bascule automatique et l'orchestrateur (`status` par défaut) |
-| `ccs doctor` | Bilan de santé, avec la commande qui corrige chaque problème (alias `ccs bilan`) |
+| `ccs doctor` | Bilan de santé, avec la commande qui corrige chaque problème |
 | `ccs analyze [--days N]` | Consommation par projet, modèle, heure, compte + conseils |
-| `ccs formule` | Conseiller de formule : combinaison conseillée, raisonnement, équivalent API (alias `ccs conseil`) |
-| `ccs semaine [--precedente N]` | Bilan de la semaine (`--precedente N` : N semaines plus tôt) |
-| `ccs mois [--precedent N]` | Rapport mensuel (dernier mois terminé par défaut ; `--precedent N` : N mois plus tôt, 0 à 120) |
-| `ccs moment [--duree 3h] [--sur 24h]` | Meilleur moment pour une grosse tâche (durée 1 à 10 h, horizon 1 à 72 h) |
-| `ccs silence [1h\|4h\|demain\|off\|reprendre\|status]` | Ne pas déranger : silence temporaire des notifications (`status` par défaut ; alias `ccs quiet`) |
-| `ccs mise-a-jour [--verifier]` | Installe la dernière version de CCS (ou seulement la vérifie) ; alias `ccs maj` |
-| `ccs journal [--jours N\|--tout]` | Journal des bascules (7 derniers jours par défaut) |
-| `ccs projet [<dossier>] [<compte>\|aucun]` | Compte par projet : liste, compte d'un dossier, association (`aucun` la retire) |
-| `ccs raccourcis [status\|on\|off\|set]` | Raccourcis clavier globaux (GNOME) : état, activer, retirer, changer (alias `ccs shortcuts`) |
-| `… --notifier` | Avec `ccs <nom>`, `ccs utiliser`, `ccs suivant`, `ccs meilleur`, `ccs pause`, `ccs silence` : résultat aussi en notification (option des raccourcis clavier) |
-| `ccs enregistrer <nom>` / `ccs ajouter <nom>` | Enregistre le compte connecté / connecte un nouveau compte |
-| `ccs renommer <a> <b>` / `ccs supprimer <nom>` | Renomme / supprime un profil |
-| `ccs tache` | File de tâches pour Claude : liste ; `ajouter "<message>" [-C dossier] [--modele m] [--droits lecture\|modifications\|tout] [--quand quota\|nuit\|HH:MM]`, `voir <id>`, `annuler <id>`, `supprimer <id>` (alias `ccs taches`, `ccs tasks`) |
+| `ccs advisor` | Conseiller de formule : combinaison conseillée, raisonnement, équivalent API |
+| `ccs week [--previous N]` | Bilan de la semaine (`--previous N` : N semaines plus tôt) |
+| `ccs month [--previous N]` | Rapport mensuel (dernier mois terminé par défaut ; `--previous N` : N mois plus tôt, 0 à 120) |
+| `ccs best-time [--duration 3h] [--within 24h]` | Meilleur moment pour une grosse tâche (durée 1 à 10 h, horizon 1 à 72 h) |
+| `ccs quiet [1h\|4h\|demain\|off\|reprendre\|status]` | Ne pas déranger : silence temporaire des notifications (`status` par défaut) |
+| `ccs update [--check]` | Installe la dernière version de CCS (ou seulement la vérifie) |
+| `ccs log [--days N\|--all]` | Journal des bascules (7 derniers jours par défaut) |
+| `ccs project [<dossier>] [<compte>\|aucun]` | Compte par projet : liste, compte d'un dossier, association (`aucun` la retire) |
+| `ccs shortcuts [status\|on\|off\|set]` | Raccourcis clavier globaux (GNOME) : état, activer, retirer, changer |
+| `… --notify` | Avec `ccs <nom>`, `ccs use`, `ccs next`, `ccs best`, `ccs pause`, `ccs quiet` : résultat aussi en notification (option des raccourcis clavier) |
+| `ccs save <nom>` / `ccs add <nom>` | Enregistre le compte connecté / connecte un nouveau compte |
+| `ccs rename <a> <b>` / `ccs remove <nom>` | Renomme / supprime un profil |
+| `ccs task` | File de tâches pour Claude : liste ; `add "<message>" [-C dossier] [--model m] [--rights read\|edit\|all] [--when quota\|night\|HH:MM]`, `show <id>`, `cancel <id>`, `remove <id>` |
 | `ccs budget [<dossier> <montant>\|aucun]` | Budgets hebdomadaires par projet : état, définition (en dollars, équivalent API) ou retrait |
-| `ccs fiche <id>` | Fiche « où j'en étais » d'une conversation, sans appeler Claude |
-| `ccs sauvegarde [fichier]` / `ccs restaurer <fichier> [--oui]` | Sauvegarde chiffrée (gpg) des comptes et réglages / restauration (alias `backup`, `restore`) |
-| `ccs telephone [essai]` | Notifications sur le téléphone (ntfy) : état et lien d'abonnement, ou message d'essai (alias `ccs phone`) |
-| `ccs tui [--serveur <nom>]` | CCS en plein écran dans le terminal (ce poste, ou un serveur appairé) |
-| `ccs serveur ajouter <adresse> [--nom n]` / `liste` / `retirer <nom>` | Serveurs CCS distants : appairage (mot de passe et code), liste, retrait |
-| `sudo ccs totp reinitialiser <utilisateur>` | Sur le serveur : efface le code de double authentification d'un utilisateur |
-| `ccs audio lister` / `envoyer <source> <sortie>` / `arreter [flux\|appareil]` / `recevoir` / `activer [--nom n]` / `desactiver` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
-| `ccs distant machines [--vite]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--vite` : sans les interroger) |
-| `ccs distant lancer [--machine m] [--outil o] [--rapatrier chemin] [--inclure chemin] [--avec-git] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
+| `ccs recap <id>` | Fiche « où j'en étais » d'une conversation, sans appeler Claude |
+| `ccs backup [fichier]` / `ccs restore <fichier> [--yes]` | Sauvegarde chiffrée (gpg) des comptes et réglages / restauration |
+| `ccs phone [test]` | Notifications sur le téléphone (ntfy) : état et lien d'abonnement, ou message d'essai (`test`) |
+| `ccs tui [--server <nom>]` | CCS en plein écran dans le terminal (ce poste, ou un serveur appairé) |
+| `ccs server add <adresse> [--name n]` / `list` / `remove <nom>` | Serveurs CCS distants : appairage (mot de passe et code), liste, retrait |
+| `sudo ccs totp reset <utilisateur>` | Sur le serveur : efface le code de double authentification d'un utilisateur |
+| `ccs audio list` / `send <source> <sortie>` / `stop [flux\|appareil]` / `receive` / `enable [--name n]` / `disable` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
+| `ccs remote machines [--fast]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--fast` : sans les interroger) |
+| `ccs remote run [--machine m] [--tool o] [--fetch chemin] [--include chemin] [--with-git] [--when night\|HH:MM] [--detach] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
 | `ccs market search "<mots>" [--min N] [--max N] [--city lome]` / `seller <lien>` / `item <lien>` / `status` / `login` | Market : annonces de Facebook Marketplace au Togo (toujours par pc-bureau), vendeur, détails d'une annonce, état, connexion (une fois) ; `--json` |
-| `ccs chat effacer` | Dans un chat de CCS (lancé par Claude) : vide la conversation (`/clear`) à la fin du tour en cours |
-| `ccs appli` | Application graphique |
+| `ccs chat clear` | Dans un chat de CCS (lancé par Claude) : vide la conversation (`/clear`) à la fin du tour en cours |
+| `ccs app` | Application graphique |
 
 Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisation.md).
 
@@ -1274,8 +1274,8 @@ Détails : `man ccs`, `man claude-accounts`, [docs/utilisation.md](docs/utilisat
 Tout se règle dans la fenêtre **Réglages** (menu ☰) de l'application — Bascule
 automatique, Orchestrateur, Alertes, Ne pas déranger, Conseils, Conseiller de formule,
 Intégration, Terminal intégré, Raccourcis clavier, Warm-up, Service — ou par
-les commandes `ccs auto`, `ccs orch`, `ccs pause`, `ccs integration`,
-`ccs projet`, `ccs raccourcis`, `ccs tache`, `ccs budget`, `ccs telephone`. Les réglages vivent dans
+les commandes `ccs auto`, `ccs orchestrator`, `ccs pause`, `ccs integration`,
+`ccs project`, `ccs shortcuts`, `ccs task`, `ccs budget`, `ccs phone`. Les réglages vivent dans
 `~/.claude-accounts/settings.json`, fusionnés avec les valeurs par défaut :
 bascule automatique (`auto_switch`), alertes (`alerts` : seuils, fin de semaine
 prévue `weekly_forecast` / `weekly_forecast_days`, rappel d'attente
@@ -1357,9 +1357,9 @@ problème trouvé.
 
 | Symptôme | Solution |
 |---|---|
-| « le compte connecté n'est enregistré dans aucun profil » | `ccs enregistrer <nom>` avant de basculer. |
-| « connexion expirée ou révoquée » | `ccs supprimer <nom>` puis `ccs ajouter <nom>`. |
-| Pas de bascule / pas de démarrage | `ccs etat` : service en marche ? orchestrateur activé ? dans la plage horaire ? en pause (`ccs pause off`) ? |
+| « le compte connecté n'est enregistré dans aucun profil » | `ccs save <nom>` avant de basculer. |
+| « connexion expirée ou révoquée » | `ccs remove <nom>` puis `ccs add <nom>`. |
+| Pas de bascule / pas de démarrage | `ccs status` : service en marche ? orchestrateur activé ? dans la plage horaire ? en pause (`ccs pause off`) ? |
 | L'icône garde l'ancienne version après une mise à jour | Mise à jour en venant de la 0.4.0 ou d'avant : `pkill -f 'claude-accounts tray'; setsid -f claude-accounts tray`. |
 | L'ancienne version s'ouvre | Supprime `~/.local/bin/ccs`, `~/.local/bin/claude-accounts` et `~/.local/share/applications/io.ccs.ClaudeAccounts.desktop`. |
 | « CCS » introuvable dans le menu | Alt+F2 puis `r` (X11), ou reconnecte-toi. |
@@ -1368,8 +1368,8 @@ problème trouvé.
 | Le chat, la coloration ou l'aperçu Markdown ne marchent pas | Bibliothèques manquantes (`ccs doctor` : « Chat graphique ») : `sudo apt install gir1.2-gtksource-5 python3-markdown-it`. |
 | Les sessions s'ouvrent dans un terminal externe | Terminal intégré indisponible : `sudo apt install gir1.2-vte-3.91`, puis rouvre l'application. |
 | Une session bloquée n'est pas relancée dans l'onglet | `ccs integration on` (le hook est nécessaire), interrupteur « Reprise automatique après une limite » du menu « ⋮ » de la page Terminaux, pas de pause en cours ; une touche tapée dans l'onglet après la limite annule la reprise. |
-| Pas de proposition de bascule pour un projet | `ccs projet <dossier>` ; rien n'est proposé pendant une pause ni si « Ne plus demander pour ce projet » a été coché (réactive « Proposer la bascule » dans « Compte de ce projet… »). |
-| Un raccourci clavier ne fait rien | `ccs raccourcis status` : activé ? combinaison déjà prise (⚠) ? Bureau GNOME seulement ; « commande à mettre à jour » (déplacement du dépôt, installation du paquet, raccourci activé avant la 0.6.0) : « Mettre à jour les commandes » (Réglages) ou `ccs raccourcis on`. |
+| Pas de proposition de bascule pour un projet | `ccs project <dossier>` ; rien n'est proposé pendant une pause ni si « Ne plus demander pour ce projet » a été coché (réactive « Proposer la bascule » dans « Compte de ce projet… »). |
+| Un raccourci clavier ne fait rien | `ccs shortcuts status` : activé ? combinaison déjà prise (⚠) ? Bureau GNOME seulement ; « commande à mettre à jour » (déplacement du dépôt, installation du paquet, raccourci activé avant la 0.6.0) : « Mettre à jour les commandes » (Réglages) ou `ccs shortcuts on`. |
 | « Pas encore assez de relevés pour conseiller une formule » | Le conseiller a besoin d'au moins 3 jours de relevés du service. |
 
 Journaux du service : `journalctl --user -u ccs-daemon -f`.
@@ -1418,7 +1418,7 @@ make deb      # tests, paquet, SHA256SUMS et lintian dans dist/
 ```
 
 Essayer une copie de développement sans réveiller l'application installée :
-`CCS_APP_ID=io.ccs.ClaudeAccounts.Dev bin/claude-accounts appli` ;
+`CCS_APP_ID=io.ccs.ClaudeAccounts.Dev bin/claude-accounts app` ;
 `CCS_NO_VTE=1` force le repli sur le terminal externe.
 
 ## Licence

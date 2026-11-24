@@ -124,7 +124,7 @@ def status(run=None):
 
 
 def describe(st):
-    """Lignes affichées par `ccs reseau`."""
+    """Lignes affichées par `ccs network`."""
     if st["state"] != "Running":
         return [f"Réseau : {st['state'] or 'arrêté'} (tailscale up --login-server {SERVER_URL})"]
     lines = []

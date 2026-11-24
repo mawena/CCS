@@ -381,10 +381,10 @@ def install(plan=None, current=None, opener=None, run=None, progress=None, tmp_r
 
 
 # --------------------------------------------------------------------------
-# Sous-commande « ccs mise-a-jour »
+# Sous-commande « ccs update »
 # --------------------------------------------------------------------------
 
-USAGE = """usage : ccs mise-a-jour [--verifier]
+USAGE = """usage : ccs update [--check]
 
 Installe la dernière version de CCS publiée sur GitHub (téléchargement, vérification
 SHA-256 et du paquet, puis installation après mot de passe).
@@ -392,7 +392,7 @@ SHA-256 et du paquet, puis installation après mot de passe).
 
 
 def command(args, opener=None, run=None, out=print, current=None):
-    """(code, texte) de `ccs mise-a-jour [--verifier]`. Code 0 : à jour / installé /
+    """(code, texte) de `ccs update [--check]`. Code 0 : à jour / installé /
     nouvelle version signalée ; 1 : échec ; 2 : usage. `out(ligne)` reçoit la progression."""
     args = list(args)
     if args in (["-h"], ["--help"], ["--aide"]):

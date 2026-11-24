@@ -312,7 +312,7 @@ class ProfileChecksTest(unittest.TestCase):
         checks = by_name(doctor.check_profiles(p))
         self.assertEqual(checks["Compte perso"].statut, OK)
         self.assertEqual(checks["Compte pro"].statut, ERREUR)
-        self.assertEqual(checks["Compte pro"].commande, "ccs supprimer pro && ccs ajouter pro")
+        self.assertEqual(checks["Compte pro"].commande, "ccs remove pro && ccs add pro")
 
     def test_expired_and_soon_expired_refresh_token(self):
         p = healthy(profiles=lambda: [profile("a"), profile("b")],
@@ -327,7 +327,7 @@ class ProfileChecksTest(unittest.TestCase):
             {"name": "perso", "error": "connexion expirée ou révoquée : supprime ce profil puis rajoute le compte"}]})
         [c] = doctor.check_profiles(p)
         self.assertEqual(c.statut, ERREUR)
-        self.assertEqual(c.commande, "ccs supprimer perso && ccs ajouter perso")
+        self.assertEqual(c.commande, "ccs remove perso && ccs add perso")
 
     def test_other_collect_error_is_a_warning_without_secrets(self):
         p = healthy(state=lambda: {"updated_at": NOW, "accounts": [
@@ -344,7 +344,7 @@ class ProfileChecksTest(unittest.TestCase):
     def test_no_profile(self):
         [c] = doctor.check_profiles(healthy(profiles=lambda: []))
         self.assertEqual(c.statut, AVERTISSEMENT)
-        self.assertIn("ccs enregistrer", c.detail)
+        self.assertIn("ccs save", c.detail)
 
 
 class TokenInfoTest(HomeTestCase):
@@ -446,13 +446,13 @@ class ProcessTest(unittest.TestCase):
 class FormatTest(unittest.TestCase):
     def test_text_and_exit_code(self):
         checks = [Check("Service ccs-daemon", OK, "actif"),
-                  Check("Compte pro", ERREUR, "connexion perdue", "ccs supprimer pro && ccs ajouter pro"),
+                  Check("Compte pro", ERREUR, "connexion perdue", "ccs remove pro && ccs add pro"),
                   Check("Indicateur", AVERTISSEMENT, "non lancé")]
         text = doctor.format_text(checks, couleur=False)
         self.assertIn("✔ Service ccs-daemon", text)
         self.assertIn("✖ Compte pro", text)
         self.assertIn("⚠ Indicateur", text)
-        self.assertIn("→ ccs supprimer pro && ccs ajouter pro", text)
+        self.assertIn("→ ccs remove pro && ccs add pro", text)
         self.assertIn("1 erreur, 1 avertissement", text)
         self.assertNotIn("\033[", text)
         self.assertIn("\033[", doctor.format_text(checks, couleur=True))
@@ -525,7 +525,7 @@ class Phase11ChecksTest(unittest.TestCase):
         c = self.check("File de tâches", dead_tasks=lambda: ["ab12", "cd34"])
         self.assertEqual(c.statut, AVERTISSEMENT)
         self.assertIn("ab12, cd34", c.detail)
-        self.assertEqual(c.commande, "ccs tache annuler ab12")
+        self.assertEqual(c.commande, "ccs task cancel ab12")
 
     def test_failing_probe_is_only_a_warning(self):
         def boom():

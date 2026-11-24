@@ -19,7 +19,7 @@ retrait. Toutes les lectures et écritures passent par un « moteur » : `GioBac
 
 API : ACTIONS, action(), parse_binding(), normalize(), label(), same(), is_modifier_key(),
 supported(), status(), install(), remove(), remove_all(), set_binding(),
-update_commands(), conflicts(), format_text(), command() (`ccs raccourcis`).
+update_commands(), conflicts(), format_text(), command() (`ccs shortcuts`).
 """
 
 import copy
@@ -72,7 +72,7 @@ class Action:
 
     @property
     def display(self):
-        """Commande courte, pour l'affichage : « ccs suivant »."""
+        """Commande courte, pour l'affichage : « ccs next »."""
         return " ".join((self.program, *self.args))
 
     @property
@@ -836,14 +836,14 @@ def update_commands(backend=None):
 
 
 # --------------------------------------------------------------------------
-# Texte de « ccs raccourcis »
+# Texte de « ccs shortcuts »
 # --------------------------------------------------------------------------
 
 USAGE = (
-    "usage : ccs raccourcis [etat]                         état des raccourcis clavier globaux\n"
-    "        ccs raccourcis on [action…]                   active (toutes par défaut)\n"
-    "        ccs raccourcis off [action…]                  retire (toutes celles de CCS par défaut)\n"
-    "        ccs raccourcis definir <action> <raccourci>   ex. ccs raccourcis definir suivant Super+Alt+B\n"
+    "usage : ccs shortcuts [status]                       état des raccourcis clavier globaux\n"
+    "        ccs shortcuts on [action…]                   active (toutes par défaut)\n"
+    "        ccs shortcuts off [action…]                  retire (toutes celles de CCS par défaut)\n"
+    "        ccs shortcuts set <action> <raccourci>   ex. ccs shortcuts set suivant Super+Alt+B\n"
     f"actions : {', '.join(ACTION_IDS)}"
 )
 
@@ -859,13 +859,13 @@ def _line(item, width):
     if item.conflicts:
         notes.append("déjà pris : " + ", ".join(c.describe() for c in item.conflicts))
     if item.outdated:
-        notes.append(f"commande à mettre à jour : ccs raccourcis on {item.id}")
+        notes.append(f"commande à mettre à jour : ccs shortcuts on {item.id}")
     text = f"  {glyph} {item.label.ljust(width)}  {item.binding_label}"
     return text + ("  " + " — ".join(notes) if notes else "")
 
 
 def format_text(st):
-    """Texte de `ccs raccourcis status`."""
+    """Texte de `ccs shortcuts status`."""
     if not st.support.ok:
         width = max(len(a.label) for a in ACTIONS)
         lines = [f"Raccourcis clavier globaux : {st.support.message}", "",
@@ -876,14 +876,14 @@ def format_text(st):
     lines = ["Raccourcis clavier globaux (bureau GNOME, même application fermée)", ""]
     lines += [_line(i, width) for i in st.items]
     lines += ["",
-              "Activer : ccs raccourcis on [action…] · retirer : ccs raccourcis off [action…]",
-              "Changer : ccs raccourcis definir <action> <raccourci> (ex. Super+Alt+C)",
+              "Activer : ccs shortcuts on [action…] · retirer : ccs shortcuts off [action…]",
+              "Changer : ccs shortcuts set <action> <raccourci> (ex. Super+Alt+C)",
               f"Actions : {', '.join(ACTION_IDS)}"]
     return "\n".join(lines) + "\n"
 
 
 def command(args=(), backend=None):
-    """`ccs raccourcis [etat|on|off|definir]` (anciens : status, set) → (code de sortie, texte). 2 : usage,
+    """`ccs shortcuts [status|on|off|definir]` (anciens : status, set) → (code de sortie, texte). 2 : usage,
     1 : bureau non pris en charge ou raccourci refusé."""
     args = list(args or [])
     sub = args[0] if args else "status"

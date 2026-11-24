@@ -174,9 +174,9 @@ Le VPS n'a pas le SDK Android : on construit sur `pc-bureau` (SDK `~/Android`, J
 dossier. `local.properties` (ignoré par git) est créé par la commande :
 
 ```sh
-ccs distant lancer --machine pc-bureau --outil sh --rapatrier app/build/reports/tests -- sh -c \
+ccs remote run --machine pc-bureau --tool sh --fetch app/build/reports/tests -- sh -c \
   'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64; echo "sdk.dir=$HOME/Android" > local.properties; ./gradlew testDebugUnitTest'
-ccs distant lancer --machine pc-bureau --outil sh --rapatrier app/build/outputs/apk -- sh -c \
+ccs remote run --machine pc-bureau --tool sh --fetch app/build/outputs/apk -- sh -c \
   'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64; echo "sdk.dir=$HOME/Android" > local.properties; ./gradlew assembleRelease'
 ```
 

@@ -49,7 +49,7 @@ PERMISSION_HELP = {
 }
 DANGEROUS_MODES = frozenset({"bypassPermissions"})
 
-# Deux vocabulaires des droits : les mots de l'utilisateur (`ccs tache --droits`) et les modes
+# Deux vocabulaires des droits : les mots de l'utilisateur (`ccs task --rights`) et les modes
 # de Claude Code (`--permission-mode`, `chat.rights`). Partout, l'un et l'autre sont acceptés ;
 # `convert_rights` est la seule table de passage. « lecture » devient « plan » (analyse sans
 # rien modifier), le mode « lecture seule » que montrent tous les clients des chats.

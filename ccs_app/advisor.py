@@ -536,7 +536,7 @@ def _explain_api_and_prices(a):
 
 
 def format_text(advice):
-    """Texte de `ccs formule` : conseil puis raisonnement."""
+    """Texte de `ccs advisor` : conseil puis raisonnement."""
     lines = ["Conseiller de formule", advice.summary, ""]
     lines += [f"• {r}" for r in advice.reasons]
     return "\n".join(lines)

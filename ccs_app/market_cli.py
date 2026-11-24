@@ -5,17 +5,18 @@ import dataclasses
 import json
 import sys
 
-ACTIONS = {"search": ["chercher"], "seller": ["vendeur"], "item": ["annonce"],
-           "status": ["etat", "état"], "login": ["connexion"]}
+ACTIONS = {"search": "chercher", "seller": "vendeur", "item": "annonce", "status": "etat",
+           "login": "connexion"}
 
 
-def add_parser(sub, command):
-    """Sous-commande `market` (`command` : l'assistant `_command` de la CLI)."""
+def add_parser(sub, command, sub_action):
+    """Sous-commande `market` (`command`, `sub_action` : les assistants `_command` et `_action`
+    de la CLI ; anciens noms français acceptés, absents de l'aide)."""
     mk = command(sub, "market", "Market : chercher sur Facebook Marketplace au Togo")
     mk_sub = mk.add_subparsers(dest="action", required=True, metavar="<action>")
 
     def action(name, help):
-        return command(mk_sub, name, help, old=ACTIONS[name])
+        return sub_action(mk_sub, name, ACTIONS[name], help)
     s = action("search", "annonces d'une recherche : prix | titre | ville | lien")
     s.add_argument("query", help="mots cherchés")
     s.add_argument("--min", type=int, help="prix minimum (CFA)")
@@ -35,7 +36,7 @@ def add_parser(sub, command):
     return mk
 
 
-ALIASES = {old: name for name, olds in ACTIONS.items() for old in olds}
+ALIASES = {old: name for name, old in ACTIONS.items()}
 
 
 def cmd_market(args, market=None):

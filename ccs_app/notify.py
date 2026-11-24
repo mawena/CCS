@@ -62,6 +62,6 @@ def _dbus_send(alert, transient=False):
 
 def message(title, body="", urgency=1):
     """Notification simple et passagère : résultat d'une commande lancée par un raccourci
-    clavier (`ccs next --notifier`…). Identifiant, ou None si le bureau est injoignable."""
+    clavier (`ccs next --notify`…). Identifiant, ou None si le bureau est injoignable."""
     from .alerts import Alert
     return send(Alert("message", title, body, urgency), transient=True)
