@@ -104,8 +104,10 @@ def job_subtitle(j, now=None):
 
 
 class MachinesPage(Adw.PreferencesPage):
-    def __init__(self, toast=None, runner=None, backend=None, default_cwd=None):
+    def __init__(self, toast=None, runner=None, backend=None, default_cwd=None, first_groups=()):
         super().__init__(title="Machines", icon_name="network-server-symbolic")
+        for group in first_groups:       # onglet Réseau : le réseau maillé avant les machines
+            self.add(group)
         self.toast = toast or (lambda _t: None)
         self.runner = runner or _threaded
         self.backend = backend or Backend()

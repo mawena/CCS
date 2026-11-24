@@ -107,11 +107,45 @@ class NavigationTest(HomeTestCase):
             self.addCleanup(win.destroy)
         applied.assert_called_once_with("sombre")
 
-    def test_three_tabs_in_order(self):
+    def test_six_tabs_in_order(self):
         pages = self.win.stack.get_pages()
         titles = [(pages.get_item(i).get_name(), pages.get_item(i).get_title())
                   for i in range(pages.get_n_items())]
-        self.assertEqual(titles, [("home", "Accueil"), ("sessions", "Sessions"), ("analysis", "Analyse")])
+        self.assertEqual(titles, [("home", "Accueil"), ("sessions", "Sessions"), ("network", "Réseau"),
+                                  ("files", "Fichiers"), ("analysis", "Analyse"), ("jarvis", "Jarvis")])
+
+    def test_network_tab_lists_mesh_devices(self):
+        from ccs_app.gui.network_page import MeshGroup
+        dev = {"name": "pixel", "ips": ["100.64.0.3"], "os": "android", "online": True,
+               "path": "direct", "endpoint": "1.2.3.4:41641", "relay": ""}
+        group = MeshGroup(runner=lambda work, done: done(work(), None),
+                          status=lambda: {"state": "Running", "self": None, "peers": [dev]})
+        group.refresh()
+        self.assertEqual([r.get_title() for r in group._rows], ["pixel"])
+        self.assertIn("100.64.0.3", group._rows[0].get_subtitle())
+        group.status = lambda: {"state": "Stopped", "self": None, "peers": []}
+        group.refresh()
+        self.assertEqual(len(group._rows), 1)
+        self.assertIn("Stopped", group._rows[0].get_title())
+
+    def test_files_tab_opens_a_file(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "a.txt").write_text("bonjour\n")
+            self.win.files.set_root(d)
+            self.win.files.open_file("a.txt")
+            self.assertEqual(self.win.files.right.get_visible_child_name(), "fichiers")
+            self.assertEqual(self.win.files.editor.paths(), [os.path.join(d, "a.txt")])
+
+    def test_jarvis_tab_without_server_leads_to_settings(self):
+        from ccs_app.gui.jarvis_page import JarvisPage
+        page = JarvisPage(self.win, jarvis_url=lambda: None)
+        page.update()
+        self.assertEqual(page.talk.get_label(), "Ouvrir les Réglages")
+        page.jarvis_url = lambda: "https://ccs.example/#/jarvis"
+        page.update()
+        self.assertEqual(page.talk.get_label(), "Parler à Jarvis")
 
     def test_sessions_tab_always_visible(self):
         page = self.win.stack.get_page(self.win.stack.get_child_by_name("sessions"))
@@ -168,7 +202,7 @@ class NavigationTest(HomeTestCase):
         app2 = self.appmod.App()
         with mock.patch.object(self.appmod, "Window", return_value=self.win):
             app2.window()
-        for key, tab in enumerate(("home", "sessions", "analysis"), 1):
+        for key, tab in enumerate(("home", "sessions", "network", "files", "analysis", "jarvis"), 1):
             self.assertEqual(app2.get_actions_for_accel(f"<Control>{key}"), [f"win.show-tab::{tab}"])
         self.assertEqual(app2.get_actions_for_accel("<Control>comma"), ["win.prefs"])
         for tab in ("analysis", "sessions", "home"):

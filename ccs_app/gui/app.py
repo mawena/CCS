@@ -21,10 +21,13 @@ from .common import (ask_name, ask_title, cap, error_text, in_thread, install_cs
                      now_utc, refresh_data, run_ccs_async)
 from .doctor_dialog import show_doctor  # noqa: E402
 from . import phone_hub, root_prompt, style  # noqa: E402
+from .files_page import FilesPage  # noqa: E402
 from .home_page import HomePage  # noqa: E402
+from .jarvis_page import JarvisPage  # noqa: E402
+from .network_page import NetworkPage  # noqa: E402
 from .new_session_dialog import ask_new_session  # noqa: E402
 from .preview_dialog import show_preview  # noqa: E402
-from .prefs_dialog import PrefsDialog  # noqa: E402
+from .prefs_dialog import PrefsDialog, current_project  # noqa: E402
 from .sessions_page import SessionsPage  # noqa: E402
 from .update_dialog import show_update  # noqa: E402
 from .terminals import TerminalsPage  # noqa: E402
@@ -107,10 +110,16 @@ class Window(Adw.ApplicationWindow):
         self.terminals = TerminalsPage(self, overview=self.sessions)
         self.analysis_hub = AnalysisHub(self)
         self.history, self.analysis = self.analysis_hub.history, self.analysis_hub.analysis
+        self.network = NetworkPage(toast=self.toast, default_cwd=current_project(self))
+        self.files = FilesPage()
+        self.jarvis = JarvisPage(self)
         for page, name, title, icon in (
                 (self.home, "home", "Accueil", "go-home-symbolic"),
                 (self.terminals, "sessions", "Sessions", "utilities-terminal-symbolic"),
-                (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic")):
+                (self.network, "network", "Réseau", "network-workgroup-symbolic"),
+                (self.files, "files", "Fichiers", "folder-symbolic"),
+                (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic"),
+                (self.jarvis, "jarvis", "Jarvis", "audio-input-microphone-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
         self.stack.connect("notify::visible-child-name", self.on_page)
         top_switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
