@@ -1,3 +1,9 @@
+ccs (1.16.0) unstable; urgency=medium
+
+  * Audio sous Linux fiabilisé, Venice et services compatibles OpenAI, rendu riche du chat sur iPhone et Android, lecteurs du téléphone Android pilotés.
+
+ -- mawena <gamligocharles@gmail.com>  Thu, 26 Nov 2026 00:30:00 +0100
+
 ccs (1.15.1) unstable; urgency=medium
 
   * Android : correction de la construction de l'APK (onglet Son).

@@ -212,3 +212,4 @@ Réglages ; les réponses de Claude affichent images, sons, vidéos et composant
 - [x] 9. Rendu riche dans l'appli iOS
 - [x] 10. Rendu riche dans l'appli Android
 - [x] 11. Release 1.15.0 (avec les lecteurs et l'onglet Son de la phase 42)
+- [x] 12. Release 1.16.0 (audio Linux, Venice, rendu riche iOS et Android, lecteurs du Pixel)
