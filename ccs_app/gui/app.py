@@ -118,8 +118,8 @@ class Window(Adw.ApplicationWindow):
                 (self.terminals, "sessions", "Sessions", "utilities-terminal-symbolic"),
                 (self.network, "network", "Réseau", "network-workgroup-symbolic"),
                 (self.files, "files", "Fichiers", "folder-symbolic"),
-                (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic"),
-                (self.jarvis, "jarvis", "Jarvis", "audio-input-microphone-symbolic")):
+                (self.jarvis, "jarvis", "Jarvis", "audio-input-microphone-symbolic"),
+                (self.analysis_hub, "analysis", "Analyse", "edit-find-symbolic")):
             self.stack.add_titled_with_icon(page, name, title, icon)
         self.stack.connect("notify::visible-child-name", self.on_page)
         top_switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)

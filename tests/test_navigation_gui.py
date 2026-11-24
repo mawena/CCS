@@ -112,7 +112,7 @@ class NavigationTest(HomeTestCase):
         titles = [(pages.get_item(i).get_name(), pages.get_item(i).get_title())
                   for i in range(pages.get_n_items())]
         self.assertEqual(titles, [("home", "Accueil"), ("sessions", "Sessions"), ("network", "Réseau"),
-                                  ("files", "Fichiers"), ("analysis", "Analyse"), ("jarvis", "Jarvis")])
+                                  ("files", "Fichiers"), ("jarvis", "Jarvis"), ("analysis", "Analyse")])
 
     def test_network_tab_lists_mesh_devices(self):
         from ccs_app.gui.network_page import MeshApi, MeshGroup
@@ -231,7 +231,7 @@ class NavigationTest(HomeTestCase):
         app2 = self.appmod.App()
         with mock.patch.object(self.appmod, "Window", return_value=self.win):
             app2.window()
-        for key, tab in enumerate(("home", "sessions", "network", "files", "analysis", "jarvis"), 1):
+        for key, tab in enumerate(("home", "sessions", "network", "files", "jarvis", "analysis"), 1):
             self.assertEqual(app2.get_actions_for_accel(f"<Control>{key}"), [f"win.show-tab::{tab}"])
         self.assertEqual(app2.get_actions_for_accel("<Control>comma"), ["win.prefs"])
         for tab in ("analysis", "sessions", "home"):

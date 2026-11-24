@@ -18,7 +18,7 @@ export const VIEWS = {
   sessions: { title: "Sessions", icon: "💬", mount: mountSessions },
   reseau: { title: "Réseau", icon: "🌐", mount: mountReseau },
   fichiers: { title: "Fichiers", icon: "📁", mount: mountFiles },
-  analyse: { title: "Analyse", icon: "▤", mount: mountAnalysis },
   jarvis: { title: "Jarvis", icon: "🎙", mount: mountJarvis },
+  analyse: { title: "Analyse", icon: "▤", mount: mountAnalysis },
   reglages: { title: "Réglages", icon: "⚙", mount: mountSettings },
 };
