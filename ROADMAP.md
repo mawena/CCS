@@ -208,7 +208,7 @@ Réglages ; les réponses de Claude affichent images, sons, vidéos et composant
 - [x] 5. Claude averti par `RICH_HINT` ; Market présente ses annonces en cartes et propose des choix
 - [x] 6. Tests (web, bureau sous Xvfb, moteur du chat, marché) ; `docs/chat-riche.md`
 - [ ] 7. Vérifier à l'écran : web (téléphone et ordinateur) et bureau, avec une vraie recherche Market
-- [ ] 8. Bureau : formulaire, images Markdown et médias distants (aujourd'hui bloc de code ou lien)
+- [x] 8. Bureau : formulaire, images Markdown https et médias distants
 - [ ] 9. Rendu riche dans l'appli iOS
 - [ ] 10. Rendu riche dans l'appli Android
 - [x] 11. Release 1.15.0 (avec les lecteurs et l'onglet Son de la phase 42)
