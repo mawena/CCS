@@ -366,6 +366,29 @@ class SessionsPageTest(HomeTestCase):
         self.assertEqual(blocked, set())
         self.assertTrue(tab.notices)
 
+    def test_limit_resume_sends_continue_to_shell_tab(self):
+        # `claude` lancé à la main dans un onglet shell : « continue » quand la limite est levée.
+        import types as _t
+        shell = _t.SimpleNamespace(state=_t.SimpleNamespace(kind="shell", running=True, pid=500),
+                                   sent=[], notices=[])
+        shell.send_auto = lambda text: shell.sent.append(text) or True
+        shell.show_notice = shell.notices.append
+        fake = _t.SimpleNamespace(options={"auto_resume": True}, limit_cfg={"enabled": True})
+        event = limit_events.LimitEvent("s-9", time.time() - 5, "perso", "pro", True, "switched")
+        calls = []
+
+        def resumes(marks, live, shells, now, history, enabled):
+            calls.append((shells, enabled))
+            return [(k, "s-9") for k in shells]
+        with mock.patch.object(terminals, "in_thread", lambda work, done: done(work())), \
+                mock.patch.object(terminals.limit_resume, "terminal_resumes", resumes):
+            terminals.TerminalsPage.resume_shells(fake, [shell], [], {"s-9": event})
+            self.assertEqual(shell.sent, ["continue"])
+            self.assertEqual(calls, [({id(shell): 500}, True)])
+            fake.options["auto_resume"] = False
+            terminals.TerminalsPage.resume_shells(fake, [shell], [], {"s-9": event})
+            self.assertEqual(len(calls), 1)
+
     def test_queue_is_sent_to_chat_when_free(self):
         now = time.time()
         tab = self.chat("s-1", running=True, pid=77, state="idle", busy_since=now - 20,

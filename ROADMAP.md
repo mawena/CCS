@@ -2,32 +2,15 @@
 
 Plusieurs comptes Claude Code sur un PC Linux, comme un seul. Détails de chaque
 version : `CHANGELOG.md` ; conceptions et plans : `docs/superpowers/`. Phases terminées
-(1 à 35, 39, 41, correctifs) : `docs/ROADMAP-fait.md`.
+(1 à 35, 38, 39, 41, correctifs) : `docs/ROADMAP-fait.md`.
 
 ## Reste à faire (résumé)
 
-- **Jarvis, essais réels** (laptop-maison en ligne) : 36.5 phrase depuis le téléphone hors du
-  Wi-Fi, 36.7d essai Pixel et iPhone, 40.3 oreilles sur chaque appareil, puis 36.8 release
-- **Réseau maillé** : 38.4 fusion de Ricochet (38.4b attend la décision de Charles), 38.5 retrait
-  de l'ancien transport du relais, 38.6 tests et releases
-- **Essai** : 37.4 « ajouter un PC » sur un vrai nouveau PC
-- **Plus tard** : 37.5 « Ajouter un PC » dans les applis, 31.10 onglets shell du bureau
+Tout ce qui reste attend un essai réel par Charles :
 
-## Phase 31 — Relance après une limite, sur toutes les interfaces (0.36.0)
-
-Charles (21/11/2026) : une session arrêtée par une limite de Claude Code doit repartir seule
-quand la limite est levée, sur le bureau, la TUI, le web, Android et l'iPhone.
-
-- [x] 1. `limit_resume` : heure de levée (fenêtre de 5 h, semaine, autre compte libéré), marqueurs « planned » / « lifted », verrou du hook, une bascule et une notification pour toutes les sessions bloquées
-- [x] 2. Hook StopFailure : relance prévue dès la limite (aucun compte libre, bascule impossible, pause), heure dans la notification, dossier de la conversation gardé
-- [x] 3. Service, application et pont font avancer les marqueurs (le premier qui a le verrou agit)
-- [x] 4. Onglets du terminal et chats du bureau : bandeau « relance prévue à HH:MM », « continue » à la levée
-- [x] 5. Chats du pont (web, Android, iPhone, TUI) : note dans le fil, « continue » à la levée ; marqueur de secours si le hook n'a rien écrit ; notes du pont affichées dans la TUI
-- [x] 6. Terminaux de la version web : `claude` lancé à la main relancé aussi
-- [x] 7. Hors de CCS : notification, ou `claude --resume … -p continue` en arrière-plan (réglage)
-- [x] 8. Réglage `limit_resume` (bureau, web, Android, iPhone), tests, docs, release 0.36.0
-- [x] 9. Essai réel par Charles lors d'une vraie limite (bureau, téléphone)
-- [ ] 10. Plus tard : onglets shell du bureau où `claude` est lancé à la main (aujourd'hui : notification)
+- **Jarvis** (laptop-maison en ligne) : 36.5 phrase depuis le téléphone hors du Wi-Fi, 36.7d essai
+  Pixel et iPhone, 40.3 oreilles sur chaque appareil, puis 36.8 release
+- **Ajouter un PC** : 37.4 essai sur un vrai nouveau PC
 
 ## Phase 36 — Oreilles de Jarvis
 
@@ -61,33 +44,7 @@ le relais garde 15 min, pour une seule lecture, le script d'installation de la m
 - [x] 2. CCS : `ccs distant ajouter`, méthode `machines.add`, section « Ajouter un PC » de la page Machines du web ; tests, README, CHANGELOG
 - [x] 3. Releases Ricochet 0.7.0 et CCS 1.2.0, relais mis à jour, `jeton_operateur` dans `client.toml` du VPS
 - [ ] 4. Essai réel par Charles sur un nouveau PC
-- [ ] 5. Plus tard : « Ajouter un PC » dans l'appli du bureau, Android et iPhone ; option qui installe aussi CCS et Claude Code (sessions entières sur la machine, piste 13 de la phase 21)
-
-## Phase 38 — Réseau maillé de tous les appareils (network.mawena.cloud)
-
-Charles (23/11/2026) : fusionner Ricochet dans CCS et relier tous ses appareils par internet comme
-sur un réseau local, en passant par le LAN quand deux appareils y sont ensemble. Choix : WireGuard
-en maillage avec **Headscale** (coordination, sur le VPS) et le client **tailscale** sur chaque
-appareil (appli de l'App Store sur l'iPhone : pas de NetworkExtension avec SideStore). Chemin choisi
-tout seul : LAN, puis direct par internet (percement de NAT), puis relais DERP du VPS. Noms de
-domaine en anglais : `network.mawena.cloud`, noms des machines en `<machine>.mesh.mawena.cloud`.
-
-- [x] 1. VPS : Headscale 0.29.7 (`network.mawena.cloud` derrière nginx, DERP intégré, STUN UDP 3478), VPS inscrit (100.64.0.1)
-- [x] 1b. Inscrire pc-bureau et laptop-maison (`ccs reseau cle --nom <machine>`, puis les deux lignes en root) — pc-bureau (`lp-work`, 100.64.0.2), laptop-maison (100.64.0.5, 23/11)
-- [x] 2. CCS : `ccs reseau` (fait en 1.3.0 : état, machines, chemin LAN/direct/relais, clé d'inscription jetable) ; le lien « Ajouter un PC » installe aussi tailscale et inscrit la machine (1.6.0)
-- [x] 3. Onglet « Réseau » à droite de Sessions (Charles, 23/11 : jolie DA, icônes ; web d'abord, installé, puis Android, puis iPhone)
-  - [x] Web : carte du réseau, fiches (adresses publiées, trafic, ping réel, renommer, retirer), ajout PC / Android / iPhone (1.4.0)
-  - [x] Android (1.5.0)
-  - [x] iPhone (1.5.0)
-  - [x] Web : l'ajout d'appareil ne revient plus sur « PC Linux » au rafraîchissement (1.5.1)
-- [ ] 4. Fusion de Ricochet dans le dépôt CCS (crates Rust, paquets) ; `ccs distant`, root et travaux passent par les IP du réseau maillé
-  - [x] 4a. `ccs distant` (et donc les travaux) en SSH direct sur l'adresse du réseau maillé, Ricochet en secours (1.6.0) ; root n'utilise Ricochet que pour le nom de la machine
-  - [ ] 4b. Déplacer le code de Ricochet dans le dépôt (à décider avec Charles : coût de construction Rust à chaque release)
-- [ ] 5. Pixel inscrit le 23/11 (`pixel-4-xl`, 100.64.0.3, appli Tailscale par adb) : pc-bureau ↔ Pixel passe par le LAN (10.228.2.44, 18 ms) ; VPS ↔ Pixel par relais DERP. iPhone inscrit le 23/11 (`iphone`, 100.64.0.4). Reste le retrait de l'ancien transport du relais. (Le Pixel est sur le même réseau local que pc-bureau : leur liaison doit passer par le LAN, à vérifier avec `ccs reseau etat`.) Pixel et iPhone dans le réseau (appli Tailscale, serveur personnalisé) ; retrait de l'ancien transport du relais
-- [ ] 6. Tests, README, CHANGELOG, releases
-- [x] 9. Tout par le réseau maillé, Ricochet en secours (liste des machines, `ccs distant`, Jarvis) ; fiche du serveur nommée « Serveur CCS » ; page Machines fondue dans l'onglet Réseau (1.7.0)
-- [x] 7. Root : mot de passe gardé pour toujours, chiffré (AES-256-GCM, `root_vault`), revérifié après redémarrage ; web sans compte à rebours (1.3.0)
-- [x] 8. Root « pour toujours » : plus de bandeau rouge nulle part (Charles, 23/11) ; `root.status` rend `kept: false, stored: true`, donc rien à reconstruire dans les applis (1.3.1)
+- [x] 5. (1.11.0) « Ajouter un PC » dans l'appli du bureau, Android et iPhone ; option qui installe aussi CCS et Claude Code (sessions entières sur la machine, piste 13 de la phase 21)
 
 ## Phase 40 — Jarvis maître de tout le réseau CCS
 

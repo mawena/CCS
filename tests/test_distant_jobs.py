@@ -464,7 +464,7 @@ class TestAddMachine(JobsCase):
         distant.set_limit("pc-salon", 5)
         r = distant.add_machine("pc-salon", name="Salon", user="charles", limit=3, opener=self.opener())
         self.assertEqual(r, {"id": "pc-salon", "command": "curl -fsSL https://r.example/rejoindre/abc | sudo sh",
-                             "mesh": False, "expires_s": 900})
+                             "mesh": False, "full": False, "expires_s": 900})
         req = self.requests[0]
         self.assertEqual((req.full_url, req.get_method()), ("https://r.example/api/machines", "POST"))
         self.assertEqual(req.get_header("Authorization"), "Bearer operateur")
@@ -481,6 +481,15 @@ class TestAddMachine(JobsCase):
         self.assertIn("--authkey cle123", r["command"])
         self.assertIn("--hostname pc-salon", r["command"])
         self.assertEqual(distant.load_overrides()["PC_Salon"]["reseau"], "pc-salon")
+
+    def test_full_line_installs_ccs_and_claude(self):
+        r = distant.add_machine("pc", user="charles", opener=self.opener(), mesh=lambda mid: None, full=True)
+        self.assertTrue(r["full"])
+        self.assertTrue(r["command"].endswith(" && " + distant.FULL_INSTALL))
+        self.assertIn("installer.sh | sudo sh -s -- ccs", r["command"])
+        self.assertIn("claude.ai/install.sh | bash", r["command"])
+        r = distant.add_machine("pc2", user="charles", opener=self.opener(), mesh=lambda mid: None)
+        self.assertNotIn("claude.ai", r["command"])
 
     def test_refusals(self):
         for kw in ({"machine_id": "a.b", "user": "c"}, {"machine_id": "pc", "user": ""},
@@ -515,6 +524,6 @@ class TestAddMachine(JobsCase):
                 redirect_stdout(out):
             code = cli.main(["distant", "ajouter", "pc", "--utilisateur", "charles", "--limite", "2"])
         self.assertEqual(code, 0)
-        add.assert_called_once_with("pc", name=None, user="charles", limit=2)
+        add.assert_called_once_with("pc", name=None, user="charles", limit=2, full=False)
         self.assertIn("| sudo sh", out.getvalue())
         self.assertIn("15 min", out.getvalue())

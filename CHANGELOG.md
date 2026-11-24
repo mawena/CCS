@@ -3,6 +3,17 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [1.11.0] — 2026-11-24
+
+### Ajouté
+
+- « Ajouter un PC » : option « Installer aussi CCS et Claude Code » (`ccs distant ajouter
+  --complet`, case dans le web, le bureau, Android et l'iPhone) ; la ligne à coller installe alors
+  CCS (dépôt APT) et Claude Code après l'inscription.
+- Bureau : section « Ajouter un PC » dans l'onglet Réseau.
+- Bureau : `claude` lancé à la main dans un onglet shell et bloqué par une limite reçoit
+  « continue » quand le compte change ou que la limite est levée (comme les terminaux du web).
+
 ## [1.10.0] — 2026-11-24
 
 ### Ajouté

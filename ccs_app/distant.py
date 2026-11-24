@@ -967,11 +967,17 @@ def mesh_join(machine_id, key=None):
     return host, "sudo sh -c " + shlex.quote(" && ".join(network.join_lines(key, host)))
 
 
+# Option « installer aussi CCS et Claude Code » de `add_machine` (sessions entières sur la machine).
+FULL_INSTALL = ("curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ccs"
+                " && curl -fsSL https://claude.ai/install.sh | bash")
+
+
 def add_machine(machine_id, name=None, user=None, limit=None, ports=(22,), opener=None, run=None,
-                mesh=None):
+                mesh=None, full=False):
     """Déclare une machine dans Ricochet et renvoie la commande à coller sur elle (lien à usage
     unique, 15 min) : elle installe l'agent, le serveur SSH et la clé de cette machine, ouvre les
-    ports aux tunnels et démarre l'agent. L'utilisateur et la limite vont dans `machines.toml`."""
+    ports aux tunnels et démarre l'agent. L'utilisateur et la limite vont dans `machines.toml`.
+    `full` : la commande installe aussi CCS (dépôt APT) et Claude Code."""
     if not isinstance(machine_id, str) or not NEW_MACHINE_ID.match(machine_id):
         raise DistantError("Identifiant invalide : lettres, chiffres, - et _ (64 au plus).")
     user = (user or "").strip() or None
@@ -1022,8 +1028,10 @@ def add_machine(machine_id, name=None, user=None, limit=None, ports=(22,), opene
     if joined:
         conf["reseau"] = joined[0]
         command += " && " + joined[1]
+    if full:
+        command += " && " + FULL_INSTALL
     _write_private(path, toml_dump(data))
-    return {"id": machine_id, "command": command, "mesh": bool(joined),
+    return {"id": machine_id, "command": command, "mesh": bool(joined), "full": bool(full),
             "expires_s": int(created.get("expire_s") or 900)}
 
 
