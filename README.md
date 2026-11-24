@@ -610,7 +610,7 @@ $ par million de jetons entrée/sortie) :
 
 | Fournisseur | Modèles | Clé |
 |---|---|---|
-| `openrouter` (compatible Anthropic) | GLM 5.3 (défaut, ~1,40/4,40 selon l'hébergeur), Grok 4.7 (2/6), DeepSeek V4.1 Flash 1017 (0,03/0,20), Kimi K3.1 Pro, Qwen3 Coder Next… | `~/.config/openrouter/cle` |
+| `openrouter` (compatible Anthropic) | DeepSeek V4.1 Flash 1017 `:floor` (défaut, le moins cher : hébergeur le moins cher choisi par OpenRouter, ~0,03-0,05/0,10-0,50 avec cache), GLM 5.3 (~1,40/4,40 selon l'hébergeur), Grok 4.7 (2/6), Kimi K3.1 Pro, Qwen3 Coder Next… | `~/.config/openrouter/cle` |
 | `deepseek` (API directe compatible Anthropic) | `deepseek-flash` (0,30/1,20, -50 % en heures creuses), `deepseek-v4-pro` | `~/.config/deepseek/cle` |
 
 Budget : plafonner la clé chez le fournisseur (sur OpenRouter, « limit » de la clé, par exemple
