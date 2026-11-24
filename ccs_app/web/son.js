@@ -180,7 +180,9 @@ export function createSon(api, icon = netIcon, { heading = true } = {}) {
 }
 
 // Écran Son autonome : `mountSon(conteneur, api)` → fonction de nettoyage (comme mountReseau).
-export function mountSon(root, api, icon = netIcon) {
+// Le 3ᵉ argument que passe l'appli est le contexte ({ user, banner… }), pas une fonction d'icônes.
+export function mountSon(root, api) {
+  const icon = netIcon;
   const son = createSon(api, icon, { heading: false });
   const wrap = el("div", { class: "settings-wrap net-page son-page" },
     el("section", { class: "card flat section", "aria-label": "Son partagé" },
