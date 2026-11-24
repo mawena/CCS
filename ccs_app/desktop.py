@@ -14,7 +14,8 @@ Afficher une tâche (`show_task`) : même mécanisme avec l'action « show-task 
 identifiant de la tâche) ; l'application fermée est lancée sur la section Planning de l'Accueil
 (`gui --page planning`).
 
-Onglets de la fenêtre (`page_name`) : trois onglets (accueil, sessions, analyse)
+Onglets de la fenêtre (`page_name`) : six onglets (accueil, sessions, réseau, fichiers,
+analyse, jarvis)
 et les réglages, une fenêtre à part. `gui --page <nom>` accepte aussi les anciens noms
 (comptes, planning, terminaux, historique) : `page_name` les ramène à (onglet, sous-partie).
 `gui --page <onglet>` accepte le nom d'un onglet ou son titre en français ; l'application reçoit la demande par ses actions
@@ -45,18 +46,20 @@ SHOW_PAGE_ACTION = "show-page"
 NEW_SESSION_ACTION = "new-session"
 
 # Onglets de la fenêtre (noms du ViewStack, dans l'ordre) et titres acceptés par « gui --page ».
-PAGES = ("home", "sessions", "analysis")
+PAGES = ("home", "sessions", "network", "files", "analysis", "jarvis")
 # Nom de page (ancien ou nouveau) -> (onglet, sous-partie). « prefs » n'est pas un onglet : il
 # ouvre la fenêtre des réglages.
 SUBPAGES = {"accounts": ("home", "accounts"), "planning": ("home", "planning"),
             "terminals": ("sessions", None), "history": ("analysis", "history"),
             "analysis": ("analysis", "analysis"), "prefs": ("prefs", None),
-            "home": ("home", None), "sessions": ("sessions", None)}
-PAGE_CHOICES = ("accueil", "sessions", "analyse", "comptes", "planning", "historique",
+            "home": ("home", None), "sessions": ("sessions", None),
+            "network": ("network", None), "machines": ("network", None),
+            "files": ("files", None), "jarvis": ("jarvis", None)}
+PAGE_CHOICES = ("accueil", "sessions", "reseau", "fichiers", "analyse", "jarvis", "comptes", "planning", "historique",
                 "terminaux", "reglages")
 PAGE_ALIASES = {"accueil": "home", "comptes": "accounts",
                 "terminaux": "terminals", "historique": "history", "analyse": "analysis",
-                "reglages": "prefs",
+                "reglages": "prefs", "reseau": "network", "fichiers": "files",
                 "conversations": "sessions"}   # ancien onglet, réuni à l'onglet Sessions
 
 

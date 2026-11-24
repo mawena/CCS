@@ -412,9 +412,11 @@ réseau).
 
 ## Navigation et apparence
 
-Trois onglets en haut : **Accueil** (comptes, derniers événements, planning et
-file de tâches), **Sessions** et **Analyse** (analyse et historique) ;
-**Réglages** est dans le menu ☰. Raccourcis : Ctrl+1 à Ctrl+3 pour les onglets,
+Six onglets en haut, comme la version web : **Accueil** (comptes, derniers événements,
+planning et file de tâches), **Sessions**, **Réseau** (appareils du réseau maillé, machines,
+travaux distants, secours Ricochet), **Fichiers** (arbre d'un dossier et éditeur), **Analyse**
+(analyse et historique) et **Jarvis** (ouvre la page Jarvis du serveur CCS dans le navigateur) ;
+**Réglages** est dans le menu ☰. Raccourcis : Ctrl+1 à Ctrl+6 pour les onglets,
 Ctrl+virgule pour les réglages. Le thème suit le système (ou clair, sombre au
 choix) et chaque compte a **sa couleur**, reprise sur les cartes, les jauges, les
 courbes et la barre du chat (Réglages → Apparence). Les anciens noms de page
