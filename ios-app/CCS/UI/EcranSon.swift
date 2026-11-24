@@ -289,10 +289,10 @@ private struct LigneLecteur: View {
             if lecteur.volume != nil {
                 HStack {
                     Image(systemName: "speaker.fill").foregroundStyle(.secondary)
-                    Slider(value: $volume, in: 0...100, step: 5) { edite in
+                    Slider(value: $volume, in: 0...100, step: 5, onEditingChanged: { edite in
                         glisse = edite
                         if !edite { piloter("volume", volume) }
-                    }
+                    })
                     .accessibilityLabel("Volume de \(lecteur.name)")
                     Image(systemName: "speaker.wave.3.fill").foregroundStyle(.secondary)
                 }
