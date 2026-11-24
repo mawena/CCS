@@ -1,3 +1,9 @@
+ccs (1.16.1) unstable; urgency=medium
+
+  * Venice : DeepSeek V4.1 Flash Uncensored par défaut.
+
+ -- mawena <gamligocharles@gmail.com>  Fri, 27 Nov 2026 00:30:00 +0100
+
 ccs (1.16.0) unstable; urgency=medium
 
   * Audio sous Linux fiabilisé, Venice et services compatibles OpenAI, rendu riche du chat sur iPhone et Android, lecteurs du téléphone Android pilotés.
