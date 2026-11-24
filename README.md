@@ -1005,6 +1005,7 @@ ccs audio send here iphone       # le son de ce PC vers l'iPhone
 ccs audio send pixel pc-bureau   # télécommande : du Pixel vers pc-bureau
 ccs audio stop                   # arrête les flux de ce PC (ou : ccs audio stop a3)
 ccs audio receive                  # sans le service : au premier plan, pour essayer
+ccs audio status                   # diagnostic : outils, serveur de son, sorties, service
 ccs audio disable
 ```
 
@@ -1338,7 +1339,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs tui [--server <nom>]` | CCS en plein écran dans le terminal (ce poste, ou un serveur appairé) |
 | `ccs server add <adresse> [--name n]` / `list` / `remove <nom>` | Serveurs CCS distants : appairage (mot de passe et code), liste, retrait |
 | `sudo ccs totp reset <utilisateur>` | Sur le serveur : efface le code de double authentification d'un utilisateur |
-| `ccs audio list` / `send <source> <sortie>` / `stop [flux\|appareil]` / `receive` / `enable [--name n]` / `disable` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
+| `ccs audio list` / `send <source> <sortie>` / `stop [flux\|appareil]` / `receive` / `status` / `enable [--name n]` / `disable` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
 | `ccs remote machines [--fast]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--fast` : sans les interroger) |
 | `ccs remote run [--machine m] [--tool o] [--fetch chemin] [--include chemin] [--with-git] [--when night\|HH:MM] [--detach] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
 | `ccs market search "<mots>" [--min N] [--max N] [--city lome]` / `seller <lien>` / `item <lien>` / `status` / `login` | Market : annonces de Facebook Marketplace au Togo (toujours par pc-bureau), vendeur, détails d'une annonce, état, connexion (une fois) ; `--json` |
