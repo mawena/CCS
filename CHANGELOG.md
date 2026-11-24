@@ -5,6 +5,27 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Ajouté
+
+- Son partagé sur le réseau maillé (phase 42) : chaque appareil CCS qui sait jouer du son est une
+  sortie pour les autres, chaque appareil qui sait capter le sien est une source ; on envoie le son
+  dans tous les sens (iPhone → pc-bureau, pc-bureau → Pixel…). Le serveur CCS ne fait que la mise
+  en relation (`audio.announce`, `audio.list`, `audio.send`, `audio.stop`, `audio.forget`) ; le son
+  passe en RTP/Opus, en UDP direct entre les adresses 100.64.x (port 4010). Protocole :
+  `docs/audio.md`.
+- Linux : `ccs audio lister | envoyer <source> <sortie> | arreter | activer | desactiver |
+  recevoir`, service utilisateur `ccs-audio` (désactivé par défaut). Chaque appareil distant
+  apparaît comme une sortie PipeWire (« iPhone de Charles ») : la choisir dans les réglages du son
+  lance l'envoi, ne plus s'en servir l'arrête après 10 s. GStreamer pour le son.
+- macOS et Windows : le même agent (`ccs audio agent`) joue le son reçu ; source par BlackHole
+  (macOS) ou `wasapi2src loopback=true` (Windows), sans sorties virtuelles. Non essayé.
+- Android : écran Son (Plus → Son partagé), lecture en service au premier plan, envoi du son du
+  téléphone par AudioPlaybackCapture (Android 10+, accord à chaque départ).
+- iPhone : écran Son, lecture en arrière-plan, envoi par une extension de diffusion ReplayKit
+  (contenus protégés muets).
+- Web (Réseau → Son partagé) et bureau GTK (onglet Réseau) : appareils, flux en cours, « Envoyer le
+  son » et « Arrêter ».
+
 ### Corrigé
 
 - Chat web : on voit enfin les sous-agents de fond travailler. La CLI ne passe que leur lancement
