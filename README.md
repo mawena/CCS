@@ -426,8 +426,8 @@ réseau).
 
 Six onglets en haut, comme la version web : **Accueil** (comptes, derniers événements,
 planning et file de tâches), **Sessions**, **Réseau** (appareils du réseau maillé, machines,
-travaux distants, secours Ricochet), **Fichiers** (arbre d'un dossier et éditeur), **Analyse**
-(analyse et historique) et **Jarvis** (ouvre la page Jarvis du serveur CCS dans le navigateur) ;
+travaux distants, secours Ricochet), **Fichiers** (arbre d'un dossier et éditeur), **Jarvis**
+(ouvre la page Jarvis du serveur CCS dans le navigateur) et **Analyse** (analyse et historique) ;
 **Réglages** est dans le menu ☰. Raccourcis : Ctrl+1 à Ctrl+6 pour les onglets,
 Ctrl+virgule pour les réglages. Le thème suit le système (ou clair, sombre au
 choix) et chaque compte a **sa couleur**, reprise sur les cartes, les jauges, les
@@ -1003,16 +1003,32 @@ ccs audio receive                  # sans le service : au premier plan, pour ess
 ccs audio disable
 ```
 
+## Chat riche
+
+Dans le chat (web et bureau), les réponses de Claude peuvent contenir :
+- des **images** : sur le web, elles s'ouvrent en grand d'un clic ;
+- des **lecteurs** pour les liens et chemins de sons et de vidéos ;
+- des **composants** écrits en blocs de code `ccs` (JSON) :
+  - `choix` : boutons qui envoient un message ;
+  - `carte` ou `cartes` : fiches avec photo, prix, lien et actions ;
+  - `formulaire` : web seulement.
+
+Claude en est averti à chaque lancement. Formats et limites : [docs/chat-riche.md](docs/chat-riche.md).
+Les applis iOS et Android ne les rendent pas encore.
+
 ## Market : Facebook Marketplace au Togo
 
-Onglet **Market** (web et bureau) : un chat où l'on pose une question — « le routeur le moins cher
+Option **Market (Marketplace Facebook)** de la nouvelle session (web et bureau ; il n'y a plus
+d'onglet Market) : un chat où l'on pose une question — « le routeur le moins cher
 compatible WireGuard à Lomé » — ou colle le lien d'un vendeur. Market cherche sur Facebook
 Marketplace au Togo et répond **dans le chat** par un classement au meilleur rapport qualité-prix :
 prix en CFA, lien de l'annonce, raisons (caractéristiques vérifiées sur le web), alternatives
 écartées. Pas de surveillance ni d'alerte : seulement la réponse.
+Le classement s'affiche en **cartes** (titre, prix, lieu, lien, photo si connue) suivies de
+boutons de **choix** pour la suite (voir [Chat riche](#chat-riche)).
 
-- C'est un chat Claude dédié (dossier `~/.local/share/ccs/market/`, avec son `CLAUDE.md`) : l'onglet
-  rouvre toujours le même chat, sur tous les appareils. Claude y lance `ccs market …`.
+- C'est un chat Claude dédié (dossier `~/.local/share/ccs/market/`, avec son `CLAUDE.md`) : l'option
+  ouvre la session dans ce dossier, sur tous les appareils. Claude y lance `ccs market …`.
 - Les requêtes vers Facebook sortent **toujours par pc-bureau**, par le réseau maillé : `ssh -D`
   vers 100.64.0.2, adresse de sortie vérifiée avant chaque recherche (jamais celle du VPS), puis un
   Chrome sans interface du VPS (navigateurs de Playwright) branché sur ce tunnel. **Pas de repli** :

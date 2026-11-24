@@ -3,6 +3,23 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Ajouté
+
+- **Chat riche** (web et bureau) :
+  - images agrandissables d'un clic (web) ;
+  - lecteurs pour les liens et chemins de sons et de vidéos ;
+  - blocs `ccs` en JSON : `choix` (boutons qui envoient un message), `carte` et `cartes` (photo, prix, lien, actions), `formulaire` (web seulement).
+  - Claude en est averti à chaque lancement. Format : `docs/chat-riche.md`.
+- **Market** présente ses annonces en cartes et propose des choix pour la suite.
+
+### Modifié
+
+- **Market** n'est plus un onglet : c'est l'option « Market (Marketplace Facebook) » de la nouvelle session (web et bureau).
+- **Onglets** : Jarvis passe avant Analyse ; Réglages reste en dernier.
+- **Version web** : la CSP autorise les images https et les médias `'self' blob: https:`.
+
 ## [1.14.0] — 2026-11-24
 
 ### Corrigé

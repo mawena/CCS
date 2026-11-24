@@ -187,3 +187,19 @@ chat) ; il doit se comporter comme la feuille du web.
 - [x] 6. Tests : dialogue sous Xvfb (ordre, défauts, effort, boutons, fenêtre pas encore affichée), bouton de projet, cache expiré, `new_session_form`, effort, `chat.providers`
 - [x] 7. Release 1.14.0
 
+
+## Phase 49 — Market en option, ordre des onglets, chat riche
+
+Market devient une option de la nouvelle session ; les onglets finissent par Jarvis, Analyse,
+Réglages ; les réponses de Claude affichent images, sons, vidéos et composants (blocs `ccs`).
+
+- [x] 1. Market : option « Market (Marketplace Facebook) » de la nouvelle session (web et bureau), plus d'onglet Market ; la CLI ne change pas
+- [x] 2. Onglets : …, Jarvis, Analyse, Réglages (web et bureau)
+- [x] 3. Web : images agrandissables, lecteurs de sons et de vidéos (https ou fichiers locaux lus par l'explorateur), blocs `ccs` choix, formulaire, carte, cartes ; CSP `media-src 'self' blob: https:`
+- [x] 4. Bureau : choix, carte et cartes, photos https des cartes, lecteurs des médias locaux
+- [x] 5. Claude averti par `RICH_HINT` ; Market présente ses annonces en cartes et propose des choix
+- [x] 6. Tests (web, bureau sous Xvfb, moteur du chat, marché) ; `docs/chat-riche.md`
+- [ ] 7. Vérifier à l'écran : web (téléphone et ordinateur) et bureau, avec une vraie recherche Market
+- [ ] 8. Bureau : formulaire, images Markdown et médias distants (aujourd'hui bloc de code ou lien)
+- [ ] 9. Rendu riche dans l'appli iOS
+- [ ] 10. Rendu riche dans l'appli Android
