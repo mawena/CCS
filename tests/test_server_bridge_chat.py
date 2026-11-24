@@ -221,7 +221,7 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         """C2 : options du moteur, conversation et journal dans chat.open, chat.attach et chat.list."""
         c = await self.client()
         r = await c.call("chat.open", cwd=str(self.project), options={"model": "sonnet", "effort": "high"})
-        want = {"model": "sonnet", "effort": "high", "ultracode": False, "rights": "manual"}
+        want = {"model": "sonnet", "effort": "high", "ultracode": False, "rights": "manual", "provider": None}
         self.assertEqual((r["options"], r["session_id"], r["path"]), (want, None, None))
         r2 = await c.call("chat.open", cwd=str(self.project), session_id="abc")
         self.assertEqual((r2["session_id"], r2["path"]), ("abc", None))       # journal pas encore écrit
@@ -238,6 +238,26 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         att = await c.call("chat.attach", chat_id=r2["chat_id"], since=0)
         self.assertEqual((att["session_id"], att["path"]), ("abc", str(journal)))
         self.assertEqual(set(att["options"]), set(want))
+
+    async def test_provider_checked_listed_and_fixed(self):
+        """Fournisseur : refusé sans clé, proposé par chat.providers, figé par chat.options."""
+        from ccs_app import providers
+        c = await self.client()
+        listed = {p["name"]: p for p in (await c.call("chat.providers"))["providers"]}
+        self.assertIsNone(listed["claude"]["problem"])
+        self.assertIn("clé absente", listed["openrouter"]["problem"])
+        self.assertTrue(listed["openrouter"]["models"])
+        with self.assertRaises(rpc.RpcError) as cm:
+            await c.call("chat.open", cwd=str(self.project), options={"provider": "openrouter"})
+        self.assertEqual(cm.exception.code, "invalide")
+        with self.assertRaises(rpc.RpcError):
+            await c.call("chat.open", cwd=str(self.project), options={"provider": "inconnu"})
+        providers.save_key("openrouter", "sk-or-essai")
+        r = await c.call("chat.open", cwd=str(self.project), options={"provider": "openrouter"})
+        self.assertEqual(r["options"]["provider"], "openrouter")
+        await c.call("chat.options", chat_id=r["chat_id"], options={"provider": None, "model": "x"})
+        att = await c.call("chat.attach", chat_id=r["chat_id"], since=0)
+        self.assertEqual(att["options"]["provider"], "openrouter")
 
     async def test_list_gives_journal_title(self):
         """chat.list donne le titre de la conversation : `/rename` ou CCS d'abord, sinon le titre

@@ -141,3 +141,23 @@ de pc-bureau (ceux de Chrome Linux sont chiffrés par le trousseau).
 - [ ] 12. Essai réel de la recherche par mot-clé (`/marketplace/lome/search?query=…`) : ville `lome` à confirmer, sélecteurs des cartes à ajuster si besoin
 - [ ] 13. Plus tard : onglet Market dans les applis Android et iPhone
 
+
+## Phase 46 — Fournisseurs de modèles (OpenRouter et autres, budget 50 $/mois)
+
+Charles (24/11/2026) : faire tourner Claude Code chez d'autres fournisseurs (OpenRouter d'abord)
+pour des modèles peu censurés, avec un budget de 50 $/mois au plus (clé plafonnée côté fournisseur).
+Principe : `claude --settings '<json>' --model <id>` (ANTHROPIC_BASE_URL, alias opus/sonnet/haiku
+et sous-agents sur le modèle choisi, `apiKeyHelper` qui lit la clé dans un fichier 600 ; clé
+jamais dans la ligne de commande).
+
+- [x] 1. `ccs_app/providers.py` : préréglage OpenRouter, `~/.config/ccs/providers.json`, clé `~/.config/openrouter/cle` (600)
+- [x] 2. `ccs provider list|show|models|key|test` (ancien nom `fournisseur` caché), variable `CCS_PROVIDER`
+- [x] 3. Branchements : options de lancement, onglets du terminal (libellé), tâches (`--provider`), exécuteur de tâches, chats (fournisseur figé à l'ouverture)
+- [x] 4. Dialogue GTK « Nouvelle session » (fournisseur, modèles, clé absente signalée) et web (nouvelle session, chat, `chat.providers` du pont)
+- [x] 5. Fusion de develop (commandes en anglais) ; test du pont `chat.open` corrigé (option `provider`)
+- [ ] 6. Comparatif des prix (OpenRouter, Venice, DeepInfra, Together, Featherless, Chutes, API directes DeepSeek, Moonshot, Z.ai) : modèles puissants avec outils, peu filtrés
+- [ ] 7. Modèles par défaut à jour dans les préréglages (identifiants vérifiés au catalogue OpenRouter) ; API directe compatible Anthropic en préréglage si nettement moins chère
+- [ ] 8. Essai du dialogue GTK sous Xvfb et tests web
+- [ ] 9. Documentation : README, `docs/man/ccs.1`, CHANGELOG
+- [ ] 10. Charles : compte OpenRouter, clé plafonnée à 50 $, `ccs provider key openrouter`, `ccs provider test openrouter`
+- [ ] 11. Release 1.13.0 (par Charles)
