@@ -47,6 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mawena.ccs.reseau.AppareilAudio
 import com.mawena.ccs.reseau.EnvoiAudio
@@ -72,6 +74,8 @@ private fun iconeSysteme(system: String): ImageVector = when (system) {
  * pilotés par `audio.control`, les sorties et sources du réseau maillé (`audio.list`), les flux
  * en cours (Arrêter), l'envoi du son de ce téléphone vers une sortie (accord de capture demandé à
  * chaque départ), et l'envoi de n'importe quelle source vers n'importe quelle sortie (`audio.send`).
+ * Avec l'accès aux notifications, les lecteurs de ce téléphone sont eux aussi partagés et
+ * pilotables depuis les autres appareils ([com.mawena.ccs.son.LecteursTelephone]).
  */
 @Composable
 fun EcranSon(modele: ModeleAppli, retour: (() -> Unit)? = null) {
@@ -83,6 +87,14 @@ fun EcranSon(modele: ModeleAppli, retour: (() -> Unit)? = null) {
     val probleme by son.probleme.collectAsStateWithLifecycle()
     val reception by son.reception.collectAsStateWithLifecycle()
     val capture by son.capture.collectAsStateWithLifecycle()
+    val accesLecteurs by son.lecteurs.acces.collectAsStateWithLifecycle()
+    val nombreLecteurs by son.lecteurs.nombre.collectAsStateWithLifecycle()
+    val contexte = LocalContext.current
+    // retour des réglages : l'accès aux notifications a pu être accordé
+    LifecycleResumeEffect(Unit) {
+        son.lecteurs.actualiser()
+        onPauseOrDispose { }
+    }
     var liste by remember { mutableStateOf<ListeAudio?>(null) }
     var erreur by remember { mutableStateOf<String?>(null) }
     var choisirCibleMoi by remember { mutableStateOf(false) }
@@ -184,6 +196,22 @@ fun EcranSon(modele: ModeleAppli, retour: (() -> Unit)? = null) {
                             "Envoyer le son de ce téléphone demande Android 10 ou plus ; il peut toujours jouer le son des autres.",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                    // lecteurs du téléphone pilotés depuis les autres appareils (accès aux notifications)
+                    if (accesLecteurs) {
+                        Text(
+                            when (nombreLecteurs) {
+                                0 -> "Aucun lecteur actif sur ce téléphone ; ceux qui jouent seront pilotables d'ailleurs."
+                                1 -> "1 lecteur de ce téléphone partagé."
+                                else -> "$nombreLecteurs lecteurs de ce téléphone partagés."
+                            },
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        OutlinedButton(
+                            onClick = { son.lecteurs.demanderAcces(contexte) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Autoriser le pilotage des lecteurs de ce téléphone") }
                     }
                 }
             }
