@@ -128,6 +128,35 @@ class NavigationTest(HomeTestCase):
         self.assertEqual(len(group._rows), 1)
         self.assertIn("Stopped", group._rows[0].get_title())
 
+    def test_network_tab_lists_sound_devices(self):
+        from ccs_app.gui.network_page import SoundGroup
+        calls = []
+        listing = {"devices": [
+            {"device": "iphone", "label": "iPhone", "ip": "100.64.0.4", "play": True, "capture": True, "system": "ios"},
+            {"device": "pc", "label": "PC", "ip": "100.64.0.2", "play": True, "capture": False, "system": "linux"}],
+            "streams": [{"stream": "a1", "source": "iphone", "target": "pc"}]}
+
+        def call(method, **params):
+            calls.append((method, params))
+            return listing
+        group = SoundGroup(runner=lambda work, done: done(work(), None), call=call,
+                           config=lambda: {"active": False, "port": 4010, "label": ""})
+        group.refresh()
+        titles = [r.get_title() for r in group._rows]
+        self.assertEqual(titles, ["iPhone", "PC", "iPhone → PC", "Envoyer le son"])
+        group._act("audio.send", source="iphone", target="pc")
+        self.assertIn(("audio.send", {"source": "iphone", "target": "pc"}), calls)
+        group.call = lambda m, **p: (_ for _ in ()).throw(RuntimeError("hors ligne"))
+
+        def runner(work, done):
+            try:
+                done(work(), None)
+            except RuntimeError as e:
+                done(None, e)
+        group.runner = runner
+        group.refresh()
+        self.assertEqual(group._rows[0].get_title(), "Son partagé indisponible")
+
     def test_files_tab_opens_a_file(self):
         import tempfile
         from pathlib import Path

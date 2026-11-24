@@ -12,6 +12,8 @@ Tout ce qui reste attend un essai réel par Charles :
   Pixel et iPhone, 40.3 oreilles sur chaque appareil, puis 36.8 release
 - **Ajouter un PC** : 37.4 essai sur un vrai nouveau PC
 
+En cours : **phase 42, son partagé** (le son d'un appareil joué sur un autre, dans tous les sens).
+
 ## Phase 36 — Oreilles de Jarvis
 
 Charles (22/11/2026) : CCS devient le transport des « oreilles » de Jarvis (assistant vocal,
@@ -56,3 +58,44 @@ cerveau local de laptop-maison prenant le relais quand plus aucun compte n'a de 
 - [x] 1. Outils de Jarvis côté CCS (CCS 1.8.0 : `jarvis.*` ; côté Jarvis : branche feature/outils-ccs) : méthodes du pont exposées à Jarvis (lister sessions et sous-agents, arrêter, lancer, état des machines et travaux), avec confirmation vocale pour les actions destructrices
 - [x] 2. (Jarvis 0.6.0 : `routage = local` par défaut tant que la règle n'est pas validée ; famille, adresse, micros de la maison sans ordre explicite restent locaux) Routage du cerveau : Claude (`ccs meilleur`) si la demande n'est pas sensible et qu'un compte a du quota, sinon le cerveau local ; règle de sensibilité à fixer avec Charles
 - [ ] 3. Oreilles partout (iPhone, Pixel, lp-work, lp-home) avec dédoublonnage quand plusieurs entendent la même phrase — dédoublonnage fait côté cerveau (Jarvis 0.6.1 : une phrase traitée une fois, le bouton gagne toujours) ; reste les oreilles sur chaque appareil
+
+## Phase 42 — Son partagé sur le réseau maillé
+
+Charles (24/11/2026) : tout appareil du réseau qui peut jouer du son est détecté automatiquement
+comme « sortie audio » par les autres, et on envoie le son dans tous les sens : iPhone → pc-bureau,
+iPhone → Pixel, pc-bureau → iPhone, etc.
+
+Conception :
+- **Annonce** : pas de multicast sur Tailscale, donc pas de mDNS. Chaque appareil CCS annonce au
+  serveur CCS (VPS) ce qu'il sait faire : `{appareil, ip maillée, jouer, capter, port}`, renouvelé
+  toutes les 30 s, oublié après 90 s. Méthodes du pont `audio.annoncer`, `audio.lister`,
+  `audio.envoyer` (demande à la cible de se préparer, puis à la source d'émettre), `audio.arreter`.
+- **Transport** : RTP/Opus (RFC 7587) en UDP direct entre adresses 100.64.x, trames de 20 ms,
+  48 kHz stéréo, tampon de gigue 60 à 150 ms. Standard : GStreamer/ffmpeg côté Linux, décodeur
+  Opus natif côté Android (MediaCodec) et iOS (AudioToolbox). Port UDP 4010.
+- **Capter le son** : Linux, moniteur PipeWire de la sortie choisie ; Android 10+,
+  AudioPlaybackCapture (accord MediaProjection à chaque départ ; certaines applis l'interdisent) ;
+  iPhone, extension de diffusion ReplayKit (lancée depuis le centre de contrôle ; Apple Music,
+  Netflix et autres contenus protégés restent muets).
+- **Côté PC** : chaque sortie distante apparaît comme une vraie sortie PipeWire (« iPhone de
+  Charles ») : n'importe quelle appli peut l'utiliser depuis les réglages du son.
+- **Limites** : retard de 100 à 200 ms en direct, nettement plus par un relais Tailscale ; pas
+  pour une vidéo synchro par un relais.
+
+- [x] 1. Serveur : registre des sorties audio (annonce, expiration, liste) et méthodes du pont, tests
+- [ ] 2. Linux : `ccs audio` (lister, envoyer, recevoir), récepteur RTP/Opus, sorties PipeWire virtuelles pour chaque appareil distant, annonce automatique par le démon ; essai pc-bureau ↔ VPS
+- [x] 3. Android : récepteur (service au premier plan) et émetteur (AudioPlaybackCapture), annonce, écran « Son » ; APK sur Codemagic
+- [x] 4. iPhone : récepteur (lecture en arrière-plan) et extension ReplayKit émettrice, annonce, écran « Son » ; IPA sur Codemagic
+- [x] 5. Web et bureau GTK : liste des sorties et bouton « Envoyer le son vers… »
+- [ ] 6. Essais réels dans les six sens, README, CHANGELOG, release
+- [ ] 7. Autres systèmes, dans l'ordre demandé par Charles (Linux, iPhone, Android, puis le reste) :
+  agent portable sur macOS (GStreamer, sortie puis source par BlackHole) et Windows (GStreamer,
+  `wasapi2src loopback=true`), sans les sorties virtuelles de Linux
+
+## Phase 43 — Sous-agents visibles dans le chat web
+
+Charles (24/11/2026) : dans le chat web, on ne voit pas les sous-agents travailler.
+
+- [x] 1. Sous-agents de fond : le pont lit leur transcription (`subagents/agent-<id>.jsonl`) toutes les 3 s et envoie leurs étapes dans leur vue (`subagents.Tails`)
+- [x] 2. Après un rechargement, une reprise ou un `/compact` : pastilles reconstruites depuis `chat.attach` (`agents`), vue remplie depuis la transcription (`chat.agent_log`)
+- [ ] 3. Essai réel par Charles (web au téléphone : sous-agent de fond, puis rechargement et `/compact` pendant qu'il tourne)

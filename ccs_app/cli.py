@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -998,6 +999,71 @@ def cmd_mise_a_jour(args):
     return code
 
 
+def cmd_audio(args):
+    """Son partagé sur le réseau maillé : appareils, envois, agent de cette machine."""
+    from . import audio, network
+    action = args.action or "lister"
+    try:
+        if action in ("agent", "recevoir"):
+            if action == "recevoir":
+                if audio.load_config()["active"]:
+                    print("Le son partagé est déjà actif (service ccs-audio) : cette machine reçoit "
+                          "déjà. `ccs audio desactiver` d'abord pour essayer au premier plan.",
+                          file=sys.stderr)
+                    return 1
+                print("Cette machine est annoncée et joue ce qu'on lui envoie (Ctrl+C pour arrêter).")
+            audio.run_agent()
+            return 0
+        if action in ("activer", "desactiver"):
+            cfg = audio.load_config()
+            cfg["active"] = action == "activer"
+            if getattr(args, "nom", None):
+                cfg["label"] = args.nom
+            audio.save_config(cfg)
+            if cfg["active"]:
+                missing = audio.missing_tools()
+                if missing:
+                    print("Manque : " + ", ".join(missing) + " (sudo apt install gstreamer1.0-tools "
+                          "gstreamer1.0-plugins-good gstreamer1.0-pulseaudio pulseaudio-utils)",
+                          file=sys.stderr)
+                    return 1
+            ok, err = audio.service("on" if cfg["active"] else "off")
+            print(("Son partagé activé : cette machine est annoncée, les autres appareils "
+                   "apparaissent dans ses sorties son." if cfg["active"] else "Son partagé désactivé.")
+                  if ok else f"Service {audio.SERVICE} : {err}")
+            return 0 if ok else 1
+        try:
+            me = audio.identity(network.status())[0]
+        except (audio.AudioError, network.NetworkError):
+            me = None
+        if action == "lister":
+            print("\n".join(audio.describe(audio.call("audio.list"), me)))
+        elif action == "envoyer":
+            devices = audio.call("audio.list").get("devices") or []
+            src = audio.resolve(devices, args.source, me)
+            dst = audio.resolve(devices, args.sortie, me)
+            r = audio.call("audio.send", source=src, target=dst)
+            print(f"Flux {r['stream']} : {src} → {dst} ({r['ip']}:{r['port']}).")
+        elif action == "arreter":
+            what = args.quoi
+            if what and re.fullmatch(r"a\d+", what):
+                r = audio.call("audio.stop", stream=what)
+            else:
+                devices = audio.call("audio.list").get("devices") or []
+                target = audio.resolve(devices, what, me) if what else me
+                if not target:
+                    print("Précise l'appareil ou le flux à arrêter.", file=sys.stderr)
+                    return 1
+                r = audio.call("audio.stop", device=target)
+            print("Arrêté : " + (", ".join(r.get("stopped") or []) or "aucun flux en cours") + ".")
+        return 0
+    except audio.AudioError as e:
+        print(e, file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
+
+
 def cmd_chat(args):
     """Chats de CCS : `effacer` demande `/clear` à la fin du tour en cours (lancé par Claude)."""
     from . import chat_engine
@@ -1457,6 +1523,21 @@ def build_parser():
     nwc.add_argument("--nom", help="nom de la machine dans le réseau")
     nw_sub.add_parser("serveur", help="appareils connus du serveur et leurs adresses publiées")
     nw.set_defaults(func=cmd_reseau)
+    au = _command(sub, "audio", "son partagé : envoyer le son d'un appareil vers un autre")
+    au_sub = au.add_subparsers(dest="action", metavar="<action>")
+    au_sub.add_parser("lister", help="appareils annoncés (sorties, sources) et flux en cours")
+    aue = au_sub.add_parser("envoyer", help="envoie le son d'une source vers une sortie")
+    aue.add_argument("source", help="appareil qui émet (« ici » : cette machine)")
+    aue.add_argument("sortie", help="appareil qui joue")
+    aua = au_sub.add_parser("arreter", help="arrête un flux (aN) ou les flux d'un appareil")
+    aua.add_argument("quoi", nargs="?", help="flux ou appareil (défaut : cette machine)")
+    auon = au_sub.add_parser("activer", help="annonce cette machine et crée ses sorties virtuelles")
+    auon.add_argument("--nom", help="nom affiché sur les autres appareils")
+    au_sub.add_parser("desactiver", help="arrête le son partagé sur cette machine")
+    au_sub.add_parser("recevoir", help="au premier plan, pour essayer : annonce cette machine et "
+                                       "joue ce qu'on lui envoie")
+    au_sub.add_parser("agent")          # interne : service ccs-audio
+    au.set_defaults(func=cmd_audio)
     ch = _command(sub, "chat", "chats de CCS (commandes pour Claude)")
     ch_sub = ch.add_subparsers(dest="action", required=True, metavar="<action>")
     ch_sub.add_parser("effacer", help="vide la conversation (/clear) à la fin du tour en cours")

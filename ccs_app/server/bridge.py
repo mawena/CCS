@@ -124,7 +124,7 @@ class Bridge:
     def keeps_local(method):
         """Sur une connexion relayée vers une autre machine, ce qui reste traité ici (noms déjà
         ramenés aux nouveaux par `protocol.normalize`)."""
-        return method == "hello" or method.startswith(("machines.", "network.", "jarvis."))
+        return method == "hello" or method.startswith(("machines.", "network.", "jarvis.", "audio."))
 
     def _on_connect(self, conn):
         self.clients.add(conn)
@@ -315,7 +315,7 @@ def build(user, key, local=False, chat=None, **kwargs):
     """Pont complet, tel que le lance `ccs bridge` : comptes et réglages, chats, données
     (projets, fichiers, feuille de route, tâches, analyse) et terminaux. `chat` : options du
     moteur de chat (`claude`, `environ`), pour le banc d'essai."""
-    from . import (bridge_admin, bridge_chat, bridge_data, bridge_files, bridge_git,
+    from . import (bridge_admin, bridge_audio, bridge_chat, bridge_data, bridge_files, bridge_git,
                    bridge_jarvis, bridge_machines, bridge_network, bridge_pilot, bridge_root,
                    bridge_term, bridge_work)
     b = Bridge(user, key, local=local, **kwargs)
@@ -324,7 +324,8 @@ def build(user, key, local=False, chat=None, **kwargs):
               "admin": bridge_admin.AdminApi(b), "git": bridge_git.GitApi(b),
               "files": bridge_files.FileOps(b), "machines": bridge_machines.MachinesApi(b),
               "root": bridge_root.RootApi(b),
-              "network": bridge_network.NetworkApi(b), "jarvis": bridge_jarvis.JarvisApi(b)}
+              "network": bridge_network.NetworkApi(b), "jarvis": bridge_jarvis.JarvisApi(b),
+              "audio": bridge_audio.AudioApi(b)}
     # Jarvis aux commandes du réseau : s'appuie sur les chats et les liens vers les machines
     b.hubs["pilot"] = bridge_pilot.PilotApi(b, b.hubs["machines"], b.hubs["chat"])
     return b

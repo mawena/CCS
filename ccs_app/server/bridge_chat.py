@@ -17,7 +17,13 @@ délai voit son processus `claude` arrêté (état `suspended`) ; le prochain me
 
 Fermeture : `chat.close {keep_if_shared: true}` (onglet du bureau refermé) ne fait que détacher
 l'appareil si un autre appareil suit encore ce chat ; sinon le chat est fermé comme avant. À
-l'arrêt du pont (inactivité, relance après une mise à jour), tous les chats sont fermés."""
+l'arrêt du pont (inactivité, relance après une mise à jour), tous les chats sont fermés.
+
+Sous-agents de fond : la CLI ne passe dans le flux que leur lancement et leur fin. Tant qu'il y en
+a un en cours, le pont relit toutes les WATCH_S secondes sa transcription (`subagents.Tails`) et
+écrit ses étapes dans le fil (`parent_id` : son appel Task/Agent), comme pour un sous-agent au
+premier plan. `chat.attach` rend la liste des sous-agents (`agents`, disque compris : lancés avant
+une reprise ou un compactage) et `chat.agent_log` les étapes d'un sous-agent, pour remplir sa vue."""
 
 import asyncio
 import base64
@@ -39,6 +45,7 @@ from . import events, rpc
 from .bridge_data import safe_path
 
 BUFFER = 2000
+WATCH_S = 3                  # relecture des transcriptions des sous-agents de fond
 BUSY = ("starting", "busy", "permission")
 _SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")      # nom d'un journal `<id>.jsonl`
 
@@ -55,6 +62,7 @@ class _Chat:
         self.auto = context_alert.AutoCompact()
         self.follower = limit_resume.Follower()     # relance après une limite
         self.agents = subagents.Subagents()         # sous-agents lancés (Jarvis)
+        self.tails = subagents.Tails()              # étapes des sous-agents de fond
 
 
 def transcript_of(cwd, session_id):
@@ -125,6 +133,7 @@ class ChatHub:
         self._ids = itertools.count(1)
         self._loop = None
         self._limited = False        # un chat attend la levée d'une limite : le pont reste ouvert
+        self._watch = None           # tâche qui suit les sous-agents de fond
         bridge.busy_checks.append(self.busy)
         bridge.tick_hooks.append(self.limits_pass)
         bridge.tick_hooks.append(self.suspend_pass)
@@ -135,7 +144,7 @@ class ChatHub:
             "chat.send": self.send, "chat.answer": self.answer, "chat.questions": self.questions,
             "chat.interrupt": self.interrupt, "chat.options": self.options,
             "chat.close": self.close, "chat.render": self.render, "chat.context": self.context,
-            "chat.tags": self.tags, "chat.tag": self.tag,
+            "chat.tags": self.tags, "chat.tag": self.tag, "chat.agent_log": self.agent_log,
         })
 
     # ---- état ------------------------------------------------------------------------
@@ -165,6 +174,8 @@ class ChatHub:
         if isinstance(ev, proto.TurnResult) and ev.is_limit:
             chat.follower.limit_hit()
         chat.agents.feed(ev)
+        if isinstance(ev, (proto.ToolUse, proto.ToolResult, proto.Unknown)):
+            self._ensure_watch()
         chat.seq += 1
         item = {"seq": chat.seq, "ts": time.time(), "event": events.to_json(ev)}
         chat.buf.append(item)
@@ -256,8 +267,9 @@ class ChatHub:
         chat = self._get(params)
         since = params.get("since") if isinstance(params.get("since"), int) else 0
         chat.conns.add(conn)
+        agents = await asyncio.to_thread(self._agents_of, chat)
         return {"events": [i for i in chat.buf if i["seq"] > since], "seq": chat.seq,
-                "state": chat.engine.state, **_info(chat)}
+                "state": chat.engine.state, "agents": agents, **_info(chat)}
 
     async def send(self, _conn, params):
         chat = self._get(params)
@@ -321,9 +333,73 @@ class ChatHub:
         return {"closed": True}
 
     async def close_all(self):
+        if self._watch is not None:
+            self._watch.cancel()
         chats, self.chats = list(self.chats.values()), {}
         for chat in chats:
             await asyncio.to_thread(chat.engine.stop)
+
+    # ---- sous-agents -----------------------------------------------------------------------
+
+    @staticmethod
+    def _agents_of(chat):
+        """Sous-agents du chat (suivis en direct, complétés par le disque). Ceux que le pont n'a pas
+        vus lancer, d'avant l'ouverture du chat, sont morts avec l'ancien processus `claude`."""
+        live = chat.agents.items()
+        known = {i["tool_id"] for i in live}
+        disk = subagents.from_transcript(transcript_of(chat.cwd, chat.engine.session_id))
+        out = []
+        for item in subagents.merge(live, disk):
+            if item["tool_id"] not in known and item["state"] == "running" \
+                    and (item["started"] or 0) < chat.opened_at:
+                item["state"] = "stopped"
+            out.append({k: item[k] for k in ("tool_id", "description", "type", "background",
+                                             "state", "started", "summary")})
+        return out
+
+    async def agent_log(self, _conn, params):
+        """Étapes d'un sous-agent lues dans sa transcription : sa vue reconstruite après un
+        rechargement, une reprise ou un compactage."""
+        chat = self._get(params)
+        tool_id = params.get("tool_id")
+        if not isinstance(tool_id, str) or not tool_id:
+            raise rpc.RpcError("invalide", "Sous-agent manquant.")
+
+        def work():
+            path = transcript_of(chat.cwd, chat.engine.session_id)
+            items = subagents.merge(chat.agents.items(), subagents.from_transcript(path))
+            item = next((i for i in items if i["tool_id"] == tool_id), None)
+            return [events.to_json(ev) for ev in subagents.read_log(path, item)] if item else []
+        return {"events": await asyncio.to_thread(work)}
+
+    def _ensure_watch(self):
+        """Lance le suivi des transcriptions s'il y a un sous-agent de fond à suivre."""
+        if self._watch is not None and not self._watch.done():
+            return
+        if any(c.tails.wants(c.agents.items()) for c in self.chats.values()):
+            self._watch = asyncio.ensure_future(self._watch_agents())
+
+    async def _watch_agents(self):
+        """Toutes les WATCH_S secondes, les étapes nouvelles des sous-agents de fond ; s'arrête
+        quand il n'y a plus rien à suivre (relancé au prochain lancement)."""
+        def poll(chat, items):
+            return chat.tails.poll(transcript_of(chat.cwd, chat.engine.session_id), items)
+        while True:
+            await asyncio.sleep(WATCH_S)
+            followed = False
+            for chat in list(self.chats.values()):
+                items = chat.agents.items()
+                if not chat.tails.wants(items):
+                    continue
+                followed = True
+                try:
+                    evs = await asyncio.to_thread(poll, chat, items)
+                except Exception:          # transcription illisible : nouvel essai au passage suivant
+                    evs = []
+                for ev in evs:
+                    self._record(chat, ev)
+            if not followed:
+                return
 
     # ---- mise en veille --------------------------------------------------------------------
 
