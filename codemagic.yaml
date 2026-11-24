@@ -30,7 +30,10 @@ workflows:
           SIMU=$(xcrun simctl list devices available | grep -m1 -o 'iPhone [0-9]* (' | sed 's/ ($//')
           xcodebuild test -project CCS.xcodeproj -scheme CCS \
             -destination "platform=iOS Simulator,name=$SIMU" \
-            CODE_SIGNING_ALLOWED=NO | xcpretty || exit 1
+            CODE_SIGNING_ALLOWED=NO | xcpretty || {
+              # plantage de l'appli hôte : le rapport dit où
+              find ~/Library/Logs/DiagnosticReports -name 'CCS*' -mmin -30 2>/dev/null | head -1 | xargs -I{} head -c 6000 {}
+              exit 1; }
       - name: .ipa non signé
         script: |
           set -o pipefail

@@ -18,8 +18,9 @@ final class RecepteurSon: @unchecked Sendable {
     private let file = DispatchQueue(label: "ccs.son.recepteur", qos: .userInteractive)
     private var ecouteur: NWListener?
     private var connexions: [NWConnection] = []
-    private let moteur = AVAudioEngine()
-    private let lecteur = AVAudioPlayerNode()
+    /// Créés au départ de l'écoute seulement (pas de sortie audio touchée au lancement de l'appli).
+    private var moteur: AVAudioEngine?
+    private var lecteur: AVAudioPlayerNode?
     private var decodeur: DecodeurOpus?
     private var tampon = TamponGigue()
     private var enVol = 0
@@ -28,11 +29,6 @@ final class RecepteurSon: @unchecked Sendable {
     private var veille: DispatchSourceTimer?
     private var source: UInt32?
     private var observateur: NSObjectProtocol?
-
-    init() {
-        moteur.attach(lecteur)
-        moteur.connect(lecteur, to: moteur.mainMixerNode, format: FormatsSon.pcm)
-    }
 
     /// Paquets reçus et perdus depuis le départ (pour l'écran Son).
     var bilan: (recues: Int, perdues: Int) {
@@ -60,14 +56,20 @@ final class RecepteurSon: @unchecked Sendable {
             }
             l.start(queue: file)
             ecouteur = l
-            try moteur.start()
-            lecteur.play()
+            let m = AVAudioEngine()
+            let j = AVAudioPlayerNode()
+            m.attach(j)
+            m.connect(j, to: m.mainMixerNode, format: FormatsSon.pcm)
+            moteur = m
+            lecteur = j
+            try m.start()
+            j.play()
             actif = true
             dernierPaquet = Date()
             enVol = 0
             for _ in 0..<3 { programmer() }
             observateur = NotificationCenter.default.addObserver(
-                forName: .AVAudioEngineConfigurationChange, object: moteur, queue: nil) { [weak self] _ in
+                forName: .AVAudioEngineConfigurationChange, object: m, queue: nil) { [weak self] _ in
                 self?.file.async { self?.relancerMoteur() }
             }
             let t = DispatchSource.makeTimerSource(queue: file)
@@ -124,7 +126,7 @@ final class RecepteurSon: @unchecked Sendable {
 
     /// Programme les 20 ms suivantes : trame décodée, ou silence (perte, attente).
     private func programmer() {
-        guard actif else { return }
+        guard actif, let lecteur = lecteur else { return }
         var tampon20: AVAudioPCMBuffer?
         if case .trame(let t) = tampon.sortir() { tampon20 = decodeur?.decoder(t) }
         guard let b = tampon20 ?? FormatsSon.silence() else { return }
@@ -139,7 +141,7 @@ final class RecepteurSon: @unchecked Sendable {
     }
 
     private func relancerMoteur() {
-        guard actif else { return }
+        guard actif, let moteur = moteur, let lecteur = lecteur else { return }
         if !moteur.isRunning { try? moteur.start() }
         if !lecteur.isPlaying { lecteur.play() }
         enVol = 0
@@ -170,9 +172,11 @@ final class RecepteurSon: @unchecked Sendable {
         ecouteur = nil
         for c in connexions { c.cancel() }
         connexions = []
+        lecteur?.stop()
+        moteur?.stop()
+        lecteur = nil
+        moteur = nil
         if etaitActif {
-            lecteur.stop()
-            moteur.stop()
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }
