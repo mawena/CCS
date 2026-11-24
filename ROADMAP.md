@@ -184,4 +184,5 @@ chat) ; il doit se comporter comme la feuille du web.
 - [x] 4. Dialogue du bureau : dossier, compte, fournisseur, modèle, effort, droits, boutons Terminal et Ouvrir un chat ; droits par défaut `chat.rights`
 - [x] 5. Effort dans `LaunchSpec` (`--effort`, Claude seulement) et dans la feuille web
 - [x] 6. Tests : dialogue sous Xvfb (ordre, défauts, effort, boutons, fenêtre pas encore affichée), bouton de projet, cache expiré, `new_session_form`, effort, `chat.providers`
+- [x] 7. Release 1.14.0
 
