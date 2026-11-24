@@ -289,6 +289,10 @@ class ChatTabTest(HomeTestCase):
         self.assertEqual([b.get_label() for b in buttons], ["Compacter", "Nouvelle session"])
         buttons[1].emit("clicked")
         self.assertEqual(opened, [str(self.cwd)])
+        # dans l'application : par le dialogue « Nouvelle session », comme au web
+        tab.owner.window = type("W", (), {"new_session": lambda _s, cwd: opened.append(("dialogue", cwd))})()
+        buttons[1].emit("clicked")
+        self.assertEqual(opened[-1], ("dialogue", str(self.cwd)))
         asked = []
         tab._confirm_expired = lambda text, images, quoted: asked.append(text)
         tab._on_send(None, "suite", [])

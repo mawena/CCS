@@ -413,8 +413,10 @@ class Window(Adw.ApplicationWindow):
         return "integre"
 
     def new_session(self, cwd=None):
-        """Dialogue « Nouvelle session » (dossier, compte, modèle, permissions)."""
-        ask_new_session(self, cwd or self.sessions.default_folder(), self.start_spec)
+        """Dialogue « Nouvelle session » (dossier, compte, fournisseur, modèle, effort, droits) :
+        tout nouveau chat passe par lui, comme au web ; « Terminal » ouvre un terminal."""
+        ask_new_session(self, cwd or self.sessions.default_folder(), self.start_spec,
+                        on_term=self.open_shell)
 
     def start_spec(self, spec):
         """Bascule sur le compte choisi s'il le faut (hors de l'interface), puis ouvre la session."""
@@ -676,7 +678,7 @@ class App(Adw.Application):
             win.show_task(task_id)
         if self.pending_new_session:
             self.pending_new_session = False
-            GLib.idle_add(lambda: (win.new_session(), False)[1])   # fenêtre affichée d'abord
+            win.new_session()   # présenté quand la fenêtre apparaît (present_when_mapped)
 
     def show_session(self, ref):
         win = self.window()

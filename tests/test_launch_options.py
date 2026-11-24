@@ -55,6 +55,23 @@ class ClaudeArgsTest(unittest.TestCase):
             claude_args(extra=("--add-dir", 3))
 
 
+class EffortTest(unittest.TestCase):
+    def test_effort_for_claude_only(self):
+        self.assertEqual(claude_args(model="opus", effort="high"), ["--model", "opus", "--effort", "high"])
+        self.assertEqual(claude_args(effort="Par défaut"), [])
+        with self.assertRaises(ValueError):
+            claude_args(effort="--tout")
+        spec = LaunchSpec(cwd="/p", profile=None, effort="max", permission_mode="plan")
+        self.assertEqual(spec.args(), ["--effort", "max", "--permission-mode", "plan"])
+        with self.assertRaises(ValueError):
+            LaunchSpec(cwd="/p", profile=None, effort="énorme")
+
+    def test_effort_ignored_for_another_provider(self):
+        with mock.patch("ccs_app.providers.claude_args", return_value=["--x"]):
+            self.assertNotIn("--effort", claude_args(model="m", effort="high", provider="openrouter",
+                                                     check=False))
+
+
 class ChoicesTest(unittest.TestCase):
     def test_models_offered(self):
         values = [v for _label, v in lo.MODELS]

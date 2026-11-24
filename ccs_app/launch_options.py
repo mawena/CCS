@@ -106,9 +106,20 @@ def _permission_mode(mode):
     return mode
 
 
-def claude_args(model=None, permission_mode=None, resume=None, extra=(), provider=None, check=True):
+def _effort(effort):
+    if not effort or str(effort).strip().casefold() in DEFAULT_WORDS:
+        return None
+    from .chat_options import EFFORTS
+    if effort not in EFFORTS:
+        raise ValueError(f"effort inconnu : {effort!r} (valeurs : {', '.join(EFFORTS)})")
+    return effort
+
+
+def claude_args(model=None, permission_mode=None, resume=None, extra=(), provider=None, check=True,
+                effort=None):
     """Arguments de `claude` (sans le nom du programme) pour ces options. `provider` : autre
-    fournisseur que Claude (providers.py) ; `check` : refuser une clé de fournisseur absente."""
+    fournisseur que Claude (providers.py) ; `check` : refuser une clé de fournisseur absente ;
+    `effort` : niveau de réflexion (`--effort`), propre aux modèles Claude."""
     from . import providers
     args = []
     model = _model(model)
@@ -116,6 +127,9 @@ def claude_args(model=None, permission_mode=None, resume=None, extra=(), provide
         args += providers.claude_args(provider, model, check=check)
     elif model:
         args += ["--model", model]
+    effort = _effort(effort)
+    if effort and providers.is_claude(provider):
+        args += ["--effort", effort]
     mode = _permission_mode(permission_mode)
     if mode:
         args += ["--permission-mode", mode]
@@ -157,6 +171,7 @@ class LaunchSpec:
     model: str | None = None
     permission_mode: str | None = None
     provider: str | None = None      # autre fournisseur que Claude (providers.py)
+    effort: str | None = None        # niveau de réflexion (chat_options.EFFORTS) ; Claude seulement
     # Origine d'une éventuelle bascule, pour le journal (switch_log.VIA) : « projet » quand
     # le compte est celui du projet, présélectionné ; None : « nouvelle-session ».
     origin: str | None = None
@@ -166,6 +181,7 @@ class LaunchSpec:
             raise ValueError("dossier de la session manquant")
         _model(self.model)
         _permission_mode(self.permission_mode)
+        object.__setattr__(self, "effort", _effort(self.effort))
         from . import providers
         object.__setattr__(self, "provider", providers.normalize(self.provider))
         from .switch_log import VIA
@@ -173,7 +189,8 @@ class LaunchSpec:
             raise ValueError(f"origine de bascule inconnue : {self.origin!r}")
 
     def args(self, resume=None, extra=()):
-        return claude_args(self.model, self.permission_mode, resume, extra, self.provider)
+        return claude_args(self.model, self.permission_mode, resume, extra, self.provider,
+                           effort=self.effort)
 
     def needs_switch(self, active_profile):
         """Vrai si la session doit tourner sur un autre compte que le compte actif."""

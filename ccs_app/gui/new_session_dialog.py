@@ -1,4 +1,9 @@
-"""Dialogue « Nouvelle session » : dossier, compte, modèle et mode de permissions.
+"""Dialogue « Nouvelle session » : dossier, compte, fournisseur, modèle, effort et droits.
+
+Mêmes champs, même ordre et mêmes valeurs par défaut que la feuille du web
+(web/sessions-new.js) : les listes viennent de `chat_options.new_session_form`, les
+fournisseurs de `providers.choices`. Deux boutons comme au web : « Terminal » (`on_term(dossier)`,
+un terminal dans le dossier) et « Ouvrir un chat ».
 
 Le dialogue ne bascule jamais de compte et ne lance rien : il renvoie un
 `launch_options.LaunchSpec` à `on_ok`. Si `spec.needs_switch(compte actif)`, l'appelant
@@ -14,7 +19,7 @@ import os
 
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from .. import core, launch_options, project_accounts, providers, sessions
+from .. import chat_options, core, launch_options, project_accounts, providers, sessions, settings
 from ..launch_options import LaunchSpec
 from .common import in_thread
 from .doctor_dialog import plain_row
@@ -33,11 +38,14 @@ def short_path(path):
 class NewSessionDialog(Adw.Dialog):
     """`profiles` (liste de core.Profile), `recent` ([(dossier, date)]), `associations`
     (comptes par projet) et `paused` (CCS en pause) sont lus sur le disque s'ils ne sont
-    pas fournis."""
+    pas fournis, comme les réglages (`prefs`, pour les droits par défaut)."""
 
-    def __init__(self, default_cwd, on_ok, profiles=None, recent=None, associations=None, paused=None):
-        super().__init__(title="Nouvelle session", content_width=520, content_height=660)
+    def __init__(self, default_cwd, on_ok, profiles=None, recent=None, associations=None, paused=None,
+                 on_term=None, prefs=None):
+        super().__init__(title="Nouvelle session", content_width=520, content_height=700)
         self.on_ok = on_ok
+        self.on_term = on_term
+        self.form = chat_options.new_session_form(settings.load_settings() if prefs is None else prefs)
         self.folders = []
         self.profiles = list(core.list_profiles() if profiles is None else profiles)
         self.active = next((p.name for p in self.profiles if p.active), None)
@@ -55,9 +63,13 @@ class NewSessionDialog(Adw.Dialog):
         cancel = Gtk.Button(label="Annuler")
         cancel.connect("clicked", lambda *_: self.close())
         header.pack_start(cancel)
-        self.ok_btn = Gtk.Button(label="Ouvrir", css_classes=["suggested-action"])
+        self.ok_btn = Gtk.Button(label="Ouvrir un chat", css_classes=["suggested-action"])
         self.ok_btn.connect("clicked", self.on_open)
         header.pack_end(self.ok_btn)
+        self.term_btn = Gtk.Button(label="Terminal", tooltip_text="Terminal dans ce dossier",
+                                   visible=on_term is not None)
+        self.term_btn.connect("clicked", self.on_terminal)
+        header.pack_end(self.term_btn)
 
         page = Adw.PreferencesPage()
         where = Adw.PreferencesGroup(title="Où")
@@ -85,7 +97,7 @@ class NewSessionDialog(Adw.Dialog):
         who.set_visible(bool(self.profiles))
         page.add(who)
 
-        how = Adw.PreferencesGroup(title="Options de Claude Code")
+        how = Adw.PreferencesGroup(title="Options")
         # Fournisseur : Claude, ou un autre service (OpenRouter…) qui fournit le modèle
         self.providers = providers.choices()
         self.provider_row = Adw.ComboRow(title="Fournisseur", model=Gtk.StringList.new(
@@ -93,12 +105,21 @@ class NewSessionDialog(Adw.Dialog):
         self.provider_row.set_visible(len(self.providers) > 1)
         self.provider_row.connect("notify::selected", lambda *_: self.provider_changed())
         how.add(self.provider_row)
-        self.model_values = list(launch_options.MODELS)
+        self.model_values = self.claude_models()
         self.model_row = Adw.ComboRow(title="Modèle", model=Gtk.StringList.new(
             [label for label, _v in self.model_values]))
         how.add(self.model_row)
-        self.mode_row = Adw.ComboRow(title="Permissions", model=Gtk.StringList.new(
-            [label for label, _v in launch_options.PERMISSION_MODES]))
+        # Effort : propre aux modèles Claude (caché pour un autre fournisseur)
+        self.efforts = [(v or None, label) for v, label in self.form["efforts"]]
+        self.effort_row = Adw.ComboRow(title="Effort", model=Gtk.StringList.new(
+            [label for _v, label in self.efforts]))
+        how.add(self.effort_row)
+        self.rights = [(v, label) for v, label in self.form["rights"]]
+        self.mode_row = Adw.ComboRow(title="Droits", model=Gtk.StringList.new(
+            [label for _v, label in self.rights]))
+        values = [v for v, _l in self.rights]
+        if self.form["default_rights"] in values:
+            self.mode_row.set_selected(values.index(self.form["default_rights"]))
         self.mode_row.connect("notify::selected", lambda *_: self.update())
         how.add(self.mode_row)
         self.danger_row = plain_row("Claude pourra tout faire sans rien demander",
@@ -193,10 +214,13 @@ class NewSessionDialog(Adw.Dialog):
         name = self.providers[i][0] if 0 <= i < len(self.providers) else "claude"
         return None if providers.is_claude(name) else name
 
+    def claude_models(self):
+        return [(label, v or None) for v, label in self.form["models"]]
+
     def provider_changed(self):
         i = self.provider_row.get_selected()
         models = self.providers[i][2] if 0 <= i < len(self.providers) else []
-        self.model_values = list(models) if self.selected_provider() else list(launch_options.MODELS)
+        self.model_values = list(models) if self.selected_provider() else self.claude_models()
         self.model_row.set_model(Gtk.StringList.new([label for label, _v in self.model_values]))
         self.model_row.set_selected(0)
         self.update()
@@ -216,16 +240,22 @@ class NewSessionDialog(Adw.Dialog):
         i = self.model_row.get_selected()
         return self.model_values[i][1] if 0 <= i < len(self.model_values) else None
 
+    def selected_effort(self):
+        if self.selected_provider():
+            return None
+        i = self.effort_row.get_selected()
+        return self.efforts[i][0] if 0 <= i < len(self.efforts) else None
+
     def selected_mode(self):
         i = self.mode_row.get_selected()
-        return launch_options.PERMISSION_MODES[i][1] if 0 <= i < len(launch_options.PERMISSION_MODES) else None
+        return self.rights[i][0] if 0 <= i < len(self.rights) else None
 
     def spec(self):
         folder, profile = self.selected_folder(), self.selected_profile()
         origin = project_accounts.origin_for(folder, profile, self.assocs) if profile != self.active else None
         return LaunchSpec(cwd=folder, profile=profile, model=self.selected_model(),
                           permission_mode=self.selected_mode(), origin=origin,
-                          provider=self.selected_provider())
+                          provider=self.selected_provider(), effort=self.selected_effort())
 
     def update(self):
         folder = self.selected_folder()
@@ -235,13 +265,16 @@ class NewSessionDialog(Adw.Dialog):
         if hasattr(self, "provider_row"):
             self.provider_row.set_subtitle(problem or "")
         self.ok_btn.set_sensitive(ok and not problem)
+        self.term_btn.set_sensitive(ok)
+        if hasattr(self, "effort_row"):
+            self.effort_row.set_visible(not self.selected_provider())
         self.ok_btn.set_tooltip_text(problem if problem else None if ok else "Ce dossier n'existe pas")
         self.project_account(folder)
         profile = self.selected_profile()
         self.switch_row.set_visible(bool(profile) and profile != self.active)
         mode = self.selected_mode()
         self.mode_row.set_subtitle(launch_options.permission_help(mode))
-        self.danger_row.set_visible(launch_options.is_dangerous(mode))
+        self.danger_row.set_visible(mode in self.form["dangerous"])
 
     def on_open(self, *_):
         if not self.ok_btn.get_sensitive():
@@ -249,6 +282,14 @@ class NewSessionDialog(Adw.Dialog):
         spec = self.spec()
         self.close()
         self.on_ok(spec)
+
+    def on_terminal(self, *_):
+        """« Terminal » comme au web : un terminal dans le dossier, sans bascule ni options."""
+        folder = self.selected_folder()
+        if self.on_term is None or not folder or not os.path.isdir(folder):
+            return
+        self.close()
+        self.on_term(folder)
 
 
 def _recent_or_empty():
@@ -258,8 +299,22 @@ def _recent_or_empty():
         return []
 
 
-def ask_new_session(parent, default_cwd, on_ok, profiles=None, recent=None, associations=None, paused=None):
-    """Ouvre le dialogue ; `on_ok(LaunchSpec)` est appelé quand l'utilisateur valide."""
-    dialog = NewSessionDialog(default_cwd, on_ok, profiles, recent, associations, paused)
-    dialog.present(parent)
+def ask_new_session(parent, default_cwd, on_ok, profiles=None, recent=None, associations=None, paused=None,
+                    on_term=None, prefs=None):
+    """Ouvre le dialogue ; `on_ok(LaunchSpec)` est appelé quand l'utilisateur valide,
+    `on_term(dossier)` pour « Terminal ». Une fenêtre pas encore affichée (lancement par
+    `--new-session`) reçoit le dialogue quand elle apparaît, jamais avant."""
+    dialog = NewSessionDialog(default_cwd, on_ok, profiles, recent, associations, paused, on_term, prefs)
+    present_when_mapped(dialog, parent)
     return dialog
+
+
+def present_when_mapped(dialog, parent):
+    if parent is None or parent.get_mapped():
+        dialog.present(parent)
+        return
+
+    def mapped(widget):
+        widget.disconnect(handler)
+        dialog.present(widget)
+    handler = parent.connect("map", mapped)

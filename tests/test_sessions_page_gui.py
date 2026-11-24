@@ -52,6 +52,24 @@ class ArchivedProjectsTest(unittest.TestCase):
 
 
 @unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
+@unittest.skipUnless(GTK, "CCS_GUI_TESTS=1 et un affichage (Xvfb) requis")
+class NewSessionButtonTest(unittest.TestCase):
+    def test_project_button_asks_the_parameters_like_the_web(self):
+        """« Nouvelle session » d'un projet : le dialogue des paramètres (dossier choisi), plus
+        d'ouverture directe ; le menu garde le terminal externe et le reste."""
+        from ccs_app.gui import sessions_page
+        page = SimpleNamespace(window=mock.Mock(), start=mock.Mock())
+        e = SimpleNamespace(cwd="/p/projet", exists=True)
+        button = sessions_page.SessionsPage.new_session_button(page, e, True)
+        button.emit("clicked")
+        page.window.new_session.assert_called_once_with("/p/projet")
+        page.start.assert_not_called()
+        menu = button.get_menu_model()
+        labels = [menu.get_item_attribute_value(i, "label").get_string() for i in range(menu.get_n_items())]
+        self.assertNotIn("Avec des options…", labels)
+        self.assertIn("Dans un terminal externe", labels)
+
+
 class CloseSessionTest(unittest.TestCase):
     def setUp(self):
         from ccs_app.gui import sessions_page
