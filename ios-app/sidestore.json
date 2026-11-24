@@ -1,15 +1,15 @@
 {
   "name": "CCS",
   "identifier": "com.mawena.ccs.source",
-  "subtitle": "Claude Code Switcher pour iPhone",
+  "subtitle": "Claude Code partout : appareils, machines et comptes",
   "website": "https://github.com/mawena/CCS",
   "apps": [
     {
       "name": "CCS",
       "bundleIdentifier": "com.mawena.ccs",
       "developerName": "Charles Gamligo",
-      "subtitle": "Vos sessions Claude Code depuis l'iPhone",
-      "localizedDescription": "Application native de CCS : comptes, sessions, chat en direct, fichiers, Git, terminal, notifications locales et partage vers un chat.",
+      "subtitle": "Claude Code partout, depuis l'iPhone",
+      "localizedDescription": "Application native de CCS, Claude Code partout : pilotez depuis l'iPhone les sessions de vos PC et de votre serveur (chat en direct, fichiers, Git, terminal, vocal, notifications, partage vers un chat), le réseau maillé (machines, son partagé), le calcul réparti et les commandes root à valider, et vos comptes Claude Code qui travaillent comme un seul.",
       "iconURL": "https://raw.githubusercontent.com/mawena/CCS/main/ios-app/CCS/Assets.xcassets/AppIcon.appiconset/icone-1024.png",
       "category": "developer",
       "versions": [

@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
 Name=CCS
-GenericName=Gestionnaire de comptes Claude Code
-Comment=Usage, prévisions et bascule entre les comptes Claude Code
+GenericName=Poste de travail Claude Code
+Comment=Claude Code partout : chat, fichiers, machines, réseau maillé et comptes
 Exec=/usr/bin/claude-accounts gui
 Icon=io.ccs.ClaudeAccounts
 Terminal=false
 Categories=Development;
-Keywords=claude;compte;usage;limite;session;ccs;
+Keywords=claude;compte;usage;limite;session;ccs;chat;machine;réseau;
 StartupWMClass=io.ccs.ClaudeAccounts
 StartupNotify=true
