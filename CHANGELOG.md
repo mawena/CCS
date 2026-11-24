@@ -3,7 +3,7 @@
 Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 [SemVer](https://semver.org/lang/fr/).
 
-## [Non publié]
+## [1.12.0] — 2026-11-24
 
 ### Ajouté
 
@@ -21,13 +21,15 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
   (macOS) ou `wasapi2src loopback=true` (Windows), sans sorties virtuelles. Non essayé.
 - Android : écran Son (Plus → Son partagé), lecture en service au premier plan, envoi du son du
   téléphone par AudioPlaybackCapture (Android 10+, accord à chaque départ).
-- iPhone : écran Son, lecture en arrière-plan, envoi par une extension de diffusion ReplayKit
-  (contenus protégés muets).
+- iPhone : écran Son (Plus → Son), lecture en arrière-plan, envoi par une extension de diffusion
+  ReplayKit « CCS » (contenus protégés muets). L'extension compte pour un App ID de plus sur le
+  compte Apple gratuit.
 - Web (Réseau → Son partagé) et bureau GTK (onglet Réseau) : appareils, flux en cours, « Envoyer le
   son » et « Arrêter ».
 
 ### Corrigé
 
+- Tests : `test_terminals_gui` ne se chargeait plus (import manquant).
 - Chat web : on voit enfin les sous-agents de fond travailler. La CLI ne passe que leur lancement
   et leur fin ; le pont lit leur transcription toutes les 3 s et envoie leurs étapes (textes,
   outils, résultats) dans leur vue, comme pour un sous-agent au premier plan.
