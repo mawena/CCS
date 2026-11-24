@@ -13,6 +13,8 @@ final class Veille: NSObject, UNUserNotificationCenterDelegate {
     private let client: CcsClient
     /// Ouvre un chat (toucher sur une notification).
     var ouvrir: ((DestChat) -> Void)?
+    /// Toucher la notification du son partagé (« Touchez pour envoyer le son vers X »).
+    var ouvrirSon: (() -> Void)?
 
     private let veilleur = Veilleur()
     private var derniers: [String: Int] = [:]            // chat → dernier numéro lu
@@ -259,6 +261,8 @@ final class Veille: NSObject, UNUserNotificationCenterDelegate {
                 await self.repondre(c, d, action)
             } else if let c = cible, action == UNNotificationDefaultActionIdentifier {
                 self.ouvrir?(c.destination)
+            } else if infos["son"] != nil, action == UNNotificationDefaultActionIdentifier {
+                self.ouvrirSon?()
             }
             completionHandler()
         }

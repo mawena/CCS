@@ -18,6 +18,10 @@ final class ModeleAppli {
     let jarvis: OreilleJarvis
     /// Appareil ouvert dans l'onglet Fichiers et sa connexion à part (autre que la machine pilotée).
     let fichiers: ConnexionFichiers
+    /// Son partagé sur le réseau maillé : annonce, réception, envoi (écran Plus → Son).
+    let son: SonPartage
+    /// L'écran Son est à ouvrir (notification « Touchez pour envoyer le son vers X »).
+    var ouvrirSon = false
     /// Partage reçu (« Ouvrir dans CCS », `ccs://partager`) : la feuille de partage s'ouvre.
     var partage: Partage? = nil
     /// Chat à ouvrir (toucher sur une notification, partage livré).
@@ -47,6 +51,7 @@ final class ModeleAppli {
         root = GardienRoot(client: c, dire: { m in av.dire(m) })
         jarvis = OreilleJarvis()
         fichiers = ConnexionFichiers(principal: c)
+        son = SonPartage(client: c, dire: { m in av.dire(m) })
         let a = Prefs.adresse
         adresse = a
         theme = Prefs.theme
@@ -57,6 +62,10 @@ final class ModeleAppli {
             self?.avisConnexion = raison + " Reconnecte-toi."
         }
         veille.ouvrir = { [weak self] d in self?.aOuvrir = d }
+        veille.ouvrirSon = { [weak self] in
+            self?.ouvrirSon = true
+            self?.son.demanderDiffusion()
+        }
         jarvis.identifiants = { [weak self] in self?.identifiants }
         fichiers.identifiants = { [weak self] in self?.identifiants }
         if let i = identifiants { demarrer(i) }
@@ -66,6 +75,7 @@ final class ModeleAppli {
         guard i.portier else {
             client.demarrer(i)
             veille.demarrer()
+            son.demarrer()
             return
         }
         // connexion Portier sans jeton d'appareil : on le demande une fois, avant le WebSocket
@@ -77,7 +87,7 @@ final class ModeleAppli {
                 Coffre.ecrire(j)
                 self.identifiants = j
             }
-            if self.identifiants != nil, case .arrete = self.client.etat { self.client.demarrer(j); self.veille.demarrer() }
+            if self.identifiants != nil, case .arrete = self.client.etat { self.client.demarrer(j); self.veille.demarrer(); self.son.demarrer() }
         }
     }
 
@@ -92,14 +102,19 @@ final class ModeleAppli {
         avisConnexion = nil
         client.demarrer(i)
         veille.demarrer()
+        son.demarrer()
     }
 
     func deconnecter() {
         let portier = identifiants?.viaPortier == true
-        oublier()
-        if portier {
-            let magasin = WKWebsiteDataStore.default()
-            magasin.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: Date.distantPast) {}
+        // le pont oublie l'iPhone comme sortie et source audio (`audio.forget`, 2 s au plus)
+        Task { @MainActor in
+            await son.quitter()
+            oublier()
+            if portier {
+                let magasin = WKWebsiteDataStore.default()
+                magasin.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: Date.distantPast) {}
+            }
         }
     }
 
@@ -143,6 +158,7 @@ final class ModeleAppli {
         root.vider()
         jarvis.fermer()
         fichiers.oublier()
+        son.arreter()
     }
 
     /// Coût court d'une conversation (« 0,42 $ ») ; le coût est un plus : un échec est tu.
