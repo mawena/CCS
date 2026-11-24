@@ -243,7 +243,10 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         """Fournisseur : refusé sans clé, proposé par chat.providers, figé par chat.options."""
         from ccs_app import providers
         c = await self.client()
-        listed = {p["name"]: p for p in (await c.call("chat.providers"))["providers"]}
+        got = await c.call("chat.providers")
+        listed = {p["name"]: p for p in got["providers"]}
+        self.assertEqual(got["form"]["rights"][0], ["manual", "Demander"])     # champs de « Nouvelle session »
+        self.assertIn("default_rights", got["form"])
         self.assertIsNone(listed["claude"]["problem"])
         self.assertIn("clé absente", listed["openrouter"]["problem"])
         self.assertTrue(listed["openrouter"]["models"])

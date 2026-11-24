@@ -78,5 +78,22 @@ class OptionsTest(unittest.TestCase):
         self.assertEqual(co.from_args(("--model", "Par défaut")).model, None)
 
 
+class NewSessionFormTest(unittest.TestCase):
+    """Champs de « Nouvelle session », source unique du bureau et du web."""
+
+    def test_lists_come_from_the_shared_tables(self):
+        f = co.new_session_form({})
+        self.assertEqual(f["models"], [[v or "", label] for label, v in launch_options.MODELS])
+        self.assertEqual(f["rights"], [[v, label] for label, v in co.RIGHTS])
+        self.assertEqual(f["efforts"][0], ["", "Par défaut"])
+        self.assertEqual([v for v, _l in f["efforts"][1:]], list(co.EFFORTS))
+        self.assertEqual(f["dangerous"], ["bypassPermissions"])
+
+    def test_default_rights_follow_settings(self):
+        self.assertEqual(co.new_session_form({})["default_rights"], "manual")
+        self.assertEqual(co.new_session_form({"chat": {"rights": "modifications"}})["default_rights"],
+                         "acceptEdits")
+
+
 if __name__ == "__main__":
     unittest.main()

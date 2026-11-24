@@ -172,3 +172,17 @@ Venice (modèles « uncensored » avec outils : `glm-5-3-flash-uncensored`,
 - [ ] 1. Proxy local claude-code-router (ou LiteLLM) lancé à la demande par CCS, traduit `/v1/messages` vers l'API OpenAI
 - [ ] 2. Préréglage `venice` (clé `~/.config/venice/cle`) pointant sur ce proxy ; vérifier l'appel d'outils de bout en bout
 - [ ] 3. Arrêt du proxy avec la dernière session (RAM)
+
+## Phase 48 — Nouvelle session : le bureau comme le web
+
+Le dialogue des paramètres d'une session ne s'affichait pas au bureau (ouverture directe d'un
+chat) ; il doit se comporter comme la feuille du web.
+
+- [x] 1. Cause : bouton « Nouvelle session » d'un projet et « Nouvelle session » d'un chat au cache expiré sans dialogue ; dialogue de `--nouvelle-session` présenté avant l'affichage de la fenêtre
+- [x] 2. Tout nouveau chat passe par le dialogue (bouton du projet, cache expiré, bouton et menu, raccourci) ; la reprise d'une conversation reste directe, comme au web
+- [x] 3. Source commune des champs : `chat_options.new_session_form` (modèles, effort, droits, droits par défaut), envoyée au web par `chat.providers`
+- [x] 4. Dialogue du bureau : dossier, compte, fournisseur, modèle, effort, droits, boutons Terminal et Ouvrir un chat ; droits par défaut `chat.rights`
+- [x] 5. Effort dans `LaunchSpec` (`--effort`, Claude seulement) et dans la feuille web
+- [x] 6. Tests : dialogue sous Xvfb (ordre, défauts, effort, boutons, fenêtre pas encore affichée), bouton de projet, cache expiré, `new_session_form`, effort, `chat.providers`
+- [x] 7. Release 1.14.0
+

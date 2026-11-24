@@ -71,8 +71,12 @@ class SessionsWebTest(unittest.TestCase):
 
     def test_new_session_options_and_project_route(self):
         text = source("sessions-new.js")
-        for token in ("projects.folders", "accounts.switch", "bypassPermissions", "localStorage"):
+        for token in ("projects.folders", "accounts.switch", "localStorage", "chat.providers",
+                      "form.default_rights", "form.dangerous", '"aria-label": "Effort"', "Terminal"):
             self.assertIn(token, text)
+        # listes communes au bureau (chat_options.new_session_form), plus de copie en dur
+        self.assertNotIn('"bypassPermissions"', text)
+        self.assertNotIn('["opus", "Opus"]', text)
         self.assertIn('PROJECT_PREFIX = "projet/"', source("sessions.js"))
 
     def test_terminal_key_bar_has_required_keys(self):

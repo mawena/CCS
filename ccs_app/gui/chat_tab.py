@@ -1236,6 +1236,11 @@ class ChatTab(Gtk.Box):
             if opener is not None:
                 opener(self.remote, self.launch.cwd)
             return
+        # Comme au web : le dialogue « Nouvelle session », dossier déjà choisi
+        ask = getattr(getattr(self.owner, "window", None), "new_session", None)
+        if ask is not None:
+            ask(self.launch.cwd)
+            return
         opener = getattr(self.owner, "open_chat", None)
         if opener is not None:
             opener(self.launch.cwd)
