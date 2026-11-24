@@ -1037,10 +1037,14 @@ def cmd_audio(args):
                    "apparaissent dans ses sorties son." if cfg["active"] else "Son partagé désactivé.")
                   if ok else f"Service {audio.SERVICE} : {err}")
             return 0 if ok else 1
+        if action in ("lecteurs", "piloter") and not getattr(args, "appareil", None):
+            return _audio_local_players(audio, args, action)
         try:
             me = audio.identity(network.status())[0]
         except (audio.AudioError, network.NetworkError):
             me = None
+        if action in ("lecteurs", "piloter"):
+            return _audio_remote_players(audio, args, action, me)
         if action == "lister":
             print("\n".join(audio.describe(audio.call("audio.list"), me)))
         elif action == "envoyer":
@@ -1067,6 +1071,50 @@ def cmd_audio(args):
         return 1
     except KeyboardInterrupt:
         return 130
+
+
+def _audio_local_players(audio, args, action):
+    """`ccs audio players|control` sur cette machine : D-Bus direct, sans le pont."""
+    mpris = audio.Mpris()
+    players = mpris.players()
+    if action == "lecteurs":
+        print("\n".join(audio.describe_players(players)))
+        return 0
+    who, command, value = audio.parse_control(args.mots)
+    for p in audio.pick_players(players, who):
+        mpris.control(p["id"], command, value, p)
+        print(f"{p['name']} : {command}" + (f" {value}" if value is not None else "") + ".")
+    return 0
+
+
+def _audio_remote_players(audio, args, action, me):
+    """Les mêmes commandes sur un appareil du réseau maillé, par le pont (`audio.players`,
+    `audio.control`) : son agent `ccs audio` exécute."""
+    every = args.appareil.strip().lower() in audio.ALL_PLAYERS
+    devices = audio.call("audio.list").get("devices") or []
+    device = None if every else audio.resolve(devices, args.appareil, me)
+    if action == "lecteurs":
+        known = audio.call("audio.players", **({"device": device} if device else {})).get("devices") or []
+        if not known:
+            print("Aucun appareil ne rapporte de lecteurs (agent `ccs audio` lancé sur la machine ?).")
+        for d in known:
+            print(f"{d['label']} ({d['device']}) :")
+            print("\n".join("  " + line for line in audio.describe_players(d.get("players") or [])))
+        return 0
+    if device is None:
+        print("Précise un seul appareil pour piloter ses lecteurs.", file=sys.stderr)
+        return 1
+    info = next(d for d in devices if d["device"] == device)
+    if info.get("players") is None:
+        raise audio.AudioError(f"{info['label']} ne rapporte pas de lecteurs (agent Linux à jour ?).")
+    who, command, value = audio.parse_control(args.mots)
+    for p in audio.pick_players(info["players"], who):
+        params = {"device": device, "player": p["id"], "command": command}
+        if value is not None:
+            params["value"] = value
+        audio.call("audio.control", **params)
+        print(f"{info['label']}, {p['name']} : {command}" + (f" {value}" if value is not None else "") + ".")
+    return 0
 
 
 def cmd_chat(args):
@@ -1582,6 +1630,15 @@ def build_parser():
     _action(au_sub, "disable", "desactiver", help="arrête le son partagé sur cette machine")
     _action(au_sub, "receive", "recevoir", help="au premier plan, pour essayer : annonce cette machine et "
                                        "joue ce qu'on lui envoie")
+    aup = _action(au_sub, "players", "lecteurs", help="lecteurs (VLC, Firefox…) de cette machine, ou "
+                  "d'un appareil du réseau maillé (« toutes » : tous)")
+    aup.add_argument("appareil", nargs="?", help="appareil (par le pont) ; sans : cette machine, par D-Bus")
+    auc = _action(au_sub, "control", "piloter", help="pilote un lecteur : [lecteur] play|pause|toggle|"
+                  "next|prev|seek ±N|volume 0-100")
+    auc.add_argument("mots", nargs="+", metavar="[lecteur] commande [valeur]",
+                     help="lecteur : numéro, nom, « toutes » ; sans : le seul lecteur ou celui qui joue")
+    auc.add_argument("--device", "--appareil", dest="appareil",
+                     help="appareil du réseau maillé (par le pont) ; sans : cette machine, par D-Bus")
     _action(au_sub, "agent")          # interne : service ccs-audio
     au.set_defaults(func=cmd_audio)
     ch = _command(sub, "chat", "chats de CCS (commandes pour Claude)")
