@@ -1,11 +1,20 @@
-# CCS — plusieurs comptes Claude Code, comme un seul
+# CCS — Claude Code partout : tous tes appareils, toutes tes machines, tous tes comptes
 
-**Pro (20 $) ne te suffit plus, mais Max (100 $) c'est trop ?** CCS fait
-travailler 2 ou 3 comptes Claude Code ensemble sur ton PC Linux : une seule
-commande pour basculer, l'usage de tous les comptes d'un coup d'œil, une bascule
-automatique avant la coupure — les sessions déjà ouvertes continuent sur le
-compte suivant — et un **orchestrateur** qui organise les fenêtres de 5 h pour
-qu'un compte soit disponible quand l'autre est épuisé.
+CCS est un **poste de travail complet autour de Claude Code** :
+
+- **Partout** : application de bureau GNOME (chat graphique, fichiers, feuille de route,
+  Git, terminal), version web et applications **Android** et **iPhone** pour piloter les
+  sessions de tes PC et de ton serveur depuis le téléphone, notifications, vocal
+  (dictée et lecture des réponses).
+- **Toutes tes machines** : un **réseau maillé** privé relie PC, serveur et téléphones
+  comme sur un réseau local (fichiers, son partagé), le **calcul réparti** envoie
+  un build ou une longue suite de tests sur une autre machine, les commandes **root**
+  se valident depuis le téléphone.
+- **Tous tes comptes** : 2 ou 3 comptes Claude Code travaillent comme un seul — bascule
+  en une commande, usage de tous les comptes d'un coup d'œil, bascule automatique avant
+  la coupure, **orchestrateur** des fenêtres de 5 h.
+- **Des outils autour** : assistant vocal Jarvis, Market (recherche sur Facebook
+  Marketplace au Togo).
 
 ```sh
 ccs save perso        # enregistre le compte connecté
@@ -30,7 +39,10 @@ Claude s'y travaillent dans un **chat graphique** (modèle, effort, ultracode et
 en un clic), à côté des **fichiers** du projet et de sa **feuille de route**, avec une
 couleur par compte. Voir [Chat graphique](#chat-graphique).
 
-## Le palier qui manque
+## Plusieurs comptes : le palier qui manque
+
+**Pro (20 $) ne te suffit plus, mais Max (100 $) c'est trop ?** CCS fait
+travailler 2 ou 3 comptes Claude Code ensemble.
 
 | Formule | Prix / mois* | Capacité (Pro = 1×) |
 |---|---|---|
