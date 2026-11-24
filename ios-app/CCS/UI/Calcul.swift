@@ -311,6 +311,7 @@ struct FormulairePcRicochet: View {
     @State private var identifiant = ""
     @State private var compte = ""
     @State private var nom = ""
+    @State private var complet = false
     @State private var erreur: String? = nil
     @State private var occupe = false
     @State private var resultat: AjoutMachine? = nil
@@ -320,6 +321,12 @@ struct FormulairePcRicochet: View {
             champ("Identifiant", "pc-salon", $identifiant, aide: "lettres, chiffres, - et _")
             champ("Ton compte sur ce PC", "charles", $compte, aide: "terminal, fichiers et travaux tournent sous ce compte")
             champ("Nom affiché (facultatif)", "PC du salon", $nom, aide: nil)
+            Toggle(isOn: $complet) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Installer aussi CCS et Claude Code").font(.subheadline)
+                    Text("pour ouvrir des sessions entières sur ce PC").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
             if let e = erreur { Text(e).font(.footnote).foregroundStyle(.red) }
             Button { Task { await creer() } } label: { Label("Créer le lien", systemImage: "link") }
                 .buttonStyle(.borderedProminent)
@@ -337,6 +344,7 @@ struct FormulairePcRicochet: View {
                 .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 10))
                 Text("Elle installe le serveur SSH et l'agent Ricochet (secours), autorise la clé de ce serveur"
                      + (r.mesh ? " et inscrit la machine au réseau maillé" : "")
+                     + (r.full ? ", puis installe CCS et Claude Code" : "")
                      + " ; elle apparaît ensuite ici, avec sa charge et ses outils.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -360,6 +368,7 @@ struct FormulairePcRicochet: View {
                                  "user": .chaine(compte.trimmingCharacters(in: .whitespaces))]
         let n = nom.trimmingCharacters(in: .whitespaces)
         if !n.isEmpty { p["name"] = .chaine(n) }
+        if complet { p["full"] = .booleen(true) }
         occupe = true
         defer { occupe = false }
         do {

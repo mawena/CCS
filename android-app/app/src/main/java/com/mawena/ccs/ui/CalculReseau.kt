@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Support
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -327,13 +328,14 @@ fun FormulaireLancer(machines: List<Machine>, maison: String, lancer: suspend (M
  * inscrit aussi au réseau maillé.
  */
 @Composable
-fun AjoutPcRicochet(ajouter: suspend (id: String, compte: String, nom: String) -> PcAjoute?) {
+fun AjoutPcRicochet(ajouter: suspend (id: String, compte: String, nom: String, complet: Boolean) -> PcAjoute?) {
     val presse = LocalClipboardManager.current
     val avis = LocalAvis.current
     val portee = rememberCoroutineScope()
     var id by remember { mutableStateOf("") }
     var compte by remember { mutableStateOf("") }
     var nom by remember { mutableStateOf("") }
+    var complet by remember { mutableStateOf(false) }
     var resultat by remember { mutableStateOf<PcAjoute?>(null) }
     val sansMajuscule = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -345,9 +347,16 @@ fun AjoutPcRicochet(ajouter: suspend (id: String, compte: String, nom: String) -
             isError = compte.isNotEmpty() && !Calcul.compteValide(compte), keyboardOptions = sansMajuscule, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(nom, { nom = it.take(100) }, singleLine = true, label = { Text("Nom affiché (facultatif)") },
             placeholder = { Text("PC du salon") }, modifier = Modifier.fillMaxWidth())
+        Row(Modifier.clickable { complet = !complet }, verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(complet, { complet = it })
+            Column {
+                Text("Installer aussi CCS et Claude Code")
+                Text("pour ouvrir des sessions entières sur ce PC", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         FilledTonalButton(enabled = Calcul.idPcValide(id) && Calcul.compteValide(compte), onClick = {
             portee.launch {
-                ajouter(id, compte, nom.trim())?.let { resultat = it; id = ""; nom = "" }
+                ajouter(id, compte, nom.trim(), complet)?.let { resultat = it; id = ""; nom = "" }
             }
         }) { Icon(Icons.Filled.CheckCircle, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Créer le lien") }
         resultat?.let { r ->
@@ -363,6 +372,7 @@ fun AjoutPcRicochet(ajouter: suspend (id: String, compte: String, nom: String) -
             Text(
                 "Elle installe le serveur SSH et l'agent Ricochet (secours), autorise la clé de ce serveur" +
                     (if (r.mesh) " et inscrit la machine au réseau maillé" else "") +
+                    (if (r.full) ", puis installe CCS et Claude Code" else "") +
                     " ; elle apparaît ensuite ici, avec sa charge et ses outils.",
                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

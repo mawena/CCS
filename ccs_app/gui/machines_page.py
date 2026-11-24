@@ -11,7 +11,7 @@ Le jeton du relais n'est jamais affiché : seulement « jeton enregistré » ou 
 import os
 import shlex
 
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import Adw, GLib, Gtk, Pango
 
 from .servers_group import _threaded
 
@@ -53,6 +53,10 @@ class Backend:
     def configure(self, relay=None, token=None):
         from .. import distant
         return distant.save_client(relay=relay, token=token)
+
+    def add(self, machine_id, name=None, user=None, full=False):
+        from .. import distant
+        return distant.add_machine(machine_id, name=name, user=user, full=full)
 
     def set_limit(self, machine_id, limite):
         from .. import distant
@@ -125,6 +129,7 @@ class MachinesPage(Adw.PreferencesPage):
         self.jobs_group = Adw.PreferencesGroup(title="Travaux")
         self.add(self.machines_group)
         self.add(self.jobs_group)
+        self.add(self._add_group())
         self.add(self._launch_group(default_cwd or os.path.expanduser("~")))
         self.add(self._relay_group())
 
@@ -373,6 +378,64 @@ class MachinesPage(Adw.PreferencesPage):
             self.refresh()
         self.b_start.set_sensitive(False)
         self.runner(lambda: self.backend.start(command, cwd, machine=machine, when=when), done)
+
+    # ---- ajouter un PC ---------------------------------------------------------------------
+
+    def _add_group(self):
+        g = Adw.PreferencesGroup(
+            title="Ajouter un PC",
+            description="Crée la commande à coller sur le nouveau PC (Ubuntu ou Debian) : serveur SSH, "
+                        "agent Ricochet en secours et réseau maillé. Lien valable 15 min, une seule fois.")
+        self.a_id = Adw.EntryRow(title="Identifiant (lettres, chiffres, - et _)")
+        self.a_user = Adw.EntryRow(title="Ton compte sur ce PC")
+        self.a_name = Adw.EntryRow(title="Nom affiché (facultatif)")
+        self.a_full = Adw.SwitchRow(title="Installer aussi CCS et Claude Code",
+                                    subtitle="Pour ouvrir des sessions entières sur ce PC")
+        self.a_error = Gtk.Label(css_classes=["error"], wrap=True, xalign=0, visible=False)
+        self.a_result = Gtk.Label(wrap=True, xalign=0, selectable=True, visible=False,
+                                  css_classes=["monospace"], wrap_mode=Pango.WrapMode.CHAR)
+        self.a_copy = Gtk.Button(label="Copier", visible=False)
+        self.a_copy.connect("clicked", lambda _b: self._copy_command())
+        self.b_add = Gtk.Button(label="Créer le lien", css_classes=["suggested-action"])
+        self.b_add.connect("clicked", lambda _b: self.submit_add())
+        for w in (self.a_id, self.a_user, self.a_name, self.a_full):
+            g.add(w)
+        buttons = Gtk.Box(spacing=6, halign=Gtk.Align.END)
+        buttons.append(self.a_copy)
+        buttons.append(self.b_add)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=6)
+        for w in (self.a_error, self.a_result, buttons):
+            box.append(w)
+        g.add(box)
+        return g
+
+    def _copy_command(self):
+        self.get_clipboard().set(self.a_result.get_text())
+        self.toast("Commande copiée")
+
+    def submit_add(self):
+        self.a_error.set_visible(False)
+        mid, user = self.a_id.get_text().strip(), self.a_user.get_text().strip()
+        name, full = self.a_name.get_text().strip() or None, self.a_full.get_active()
+        if not mid or not user:
+            self.a_error.set_text("Indique l'identifiant du PC et ton compte dessus.")
+            self.a_error.set_visible(True)
+            return
+
+        def done(r, error):
+            self.b_add.set_sensitive(True)
+            if error is not None:
+                self.a_error.set_text(str(error))
+                self.a_error.set_visible(True)
+                return
+            self.a_id.set_text("")
+            self.a_name.set_text("")
+            self.a_result.set_text(r["command"])
+            self.a_result.set_visible(True)
+            self.a_copy.set_visible(True)
+            self.refresh()
+        self.b_add.set_sensitive(False)
+        self.runner(lambda: self.backend.add(mid, name=name, user=user, full=full), done)
 
     # ---- relais ----------------------------------------------------------------------------
 

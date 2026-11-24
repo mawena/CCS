@@ -219,11 +219,15 @@ class MachinesApi:
     async def add(self, _conn, params):
         """Déclare une machine dans Ricochet : renvoie la commande à coller sur elle."""
         mid, name, user, limit = (params.get(k) for k in ("machine", "name", "user", "limit"))
+        full = params.get("full", False)
         for v in (mid, name, user):
             if v is not None and not isinstance(v, str):
                 raise rpc.RpcError("invalide", "Paramètre invalide.")
+        if not isinstance(full, bool):
+            raise rpc.RpcError("invalide", "Paramètre invalide.")
         try:
-            return await asyncio.to_thread(distant.add_machine, mid, name=name, user=user, limit=limit)
+            return await asyncio.to_thread(distant.add_machine, mid, name=name, user=user, limit=limit,
+                                           full=full)
         except distant.DistantError as e:
             raise rpc.RpcError("invalide", str(e)) from None
         except OSError as e:

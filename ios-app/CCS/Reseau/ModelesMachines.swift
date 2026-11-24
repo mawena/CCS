@@ -149,11 +149,14 @@ struct AjoutMachine: LisibleJSON {
     var command = ""
     /// Vrai si la commande inscrit aussi le PC au réseau maillé.
     var mesh = false
+    /// Vrai si la commande installe aussi CCS et Claude Code.
+    var full = false
     var expiresS = 900
     init(json j: JSON) {
         id = j.texte("id")
         command = j.texte("command")
         mesh = j.bool("mesh")
+        full = j.bool("full")
         expiresS = j.entier("expires_s", 900)
     }
 }
