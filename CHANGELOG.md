@@ -5,6 +5,12 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.15.1] — 2026-11-25
+
+### Corrigé
+
+- **Android** : l'APK ne se construisait plus (référence `SON` inexistante dans la navigation, l'onglet Son n'est pas une route de « Plus »).
+
 ## [1.15.0] — 2026-11-25
 
 ### Ajouté
