@@ -1336,7 +1336,7 @@ def build_parser():
     (anglais, doublons) restent acceptés sans paraître dans l'aide."""
     parser = argparse.ArgumentParser(
         prog="claude-accounts",
-        description="Usage, prévisions et bascule entre comptes Claude Code.")
+        description="Claude Code partout : sessions, machines, réseau maillé et comptes (usage, prévisions, bascule).")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", metavar="<commande>")
 

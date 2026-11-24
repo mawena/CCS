@@ -1,5 +1,10 @@
 # CCS pour iPhone
 
+CCS, c'est Claude Code partout : sur tous tes appareils, toutes tes machines et tous tes comptes.
+Cette appli met dans l'iPhone les sessions de tes PC et de ton serveur (chat, fichiers, Git,
+terminal, vocal), le réseau maillé, le calcul réparti, les commandes root à valider et les
+comptes Claude Code qui travaillent comme un seul.
+
 Application iPhone native (Swift + SwiftUI, iOS 17) de CCS. Elle parle directement à l'API du
 serveur (par défaut https://ccs.mawena.cloud) : WebSocket `/api/ws?protocol=1` (protocole 1 du pont) pour la RPC et les
 événements, routes HTTP pour la connexion. Même périmètre que l'appli Android
