@@ -50,8 +50,9 @@ final class AppareilsTests: XCTestCase {
 
     func testIcones() {
         let m = machines(exemple)
-        XCTAssertEqual(Appareils.icone(m[1]), "desktopcomputer")
+        XCTAssertEqual(Appareils.icone(m[1]), "laptopcomputer")
         XCTAssertEqual(Appareils.icone(m[2]), "laptopcomputer")
+        XCTAssertEqual(Appareils.icone(m[3]), "desktopcomputer")
         XCTAssertEqual(Appareils.liste(m)[0].icone, "cloud")
     }
 
