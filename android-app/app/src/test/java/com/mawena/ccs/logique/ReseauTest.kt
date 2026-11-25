@@ -27,7 +27,8 @@ class ReseauTest {
         assertEquals(Reseau.Genre.IPhone, Reseau.genre(Appareil(name = "iphone", os = "iOS")))
         assertEquals(Reseau.Genre.Android, Reseau.genre(Appareil(name = "x", os = "android")))
         assertEquals(Reseau.Genre.Serveur, Reseau.genre(Appareil(name = "srv-mawena-cloud", os = "linux")))
-        assertEquals(Reseau.Genre.Bureau, Reseau.genre(Appareil(name = "lp-work", os = "linux")))
+        assertEquals(Reseau.Genre.Portable, Reseau.genre(Appareil(name = "lp-work", os = "linux")))
+        assertEquals(Reseau.Genre.Bureau, Reseau.genre(Appareil(name = "vieux", os = "linux")))
     }
 
     @Test
@@ -77,7 +78,7 @@ class ReseauTest {
         // nom d'hôte de la machine égal au nom de l'appareil
         assertEquals(portable, Reseau.machineDe(machines, Appareil(name = "lp-home"), ici = false))
         // identifiant égal à l'hôte de l'appareil
-        assertEquals(bureau, Reseau.machineDe(machines, Appareil(name = "x", host = "PC-Bureau"), ici = false))
+        assertEquals(bureau, Reseau.machineDe(machines, Appareil(name = "x", host = "LP-Work"), ici = false))
         // la machine locale n'est jamais rattachée à un autre appareil ; champs vides ignorés
         assertNull(Reseau.machineDe(machines, Appareil(name = "vps"), ici = false))
         assertNull(Reseau.machineDe(listOf(Machine(id = "a")), Appareil(name = "pixel", host = ""), ici = false))
