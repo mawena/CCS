@@ -236,5 +236,6 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 3. Postinst : plus de `try-restart` des ponts depuis 1.18.0
 - [x] 4. Paramètres de lancement gardés par conversation (web)
 - [x] 5. Poignée du panneau latéral, corrections d'affichage de l'arbre
-- [x] 6. Vue partagée : deux sessions côte à côte
+- [x] 6. Vue partagée : deux sessions côte à côte, glisser-déposer des onglets (comme VS Code)
+- [x] 6 bis. Composants du chat (blocs `ccs`) sans cadre de code
 - [x] 7. Release 1.18.0

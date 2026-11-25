@@ -43,10 +43,12 @@ class SessionsWebTest(unittest.TestCase):
         latéral hors de la zone qui défile ; boutons des lignes de projet en icônes."""
         js = (WEB / "sessions.js").read_text()
         css = (WEB / "style.css").read_text()
-        for s in ("Ouvrir à côté", "Fermer la vue partagée", "split-handle", "ccs-split-ratio"):
+        for s in ("Ouvrir à côté", "Fermer la vue partagée", "split-handle", "ccs-split-ratio",
+                  "drop-zone", "setTimeout(showDropZone, 0); }", "hideDropZone(); }", "dropOn(id, dropTarget(e))"):
             self.assertIn(s, js)
         self.assertIn('el("aside", { class: "side" }, el("div", { class: "side-body" }', js)
         self.assertIn(".stage.split > .holder", css)
+        self.assertIn(".drop-zone.paired .drop-hint.on-b", css)
         self.assertIn(".side-body", css)
         self.assertIn(".project-item .icon-btn", (WEB / "sessions.css").read_text())
 

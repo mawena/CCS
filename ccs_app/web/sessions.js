@@ -158,6 +158,60 @@ export function mountSessions(root, api, ctx = {}) {
 
   const toggleSplit = () => (pair ? closeSplit() : openBeside());
 
+  // Glisser un onglet (ou une ligne de « En cours ») sur la zone de chat, comme dans VS Code :
+  // bord gauche ou droit (haut ou bas sur téléphone) → vue partagée de ce côté ; milieu → l'onglet
+  // s'ouvre à la place ; en vue partagée, il prend la place du volet visé.
+  const dropHint = el("div", { class: "drop-hint" });
+  const dropZone = el("div", { class: "drop-zone" }, dropHint);
+  const narrow = () => window.matchMedia?.("(max-width: 719px)").matches;
+  // zone visée : "a" (gauche / haut), "b" (droite / bas) ou "c" (milieu, sans vue partagée)
+  function dropTarget(e) {
+    const r = stage.getBoundingClientRect();
+    const col = narrow();
+    const f = col ? (e.clientY - r.top) / (r.height || 1) : (e.clientX - r.left) / (r.width || 1);
+    if (pair && current) {
+      const cut = (parseFloat(stage.style.getPropertyValue("--split")) || 50) / 100;
+      return f < cut ? "a" : "b";
+    }
+    return f < 1 / 3 ? "a" : f > 2 / 3 ? "b" : "c";
+  }
+  function dropOn(id, zone) {
+    if (!tabs.has(id)) return;
+    if (pair && current) {
+      const at = zone === "a" ? 0 : 1;
+      const other = pair[1 - at];
+      pair = other === id ? [pair[1], pair[0]] : (at ? [pair[0], id] : [id, pair[1]]);
+    } else if (zone !== "c" && current && tabs.has(current)) {
+      let mate = id === current ? null : current;
+      if (!mate) mate = [...tabs].filter(([k]) => k !== id).sort(([, a], [, b]) => (b.shownAt || 0) - (a.shownAt || 0))[0]?.[0];
+      if (mate) pair = zone === "a" ? [id, mate] : [mate, id];
+    }
+    show(id);
+    for (const k of pair || [id]) { const t = tabs.get(k); if (t?.term) t.view.resize(); }
+  }
+  function showDropZone() {
+    if (!current || !tabs.has(current)) return;
+    dropZone.classList.toggle("col", Boolean(narrow()));
+    dropZone.classList.toggle("paired", Boolean(pair));
+    dropHint.className = "drop-hint";
+    stage.append(dropZone);
+  }
+  const hideDropZone = () => dropZone.remove();
+  dropZone.addEventListener("dragover", (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    dropHint.className = `drop-hint on-${dropTarget(e)}`;
+  });
+  dropZone.addEventListener("dragleave", (e) => { if (e.target === dropZone) dropHint.className = "drop-hint"; });
+  dropZone.addEventListener("drop", (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    const id = dragId;
+    hideDropZone();
+    dropOn(id, dropTarget(e));
+  });
+
   // Proportion du volet gauche (ou du haut), gardée.
   const setRatio = (r) => { stage.style.setProperty("--split", `${Math.min(Math.max(r, 20), 80)}%`); };
   setRatio(Number(localStorage.getItem("ccs-split-ratio")) || 50);
@@ -368,8 +422,8 @@ export function mountSessions(root, api, ctx = {}) {
   function dragProps(id, axis) {
     return {
       draggable: "true",
-      ondragstart: (e) => { dragId = id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); e.currentTarget.classList.add("dragging"); },
-      ondragend: (e) => { dragId = null; e.currentTarget.classList.remove("dragging"); dropMarks(); },
+      ondragstart: (e) => { dragId = id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); e.currentTarget.classList.add("dragging"); setTimeout(showDropZone, 0); },
+      ondragend: (e) => { dragId = null; e.currentTarget.classList.remove("dragging"); dropMarks(); hideDropZone(); },
       ondragover: (e) => {
         if (!dragId || dragId === id) return;
         e.preventDefault();

@@ -197,7 +197,7 @@ export function enrich(root, ctx) {
   for (const code of root.querySelectorAll("pre > code")) {
     if (!/(^|\s)language-ccs(\s|$)/.test(code.className)) continue;
     const spec = parseBlock(code.textContent);
-    if (spec) code.parentNode.replaceWith(component(spec, ctx));
+    if (spec) (code.closest(".code-wrap") || code.parentNode).replaceWith(component(spec, ctx));
   }
   for (const img of root.querySelectorAll("img")) {
     if (img.classList.contains("rich-img") || img.closest(".rich, dialog")) continue;
