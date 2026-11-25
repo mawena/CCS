@@ -279,5 +279,5 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 ## Phase 58 — Sessions de toutes les machines dans les applis mobiles
 - [x] 1. Serveur : `machines.chats` renvoie les sessions de chaque machine en ligne (erreur par machine injoignable)
 - [x] 2. iOS : une section par machine dans Sessions ; toucher une session pilote sa machine puis l'ouvre
-- [ ] 3. Android : même chose
+- [x] 3. Android : même chose
 - [ ] 4. Release 1.23.0 et installation partout

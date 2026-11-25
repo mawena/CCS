@@ -15,8 +15,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Toujours croissant (l'appli Flutter 0.26.1 avait le numéro 27).
-        versionCode = 48
-        versionName = "1.21.0"
+        versionCode = 50
+        versionName = "1.23.0"
     }
 
     // Clé d'origine (celle de l'appli déjà installée), fournie par Codemagic dans CCS_KEYSTORE ;
