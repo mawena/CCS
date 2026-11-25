@@ -36,7 +36,7 @@ object Calcul {
         }
     }
 
-    /** « pc-bureau · 3 min 05 s · code 0 · ~/Work/x » (`jobLine` du web). */
+    /** « lp-work · 3 min 05 s · code 0 · ~/Work/x » (`jobLine` du web). */
     fun ligne(t: TravailDistant, maintenant: Double = System.currentTimeMillis() / 1000.0): String {
         val parts = mutableListOf(t.machine?.ifEmpty { null } ?: "machine à choisir")
         val debut = t.started

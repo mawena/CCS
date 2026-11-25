@@ -103,7 +103,7 @@ class JarvisBridgeTest(unittest.IsolatedAsyncioTestCase):
     async def test_settings_defaults_and_configure(self):
         c = await self.client()
         r = await c.call("jarvis.settings")
-        self.assertEqual((r["machine"], r["port"], r["fingerprint"]), ("laptop-maison", 7341, ""))
+        self.assertEqual((r["machine"], r["port"], r["fingerprint"]), ("lp-home", 7341, ""))
         r = await c.call("jarvis.configure", machine="pc-salon", port=7342)
         self.assertEqual((r["machine"], r["port"]), ("pc-salon", 7342))
         for bad in ({"machine": "../x"}, {"port": 0}, {"port": "7341"}):
@@ -119,7 +119,7 @@ class JarvisBridgeTest(unittest.IsolatedAsyncioTestCase):
         r = await c.call("jarvis.open", fingerprint=self.brain.fingerprint,
                          first=json.dumps({"type": "pair", "version": 1, "code": "482913",
                                            "name": "web", "platform": "web"}))
-        self.assertEqual(self.tunnels, [("laptop-maison", 7341)])
+        self.assertEqual(self.tunnels, [("lp-home", 7341)])
         self.assertRegex(r["fingerprint_short"], r"^[0-9A-F]{4}(-[0-9A-F]{4}){3}$")
         await self.wait_for(lambda: any(n == "jarvis.closed" for n, _ in self.events), "fermeture")
         self.assertEqual(self.messages()[0]["type"], "paired")
@@ -237,7 +237,7 @@ class TunnelProcessTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_tunnel_relays_and_process_stops(self):
         fp = jarvis_link.parse_fingerprint(self.brain.fingerprint)
-        sock, proc = await jarvis_link.open_tunnel("laptop-maison", self.brain.port,
+        sock, proc = await jarvis_link.open_tunnel("lp-home", self.brain.port,
                                                    agent=str(self.agent), config=self.tmp / "c.toml")
         ws = await jarvis_link.connect(sock, fp)
         await ws.send_text(json.dumps({"type": "hello", "token": "jeton-oreille"}))
@@ -275,7 +275,7 @@ class MeshRouteTest(unittest.IsolatedAsyncioTestCase):
         server = await asyncio.start_server(lambda r, w: w.close(), "127.0.0.1", 0)
         port = server.sockets[0].getsockname()[1]
         try:
-            got = await jarvis_link.open_mesh("laptop-maison", port, address="127.0.0.1")
+            got = await jarvis_link.open_mesh("lp-home", port, address="127.0.0.1")
             self.assertIsNotNone(got)
             sock, proc = got
             self.assertIsNone(proc)
@@ -286,7 +286,7 @@ class MeshRouteTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_nothing_when_absent_or_unreachable(self):
         with mock.patch("ccs_app.distant.mesh_address", lambda *a, **k: None):
-            self.assertIsNone(await jarvis_link.open_mesh("laptop-maison", 7341))
+            self.assertIsNone(await jarvis_link.open_mesh("lp-home", 7341))
         probe = socket.socket()
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -305,13 +305,13 @@ class MeshRouteTest(unittest.IsolatedAsyncioTestCase):
 
         with mock.patch.object(jarvis_link, "open_mesh", no_mesh), \
                 mock.patch.object(bridge_jarvis.JarvisApi, "_ricochet", staticmethod(ricochet)):
-            self.assertEqual(await bridge_jarvis.JarvisApi._route("laptop-maison", 7341), "tunnel")
-        self.assertEqual(calls, [("laptop-maison", 7341)])
+            self.assertEqual(await bridge_jarvis.JarvisApi._route("lp-home", 7341), "tunnel")
+        self.assertEqual(calls, [("lp-home", 7341)])
 
         async def mesh(machine, port):
             return ("direct", None)
 
         with mock.patch.object(jarvis_link, "open_mesh", mesh), \
                 mock.patch.object(bridge_jarvis.JarvisApi, "_ricochet", staticmethod(ricochet)):
-            self.assertEqual(await bridge_jarvis.JarvisApi._route("laptop-maison", 7341), ("direct", None))
+            self.assertEqual(await bridge_jarvis.JarvisApi._route("lp-home", 7341), ("direct", None))
         self.assertEqual(len(calls), 1)

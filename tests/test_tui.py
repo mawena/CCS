@@ -129,7 +129,7 @@ class TuiTest(unittest.TestCase):
             self.app.handle_key("q")
 
 
-ASK = {"id": "r1", "machine": "mawena-cloud", "command": "apt update", "expires_at": 4e9, "tries_left": 3}
+ASK = {"id": "r1", "machine": "srv-mawena-cloud", "command": "apt update", "expires_at": 4e9, "tries_left": 3}
 
 
 class RootClient(FakeClient):
@@ -138,7 +138,7 @@ class RootClient(FakeClient):
     def __init__(self):
         super().__init__()
         self.answer_result = ({"ok": True}, None)
-        self.status = {"machine": "mawena-cloud", "kept": False, "remaining": 0, "pending": None}
+        self.status = {"machine": "srv-mawena-cloud", "kept": False, "remaining": 0, "pending": None}
 
     def call(self, method, callback=None, **params):
         if method == "root.answer":
@@ -168,7 +168,7 @@ class TuiRootTest(unittest.TestCase):
     def test_ask_masks_and_sends_once(self):
         self.app.on_event("root.ask", dict(ASK))
         out = texts(self.app.root)
-        self.assertIn("mawena-cloud", out)
+        self.assertIn("srv-mawena-cloud", out)
         self.assertIn("apt update", out)
         self.assertIn("3 essai(s)", out)
         self.type("s3cret")
@@ -215,14 +215,14 @@ class TuiRootTest(unittest.TestCase):
         self.assertIsNone(self.app.root_guard.prompt)
 
     def test_kept_indicator_forget_and_notices(self):
-        self.client.status = {"machine": "mawena-cloud", "kept": True, "remaining": 2520, "pending": None}
+        self.client.status = {"machine": "srv-mawena-cloud", "kept": True, "remaining": 2520, "pending": None}
         self.app.root_guard.refresh()
         self.assertIn("root gardé, 42 min", self.app.header.text)
-        self.app.on_event("root.used", {"machine": "mawena-cloud", "command": "apt upgrade", "at": 1})
+        self.app.on_event("root.used", {"machine": "srv-mawena-cloud", "command": "apt upgrade", "at": 1})
         self.assertIn("apt upgrade", self.app.footer.text)
         self.app.handle_key("f8")
         self.assertIn("root.forget", self.client.methods())
-        self.app.on_event("root.forgotten", {"machine": "mawena-cloud", "reason": "revoke"})
+        self.app.on_event("root.forgotten", {"machine": "srv-mawena-cloud", "reason": "revoke"})
         self.assertNotIn("root gardé", self.app.header.text)
         self.assertIn("téléphone", self.app.footer.text)
 

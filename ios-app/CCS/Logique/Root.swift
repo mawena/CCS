@@ -35,7 +35,7 @@ struct DemandeRoot: Equatable, Identifiable {
                            expire: fin, essais: max(0, j.entier("tries_left", 3)), erreur: e.isEmpty ? nil : e)
     }
 
-    /// Titre de la feuille : « pc-bureau demande le mot de passe root ».
+    /// Titre de la feuille : « lp-work demande le mot de passe root ».
     var titre: String {
         let m = machine.trimmingCharacters(in: .whitespaces)
         return (m.isEmpty ? "La machine" : m) + " demande le mot de passe root"

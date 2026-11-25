@@ -1,5 +1,5 @@
 """Market (phase 45) : lecture des cartes et des annonces sur fixtures, choix de la fenêtre du
-vendeur (jamais Messenger), défilement simulé, refus net sans tunnel par pc-bureau, session en
+vendeur (jamais Messenger), défilement simulé, refus net sans tunnel par lp-work, session en
 600, client WebSocket et CDP (faux Chrome), dossier du chat et commandes `ccs market`."""
 
 import argparse
@@ -200,7 +200,7 @@ class TunnelTest(Env):
         for opt in ("HostName=100.64.0.2", "HostKeyAlias=ricochet-pc-bureau", "BatchMode=yes",
                     "ExitOnForwardFailure=yes"):
             self.assertIn(opt, argv)
-        self.assertEqual(argv[-4:], ["-D", f"127.0.0.1:{t.port}", "-N", "pc-bureau"])
+        self.assertEqual(argv[-4:], ["-D", f"127.0.0.1:{t.port}", "-N", "lp-work"])
         t2 = market.Tunnel(self.cfg, forward=9222)
         self.assertIn(f"127.0.0.1:{t2.port}:127.0.0.1:9222", t2.argv())
 
@@ -224,7 +224,7 @@ class TunnelTest(Env):
                 pass
 
             def __enter__(self):
-                raise market.TunnelError("pc-bureau ne répond pas : rien n'a été envoyé à Facebook.")
+                raise market.TunnelError("lp-work ne répond pas : rien n'a été envoyé à Facebook.")
 
             def __exit__(self, *_):
                 pass
@@ -409,7 +409,7 @@ class FacebookTest(Env):
         self.assertIn("ccs market login", str(e.exception))
 
     def test_run_refreshes_cookies(self):
-        market.save_session(COOKIES[:2], "UA pc-bureau")
+        market.save_session(COOKIES[:2], "UA lp-work")
         url = market.item_url("2421778705023492")
         cdp = FakeCdp({url: {"item": {"text": "T\n1 000 CFA", "seller_url": ""}}})
         seen = {}
@@ -437,7 +437,7 @@ class FacebookTest(Env):
             it = market.run(lambda fb: fb.item(url), self.cfg, tunnel=T, browser=B,
                             exit_check=lambda port, cfg: "156.38.73.89")
         self.assertEqual(it["title"], "T")
-        self.assertEqual(seen, {"browser": (4242, "UA pc-bureau"), "tunnel_closed": True,
+        self.assertEqual(seen, {"browser": (4242, "UA lp-work"), "tunnel_closed": True,
                                 "browser_closed": True})
         self.assertEqual(stat.S_IMODE(market.session_path().stat().st_mode), 0o600)
 
@@ -492,7 +492,7 @@ class LoginTest(Env):
         n = market.login(self.cfg, out=out.append, run_cmd=run_cmd, tunnel=T,
                          connect=lambda port: (cdp, {"User-Agent": "Mozilla/5.0 Chrome/142"}), sleep=lambda s: None)
         self.assertEqual(n, 2)
-        self.assertEqual(ran["argv"][-3:], ["pc-bureau", "bash", "-s"])
+        self.assertEqual(ran["argv"][-3:], ["lp-work", "bash", "-s"])
         self.assertIn("--remote-debugging-address=127.0.0.1", ran["input"])
         self.assertEqual(market.load_session()["user_agent"], "Mozilla/5.0 Chrome/142")
         self.assertIn(mock.call("Browser.close"), cdp.call.call_args_list)
@@ -552,12 +552,12 @@ class CliTest(Env):
         self.assertIn("22 000 CFA | Cudy AC1200", out.getvalue())
 
         def down(*_a, **_k):
-            raise market.TunnelError("pc-bureau ne répond pas")
+            raise market.TunnelError("lp-work ne répond pas")
         fake.run = down
         err = io.StringIO()
         with redirect_stderr(err):
             self.assertEqual(market_cli.cmd_market(args, fake), 2)
-        self.assertIn("pc-bureau", err.getvalue())
+        self.assertIn("lp-work", err.getvalue())
         args.action = "chercher"                                     # ancien nom français
         with redirect_stderr(io.StringIO()):
             self.assertEqual(market_cli.cmd_market(args, fake), 2)

@@ -21,9 +21,9 @@ class CalculTest {
 
     @Test
     fun ligneEtEtatDUnTravail() {
-        val t = TravailDistant(id = "a1", text = "make", state = "done", machine = "pc-bureau",
+        val t = TravailDistant(id = "a1", text = "make", state = "done", machine = "lp-work",
             cwd = "/home/charles/Work/x", code = 0, created = 900.0, started = 1000.0, ended = 1185.0)
-        assertEquals("pc-bureau · 3 min 05 s · code 0 · ~/Work/x", Calcul.ligne(t, maintenant = 2000.0))
+        assertEquals("lp-work · 3 min 05 s · code 0 · ~/Work/x", Calcul.ligne(t, maintenant = 2000.0))
         assertEquals("fini", Calcul.etat(t))
         assertFalse(Calcul.actif(t))
         assertFalse(Calcul.enEchec(t))

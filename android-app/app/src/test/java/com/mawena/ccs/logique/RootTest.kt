@@ -16,14 +16,14 @@ class RootTest {
     private val t0 = 1_800_000_000_000L   // horloge du téléphone (ms)
 
     private fun ask(id: String, essais: Int = 3, erreur: String? = null, expire: Double? = t0 / 1000.0 + 300) = buildJsonObject {
-        put("id", id); put("machine", "pc-bureau"); put("command", "apt install htop")
+        put("id", id); put("machine", "lp-work"); put("command", "apt install htop")
         expire?.let { put("expires_at", it) }
         put("tries_left", essais)
         erreur?.let { put("error", it) }
     }
 
     private fun statut(kept: Boolean, restant: Long = 0, pending: JsonObject? = null) = buildJsonObject {
-        put("machine", "pc-bureau"); put("kept", kept); put("remaining", restant)
+        put("machine", "lp-work"); put("kept", kept); put("remaining", restant)
         if (kept) put("expires_at", t0 / 1000.0 + restant) else put("expires_at", JsonNull)
         put("pending", pending ?: JsonNull)
     }
@@ -33,7 +33,7 @@ class RootTest {
         val e = Root.apresDemande(EtatRoot(), ask("a1"), t0)
         val d = e.demande!!
         assertEquals("a1", d.id)
-        assertEquals("pc-bureau", d.machine)
+        assertEquals("lp-work", d.machine)
         assertEquals("apt install htop", d.commande)
         assertEquals(3, d.essais)
         assertNull(d.erreur)
@@ -94,9 +94,9 @@ class RootTest {
         val e = Root.apresStatut(EtatRoot(), statut(true, 1800, ask("p1")), t0)
         assertEquals("p1", e.demande!!.id)
         val g = e.garde!!
-        assertEquals("pc-bureau", g.machine)
+        assertEquals("lp-work", g.machine)
         assertEquals(t0 + 1_800_000, g.finMs)
-        assertEquals("Root gardé sur pc-bureau, 30 min", Root.texteGarde(g, t0))
+        assertEquals("Root gardé sur lp-work, 30 min", Root.texteGarde(g, t0))
         // plus rien côté pont
         val f = Root.apresStatut(e, statut(false), t0)
         assertNull(f.demande)
@@ -114,10 +114,10 @@ class RootTest {
     @Test
     fun oubliEfaceLaGarde() {
         val e = Root.apresStatut(EtatRoot(), statut(true, 600, ask("a1")), t0)
-        val expire = Root.apresOubli(e, buildJsonObject { put("machine", "pc-bureau"); put("reason", "expired") })
+        val expire = Root.apresOubli(e, buildJsonObject { put("machine", "lp-work"); put("reason", "expired") })
         assertNull(expire.garde)
         assertNotNull(expire.demande)
-        val oubli = Root.apresOubli(e, buildJsonObject { put("machine", "pc-bureau"); put("reason", "forget") })
+        val oubli = Root.apresOubli(e, buildJsonObject { put("machine", "lp-work"); put("reason", "forget") })
         assertNull(oubli.garde)
         assertNull(oubli.demande)
     }
@@ -156,14 +156,14 @@ class RootTest {
     @Test
     fun machineDuLien() {
         val ms = listOf(
-            com.mawena.ccs.reseau.Machine(id = "vps", name = "mawena-cloud", local = true),
-            com.mawena.ccs.reseau.Machine(id = "pc-bureau", name = "PC du bureau"),
+            com.mawena.ccs.reseau.Machine(id = "vps", name = "srv-mawena-cloud", local = true),
+            com.mawena.ccs.reseau.Machine(id = "lp-work", name = "PC du bureau"),
         )
-        assertEquals("pc-bureau" to "PC du bureau", Root.cibleLien("pc-bureau", "", ms))
-        assertEquals("pc-bureau" to "PC du bureau", Root.cibleLien("pc du bureau", "", ms))
-        assertNull(Root.cibleLien("pc-bureau", "pc-bureau", ms))
+        assertEquals("lp-work" to "PC du bureau", Root.cibleLien("lp-work", "", ms))
+        assertEquals("lp-work" to "PC du bureau", Root.cibleLien("pc du bureau", "", ms))
+        assertNull(Root.cibleLien("lp-work", "lp-work", ms))
         // ce serveur : identifiant vide
-        assertEquals("" to "", Root.cibleLien("vps", "pc-bureau", ms))
+        assertEquals("" to "", Root.cibleLien("vps", "lp-work", ms))
         assertNull(Root.cibleLien("vps", "", ms))
         assertNull(Root.cibleLien("inconnue", "", ms))
         assertNull(Root.cibleLien(null, "", ms))

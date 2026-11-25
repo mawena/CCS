@@ -38,7 +38,7 @@ const api = {
       case "files.roots": return { home: "/home/u", roots: ["/home/u", "/srv"] };
       case "projects.add": return { cwd: p.cwd };
       case "machines.list": return { machines: [{ id: "vps", local: true, online: true },
-        { id: "pc-bureau", name: "PC du bureau", online: true, mesh_ip: "100.64.0.2", tunnel: false },
+        { id: "lp-work", name: "PC du bureau", online: true, mesh_ip: "100.64.0.2", tunnel: false },
         { id: "portable", name: "Portable", online: false }] };
       default: return {};
     }
@@ -265,12 +265,12 @@ globalThis.WebSocket = class {
 };
 globalThis.location = { hash: "", protocol: "https:", host: "ccs.exemple" };
 const F = await import("./files-browser.js");
-out = { parse: [F.parseSub("@pc-bureau/%2Fhome%2Fc%2Fx"), F.parseSub("%2Fsrv"), F.parseSub("")],
-        addr: F.address("/home/c", "pc-bureau") };
+out = { parse: [F.parseSub("@lp-work/%2Fhome%2Fc%2Fx"), F.parseSub("%2Fsrv"), F.parseSub("")],
+        addr: F.address("/home/c", "lp-work") };
 const view = F.mountFiles(root, api, { sub: "" });
 await settle();
 out.devices = root.querySelectorAll(".file-device").map((b) => [b.textContent, b.getAttribute("disabled") !== null && b.getAttribute("disabled") !== "false"]);
-view.route("@pc-bureau/" + encodeURIComponent("/home/c")); await settle(); await new Promise((r) => setTimeout(r, 20)); await settle();
+view.route("@lp-work/" + encodeURIComponent("/home/c")); await settle(); await new Promise((r) => setTimeout(r, 20)); await settle();
 out.url = sockets.map((s) => s.url);
 out.selected = root.querySelectorAll(".file-device").map((b) => b.getAttribute("aria-selected"));
 out.crumb = root.querySelector(".crumbs").textContent;
@@ -278,14 +278,14 @@ out.remembered = localStorage.getItem("ccs.files.device");
 view.cleanup();
 out.closed = sockets[0].readyState;
 """)
-        self.assertEqual(out["parse"], [{"device": "pc-bureau", "path": "/home/c/x"}, {"device": "", "path": "/srv"},
+        self.assertEqual(out["parse"], [{"device": "lp-work", "path": "/home/c/x"}, {"device": "", "path": "/srv"},
                                         {"device": "", "path": ""}])
-        self.assertEqual(out["addr"], "#/fichiers/@pc-bureau/%2Fhome%2Fc")
+        self.assertEqual(out["addr"], "#/fichiers/@lp-work/%2Fhome%2Fc")
         self.assertEqual(out["devices"], [["Serveur CCS", False], ["PC du bureau", False], ["Portablehors ligne", True]])
-        self.assertEqual(out["url"], ["wss://ccs.exemple/api/ws?protocol=1&machine=pc-bureau"])
+        self.assertEqual(out["url"], ["wss://ccs.exemple/api/ws?protocol=1&machine=lp-work"])
         self.assertEqual(out["selected"], ["false", "true", "false"])
         self.assertIn("Personnel", out["crumb"])
-        self.assertEqual(out["remembered"], "pc-bureau")
+        self.assertEqual(out["remembered"], "lp-work")
         self.assertEqual(out["closed"], 3)
 
 if __name__ == "__main__":

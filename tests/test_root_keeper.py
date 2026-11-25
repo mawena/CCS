@@ -429,8 +429,8 @@ class RicochetIdTest(unittest.TestCase):
         class M:
             def __init__(self, id, local):
                 self.id, self.local = id, local
-        self.assertEqual(rk.ricochet_id(lambda: [M("pc-bureau", False), M("mawena-cloud", True)]),
-                         "mawena-cloud")
+        self.assertEqual(rk.ricochet_id(lambda: [M("lp-work", False), M("srv-mawena-cloud", True)]),
+                         "srv-mawena-cloud")
 
     def test_no_ricochet(self):
         from ccs_app import root_keeper as rk

@@ -940,7 +940,7 @@ du calcul réparti. Si le PC ne répond pas, un bandeau donne la raison et le we
 
 La page **Jarvis** (🎙) de la version web parle à [Jarvis](https://github.com/mawena/Jarvis),
 l'assistant vocal de la maison, d'où qu'on soit : le pont du serveur ouvre le tunnel Ricochet
-vers la machine du cerveau (`laptop-maison`, port 7341 par défaut) et relaie le son.
+vers la machine du cerveau (`lp-home`, port 7341 par défaut) et relaie le son.
 
 1. Sur la machine de Jarvis : le port 7341 autorisé dans le `[tunnel]` de l'agent Ricochet,
    puis `jarvis pair`.
@@ -1010,7 +1010,7 @@ demande l'état au serveur CCS comme le web) :
 
 ```bash
 ccs network                 # appareils et chemin de chaque liaison
-ccs network ping pc-bureau  # chemin et latence réels
+ccs network ping lp-work  # chemin et latence réels
 ccs network key --name pc-x  # clé jetable et lignes d'inscription (sur le VPS)
 ccs network server         # appareils connus du serveur
 ```
@@ -1043,11 +1043,11 @@ Protocole : [`docs/audio.md`](docs/audio.md).
   ±10 s, volume.
 
 ```bash
-ccs audio players pc-bureau      # lecteurs d'un appareil (sans nom : ce PC)
-ccs audio control --device pc-bureau vlc toggle   # ou : seek -10, volume 40, next, prev
+ccs audio players lp-work      # lecteurs d'un appareil (sans nom : ce PC)
+ccs audio control --device lp-work vlc toggle   # ou : seek -10, volume 40, next, prev
 ccs audio list                    # appareils annoncés et flux en cours
 ccs audio send here iphone       # le son de ce PC vers l'iPhone
-ccs audio send pixel pc-bureau   # télécommande : du Pixel vers pc-bureau
+ccs audio send pixel lp-work   # télécommande : du Pixel vers lp-work
 ccs audio stop                   # arrête les flux de ce PC (ou : ccs audio stop a3)
 ccs audio receive                  # sans le service : au premier plan, pour essayer
 ccs audio status                   # diagnostic : outils, serveur de son, sorties, service
@@ -1080,15 +1080,15 @@ boutons de **choix** pour la suite (voir [Chat riche](#chat-riche)).
 
 - C'est un chat Claude dédié (dossier `~/.local/share/ccs/market/`, avec son `CLAUDE.md`) : l'option
   ouvre la session dans ce dossier, sur tous les appareils. Claude y lance `ccs market …`.
-- Les requêtes vers Facebook sortent **toujours par pc-bureau**, par le réseau maillé : `ssh -D`
+- Les requêtes vers Facebook sortent **toujours par lp-work**, par le réseau maillé : `ssh -D`
   vers 100.64.0.2, adresse de sortie vérifiée avant chaque recherche (jamais celle du VPS), puis un
   Chrome sans interface du VPS (navigateurs de Playwright) branché sur ce tunnel. **Pas de repli** :
-  si pc-bureau ne répond pas, Market le dit et n'envoie rien.
+  si lp-work ne répond pas, Market le dit et n'envoie rien.
 - Rythme humain (6 à 8 s par page, peu de pages par question), images bloquées, Chrome fermé après
   chaque commande. Messenger n'est jamais lu.
 - Compte Facebook personnel. La lecture automatique est contraire aux conditions de Facebook.
 
-**Première fois** : `ccs market login` (sur le VPS). Google Chrome s'ouvre sur l'écran de pc-bureau
+**Première fois** : `ccs market login` (sur le VPS). Google Chrome s'ouvre sur l'écran de lp-work
 (profil dédié) ; connecte-toi à Facebook : les cookies sont exportés et gardés dans
 `~/.config/ccs/market/session.json` (600, jamais affichés), puis ce Chrome se referme. À refaire si
 Market dit que la session a expiré.
@@ -1112,7 +1112,7 @@ longue suite de tests tourne ailleurs pendant que le VPS reste tranquille.
 ```sh
 ccs remote machines                       # machines en ligne, charge, outils trouvés
 ccs remote run -- flutter build apk    # la machine qui a flutter, la moins chargée
-ccs remote run --machine pc-bureau --fetch build/app/outputs -- flutter build apk
+ccs remote run --machine lp-work --fetch build/app/outputs -- flutter build apk
 ```
 
 `ccs remote run`, depuis le dossier du projet :
@@ -1200,7 +1200,7 @@ empreinte dans `jeton_operateur_sha256` de `/etc/ricochet/serveur.toml`).
   `distant.toml` avec `utilisateur` et `limite`, renommé et lu tout seul)
 
 ```toml
-[machines.pc-bureau]
+[machines.lp-work]
 user = "charles"
 port = 22
 limit = 3         # travaux à la fois sur cette machine (1 à 8, 2 par défaut)
@@ -1220,8 +1220,8 @@ chat et des raccourcis d'appli. Connexion par appairage (mot de passe + code) ou
 puis jeton d'appareil gardé chiffré, révocable dans Réglages → Appareils.
 
 L'APK est joint à chaque release GitHub (`ccs-<version>.apk`). Pour le construire (SDK Android
-sur `pc-bureau`) : voir [android-app/README.md](android-app/README.md). Il est signé avec la clé
-de débogage de `pc-bureau` : construire toujours là pour installer les mises à jour par-dessus.
+sur `lp-work`) : voir [android-app/README.md](android-app/README.md). Il est signé avec la clé
+de débogage de `lp-work` : construire toujours là pour installer les mises à jour par-dessus.
 
 ## Application iPhone
 
@@ -1387,7 +1387,7 @@ make deb                  # construit dist/ccs_<version>_all.deb
 | `ccs audio list` / `send <source> <sortie>` / `stop [flux\|appareil]` / `receive` / `status` / `enable [--name n]` / `disable` | Son partagé sur le réseau maillé : appareils, envois, service `ccs-audio` de ce PC |
 | `ccs remote machines [--fast]` | Calcul réparti : machines du réseau Ricochet, charge et outils (`--fast` : sans les interroger) |
 | `ccs remote run [--machine m] [--tool o] [--fetch chemin] [--include chemin] [--with-git] [--when night\|HH:MM] [--detach] -- <commande>` | Lance la commande sur une autre machine : envoi du projet, sortie en direct, fichiers produits rapportés |
-| `ccs market search "<mots>" [--min N] [--max N] [--city lome]` / `seller <lien>` / `item <lien>` / `status` / `login` | Market : annonces de Facebook Marketplace au Togo (toujours par pc-bureau), vendeur, détails d'une annonce, état, connexion (une fois) ; `--json` |
+| `ccs market search "<mots>" [--min N] [--max N] [--city lome]` / `seller <lien>` / `item <lien>` / `status` / `login` | Market : annonces de Facebook Marketplace au Togo (toujours par lp-work), vendeur, détails d'une annonce, état, connexion (une fois) ; `--json` |
 | `ccs chat clear` | Dans un chat de CCS (lancé par Claude) : vide la conversation (`/clear`) à la fin du tour en cours |
 | `ccs app` | Application graphique |
 

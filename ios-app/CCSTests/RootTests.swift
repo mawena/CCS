@@ -10,19 +10,19 @@ final class RootTests: XCTestCase {
         let e = error.map { ", \"error\": \"\($0)\"" } ?? ""
         let x = JSON.texteNombre(expire ?? t0 + 300)
         return json("""
-        {"id": "\(id)", "machine": "pc-bureau", "command": "apt update", "expires_at": \(x), "tries_left": \(tries)\(e)}
+        {"id": "\(id)", "machine": "lp-work", "command": "apt update", "expires_at": \(x), "tries_left": \(tries)\(e)}
         """)
     }
 
     func testDecodageDemande() {
         let d = DemandeRoot.lire(ask(error: "Mot de passe refusé (essai 1 sur 3)."), maintenant: t0)!
         XCTAssertEqual(d.id, "abc")
-        XCTAssertEqual(d.machine, "pc-bureau")
+        XCTAssertEqual(d.machine, "lp-work")
         XCTAssertEqual(d.commande, "apt update")
         XCTAssertEqual(d.expire, t0 + 300)
         XCTAssertEqual(d.essais, 3)
         XCTAssertEqual(d.erreur, "Mot de passe refusé (essai 1 sur 3).")
-        XCTAssertEqual(d.titre, "pc-bureau demande le mot de passe root")
+        XCTAssertEqual(d.titre, "lp-work demande le mot de passe root")
         XCTAssertEqual(d.restant(maintenant: t0 + 55.5), 245)
         XCTAssertNil(DemandeRoot.lire(json("{\"machine\": \"x\"}"), maintenant: t0))
         XCTAssertNil(DemandeRoot.lire(ask(error: "  "), maintenant: t0)!.erreur)
@@ -72,7 +72,7 @@ final class RootTests: XCTestCase {
         XCTAssertFalse(s.aMontrer)
         XCTAssertNil(s.recevoir(.demande(DemandeRoot.lire(ask(), maintenant: t0)!), maintenant: t0))
         XCTAssertTrue(s.aMontrer)
-        XCTAssertEqual(s.machine, "pc-bureau")
+        XCTAssertEqual(s.machine, "lp-work")
         // « Plus tard », puis la même demande revient avec une erreur : elle reste de côté
         s.masquee = true
         _ = s.recevoir(.demande(DemandeRoot.lire(ask(tries: 2, error: "refusé"), maintenant: t0)!), maintenant: t0)

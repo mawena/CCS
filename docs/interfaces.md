@@ -416,7 +416,7 @@ sont lues et converties. Anciens noms : `projects.json` → `project-accounts.js
 | Emplacement | Contenu |
 |---|---|
 | `$STORE/<profil>/oauth.json`, `account.json`, `usage.json` | jeton OAuth, compte, dernier usage |
-| `$CONFIG/ccs/market/session.json` (0600, dossier 0700) | Market : cookies Facebook et User-Agent du Chrome de pc-bureau (`ccs market login`), jamais affichés |
+| `$CONFIG/ccs/market/session.json` (0600, dossier 0700) | Market : cookies Facebook et User-Agent du Chrome de lp-work (`ccs market login`), jamais affichés |
 | `$DATA/ccs/market/` | dossier du chat Market : `CLAUDE.md`, `.claude/settings.json` |
 | `$STORE/state.json`, `daemon.pid`, `history.db` | état du service, historique d'usage |
 | `$STORE/pause.json`, `quiet.json`, `quiet-held.json` | pause, ne pas déranger, notifications retenues |

@@ -75,10 +75,10 @@ class RootWebTest(unittest.TestCase):
 const api = new Api();
 const watch = new root.RootWatch(api, { now, tick: 1e9 }).start();
 api.connect(); const ws = sockets[0]; ws.open();
-ws.reply(ws.last("root.status").id, { machine: "mawena-cloud", kept: false, pending: null });
+ws.reply(ws.last("root.status").id, { machine: "srv-mawena-cloud", kept: false, pending: null });
 await settle();
 out = { before: Boolean(dlg()) };
-ws.push("root.ask", { id: "r1", machine: "mawena-cloud", command: "apt update", expires_at: sec(300000), tries_left: 3 });
+ws.push("root.ask", { id: "r1", machine: "srv-mawena-cloud", command: "apt update", expires_at: sec(300000), tries_left: 3 });
 const d = dlg(), input = d.querySelector("input");
 out.open = d.open;
 out.title = d.querySelector("h2").textContent;
@@ -92,7 +92,7 @@ const a1 = ws.last("root.answer");
 out.sent1 = a1.params;
 out.sending = d.querySelector(".root-info").textContent;
 ws.reply(a1.id, { ok: false, error: "Mot de passe refusé (essai 1 sur 3)." });
-ws.push("root.ask", { id: "r1", machine: "mawena-cloud", command: "apt update", expires_at: sec(290000),
+ws.push("root.ask", { id: "r1", machine: "srv-mawena-cloud", command: "apt update", expires_at: sec(290000),
                       tries_left: 1, error: "Mot de passe refusé (essai 2 sur 3)." });
 await settle();
 out.same = dlg() === d;
@@ -111,7 +111,7 @@ watch.stop();
 """)
         self.assertFalse(out["before"])
         self.assertTrue(out["open"])
-        self.assertEqual(out["title"], "mawena-cloud demande le mot de passe root")
+        self.assertEqual(out["title"], "srv-mawena-cloud demande le mot de passe root")
         self.assertEqual(out["command"], "apt update")
         self.assertEqual(out["input"], {"type": "password", "auto": "off"})
         self.assertEqual(out["info"], "3 essais restants. Expire dans 5:00.")
@@ -130,7 +130,7 @@ watch.stop();
 const api = new Api();
 const watch = new root.RootWatch(api, { now, tick: 1e9 }).start();
 api.connect(); const ws = sockets[0]; ws.open();
-const ask = (id) => ws.push("root.ask", { id, machine: "pc-bureau", command: "", expires_at: sec(300000), tries_left: 3 });
+const ask = (id) => ws.push("root.ask", { id, machine: "lp-work", command: "", expires_at: sec(300000), tries_left: 3 });
 out = {};
 ask("a");
 out.noCommand = dlg().querySelector(".root-command").hidden;
@@ -188,33 +188,33 @@ out.stopped = !dlg();
 const api = new Api();
 const watch = new root.RootWatch(api, { now, tick: 1e9 }).start();
 api.connect(); const ws = sockets[0]; ws.open();
-ws.reply(ws.last("root.status").id, { machine: "mawena-cloud", kept: true, remaining: 2500, expires_at: sec(2500000),
-  pending: { id: "p1", machine: "mawena-cloud", command: "ccs root -- ls", expires_at: sec(120000), tries_left: 2 } });
+ws.reply(ws.last("root.status").id, { machine: "srv-mawena-cloud", kept: true, remaining: 2500, expires_at: sec(2500000),
+  pending: { id: "p1", machine: "srv-mawena-cloud", command: "ccs root -- ls", expires_at: sec(120000), tries_left: 2 } });
 await settle();
 const bar = document.querySelector(".root-bar");
 out = { pending: dlg()?.querySelector(".root-info").textContent, inShell: bar.parentNode === shell,
         beforeView: shell.childNodes.indexOf(bar) < shell.childNodes.indexOf(view),
         bar: bar.querySelector(".root-bar-text").textContent };
 ws.push("root.resolved", { id: "p1", ok: true });
-ws.push("root.used", { machine: "mawena-cloud", command: "apt upgrade", at: sec(0) });
+ws.push("root.used", { machine: "srv-mawena-cloud", command: "apt upgrade", at: sec(0) });
 await settle();
-out.used = toasts().some((t) => t.includes("mawena-cloud a lancé en root : apt upgrade"));
-ws.reply(ws.last("root.status").id, { machine: "mawena-cloud", kept: true, remaining: 3000, pending: null });
+out.used = toasts().some((t) => t.includes("srv-mawena-cloud a lancé en root : apt upgrade"));
+ws.reply(ws.last("root.status").id, { machine: "srv-mawena-cloud", kept: true, remaining: 3000, pending: null });
 await settle();
 out.bar2 = bar.querySelector(".root-bar-text").textContent;
 bar.querySelector("button").click();                        // Oublier
 const f = ws.last("root.forget");
-ws.push("root.forgotten", { machine: "mawena-cloud", reason: "forget" });
+ws.push("root.forgotten", { machine: "srv-mawena-cloud", reason: "forget" });
 ws.reply(f.id, { had: true });
 await settle();
 out.forgot = [Boolean(f), bar.hidden, toasts().filter((t) => t.includes("effacé") || t.includes("oublié")).length];
-ws.push("root.forgotten", { machine: "mawena-cloud", reason: "expired" });
+ws.push("root.forgotten", { machine: "srv-mawena-cloud", reason: "expired" });
 await settle();
 out.noTwice = toasts().filter((t) => t.includes("1 h passée")).length;
 watch.refresh();
-ws.reply(ws.last("root.status").id, { machine: "mawena-cloud", kept: true, remaining: 60, pending: null });
+ws.reply(ws.last("root.status").id, { machine: "srv-mawena-cloud", kept: true, remaining: 60, pending: null });
 await settle();
-ws.push("root.forgotten", { machine: "mawena-cloud", reason: "revoke" });
+ws.push("root.forgotten", { machine: "srv-mawena-cloud", reason: "revoke" });
 await settle();
 out.revoked = [bar.hidden, toasts().some((t) => t.includes("Mot de passe root révoqué."))];
 watch.stop();
@@ -222,9 +222,9 @@ watch.stop();
         self.assertEqual(out["pending"], "2 essais restants. Expire dans 2:00.")
         self.assertTrue(out["inShell"])
         self.assertTrue(out["beforeView"])
-        self.assertEqual(out["bar"], "Root gardé sur mawena-cloud, 42 min")
+        self.assertEqual(out["bar"], "Root gardé sur srv-mawena-cloud, 42 min")
         self.assertTrue(out["used"])
-        self.assertEqual(out["bar2"], "Root gardé sur mawena-cloud, 50 min")
+        self.assertEqual(out["bar2"], "Root gardé sur srv-mawena-cloud, 50 min")
         self.assertEqual(out["forgot"], [True, True, 1])          # un seul avis pour « Oublier »
         self.assertEqual(out["noTwice"], 0)                       # rien n'était gardé
         self.assertEqual(out["revoked"], [True, True])
@@ -235,16 +235,16 @@ const api = new Api();
 const watch = new root.RootWatch(api, { now, tick: 1e9 }).start();
 api.connect(); const ws0 = sockets[0]; ws0.open();
 const stale = ws0.last("root.status");
-ws0.push("root.ask", { id: "s1", machine: "mawena-cloud", command: "ls", expires_at: sec(300000), tries_left: 3 });
+ws0.push("root.ask", { id: "s1", machine: "srv-mawena-cloud", command: "ls", expires_at: sec(300000), tries_left: 3 });
 out = { local: Boolean(dlg()) };
-pickMachine(api, "pc-bureau", "PC du bureau");
+pickMachine(api, "lp-work", "PC du bureau");
 out.closedOnSwitch = !dlg();
 const ws1 = sockets[1]; ws1.open();
 out.beforeReady = ws1.calls("root.status");                 // le tunnel n'est pas encore prêt
-ws1.push("machines.ready", { machine: "pc-bureau", name: "PC du bureau" });
+ws1.push("machines.ready", { machine: "lp-work", name: "PC du bureau" });
 const st = ws1.last("root.status");
-ws1.reply(st.id, { machine: "pc-bureau", kept: false,
-  pending: { id: "b1", machine: "pc-bureau", command: "systemctl restart x", expires_at: sec(200000), tries_left: 3 } });
+ws1.reply(st.id, { machine: "lp-work", kept: false,
+  pending: { id: "b1", machine: "lp-work", command: "systemctl restart x", expires_at: sec(200000), tries_left: 3 } });
 await settle();
 out.remote = dlg()?.querySelector("h2").textContent;
 dlg().querySelector("input").value = "pw";
@@ -256,9 +256,9 @@ watch.stop();
         self.assertTrue(out["local"])
         self.assertTrue(out["closedOnSwitch"])
         self.assertEqual(out["beforeReady"], 0)
-        self.assertEqual(out["remote"], "pc-bureau demande le mot de passe root")
+        self.assertEqual(out["remote"], "lp-work demande le mot de passe root")
         self.assertEqual(out["answerOn"], "b1")
-        self.assertEqual(out["urls"], ["protocol=1", "protocol=1&machine=pc-bureau"])
+        self.assertEqual(out["urls"], ["protocol=1", "protocol=1&machine=lp-work"])
 
     def test_texts_and_deadlines(self):
         out = run(r"""
@@ -271,7 +271,7 @@ out = {
   min: [root.minutes(0), root.minutes(1), root.minutes(60000), root.minutes(60001)],
   clock: root.clock(65000),
   tries: [root.triesText(0), root.triesText(1), root.triesText(3)],
-  kept: [root.keptText("", 61000), root.keptText("pc-bureau", 3600000)],
+  kept: [root.keptText("", 61000), root.keptText("lp-work", 3600000)],
   used: root.usedText({ machine: "", command: "" }),
   noId: root.readAsk({ machine: "x" }, t),
 };
@@ -283,7 +283,7 @@ out = {
         self.assertEqual(out["min"], [0, 1, 1, 2])
         self.assertEqual(out["clock"], "1:05")
         self.assertEqual(out["tries"], ["", "Dernier essai.", "3 essais restants."])
-        self.assertEqual(out["kept"], ["Root gardé, 2 min", "Root gardé sur pc-bureau, 60 min"])
+        self.assertEqual(out["kept"], ["Root gardé, 2 min", "Root gardé sur lp-work, 60 min"])
         self.assertEqual(out["used"], "La machine a lancé une commande root.")
         self.assertIsNone(out["noId"])
 

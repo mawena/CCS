@@ -114,7 +114,7 @@ DEFAULTS = {
     # Oreilles de Jarvis (relais de la version web, `server/bridge_jarvis.py`) : machine du relais
     # Ricochet où tourne le cerveau, son port, et l'empreinte de son certificat (base64url,
     # 43 caractères ; vide tant qu'aucun appareil n'a été appairé).
-    "jarvis": {"machine": "laptop-maison", "port": 7341, "fingerprint": ""},
+    "jarvis": {"machine": "lp-home", "port": 7341, "fingerprint": ""},
 }
 
 

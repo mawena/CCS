@@ -6,22 +6,22 @@ final class MachinesTests: XCTestCase {
 
     func testAdresseWebSocketAvecMachine() {
         XCTAssertEqual(Adresse.ws("https://ccs.mawena.cloud", "api/ws")?.absoluteString, "wss://ccs.mawena.cloud/api/ws?protocol=1")
-        XCTAssertEqual(Adresse.ws("https://ccs.mawena.cloud", "api/ws", machine: "pc-bureau")?.absoluteString,
-                       "wss://ccs.mawena.cloud/api/ws?protocol=1&machine=pc-bureau")
+        XCTAssertEqual(Adresse.ws("https://ccs.mawena.cloud", "api/ws", machine: "lp-work")?.absoluteString,
+                       "wss://ccs.mawena.cloud/api/ws?protocol=1&machine=lp-work")
     }
 
     func testListeEtDescription() {
         let l = ListeMachines(json: json("""
         {"configured": true, "machines": [
           {"id": "vps", "name": "VPS", "online": true, "local": true},
-          {"id": "pc-bureau", "name": "", "online": true, "tunnel": true, "cores": 8, "load": 1.25,
+          {"id": "lp-work", "name": "", "online": true, "tunnel": true, "cores": 8, "load": 1.25,
            "tools": ["flutter", "node"], "limit": 3, "running": 1, "waiting": 2},
           {"id": "portable", "online": true, "tunnel": false}
         ]}
         """))
-        XCTAssertEqual(l.autres.map { $0.id }, ["pc-bureau", "portable"])
+        XCTAssertEqual(l.autres.map { $0.id }, ["lp-work", "portable"])
         let pc = l.autres[0]
-        XCTAssertEqual(pc.nom, "pc-bureau")
+        XCTAssertEqual(pc.nom, "lp-work")
         XCTAssertTrue(pc.choisissable)
         XCTAssertEqual(pc.description, "en ligne · charge 1.2 sur 8 cœurs")
         XCTAssertEqual(pc.places, "Places : 1/3 · 2 en attente")
@@ -34,8 +34,8 @@ final class MachinesTests: XCTestCase {
     func testChampsDuReseauEtMemoire() {
         let l = ListeMachines(json: json("""
         {"machines": [
-          {"id": "pc-bureau", "online": true, "mem_used": 1073741824, "mem_total": 17179869184,
-           "host": "Bureau", "mesh": "pc-bureau", "mesh_ip": "100.64.0.3"},
+          {"id": "lp-work", "online": true, "mem_used": 1073741824, "mem_total": 17179869184,
+           "host": "Bureau", "mesh": "lp-work", "mesh_ip": "100.64.0.3"},
           {"id": "ancien", "online": true}
         ]}
         """))
@@ -43,7 +43,7 @@ final class MachinesTests: XCTestCase {
         XCTAssertEqual(pc.memUsed, 1_073_741_824)
         XCTAssertEqual(pc.memTotal, 17_179_869_184)
         XCTAssertEqual(pc.host, "Bureau")
-        XCTAssertEqual(pc.mesh, "pc-bureau")
+        XCTAssertEqual(pc.mesh, "lp-work")
         XCTAssertEqual(pc.meshIp, "100.64.0.3")
         // anciens serveurs : champs absents
         XCTAssertNil(l.machines[1].meshIp)
@@ -75,10 +75,10 @@ final class MachinesTests: XCTestCase {
         XCTAssertEqual(Travaux.duree(187), "3 min 07 s")
         XCTAssertEqual(Travaux.duree(7500), "2 h 05")
         let j = TravailDistant(json: json("""
-        {"id": "a1", "text": "make test", "cwd": "/home/moi/Work/ccs", "machine": "pc-bureau",
+        {"id": "a1", "text": "make test", "cwd": "/home/moi/Work/ccs", "machine": "lp-work",
          "state": "done", "code": 1, "created": 900, "started": 1000, "ended": 1187}
         """))
-        XCTAssertEqual(Travaux.ligne(j, home: "/home/moi", maintenant: 2000), "pc-bureau · 3 min 07 s · code 1 · ~/Work/ccs")
+        XCTAssertEqual(Travaux.ligne(j, home: "/home/moi", maintenant: 2000), "lp-work · 3 min 07 s · code 1 · ~/Work/ccs")
         XCTAssertEqual(Travaux.teinte(j), .echec)
         XCTAssertFalse(Travaux.actif(j))
         let k = TravailDistant(json: json("""

@@ -70,8 +70,8 @@ enum Son {
         case "web": return "safari"
         case "linux":
             let n = a.device.lowercased()
-            if ["vps", "cloud", "serveur", "server"].contains(where: { n.contains($0) }) { return "server.rack" }
-            return n.contains("laptop") || n.contains("portable") ? "laptopcomputer" : "desktopcomputer"
+            if n.contains("srv-") || ["vps", "cloud", "serveur", "server"].contains(where: { n.contains($0) }) { return "server.rack" }
+            return n.contains("lp-") || n.contains("laptop") || n.contains("portable") ? "laptopcomputer" : "desktopcomputer"
         default: return "speaker.wave.2"
         }
     }

@@ -15,7 +15,7 @@ try:
 except (ImportError, ValueError):
     GTK = False
 
-ASK = {"id": "r1", "machine": "mawena-cloud", "command": "apt update", "expires_at": 4e9, "tries_left": 3}
+ASK = {"id": "r1", "machine": "srv-mawena-cloud", "command": "apt update", "expires_at": 4e9, "tries_left": 3}
 
 
 class FakeConn:
@@ -25,7 +25,7 @@ class FakeConn:
         self.chat_events = []
         self.client.on_event = lambda n, d: self.chat_events.append(n)   # comme RemoteConnection
         self.answer_result = ({"ok": True}, None)
-        self.status = {"machine": "mawena-cloud", "kept": False, "remaining": 0, "pending": None}
+        self.status = {"machine": "srv-mawena-cloud", "kept": False, "remaining": 0, "pending": None}
 
     def call(self, method, callback=None, **params):
         self.calls.append((method, params))
@@ -83,7 +83,7 @@ class RootPromptTest(unittest.TestCase):
         self.emit("root.ask", dict(ASK))
         d = self.guard.dialog
         self.assertIsInstance(d.entry, Gtk.PasswordEntry)
-        self.assertIn("mawena-cloud", d.machine_label.get_label())
+        self.assertIn("srv-mawena-cloud", d.machine_label.get_label())
         self.assertEqual(d.command_label.get_label(), "apt update")
         self.assertIn("3 essais", d.tries_label.get_label())
         self.assertFalse(d.send_button.get_sensitive())
@@ -146,16 +146,16 @@ class RootPromptTest(unittest.TestCase):
         self.assertEqual(self.guard.dialog.request_id, "r1")
 
     def test_kept_indicator_forget_and_notices(self):
-        self.conn.status = {"machine": "mawena-cloud", "kept": True, "remaining": 2520, "pending": None}
+        self.conn.status = {"machine": "srv-mawena-cloud", "kept": True, "remaining": 2520, "pending": None}
         self.guard.refresh()
         self.assertTrue(self.guard.button.get_visible())
         self.assertEqual(self.guard.label.get_label(), "root gardé, 42 min")
         self.assertTrue(self.guard.forget_button.get_visible())
-        self.emit("root.used", {"machine": "mawena-cloud", "command": "apt upgrade", "at": 1})
+        self.emit("root.used", {"machine": "srv-mawena-cloud", "command": "apt upgrade", "at": 1})
         self.assertTrue(any("apt upgrade" in t for t in self.toasts))
         self.guard.forget_button.emit("clicked")
         self.assertIn("root.forget", self.conn.methods())
-        self.emit("root.forgotten", {"machine": "mawena-cloud", "reason": "expired"})
+        self.emit("root.forgotten", {"machine": "srv-mawena-cloud", "reason": "expired"})
         self.assertFalse(self.guard.button.get_visible())
         self.assertTrue(any("heure" in t for t in self.toasts))
 

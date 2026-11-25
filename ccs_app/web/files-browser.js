@@ -15,7 +15,7 @@ const VIEW_KEY = "ccs.files.view";        // « grid » : dossiers en grille de 
 
 const under = (path, root) => path === root || path.startsWith(`${root.replace(/\/$/, "")}/`);
 const base = (p) => p.split("/").filter(Boolean).pop() || "/";
-// « @pc-bureau/%2Fhome%2Fu » → { device: "pc-bureau", path: "/home/u" }
+// « @lp-work/%2Fhome%2Fu » → { device: "lp-work", path: "/home/u" }
 export function parseSub(sub) {
   const raw = sub || "";
   const m = /^@([A-Za-z0-9_-]{1,64})(?:\/(.*))?$/.exec(raw);

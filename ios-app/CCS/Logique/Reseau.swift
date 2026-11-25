@@ -51,8 +51,8 @@ enum Reseau {
         if os == "ios" || nom.contains("iphone") || nom.contains("ipad") { return .iphone }
         if os == "android" || nom.contains("pixel") || nom.contains("phone") { return .android }
         if os == "macos" { return .portable }
-        if ["vps", "cloud", "server", "serveur"].contains(where: { nom.contains($0) }) { return .serveur }
-        if nom.contains("laptop") || nom.contains("portable") { return .portable }
+        if nom.hasPrefix("srv-") || ["vps", "cloud", "server", "serveur"].contains(where: { nom.contains($0) }) { return .serveur }
+        if nom.hasPrefix("lp-") || nom.contains("laptop") || nom.contains("portable") { return .portable }
         return .bureau
     }
 

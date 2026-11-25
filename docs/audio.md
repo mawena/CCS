@@ -2,7 +2,7 @@
 
 Tout appareil CCS qui sait jouer du son est une **sortie audio** pour les autres ; tout appareil
 qui sait capter le sien est une **source**. On envoie le son dans tous les sens : iPhone →
-pc-bureau, pc-bureau → Pixel, Pixel → iPhone…
+lp-work, lp-work → Pixel, Pixel → iPhone…
 
 Le serveur CCS (pont de l'utilisateur sur le VPS) ne fait que la mise en relation. Le son passe en
 UDP direct entre les adresses du réseau maillé (100.64.x).
@@ -37,7 +37,7 @@ défaut, un nom tiré du modèle (`pixel`, `iphone`).
 ```json
 → {"method": "audio.list"}
 ← {"devices": [{"device", "label", "ip", "port", "play", "capture", "system", "age"}, …],
-   "streams": [{"stream": "a3", "source": "pc-bureau", "target": "iphone", "started": 1764…}],
+   "streams": [{"stream": "a3", "source": "lp-work", "target": "iphone", "started": 1764…}],
    "codec": {"codec": "opus", "rate": 48000, "channels": 2, "frame_ms": 10, "payload": 96},
    "every": 30}
 ```
@@ -149,7 +149,7 @@ L'agent `ccs audio` d'une machine Linux lit ses lecteurs **MPRIS** (D-Bus de ses
 `org.mpris.MediaPlayer2.*`) et les rapporte au pont quand ils changent :
 
 ```json
-{"method": "audio.report", "params": {"device": "pc-bureau", "players": [
+{"method": "audio.report", "params": {"device": "lp-work", "players": [
   {"id": "vlc", "name": "VLC", "status": "Playing", "title": "…", "artist": "…", "volume": 80,
    "can_prev": true, "can_next": true, "can_play": true, "can_pause": true, "can_seek": true}]}}
 ```
@@ -171,8 +171,8 @@ Clients : section « Lecteurs » de l'écran Son (web, bureau, iPhone, Android) 
 
 ```bash
 ccs audio players                     # lecteurs de cette machine (D-Bus)
-ccs audio players pc-bureau           # ceux d'un appareil, par le pont (« toutes » : tous)
+ccs audio players lp-work           # ceux d'un appareil, par le pont (« toutes » : tous)
 ccs audio control toggle              # le seul lecteur, ou celui qui joue
 ccs audio control vlc seek -10        # lecteur par nom ou numéro
-ccs audio control --device pc-bureau firefox volume 40
+ccs audio control --device lp-work firefox volume 40
 ```

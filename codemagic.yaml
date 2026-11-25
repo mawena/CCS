@@ -55,8 +55,8 @@ workflows:
     artifacts:
       - ios-app/build/CCS.ipa
 
-  # APK Android (android-app/) : toujours construit ici, plus sur pc-bureau. Signé avec la clé
-  # de débogage d'origine (celle de pc-bureau, variable secrète CCS_DEBUG_KEYSTORE du groupe
+  # APK Android (android-app/) : toujours construit ici, plus sur lp-work. Signé avec la clé
+  # de débogage d'origine (celle de lp-work, variable secrète CCS_DEBUG_KEYSTORE du groupe
   # android_signature) pour que la mise à jour s'installe par-dessus l'appli du Pixel.
   android:
     name: CCS Android
