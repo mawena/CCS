@@ -86,6 +86,7 @@ class Bridge:
             "accounts.state": self.accounts_state,
             "accounts.refresh": self.accounts_refresh,
             "accounts.switch": self.accounts_switch,
+            "accounts.remove": self.accounts_remove,
             "pause.set": self.pause_set,
             "settings.get": self.settings_get,
             "settings.set": self.settings_set,
@@ -293,6 +294,23 @@ class Bridge:
             raise rpc.RpcError("invalide", "Compte inconnu.")
         res = await asyncio.to_thread(core.run_ccs, ["switch", name])
         return {"ok": getattr(res, "returncode", 1) == 0}
+
+    async def accounts_remove(self, _conn, params):
+        """Supprime un profil (jamais l'actif) ; la synchro l'efface aussi des autres machines."""
+        name = params.get("name")
+        profiles = await asyncio.to_thread(core.list_profiles)
+        if name not in [p.name for p in profiles]:
+            raise rpc.RpcError("invalide", "Compte inconnu.")
+        res = await asyncio.to_thread(core.run_ccs, ["remove", name])
+        if getattr(res, "returncode", 1) != 0:
+            msg = (getattr(res, "stderr", "") or "").strip().splitlines()[-1:] or ["La suppression a échoué."]
+            raise rpc.RpcError("refuse", msg[0])
+        try:   # propage tout de suite la suppression aux autres machines
+            subprocess.Popen([core.ccs_bin(), "sync", "--quiet"], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            pass   # le démon s'en chargera au prochain tour
+        return {"ok": True}
 
     async def pause_set(self, _conn, params):
         choice = params.get("choice")

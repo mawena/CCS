@@ -71,6 +71,20 @@ export function mountHome(root, api) {
     load();
   }
 
+  async function removeAccount(card, button) {
+    if (!await confirmSheet({ title: `Supprimer « ${card.name} » ?`, danger: true, confirm: "Supprimer",
+      body: "Le compte disparaît de CCS sur toutes les machines. Il reste valide chez Anthropic : « ccs add » le remet." })) return;
+    await busy(button, async () => {
+      try {
+        await api.call("accounts.remove", { name: card.name });
+        toast(`Compte « ${card.name} » supprimé.`, { kind: "success" });
+      } catch (e) {
+        toast(e.message || "La suppression a échoué.", { kind: "error" });
+      }
+    });
+    load();
+  }
+
   function accountCard(c) {
     const dot = el("span", { class: "dot" });
     dot.style.background = c.color;
@@ -93,7 +107,8 @@ export function mountHome(root, api) {
     }
     if (!c.active) {
       card.append(el("div", { class: "account-actions" },
-        el("button", { onclick: (e) => switchTo(c, e.currentTarget) }, "Basculer sur ce compte")));
+        el("button", { onclick: (e) => switchTo(c, e.currentTarget) }, "Basculer sur ce compte"),
+        el("button", { class: "danger", onclick: (e) => removeAccount(c, e.currentTarget) }, "Supprimer")));
     }
     card.style.setProperty("--account", c.color);
     return card;

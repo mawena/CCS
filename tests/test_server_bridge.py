@@ -108,6 +108,26 @@ class BridgeTest(unittest.IsolatedAsyncioTestCase):
             await c.call("accounts.switch", name="inconnu")
         self.assertEqual(cm.exception.code, "invalide")
 
+    async def test_remove_account(self):
+        from unittest import mock
+        from types import SimpleNamespace
+        await self.start()
+        c = await self.client()
+        with self.assertRaises(rpc.RpcError) as cm:
+            await c.call("accounts.remove", name="inconnu")
+        self.assertEqual(cm.exception.code, "invalide")
+        refused = SimpleNamespace(returncode=1, stderr="ccs: 'perso' est le compte actif\n")
+        with mock.patch("ccs_app.core.run_ccs", return_value=refused):
+            with self.assertRaises(rpc.RpcError) as cm:
+                await c.call("accounts.remove", name="perso")
+        self.assertIn("compte actif", cm.exception.message)
+        ok = SimpleNamespace(returncode=0, stderr="")
+        with mock.patch("ccs_app.core.run_ccs", return_value=ok) as run, \
+                mock.patch("subprocess.Popen") as popen:
+            self.assertTrue((await c.call("accounts.remove", name="pro"))["ok"])
+        run.assert_called_once_with(["remove", "pro"])
+        self.assertIn("sync", popen.call_args[0][0])
+
     async def test_settings_set_validates(self):
         await self.start()
         c = await self.client()
