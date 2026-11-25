@@ -1,3 +1,11 @@
+ccs (1.21.0) noble; urgency=medium
+
+  * Identifiants des machines alignés sur le réseau maillé (srv-mawena-cloud, lp-work, lp-home),
+    anciens noms toujours acceptés.
+  * Genre d appareil : lp- portable, srv- serveur.
+
+ -- Charles GAMLIGO <gamligocharles3@gmail.com>  Thu, 03 Dec 2026 02:00:00 +0100
+
 ccs (1.20.0) noble; urgency=medium
 
   * Images jointes affichées dans le chat (web, bureau), méthode conversations.images.

@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.21.0] — 2026-12-03
+
 ### Modifié
 
 - **Noms des machines** : les identifiants suivent les noms du réseau maillé, `srv-mawena-cloud` (VPS), `lp-work` (PC du bureau) et `lp-home` (portable de la maison), partout (calcul réparti, Jarvis, marché, son, applis). Les anciens noms (`mawena-cloud`, `pc-bureau`, `laptop-maison`) restent acceptés dans `--machine` et `machines.toml`, et la clé SSH déjà connue est gardée.
