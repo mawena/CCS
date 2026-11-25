@@ -253,3 +253,11 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 4. `ccs sync`, synchro après `ccs add` et toutes les 10 min par le démon
 - [x] 5. Web : supprimer un compte depuis l'accueil
 - [x] 6. Release 1.19.0
+
+## Phase 55 — Images dans le chat
+
+- [x] 1. `preview` : compte des images d'un message et `read_images` (journal) ; méthode `conversations.images`
+- [x] 2. Web : vignettes dans les bulles (envoi, historique, autre appareil), agrandies au clic
+- [x] 3. Bureau : images de l'historique ; iPhone et Android : compte des images de l'historique
+- [ ] 4. iPhone et Android : vignettes relues par `conversations.images`
+- [ ] 5. Release 1.20.0
