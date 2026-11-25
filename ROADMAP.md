@@ -275,3 +275,9 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 2. Réglages `[machines.modal]` (carte, image, durée, limite), file d'attente et `--detach`
 - [x] 3. Visible dans `ccs remote machines` et la consigne des chats quand Modal est connecté
 - [x] 4. Release 1.22.0
+
+## Phase 58 — Sessions de toutes les machines dans les applis mobiles
+- [x] 1. Serveur : `machines.chats` renvoie les sessions de chaque machine en ligne (erreur par machine injoignable)
+- [x] 2. iOS : une section par machine dans Sessions ; toucher une session pilote sa machine puis l'ouvre
+- [x] 3. Android : même chose
+- [x] 4. Release 1.23.0 et installation partout

@@ -129,8 +129,9 @@ fun EcranSessions(
 
     fun relire() { portee.launch { charger() } }
 
+    val autres by modele.autresSessions.collectAsStateWithLifecycle()
     LaunchedEffect(connecte) {
-        if (connecte) { chargerChats(); charger() }
+        if (connecte) { modele.rafraichirAutresSessions(); chargerChats(); charger() }
     }
     // raccourci « Nouveau chat »
     val nouvelleDemandee by modele.nouvelleSession.collectAsStateWithLifecycle()
@@ -160,7 +161,7 @@ fun EcranSessions(
     Box(Modifier.fillMaxSize()) {
         PullToRefreshBox(
             isRefreshing = charge && liste != null,
-            onRefresh = { portee.launch { chargerChats(); charger() } },
+            onRefresh = { modele.rafraichirAutresSessions(); portee.launch { chargerChats(); charger() } },
             modifier = Modifier.fillMaxSize(),
         ) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
@@ -178,21 +179,34 @@ fun EcranSessions(
                 if (chats.isNotEmpty()) {
                     item { TitreSection("En cours", Modifier.padding(horizontal = 16.dp)) }
                     items(chats, key = { "chat-" + it.chatId }) { ch ->
-                        val e = EtatChat.de(etats[ch.chatId] ?: ch.state)
-                        ListItem(
-                            headlineContent = { Text(Format.base(ch.cwd), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = { Text("${e.libelle} · ${Format.base(ch.cwd)}") },
-                            leadingContent = { Pastille(couleurEtat(e.ton), 12.dp) },
-                            trailingContent = {
-                                IconButton(onClick = { aFermer = ch }) { Icon(Icons.Filled.Close, "Fermer ${Format.base(ch.cwd)}") }
-                            },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            modifier = Modifier.clickable {
-                                ouvrirChat(DestChat(ch.cwd, ch.sessionId, ch.path, Format.base(ch.cwd), ch.chatId))
-                            },
-                        )
+                        LigneChat(ch, etats[ch.chatId] ?: ch.state, surFermer = { aFermer = ch }) {
+                            ouvrirChat(destChat(ch))
+                        }
                     }
                     item { HorizontalDivider(Modifier.padding(vertical = 4.dp)) }
+                }
+                // sessions des autres machines (machines.chats), une section par machine
+                autres.forEach { m ->
+                    if (m.error == null && m.chats.isEmpty()) return@forEach
+                    item(key = "machine-" + m.id) { TitreSection(m.nom, Modifier.padding(horizontal = 16.dp)) }
+                    m.error?.let { err ->
+                        item(key = "machine-erreur-" + m.id) {
+                            Text(
+                                err, Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    items(m.chats, key = { "chat-" + m.id + "-" + it.chatId }) { ch ->
+                        LigneChat(ch, ch.state, surFermer = null) {
+                            portee.launch {
+                                avis.dire("Connexion à ${m.nom}…")
+                                if (modele.piloterEtAttendre(m.id, m.nom)) ouvrirChat(destChat(ch))
+                                else avis.dire("${m.nom} ne répond pas : session non ouverte.")
+                            }
+                        }
+                    }
+                    item(key = "machine-fin-" + m.id) { HorizontalDivider(Modifier.padding(vertical = 4.dp)) }
                 }
                 val l = liste
                 when {
@@ -325,6 +339,24 @@ fun EcranSessions(
             },
         )
     }
+}
+
+private fun destChat(ch: ChatOuvert) = DestChat(ch.cwd, ch.sessionId, ch.path, Format.base(ch.cwd), ch.chatId)
+
+/** Un chat ouvert dans un pont (« En cours » ou une autre machine) ; sans `surFermer` : pas de bouton. */
+@Composable
+private fun LigneChat(ch: ChatOuvert, etat: String, surFermer: (() -> Unit)?, surOuvrir: () -> Unit) {
+    val e = EtatChat.de(etat)
+    ListItem(
+        headlineContent = { Text(Format.base(ch.cwd), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text("${e.libelle} · ${Format.base(ch.cwd)}") },
+        leadingContent = { Pastille(couleurEtat(e.ton), 12.dp) },
+        trailingContent = surFermer?.let { f ->
+            { IconButton(onClick = f) { Icon(Icons.Filled.Close, "Fermer ${Format.base(ch.cwd)}") } }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.clickable(onClick = surOuvrir),
+    )
 }
 
 @Composable

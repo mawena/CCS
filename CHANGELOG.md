@@ -5,6 +5,17 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.23.0] — 2026-12-03
+
+### Ajouté
+
+- **Sessions de toutes les machines dans les applis mobiles** (iPhone, Android) : l'écran Sessions montre, sous celles du serveur, une section par machine en ligne avec ses sessions (nouvelle méthode serveur `machines.chats`). Toucher une session d'une autre machine pilote cette machine puis ouvre le chat ; une machine injoignable affiche son erreur.
+
+### Corrigé
+
+- **Version web : plus de colonne étroite centrée** sur les onglets Réseau, Son et Jarvis ; ils prennent toute la largeur comme les autres onglets, et Réglages s'aligne à gauche.
+- **Avis root reçus deux fois sur la version web** quand on pilote une autre machine : le pont du serveur n'envoie plus ses événements `root.*` aux connexions relayées, qui les reçoivent déjà de la machine pilotée.
+
 ## [1.22.0] — 2026-12-03
 
 ### Ajouté

@@ -40,4 +40,18 @@ final class ModelesSessionsTests: XCTestCase {
         XCTAssertEqual(m.messages[1].msgId, "m1")
         XCTAssertNil(m.messages[1].tool)
     }
+
+    func testChatsDesAutresMachines() {
+        let j = JSON.lire(#"{"machines": [{"id": "lp-home", "name": "PC maison", "chats": [{"chat_id": "c9", "cwd": "/home/c/ccs", "state": "busy", "seq": 3, "session_id": "s9", "path": "/p/s9.jsonl"}]}, {"id": "lp-work", "name": "", "error": "lp-work injoignable : délai dépassé"}, {"name": "sans id"}]}"#) ?? .vide
+        let l = ChatsMachines(json: j)
+        XCTAssertEqual(l.machines.map { $0.id }, ["lp-home", "lp-work"])     // sans identifiant : écartée
+        XCTAssertEqual(l.machines[0].nom, "PC maison")
+        XCTAssertNil(l.machines[0].erreur)
+        XCTAssertEqual(l.machines[0].chats.first?.chatId, "c9")
+        XCTAssertEqual(l.machines[0].chats.first?.sessionId, "s9")
+        XCTAssertEqual(l.machines[1].nom, "lp-work")                          // nom vide : l'identifiant
+        XCTAssertTrue(l.machines[1].chats.isEmpty)
+        XCTAssertEqual(l.machines[1].erreur, "lp-work injoignable : délai dépassé")
+        XCTAssertTrue(ChatsMachines(json: .vide).machines.isEmpty)            // ancien serveur : rien
+    }
 }

@@ -12,6 +12,29 @@ class ModelesTest {
     private fun <T> lire(l: DeserializationStrategy<T>, texte: String): T = CodecRpc.json.decodeFromString(l, texte)
 
     @Test
+    fun sessionsDesAutresMachines() {
+        val r = lire(
+            SessionsMachines.serializer(),
+            """{"machines":[
+               {"id":"lp-home","name":"PC maison","chats":[{"chat_id":"c1","cwd":"/home/c/Work/x","state":"busy","seq":4,
+                 "options":{"model":"opus","rights":"auto"},"session_id":"s1","path":"/p/s1.jsonl","extra":1}]},
+               {"id":"lp-work","name":"","error":"lp-work injoignable : délai dépassé"}]}""",
+        )
+        assertEquals(2, r.machines.size)
+        val a = r.machines[0]
+        assertEquals("PC maison", a.nom)
+        assertNull(a.error)
+        assertEquals("c1", a.chats.single().chatId)
+        assertEquals("s1", a.chats.single().sessionId)
+        assertEquals("auto", a.chats.single().options!!.rights)
+        val b = r.machines[1]
+        assertEquals("lp-work", b.nom)
+        assertTrue(b.chats.isEmpty())
+        assertEquals("lp-work injoignable : délai dépassé", b.error)
+        assertTrue(lire(SessionsMachines.serializer(), "{}").machines.isEmpty())
+    }
+
+    @Test
     fun etatDesComptes() {
         val e = lire(
             EtatComptes.serializer(),

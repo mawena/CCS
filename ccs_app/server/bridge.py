@@ -251,8 +251,17 @@ class Bridge:
                     break
         await self.stop()
 
+    @staticmethod
+    def reaches_relayed(event):
+        """Événements de cette machine encore envoyés à une connexion relayée vers une autre :
+        seulement ce qui reste traité ici (`keeps_local`). Les autres (`root.*`, `chat.tags`)
+        viennent de la machine relayée ; sinon le web les montrerait deux fois."""
+        return event in ("notice", "audio")
+
     async def broadcast(self, event, data):
         for conn in list(self.clients):
+            if conn.peer.get("forward") and not self.reaches_relayed(event):
+                continue
             if conn.peer.get("ok"):
                 # anciennes valeurs pour un ancien client : compatibilité 1.x, à retirer en 2.0
                 await conn.push(event, protocol.event_data(conn, event, data))
