@@ -5,6 +5,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Ajouté
+
+- **Images dans le chat** : les images jointes à un message s'affichent en vignettes dans sa bulle (web), agrandies d'un clic. Celles de l'historique et celles envoyées d'un autre appareil sont relues dans le journal de la conversation par la nouvelle méthode `conversations.images`. L'appli de bureau les montre aussi dans l'historique ; sur iPhone et Android, l'historique indique « N image(s) jointe(s) ».
+
 ### Corrigé
 
 - **Oreille Jarvis** : quand le cerveau refuse une phrase parce qu'il en traite déjà une, l'oreille dit « Jarvis est occupé par une autre phrase : réessaie dans un instant. » au lieu de « Une autre oreille a pris la phrase. » (web, iPhone, Android).

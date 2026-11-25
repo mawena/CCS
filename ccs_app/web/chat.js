@@ -440,7 +440,7 @@ export class ChatView {
     }
     if (!r || !r.ok) { this.sendFailed("Claude n'a pas pu démarrer.", retry); return false; }
     if (!command) this.shellNotes = [];
-    this.userBubble(shown, images.length, r.uuid || "");      // ancien pont : pas d'identifiant
+    this.userBubble(shown, images, r.uuid || "");      // ancien pont : pas d'identifiant
     return true;
   }
 
@@ -716,6 +716,7 @@ export class ChatView {
     if (this.dead) return;
     let r = await this.fetchAttach(this.seq);
     if (!r) return;
+    if (r.path) this.journal = r.path;               // journal de la conversation (images jointes)
     // Le pont a redémarré (ou ce numéro ne lui dit rien) : on repart de zéro au lieu de jeter ses réponses.
     const behind = typeof r.seq === "number" && r.seq < this.seq;
     const other = Boolean(r.session_id && this.seenSession && r.session_id !== this.seenSession);   // vu par le pont, pas celui d'ouverture (une reprise peut en changer)
@@ -852,10 +853,27 @@ export class ChatView {
     flush();
   }
 
-  userBubble(text, nImages = 0, msgId = "") {
+  userBubble(text, images = 0, msgId = "") {
     this.showAgent(null);                            // on écrit à Claude, pas au sous-agent
     this.follow = true;                              // nouveau message : on revient en bas
-    return this.append(this.paintTags(userNode(text, nImages, this.msgActions, this.renderQuote, msgId)));
+    return this.append(this.paintTags(userNode(text, images, this.msgActions, this.renderQuote, msgId,
+      this.imageLoader(msgId, true))));
+  }
+
+  // Relit dans le journal les images du message `msgId` (envoyé d'un autre appareil, ou d'avant).
+  // `fresh` : la ligne peut ne pas être écrite encore, on réessaie quelques fois.
+  imageLoader(msgId, fresh = false) {
+    if (!msgId) return null;
+    return async () => {
+      for (let i = 0; i < (fresh ? 4 : 1); i++) {
+        if (i) await new Promise(ok => setTimeout(ok, 1500 * i));
+        const path = this.journal || this.history?.path;
+        if (!path) continue;
+        const r = await this.api.call("conversations.images", { path, uuid: msgId });
+        if (r?.images?.length) return r.images;
+      }
+      return [];
+    };
   }
 
   // Après `/clear` : les messages d'avant restent lisibles (et citables) mais grisés, sous un
@@ -1296,7 +1314,7 @@ export class ChatView {
   // ---- historique d'une conversation reprise ----------------------------------------------
 
   historyNode(m) {
-    if (m.role === "user") return this.paintTags(userNode(m.text, 0, this.msgActions, this.renderQuote, m.uuid || ""));
+    if (m.role === "user") return this.paintTags(userNode(m.text, m.images || 0, this.msgActions, this.renderQuote, m.uuid || "", this.imageLoader(m.uuid)));
     if (m.role === "assistant") { const n = this.paintTags(claudeNode(this.replyActions, m.msg_id || "")); n.raw = m.text; this.render(n.content, m.text); return n; }
     if (m.role === "tool" && m.tool) {
       return el("details", { class: `tool done${m.tool.is_error ? " error" : ""}` },

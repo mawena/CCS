@@ -71,11 +71,37 @@ function messageNode(kind, author, content, actions, msgId = "") {
   return node;
 }
 
+// Images jointes à une bulle : `images` est la liste des images ({ media_type, data } en base64)
+// ou leur nombre ; avec un nombre, `load()` les relit (journal) et leur place reste réservée.
+// Un clic agrandit une image, un second la réduit.
+export function imageStrip(images, load = null) {
+  const n = Array.isArray(images) ? images.length : images;
+  if (!n) return null;
+  const strip = el("div", { class: "bubble-images" });
+  const show = list => {
+    strip.replaceChildren(...list.map(img => {
+      const node = el("img", { class: "bubble-image", alt: "Image jointe", loading: "lazy",
+        src: `data:${img.media_type};base64,${img.data}` });
+      node.addEventListener("click", () => node.classList.toggle("big"));
+      return node;
+    }));
+  };
+  const fallback = () => strip.replaceChildren(el("div", { class: "subtle" }, `${n} image(s) jointe(s)`));
+  if (Array.isArray(images)) show(images);
+  else if (!load) fallback();
+  else {
+    strip.append(...Array.from({ length: n }, () => el("div", { class: "bubble-image pending" })));
+    load().then(list => (list?.length ? show(list) : fallback()), fallback);
+  }
+  return strip;
+}
+
 // Bulle d'un message de l'utilisateur ; `text` peut commencer par une citation (chat-quote.js).
-export function userNode(text, nImages = 0, actions = [], renderQuote = null, msgId = "") {
+// `images`, `loadImages` : voir imageStrip.
+export function userNode(text, images = 0, actions = [], renderQuote = null, msgId = "", loadImages = null) {
   const q = split(text);
   const bubble = el("div", { class: "bubble" }, q ? quoteBlock(q, renderQuote) : null, q ? q.body : text,
-    nImages ? el("div", { class: "subtle" }, `${nImages} image(s) jointe(s)`) : null);
+    imageStrip(images, loadImages));
   const node = messageNode("user", ME, bubble, actions, msgId);
   node.raw = text;
   return node;

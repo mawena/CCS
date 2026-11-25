@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ccs_app import preview
 from ccs_app.conversations import Conversation
-from ccs_app.preview import ASSISTANT, NOTE, TOOL, USER, read_messages, to_markdown
+from ccs_app.preview import ASSISTANT, NOTE, TOOL, USER, read_images, read_messages, to_markdown
 
 CWD = "/home/u/Work/App"
 
@@ -136,7 +136,9 @@ class ReadMessagesTest(PreviewTestCase):
         self.assertEqual((msgs[0].role, msgs[0].text), (USER, "/model opus"))
         self.assertEqual(msgs[1].role, NOTE)
         self.assertIn("interromp", msgs[1].text.lower())
-        self.assertEqual((msgs[2].role, msgs[2].text), (USER, "[image]\n\net ça ?"))
+        self.assertEqual((msgs[2].role, msgs[2].text, msgs[2].images), (USER, "et ça ?", 1))
+        self.assertEqual(read_images(p, msgs[2].uuid), [{"media_type": "image/png", "data": "AAAA"}])
+        self.assertEqual(read_images(p, "inconnu"), [])
 
     def test_compaction_is_a_note(self):
         p = self.journal([user("a"), {"parentUuid": None, "type": "system", "subtype": "compact_boundary",

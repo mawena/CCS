@@ -80,6 +80,7 @@ class Message:
     tool: ToolCall | None = None
     msg_id: str = ""             # identifiant de la réponse (réunion des blocs)
     uuid: str = ""               # message de l'utilisateur : identifiant de sa ligne du journal
+    images: int = 0              # message de l'utilisateur : images jointes (relues par read_images)
 
 
 # ---- lecture -------------------------------------------------------------------------
@@ -213,7 +214,7 @@ class _Reader:
             return
         origin = d.get("origin")
         human = not isinstance(origin, dict) or origin.get("kind") in (None, "human")
-        parts, interrupted = [], False
+        parts, interrupted, images = [], False, 0
         for b in blocks:
             if not isinstance(b, dict):
                 continue
@@ -234,9 +235,9 @@ class _Reader:
                 if text:
                     parts.append(text)
             elif t == "image":
-                parts.append("[image]")
-        if parts:
-            self.add(Message(USER, "\n\n".join(parts), ts, uuid=str(d.get("uuid") or "")))
+                images += 1
+        if parts or images:
+            self.add(Message(USER, "\n\n".join(parts), ts, uuid=str(d.get("uuid") or ""), images=images))
         if interrupted:
             self.add(Message(NOTE, "Demande interrompue par l'utilisateur.", ts))
 
@@ -273,6 +274,34 @@ def _wanted(raw):
     if b'"user"' not in raw and b'"assistant"' not in raw and b"compact_boundary" not in raw:
         return False
     return len(raw) <= MAX_LINE_BYTES or b'"tool_result"' not in raw
+
+
+IMAGES_MAX = 5
+
+
+def read_images(path, uuid):
+    """Images jointes au message `uuid` du journal : liste de {media_type, data} (base64), dans
+    l'ordre, 5 au plus. Vide si la ligne n'existe pas (encore) ou n'a pas d'image.
+    FileNotFoundError si le journal n'existe ni sur le disque ni dans l'archive."""
+    needle = uuid.encode()
+    with archive.open_journal(path) as fh:
+        for raw in fh:
+            if needle not in raw or b"\"image\"" not in raw or not raw.endswith(b"\n"):
+                continue
+            try:
+                d = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(d, dict) or d.get("uuid") != uuid:
+                continue
+            content = (d.get("message") or {}).get("content")
+            out = []
+            for b in content if isinstance(content, list) else ():
+                src = b.get("source") if isinstance(b, dict) and b.get("type") == "image" else None
+                if isinstance(src, dict) and src.get("type") == "base64" and isinstance(src.get("data"), str):
+                    out.append({"media_type": str(src.get("media_type") or "image/png"), "data": src["data"]})
+            return out[:IMAGES_MAX]
+    return []
 
 
 def read_messages(path, limit=None, results=True, max_result_chars=RESULT_MAX, before=None):
