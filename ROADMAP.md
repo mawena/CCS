@@ -243,4 +243,4 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 ## Phase 52 — Liste des sessions plus compacte
 
 - [x] 1. Sections « Projets » et « Conversations récentes » repliables (web, état gardé)
-- [ ] 2. Release 1.18.1
+- [x] 2. Release 1.18.1

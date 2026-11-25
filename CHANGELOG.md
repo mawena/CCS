@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.18.1] — 2026-11-30
+
 ### Ajouté
 
 - Web : les sections « Projets » et « Conversations récentes » se replient et se déplient
