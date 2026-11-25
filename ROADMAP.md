@@ -227,3 +227,14 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 5. Styles : nœuds de machine, état hors ligne, badges dans les onglets et « En cours »
 - [x] 6. Tests node de `sessions-tree.js`
 - [ ] 7. Même chose dans l'appli de bureau GTK
+
+
+## Phase 51 — Sessions qui survivent aux mises à jour, vue partagée
+
+- [x] 1. Fichier d'état des chats ouverts, rouverts au démarrage du pont (mêmes identifiants, « continue »)
+- [x] 2. Arrêt propre sur SIGTERM, service `KillMode=mixed`, relance différée du pont du serveur
+- [x] 3. Postinst : plus de `try-restart` des ponts depuis 1.18.0
+- [x] 4. Paramètres de lancement gardés par conversation (web)
+- [x] 5. Poignée du panneau latéral, corrections d'affichage de l'arbre
+- [x] 6. Vue partagée : deux sessions côte à côte
+- [x] 7. Release 1.18.0

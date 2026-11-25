@@ -1,3 +1,10 @@
+ccs (1.18.0) noble; urgency=medium
+
+  * Chats rouverts après un redémarrage du pont, relance différée après une mise à jour.
+  * Web : vue partagée, panneau redimensionnable, paramètres gardés par conversation.
+
+ -- Charles GAMLIGO <gamligocharles3@gmail.com>  Sun, 29 Nov 2026 02:00:00 +0100
+
 ccs (1.17.0) noble; urgency=medium
 
   * Web : arbre des machines dans Sessions, onglets de plusieurs machines ouverts ensemble.

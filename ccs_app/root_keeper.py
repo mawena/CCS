@@ -266,7 +266,9 @@ class Keeper:
         return self._secret is not None
 
     def busy(self):
-        return self.kept() or self._request is not None
+        """Vrai si une relance du pont perdrait quelque chose : demande en cours, ou mot de passe
+        gardé en mémoire seulement (celui du coffre est relu au démarrage)."""
+        return (self.kept() and not self.forever) or self._request is not None
 
     def status(self):
         kept = self.kept()

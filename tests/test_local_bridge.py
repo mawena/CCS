@@ -249,7 +249,7 @@ class RestartOnUpdateTest(unittest.TestCase):
         self.assertTrue(self.make("99.0.0").should_restart())
         self.assertFalse(self.make(bridge.__version__).should_restart())
         self.assertFalse(self.make(None).should_restart())             # fichier illisible
-        self.assertFalse(self.make("99.0.0", local=False).should_restart())   # service : postinst
+        self.assertTrue(self.make("99.0.0", local=False).should_restart())    # service du serveur aussi
         busy = self.make("99.0.0")
         busy.busy_checks.append(lambda: True)                          # un chat travaille
         self.assertFalse(busy.should_restart())
@@ -290,6 +290,34 @@ class RestartOnUpdateTest(unittest.TestCase):
             asyncio.run(b.serve(os.path.join(tmp, "b.sock")))
         self.assertTrue(b.restart)
 
+    def test_sigterm_stops_cleanly_with_stop_hooks(self):
+        """SIGTERM (systemctl stop) : arrêt propre, les stop_hooks passent (chats enregistrés)."""
+        tmp = tempfile.mkdtemp(prefix="ccs-term-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        b = self.make(bridge.__version__)
+        stopped = []
+
+        async def hook():
+            stopped.append(True)
+        b.stop_hooks.append(hook)
+
+        async def main():
+            task = asyncio.ensure_future(b.serve(os.path.join(tmp, "b.sock")))
+            for _ in range(200):
+                if b._server is not None and not b.preparing:
+                    break
+                await asyncio.sleep(0.01)
+            if signal.getsignal(signal.SIGTERM) in (signal.SIG_DFL, None):
+                task.cancel()
+                self.skipTest("gestionnaire de SIGTERM non posé (hors du fil principal)")
+            os.kill(os.getpid(), signal.SIGTERM)
+            await asyncio.wait_for(task, 5)
+        with mock.patch.dict(os.environ, {"HOME": tmp}):
+            asyncio.run(main())
+        self.assertEqual(stopped, [True])
+        self.assertFalse(b.restart)
+        self.assertEqual(signal.getsignal(signal.SIGTERM), signal.SIG_DFL)   # gestionnaire retiré
+
     def test_cli_execs_the_new_code(self):
         from ccs_app import cli
 
@@ -304,6 +332,27 @@ class RestartOnUpdateTest(unittest.TestCase):
                 mock.patch.object(os, "execv") as execv:
             cli.cmd_bridge(args)
         execv.assert_called_once_with("/opt/ccs", ["/opt/ccs", "bridge", "--local", "--socket", sock])
+
+    def test_cli_execs_the_server_bridge_without_local(self):
+        """Pont du serveur (service ccs-bridge@) : relancé avec ses arguments, sans --local."""
+        from ccs_app import cli
+        from ccs_app.server import paths
+
+        async def fake_serve(self_, sock):
+            self_.restart = True
+        tmp = tempfile.mkdtemp(prefix="ccs-rcli-")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        key = os.path.join(tmp, "bridge.key")
+        with open(key, "wb") as f:
+            f.write(b"k" * 32)
+        sock = os.path.join(tmp, "bridge.sock")
+        args = mock.Mock(local=False, socket=sock)
+        with mock.patch.object(bridge.Bridge, "serve", fake_serve), \
+                mock.patch.object(paths, "bridge_key", lambda user: Path(key)), \
+                mock.patch.dict(os.environ, {"HOME": tmp, "CCS_BIN": "/opt/ccs"}), \
+                mock.patch.object(os, "execv") as execv:
+            cli.cmd_bridge(args)
+        execv.assert_called_once_with("/opt/ccs", ["/opt/ccs", "bridge", "--socket", sock])
 
 
 class OutdatedBridgeTest(unittest.IsolatedAsyncioTestCase):
