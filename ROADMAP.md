@@ -280,4 +280,4 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 1. Serveur : `machines.chats` renvoie les sessions de chaque machine en ligne (erreur par machine injoignable)
 - [x] 2. iOS : une section par machine dans Sessions ; toucher une session pilote sa machine puis l'ouvre
 - [x] 3. Android : même chose
-- [ ] 4. Release 1.23.0 et installation partout
+- [x] 4. Release 1.23.0 et installation partout
