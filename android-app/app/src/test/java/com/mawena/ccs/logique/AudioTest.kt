@@ -239,7 +239,7 @@ class AudioTest {
     @Test
     fun nomDeLAppareil() {
         val e = EtatReseau(
-            ici = Appareil(name = "mawena-cloud", ips = listOf("100.64.0.1")),
+            ici = Appareil(name = "srv-mawena-cloud", ips = listOf("100.64.0.1")),
             peers = listOf(Appareil(name = "pixel-de-charles", ips = listOf("100.64.0.3", "fd7a::3"))),
             nodes = listOf(NoeudServeur(name = "tablette", ips = listOf("100.64.0.9"))),
         )
@@ -255,10 +255,10 @@ class AudioTest {
     @Test
     fun evenements() {
         val recevoir = buildJsonObject {
-            put("action", "receive"); put("device", "pixel"); put("stream", "a3"); put("source", "pc-bureau")
+            put("action", "receive"); put("device", "pixel"); put("stream", "a3"); put("source", "lp-work")
             put("from_label", "PC du bureau"); put("port", 4010); put("channels", 2)
         }
-        assertEquals(Audio.Evenement.Recevoir("a3", "pc-bureau", "PC du bureau", 4010, 2), Audio.lireEvenement(recevoir, "pixel"))
+        assertEquals(Audio.Evenement.Recevoir("a3", "lp-work", "PC du bureau", 4010, 2), Audio.lireEvenement(recevoir, "pixel"))
         assertNull(Audio.lireEvenement(recevoir, "iphone"))
         val emettre = buildJsonObject {
             put("action", "emit"); put("device", "pixel"); put("stream", "a4"); put("target", "iphone")
@@ -270,7 +270,7 @@ class AudioTest {
             putJsonArray("devices") { add("pixel"); add("iphone") }
         }
         assertEquals(Audio.Evenement.Arreter("a4", "arrêté"), Audio.lireEvenement(stop, "iphone"))
-        assertNull(Audio.lireEvenement(stop, "pc-bureau"))
+        assertNull(Audio.lireEvenement(stop, "lp-work"))
         assertNull(Audio.lireEvenement(buildJsonObject { put("action", "receive"); put("device", "pixel") }, "pixel"))
     }
 }

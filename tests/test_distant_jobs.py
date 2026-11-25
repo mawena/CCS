@@ -61,7 +61,7 @@ class JobsCase(DistantCase):
 
 class TestRegistry(JobsCase):
     def test_create_update_finish_and_order(self):
-        a = jobs.create(["flutter", "build", "apk"], self.project, machine="pc-bureau", tool="flutter")
+        a = jobs.create(["flutter", "build", "apk"], self.project, machine="lp-work", tool="flutter")
         b = jobs.create(["make test"], self.project)
         job = jobs.get(a)
         self.assertRegex(a, r"^[0-9a-f]{6}$")
@@ -125,21 +125,21 @@ class TestRegistry(JobsCase):
 
 class TestSlots(JobsCase):
     def test_reserve_counts_running_jobs_of_the_machine(self):
-        self.busy("pc-bureau")
-        self.busy("pc-bureau", state="sending")
+        self.busy("lp-work")
+        self.busy("lp-work", state="sending")
         self.busy("portable")
         jid = jobs.create(["x"], self.project)
-        self.assertEqual(jobs.reserve(jid, "pc-bureau", 2), (False, 2))
-        self.assertEqual(jobs.reserve(jid, "pc-bureau", 3), (True, 2))
-        self.assertEqual((jobs.get(jid)["state"], jobs.get(jid)["machine"]), ("sending", "pc-bureau"))
-        self.assertEqual(jobs.counts()["pc-bureau"], {"running": 3, "waiting": 0})
+        self.assertEqual(jobs.reserve(jid, "lp-work", 2), (False, 2))
+        self.assertEqual(jobs.reserve(jid, "lp-work", 3), (True, 2))
+        self.assertEqual((jobs.get(jid)["state"], jobs.get(jid)["machine"]), ("sending", "lp-work"))
+        self.assertEqual(jobs.counts()["lp-work"], {"running": 3, "waiting": 0})
 
     def test_places_hold_between_processes(self):
         """Quatre processus pour deux places : jamais plus de deux à la fois."""
         script = ("import json, sys, time\n"
                   "from ccs_app import distant_jobs as j\n"
                   "jid = j.create(['x'], '/tmp')\n"
-                  "while not j.reserve(jid, 'pc-bureau', 2)[0]:\n"
+                  "while not j.reserve(jid, 'lp-work', 2)[0]:\n"
                   "    time.sleep(0.01)\n"
                   "t0 = time.time(); time.sleep(0.4); t1 = time.time()\n"
                   "j.finish(jid, 'fini', 0)\n"
@@ -157,11 +157,11 @@ class TestSlots(JobsCase):
         self.busy("portable")
         code, said = self.launch(["./build.sh"])
         self.assertEqual(code, 0)
-        self.assertIn("pc-bureau", said[0], "portable (la moins chargée) est pleine")
+        self.assertIn("lp-work", said[0], "portable (la moins chargée) est pleine")
 
     def test_launch_waits_for_a_place_then_goes(self):
-        write(distant.overrides_path(), "[machines.pc-bureau]\nlimite = 1\n")
-        other, proc = self.busy("pc-bureau")
+        write(distant.overrides_path(), "[machines.lp-work]\nlimite = 1\n")
+        other, proc = self.busy("lp-work")
         states = []
         real_update = jobs.update
 
@@ -175,10 +175,10 @@ class TestSlots(JobsCase):
         with mock.patch.object(jobs, "update", update):
             code, said = self.launch(["flutter", "build", "apk"], sleep=sleep)
         self.assertEqual(code, 0)
-        self.assertIn("en attente d'une place sur pc-bureau (1/1)", said[0])
+        self.assertIn("en attente d'une place sur lp-work (1/1)", said[0])
         self.assertEqual(states, ["waiting", "running"])
         job = jobs.list_jobs()[0]
-        self.assertEqual((job["state"], job["code"], job["machine"]), ("done", 0, "pc-bureau"))
+        self.assertEqual((job["state"], job["code"], job["machine"]), ("done", 0, "lp-work"))
         self.assertIsNotNone(job["started"])
 
     def test_failure_and_errors_are_recorded(self):
@@ -250,14 +250,14 @@ class TestStop(JobsCase):
         self.assertFalse(jobs.stop("abcdef"))
 
     def test_stop_a_running_job_sends_sigterm(self):
-        jid, p = self.busy("pc-bureau")
+        jid, p = self.busy("lp-work")
         self.assertTrue(jobs.stop(jid))
         self.assertEqual(p.wait(timeout=5), -15)
         self.assertEqual(jobs.get(jid)["state"], "stopped")
 
     def test_stopping_while_queued_ends_the_launch(self):
-        write(distant.overrides_path(), "[machines.pc-bureau]\nlimite = 1\n")
-        self.busy("pc-bureau")
+        write(distant.overrides_path(), "[machines.lp-work]\nlimite = 1\n")
+        self.busy("lp-work")
 
         def sleep(_):
             mine = next(j for j in jobs.list_jobs() if j["text"] == "flutter build")
@@ -286,11 +286,11 @@ class TestDetached(JobsCase):
         def popen(argv, **kw):
             calls.append((argv, kw))
             return mock.Mock(pid=4242)
-        jid = jobs.start(["flutter", "build", "apk"], str(self.project), machine="pc-bureau",
+        jid = jobs.start(["flutter", "build", "apk"], str(self.project), machine="lp-work",
                          when="nuit", popen=popen)
         argv, kw = calls[0]
         self.assertEqual(argv[3:], ["distant", "lancer", "--detache", "--travail", jid, "--machine",
-                                    "pc-bureau", "--quand", "nuit", "--", "flutter", "build", "apk"])
+                                    "lp-work", "--quand", "nuit", "--", "flutter", "build", "apk"])
         self.assertTrue(kw["start_new_session"])
         self.assertEqual(kw["cwd"], str(self.project))
         job = jobs.get(jid)
@@ -320,7 +320,7 @@ class TestCli(JobsCase):
     def test_travaux_journal_arreter(self):
         code, out, _ = self.run_cli("distant", "travaux")
         self.assertEqual((code, out.strip()), (0, "Aucun travail."))
-        jid, p = self.busy("pc-bureau")
+        jid, p = self.busy("lp-work")
         done = jobs.create(["flutter", "test"], self.project, detached=True)
         jobs.finish(done, "échec", 1, "la commande a renvoyé 1")
         Path(jobs.get(done)["log"]).write_text("sortie\n")
@@ -361,13 +361,13 @@ class TestCli(JobsCase):
 
 class TestClientSettings(JobsCase):
     def test_settings_never_show_the_token(self):
-        write(distant.overrides_path(), '[machines.pc-bureau]\nutilisateur = "c"\nlimite = 3\n'
+        write(distant.overrides_path(), '[machines.lp-work]\nutilisateur = "c"\nlimite = 3\n'
                                         '[machines.portable]\nlimite = 99\n')
         s = distant.client_settings()
         new = {"relay": "https://r.example/", "token_set": True, "path": str(distant.client_path()),
-               "default_limit": 2, "limits": {"pc-bureau": 3}, "operator_set": False}
+               "default_limit": 2, "limits": {"lp-work": 3}, "operator_set": False}
         old = {"relais": "https://r.example/", "jeton_defini": True, "chemin": str(distant.client_path()),
-               "limite_defaut": 2, "limites": {"pc-bureau": 3}}   # compatibilité 1.x
+               "limite_defaut": 2, "limites": {"lp-work": 3}}   # compatibilité 1.x
         self.assertEqual(s, {**new, **old})
         self.assertNotIn("secret", json.dumps(s))
 
@@ -387,27 +387,27 @@ class TestClientSettings(JobsCase):
         self.assertEqual(stat.S_IMODE(distant.client_path().stat().st_mode), 0o600)
 
     def test_set_limit_keeps_the_rest(self):
-        write(distant.overrides_path(), '[machines.pc-bureau]\nutilisateur = "charles"\nport = 2244\n')
-        distant.set_limit("pc-bureau", 3)
+        write(distant.overrides_path(), '[machines.lp-work]\nutilisateur = "charles"\nport = 2244\n')
+        distant.set_limit("lp-work", 3)
         distant.set_limit("portable", 1)
         over = distant.load_overrides()
-        self.assertEqual(over["pc-bureau"], {"user": "charles", "port": 2244, "limit": 3})
+        self.assertEqual(over["lp-work"], {"user": "charles", "port": 2244, "limit": 3})
         self.assertEqual(distant.limit_for("portable", over), 1)
         self.assertEqual(distant.limit_for("autre", over), 2)
         for bad in (0, 9, "3", True):
             with self.assertRaises(distant.DistantError):
-                distant.set_limit("pc-bureau", bad)
+                distant.set_limit("lp-work", bad)
         with self.assertRaises(distant.DistantError):
             distant.set_limit("../x", 2)
 
     def test_overview(self):
-        write(distant.overrides_path(), "[machines.pc-bureau]\nlimite = 3\n")
+        write(distant.overrides_path(), "[machines.lp-work]\nlimite = 3\n")
         distant.inventory(distant.parse_machines(distant_api())[1], {}, run=FakeRun())
-        self.busy("pc-bureau")
-        jobs.create(["x"], self.project, machine="pc-bureau")
+        self.busy("lp-work")
+        jobs.create(["x"], self.project, machine="lp-work")
         o = distant.machines_overview(fetch=lambda: distant.parse_machines(distant_api()))
         self.assertEqual((o["configured"], o["message"]), (True, ""))
-        pc = next(m for m in o["machines"] if m["id"] == "pc-bureau")
+        pc = next(m for m in o["machines"] if m["id"] == "lp-work")
         self.assertEqual((pc["tools"], pc["limit"], pc["running"], pc["waiting"], pc["tunnel"]),
                          (["flutter"], 3, 1, 1, True))
         self.assertEqual(o["machines"][0]["tools"], [])

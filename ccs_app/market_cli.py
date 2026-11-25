@@ -28,8 +28,8 @@ def add_parser(sub, command, sub_action):
     v.add_argument("--limit", type=int, help="annonces au plus (défaut : 600)")
     i = action("item", "détails d'une annonce : état, description, vendeur")
     i.add_argument("url")
-    action("status", "session Facebook, Chrome, tunnel par pc-bureau")
-    action("login", "connexion à Facebook dans Chrome, sur l'écran de pc-bureau (une fois)")
+    action("status", "session Facebook, Chrome, tunnel par lp-work")
+    action("login", "connexion à Facebook dans Chrome, sur l'écran de lp-work (une fois)")
     for p in (s, v, i):
         p.add_argument("--json", action="store_true", help="sortie JSON")
     mk.set_defaults(func=cmd_market)

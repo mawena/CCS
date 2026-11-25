@@ -142,7 +142,7 @@ def machine_name():
 
 
 def ricochet_id(fetch=None):
-    """Identifiant Ricochet de cette machine (`mawena-cloud`, `pc-bureau`…), celui que les
+    """Identifiant Ricochet de cette machine (`srv-mawena-cloud`, `lp-work`…), celui que les
     applis connaissent par `machines.list` ; None sans Ricochet ou relais injoignable."""
     try:
         from . import distant

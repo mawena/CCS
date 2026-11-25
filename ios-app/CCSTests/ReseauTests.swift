@@ -14,8 +14,8 @@ final class ReseauTests: XCTestCase {
     func testGenres() {
         XCTAssertEqual(Reseau.genre(Appareil(name: "iphone", os: "iOS")), .iphone)
         XCTAssertEqual(Reseau.genre(Appareil(name: "x", os: "android")), .android)
-        XCTAssertEqual(Reseau.genre(Appareil(name: "mawena-cloud", os: "linux")), .serveur)
-        XCTAssertEqual(Reseau.genre(Appareil(name: "pc-bureau", os: "linux")), .bureau)
+        XCTAssertEqual(Reseau.genre(Appareil(name: "srv-mawena-cloud", os: "linux")), .serveur)
+        XCTAssertEqual(Reseau.genre(Appareil(name: "lp-work", os: "linux")), .bureau)
     }
 
     func testBilanEtListe() {
@@ -54,9 +54,9 @@ final class ReseauTests: XCTestCase {
             machine("autre", host: "Mon-Portable"),
         ]
         // la fiche du serveur ↔ la machine locale
-        XCTAssertEqual(Reseau.machine(pour: Appareil(name: "mawena-cloud"), ici: true, parmi: machines)?.id, "vps")
+        XCTAssertEqual(Reseau.machine(pour: Appareil(name: "srv-mawena-cloud"), ici: true, parmi: machines)?.id, "vps")
         // par l'adresse du réseau maillé
-        XCTAssertEqual(Reseau.machine(pour: Appareil(name: "pc-bureau", ips: ["100.64.0.3", "fd7a::3"]), ici: false, parmi: machines)?.id, "bureau")
+        XCTAssertEqual(Reseau.machine(pour: Appareil(name: "lp-work", ips: ["100.64.0.3", "fd7a::3"]), ici: false, parmi: machines)?.id, "bureau")
         // par `mesh`, sans casse
         XCTAssertEqual(Reseau.machine(pour: Appareil(name: "pc-salon"), ici: false, parmi: machines)?.id, "salon")
         // par l'identifiant
@@ -71,12 +71,12 @@ final class ReseauTests: XCTestCase {
 
     func testFichesAvecRicochet() {
         let e = EtatReseau(
-            ici: Appareil(name: "mawena-cloud", online: true, path: "self"),
-            peers: [Appareil(name: "pc-bureau", ips: ["100.64.0.3"], online: true, path: "lan"), Appareil(name: "iphone", path: "offline")])
+            ici: Appareil(name: "srv-mawena-cloud", online: true, path: "self"),
+            peers: [Appareil(name: "lp-work", ips: ["100.64.0.3"], online: true, path: "lan"), Appareil(name: "iphone", path: "offline")])
         var hors = Machine(id: "pc-salon", name: "PC du salon", online: false)
         hors.tunnel = true
         let f = Reseau.fiches(e, machines: [machine("vps", local: true), machine("bureau", meshIp: "100.64.0.3"), hors])
-        XCTAssertEqual(f.map { $0.appareil.name }, ["mawena-cloud", "pc-bureau", "iphone", "PC du salon"])
+        XCTAssertEqual(f.map { $0.appareil.name }, ["srv-mawena-cloud", "lp-work", "iphone", "PC du salon"])
         XCTAssertEqual(f.map { $0.machine?.id }, ["vps", "bureau", nil, "pc-salon"])
         XCTAssertEqual(f.map { $0.ricochet }, [false, false, false, true])
         XCTAssertEqual(f[3].id, "ricochet:pc-salon")

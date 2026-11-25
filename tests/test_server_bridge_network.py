@@ -48,7 +48,7 @@ class NetworkApiTest(unittest.IsolatedAsyncioTestCase):
     async def test_status(self):
         st = await self.call("network.status")
         self.assertTrue(st["server"])
-        self.assertEqual(st["self"]["name"], "mawena-cloud")
+        self.assertEqual(st["self"]["name"], "srv-mawena-cloud")
         self.assertEqual(st["nodes"][0]["id"], 7)
         self.assertEqual(st["url"], network.SERVER_URL)
 
@@ -64,8 +64,8 @@ class NetworkApiTest(unittest.IsolatedAsyncioTestCase):
             await self.call("network.key", name="Pas Bon")
 
     async def test_renommer_retirer_valider(self):
-        await self.call("network.rename", name="laptop", new="laptop-maison")
-        self.assertIn(["headscale", "nodes", "rename", "--identifier", "7", "laptop-maison", "--output", "json"], self.calls)
+        await self.call("network.rename", name="laptop", new="lp-home")
+        self.assertIn(["headscale", "nodes", "rename", "--identifier", "7", "lp-home", "--output", "json"], self.calls)
         await self.call("network.remove", name="laptop")
         self.assertIn("delete", self.calls[-1])
         r = await self.call("network.register", key="https://network.mawena.cloud/register/hskey-authreq-abcdef123")

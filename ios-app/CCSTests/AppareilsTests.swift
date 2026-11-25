@@ -10,8 +10,8 @@ final class AppareilsTests: XCTestCase {
     private let exemple = """
     {"machines": [
       {"id": "vps", "name": "VPS", "online": true, "local": true, "tunnel": true},
-      {"id": "pc-bureau", "name": "PC bureau", "online": true, "tunnel": false, "mesh_ip": "100.64.0.2"},
-      {"id": "laptop-maison", "online": true, "tunnel": true, "mesh_ip": ""},
+      {"id": "lp-work", "name": "PC bureau", "online": true, "tunnel": false, "mesh_ip": "100.64.0.2"},
+      {"id": "lp-home", "online": true, "tunnel": true, "mesh_ip": ""},
       {"id": "vieux", "online": true, "tunnel": false, "mesh_ip": "  "},
       {"id": "eteint", "online": false, "tunnel": true, "mesh_ip": "100.64.0.9"},
       {"id": "ancien", "online": true}
@@ -20,19 +20,19 @@ final class AppareilsTests: XCTestCase {
 
     func testServeurDAbordEtServeurLocalExclu() {
         let l = Appareils.liste(machines(exemple))
-        XCTAssertEqual(l.map { $0.id }, ["", "pc-bureau", "laptop-maison", "vieux", "eteint", "ancien"])
+        XCTAssertEqual(l.map { $0.id }, ["", "lp-work", "lp-home", "vieux", "eteint", "ancien"])
         XCTAssertEqual(l[0].nom, "Serveur CCS")
         XCTAssertTrue(l[0].estServeur)
         XCTAssertTrue(l[0].joignable)
         XCTAssertNil(l[0].raison)
         XCTAssertEqual(l[1].nom, "PC bureau")
-        XCTAssertEqual(l[2].nom, "laptop-maison")
+        XCTAssertEqual(l[2].nom, "lp-home")
     }
 
     func testJoignableParReseauMailleOuTunnel() {
         let l = Appareils.liste(machines(exemple))
         let joignables = l.filter { $0.joignable }.map { $0.id }
-        XCTAssertEqual(joignables, ["", "pc-bureau", "laptop-maison"])
+        XCTAssertEqual(joignables, ["", "lp-work", "lp-home"])
     }
 
     func testRaisons() {
@@ -58,7 +58,7 @@ final class AppareilsTests: XCTestCase {
     func testNomEtMessage() {
         let m = machines(exemple)
         XCTAssertEqual(Appareils.nom("", m), "Serveur CCS")
-        XCTAssertEqual(Appareils.nom("pc-bureau", m), "PC bureau")
+        XCTAssertEqual(Appareils.nom("lp-work", m), "PC bureau")
         XCTAssertEqual(Appareils.nom("inconnu", m), "inconnu")
         XCTAssertEqual(Appareils.messageInjoignable("PC bureau", serveur: false, "Machine injoignable."),
                        "PC bureau injoignable : Machine injoignable.")
@@ -68,15 +68,15 @@ final class AppareilsTests: XCTestCase {
 
     func testConnexionAPartSeulementSiAutreQueLaMachinePilotee() {
         XCTAssertFalse(Appareils.connexionAPart(appareil: "", pilotee: ""))
-        XCTAssertTrue(Appareils.connexionAPart(appareil: "pc-bureau", pilotee: ""))
-        XCTAssertFalse(Appareils.connexionAPart(appareil: "pc-bureau", pilotee: "pc-bureau"))
+        XCTAssertTrue(Appareils.connexionAPart(appareil: "lp-work", pilotee: ""))
+        XCTAssertFalse(Appareils.connexionAPart(appareil: "lp-work", pilotee: "lp-work"))
         // on pilote un PC : le serveur CCS demande sa propre connexion
-        XCTAssertTrue(Appareils.connexionAPart(appareil: "", pilotee: "pc-bureau"))
+        XCTAssertTrue(Appareils.connexionAPart(appareil: "", pilotee: "lp-work"))
     }
 
     func testAdresseDeLaConnexionDeLAppareil() {
-        XCTAssertEqual(Adresse.ws("https://ccs.mawena.cloud", "api/ws", machine: "laptop-maison")?.absoluteString,
-                       "wss://ccs.mawena.cloud/api/ws?protocol=1&machine=laptop-maison")
+        XCTAssertEqual(Adresse.ws("https://ccs.mawena.cloud", "api/ws", machine: "lp-home")?.absoluteString,
+                       "wss://ccs.mawena.cloud/api/ws?protocol=1&machine=lp-home")
         XCTAssertEqual(Adresse.ws("http://192.168.1.5:8080/ccs/", "api/ws", machine: "")?.absoluteString,
                        "ws://192.168.1.5:8080/ccs/api/ws?protocol=1")
     }
@@ -84,9 +84,9 @@ final class AppareilsTests: XCTestCase {
     @MainActor
     func testClientFixeNeTouchePasLaMachinePilotee() {
         let avant = Prefs.lire("machine")
-        let c = CcsClient(machineFixe: "pc-bureau")
+        let c = CcsClient(machineFixe: "lp-work")
         XCTAssertTrue(c.fixe)
-        XCTAssertEqual(c.machine, "pc-bureau")
+        XCTAssertEqual(c.machine, "lp-work")
         c.changerMachine("autre", nom: "Autre")
         XCTAssertEqual(c.machine, "autre")
         XCTAssertEqual(Prefs.lire("machine"), avant)

@@ -101,7 +101,7 @@ class PilotTest(unittest.IsolatedAsyncioTestCase):
         self.machines = [
             {"id": "vps", "name": "Serveur CCS", "online": True, "local": True, "running": 0, "waiting": 0},
             {"id": "pc", "name": "lp-work", "online": True, "local": False, "running": 1, "waiting": 0},
-            {"id": "laptop-maison", "name": "laptop-maison", "online": False, "local": False},
+            {"id": "lp-home", "name": "lp-home", "online": False, "local": False},
         ]
         over = mock.patch.object(distant, "machines_overview",
                                  side_effect=lambda fetch=None: {"machines": [dict(m) for m in self.machines]})
@@ -178,7 +178,7 @@ class PilotTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(by_name["Élan"]["kind"], "terminal")
         self.assertFalse(by_name["Élan"]["subagents_stoppable"])
         self.assertEqual(by_name["Sonde"]["machine"], "vps")
-        self.assertEqual([m["id"] for m in res["machines"]], ["vps", "pc", "laptop-maison"])
+        self.assertEqual([m["id"] for m in res["machines"]], ["vps", "pc", "lp-home"])
         self.assertEqual(res["errors"], [])                       # hors ligne : pas une erreur
         self.assertEqual([j["id"] for j in res["jobs"]], ["abc123", "def456"])
         self.assertEqual(res["jobs"][0]["state_label"], "en cours")

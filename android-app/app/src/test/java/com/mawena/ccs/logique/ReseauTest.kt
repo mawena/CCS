@@ -26,8 +26,8 @@ class ReseauTest {
     fun genres() {
         assertEquals(Reseau.Genre.IPhone, Reseau.genre(Appareil(name = "iphone", os = "iOS")))
         assertEquals(Reseau.Genre.Android, Reseau.genre(Appareil(name = "x", os = "android")))
-        assertEquals(Reseau.Genre.Serveur, Reseau.genre(Appareil(name = "mawena-cloud", os = "linux")))
-        assertEquals(Reseau.Genre.Bureau, Reseau.genre(Appareil(name = "pc-bureau", os = "linux")))
+        assertEquals(Reseau.Genre.Serveur, Reseau.genre(Appareil(name = "srv-mawena-cloud", os = "linux")))
+        assertEquals(Reseau.Genre.Bureau, Reseau.genre(Appareil(name = "lp-work", os = "linux")))
     }
 
     @Test
@@ -63,19 +63,19 @@ class ReseauTest {
     @Test
     fun rattachementDesMachines() {
         val vps = Machine(id = "vps", local = true)
-        val bureau = Machine(id = "pc-bureau", ipMaille = "100.64.0.3")
+        val bureau = Machine(id = "lp-work", ipMaille = "100.64.0.3")
         val salon = Machine(id = "pc-salon", mesh = "Salon")
-        val portable = Machine(id = "lm", host = "laptop-maison")
+        val portable = Machine(id = "lm", host = "lp-home")
         val seul = Machine(id = "ricochet-seul", name = "Vieux PC")
         val machines = listOf(vps, bureau, salon, portable, seul)
         // le serveur lui-même ↔ la machine locale, quel que soit son nom
-        assertEquals(vps, Reseau.machineDe(machines, Appareil(name = "mawena-cloud"), ici = true))
+        assertEquals(vps, Reseau.machineDe(machines, Appareil(name = "srv-mawena-cloud"), ici = true))
         // adresse du réseau maillé parmi celles de l'appareil
         assertEquals(bureau, Reseau.machineDe(machines, Appareil(name = "bureau", ips = listOf("100.64.0.3", "fd7a::3")), ici = false))
         // nom `reseau` des réglages, sans casse
         assertEquals(salon, Reseau.machineDe(machines, Appareil(name = "salon"), ici = false))
         // nom d'hôte de la machine égal au nom de l'appareil
-        assertEquals(portable, Reseau.machineDe(machines, Appareil(name = "laptop-maison"), ici = false))
+        assertEquals(portable, Reseau.machineDe(machines, Appareil(name = "lp-home"), ici = false))
         // identifiant égal à l'hôte de l'appareil
         assertEquals(bureau, Reseau.machineDe(machines, Appareil(name = "x", host = "PC-Bureau"), ici = false))
         // la machine locale n'est jamais rattachée à un autre appareil ; champs vides ignorés
@@ -87,18 +87,18 @@ class ReseauTest {
     @Test
     fun fichesAvecLesMachinesHorsReseau() {
         val e = EtatReseau(
-            ici = Appareil(name = "mawena-cloud", path = "self", online = true),
-            peers = listOf(Appareil(name = "pc-bureau", path = "lan", online = true, ips = listOf("100.64.0.3"))),
+            ici = Appareil(name = "srv-mawena-cloud", path = "self", online = true),
+            peers = listOf(Appareil(name = "lp-work", path = "lan", online = true, ips = listOf("100.64.0.3"))),
         )
         val machines = listOf(
             Machine(id = "vps", local = true),
-            Machine(id = "pc-bureau", online = true),
+            Machine(id = "lp-work", online = true),
             Machine(id = "vieux", name = "Vieux PC", online = true),
             Machine(id = "eteint"),
         )
         val f = Reseau.fiches(e, machines)
-        assertEquals(listOf("mawena-cloud", "pc-bureau", "Vieux PC", "eteint"), f.map { it.appareil.name })
-        assertEquals(listOf("vps", "pc-bureau", "vieux", "eteint"), f.map { it.machine?.id })
+        assertEquals(listOf("srv-mawena-cloud", "lp-work", "Vieux PC", "eteint"), f.map { it.appareil.name })
+        assertEquals(listOf("vps", "lp-work", "vieux", "eteint"), f.map { it.machine?.id })
         assertEquals(listOf(false, false, true, true), f.map { it.sansMaille })
         assertTrue(f[0].ici)
         assertEquals("ricochet", f[2].appareil.path)
@@ -113,11 +113,11 @@ class ReseauTest {
     @Test
     fun lectureDesNouveauxChampsDeMachinesList() {
         val l = CodecRpc.json.decodeFromString(ListeMachines.serializer(),
-            """{"configured": true, "message": "", "machines": [{"id": "pc", "host": "pc-bureau", "mesh": "",
+            """{"configured": true, "message": "", "machines": [{"id": "pc", "host": "lp-work", "mesh": "",
                "mesh_ip": "100.64.0.3", "tools": ["flutter", "gradle"], "limit": 3, "running": 1, "waiting": 2, "online": true}]}""")
         val m = l.machines.single()
         assertEquals("100.64.0.3", m.ipMaille)
-        assertEquals("pc-bureau", m.host)
+        assertEquals("lp-work", m.host)
         assertEquals(listOf("flutter", "gradle"), m.tools)
         assertEquals(3, m.limite)
         // joignable par le réseau maillé sans tunnel Ricochet : pilotable

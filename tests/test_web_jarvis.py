@@ -108,7 +108,7 @@ out = {{ p, stored, urls: sockets.map((s) => s.url), sent: sockets.map((s) => s.
 const msgs = [];
 globalThis.brain = (ws, m) => setTimeout(() => {{
   if (m.code === "000000") ws.reply({{ type: "rejected", reason: {{ kind: "wrong_code", attempts_left: 2 }} }});
-  else {{ ws.reply({{ type: "relay_error", message: "Jarvis est injoignable (laptop-maison:7341) : hors ligne." }}); ws.close(4011, "x"); }}
+  else {{ ws.reply({{ type: "relay_error", message: "Jarvis est injoignable (lp-home:7341) : hors ligne." }}); ws.close(4011, "x"); }}
 }}, 0);
 for (const code of ["000000", "111111"]) {{
   try {{ await j.pair({{ code, fingerprint: "{FP}" }}); }} catch (e) {{ msgs.push(e.message); }}
@@ -123,7 +123,7 @@ out = {{ msgs, stored: j.loadPairing() }};
         out = run(f"""
 const {{ mountJarvis }} = await import("./jarvis.js");
 const calls = [];
-const api = {{ call: async (m, p) => {{ calls.push(m); return {{ machine: "laptop-maison", port: 7341, fingerprint: "", fingerprint_short: "" }}; }} }};
+const api = {{ call: async (m, p) => {{ calls.push(m); return {{ machine: "lp-home", port: 7341, fingerprint: "", fingerprint_short: "" }}; }} }};
 const root = document.createElement("div");
 let stop = mountJarvis(root, api);
 const before = root.textContent;

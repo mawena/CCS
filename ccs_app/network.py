@@ -314,9 +314,9 @@ def device_kind(d):
         return "phone"
     if os_name == "macos":
         return "laptop"
-    if any(k in name for k in ("vps", "cloud", "server", "serveur")):
+    if name.startswith("srv-") or any(k in name for k in ("vps", "cloud", "server", "serveur")):
         return "server"
-    if "laptop" in name or "portable" in name:
+    if name.startswith("lp-") or "laptop" in name or "portable" in name:
         return "laptop"
     return "desktop"
 

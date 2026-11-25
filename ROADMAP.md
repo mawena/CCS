@@ -28,13 +28,13 @@ vérification de la voix.
 - [x] 2. ccs-web : `/api/jarvis/oreille` (mêmes contrôles que `/api/ws` : origine, session, jeton d'application ou Portier, revérification, déconnexion), relais texte et binaire, limites de taille, erreur claire (`relay_error`, code 4011)
 - [x] 3. Web : page « Jarvis » (appairage par l'adresse `jarvis://pair?…` ou code + empreinte, jeton gardé dans le navigateur ; bouton maintenir / toucher pour parler, micro rééchantillonné en 16 kHz, texte et voix de la réponse)
 - [x] 4. Tests (faux cerveau TLS local, faux `ricochet-agent`, ccs-web de bout en bout, page dans node), README, CHANGELOG
-- [ ] 5. Essai réel par Charles : `jarvis pair`, une phrase depuis le téléphone hors du Wi-Fi (le pont joint laptop-maison par le réseau maillé, 100.64.0.5 : plus besoin d'autoriser le port 7341 dans le tunnel Ricochet ; Jarvis 0.6.1 y tourne depuis le 23/11)
+- [ ] 5. Essai réel par Charles : `jarvis pair`, une phrase depuis le téléphone hors du Wi-Fi (le pont joint lp-home par le réseau maillé, 100.64.0.5 : plus besoin d'autoriser le port 7341 dans le tunnel Ricochet ; Jarvis 0.6.1 y tourne depuis le 23/11)
 - [x] 6. Bureau (GTK) : menu principal → « Parler à Jarvis… » ouvre la page web Jarvis du serveur appairé
 - [x] 7. Applis Android et iPhone : bouton Jarvis sur le même relais (voir README, « Parler à Jarvis »)
   - [x] 7a. Logique commune testée (`logique/Jarvis.kt`, `Logique/Jarvis.swift`) : adresse `jarvis://pair?…`, messages `pair` / `hello` / `wake` / `listen_start` / `listen_end`, lecture des réponses du cerveau et du relais, trames `0x01`, rééchantillonnage 16 kHz, phrase (14 s, silence, rien dit)
   - [x] 7b. Android : écran Plus → Parler à Jarvis (appairage, bouton maintenir / toucher), `AudioRecord` + `AudioTrack`, coffre chiffré, permission micro, raccourci d'appli et liens `ccs://jarvis`, `jarvis://pair`
   - [x] 7c. iPhone : même écran, `AVAudioEngine` + `AVAudioPlayer`, trousseau, App Intent « Parler à Jarvis », liens `ccs://jarvis`, `jarvis://pair`
-  - [ ] 7d. Construire sur Codemagic (workflows `android` et `ios-natif`, jamais compilé ici) et essayer sur le Pixel et l'iPhone — construit et installé (1.8.0 Pixel, 1.8.1 iPhone par SideStore) ; reste l'essai avec laptop-maison
+  - [ ] 7d. Construire sur Codemagic (workflows `android` et `ios-natif`, jamais compilé ici) et essayer sur le Pixel et l'iPhone — construit et installé (1.8.0 Pixel, 1.8.1 iPhone par SideStore) ; reste l'essai avec lp-home
 - [ ] 8. Release (version mineure) après l'essai réel
 
 ## Phase 37 — Ajouter un PC en une ligne (1.2.0, Ricochet 0.6.0)
@@ -119,7 +119,7 @@ les versions web et mobile.
 - [x] 2. « Appareils » : fiche dépliable par appareil (genre, en ligne, chemin, adresse à copier, adresses publiées, trafic, Mesurer, Renommer, Retirer confirmé), machine de calcul rattachée
 - [x] 3. « Ajouter un appareil » : PC Linux (lien Ricochet ou clé jetable), Android, iPhone
 - [x] 4. Ordre du web : Appareils, Son partagé, Travaux, Lancer une commande, Ajouter un appareil, Secours Ricochet ; tests GTK
-- [ ] 5. Essai réel par Charles sur pc-bureau (fiches, Mesurer, Renommer/Retirer, clé d'inscription)
+- [ ] 5. Essai réel par Charles sur lp-work (fiches, Mesurer, Renommer/Retirer, clé d'inscription)
 
 ## Phase 45 — Market : Facebook Marketplace au Togo
 
@@ -145,7 +145,7 @@ de pc-bureau (ceux de Chrome Linux sont chiffrés par le trousseau).
 - [x] 7. Onglet Market du web (chat monté dans l'onglet) et du bureau GTK (ouvre le chat dans Sessions)
 - [x] 8. Tests (fixtures, faux CDP, faux SOCKS, pont, web dans node, GTK), README, man, interfaces
 - [x] 9. Tunnel SOCKS réel vers pc-bureau vérifié depuis le VPS (sortie 156.38.73.89, pas 84.46.246.202) ; Chrome sans interface par ce tunnel
-- [ ] 10. Connexion réelle par Charles : `ccs market login` devant pc-bureau
+- [ ] 10. Connexion réelle par Charles : `ccs market login` devant lp-work
 - [ ] 11. Essai réel par Charles : vendeur https://www.facebook.com/marketplace/profile/100058059515617/ (Mozich Trompa, Lomé), « routeur le moins cher compatible WireGuard » → attendu : Cudy AC1200 dual band 22 000 CFA (https://www.facebook.com/marketplace/item/2421778705023492/, client WireGuard d'origine, WR1200) ; alternatives Cudy WR1300 25 000, MikroTik hAP lite 22 000 (déconseillé, instable sous RouterOS 7), TP-Link 842N 7 000 (OpenWrt seulement)
 - [ ] 12. Essai réel de la recherche par mot-clé (`/marketplace/lome/search?query=…`) : ville `lome` à confirmer, sélecteurs des cartes à ajuster si besoin
 - [ ] 13. Plus tard : onglet Market dans les applis Android et iPhone
@@ -261,3 +261,11 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 3. Bureau : images de l'historique ; iPhone et Android : compte des images de l'historique
 - [ ] 4. iPhone et Android : vignettes relues par `conversations.images`
 - [x] 5. Release 1.20.0
+
+## Phase 56 — Noms du réseau maillé partout
+
+- [x] 1. Identifiants des machines alignés sur les noms du réseau maillé : `srv-mawena-cloud`, `lp-work`, `lp-home` (code, docs, applis, tests)
+- [x] 2. Anciens noms acceptés (`pc-bureau`, `laptop-maison`, `mawena-cloud`) : `--machine`, `machines.toml`, clé SSH connue gardée
+- [x] 3. Genre d'appareil : `lp-` portable, `srv-` serveur (Python, web, iPhone, Android)
+- [x] 4. Release 1.21.0, puis clés de `~/.config/ccs/machines.toml` renommées
+- [ ] 5. Identifiants Ricochet renommés (base du relais et `agent.toml` de chaque machine)

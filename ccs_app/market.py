@@ -4,13 +4,13 @@ Le chat Market est une session Claude ouverte dans un dossier dédié (`~/.local
 voir `workspace()`), par l'option « Market » de la feuille « Nouvelle session » ; Claude y appelle les commandes `ccs market search|seller|item|status|login`
 (`market_cli`), qui pilotent ici un Chrome sans interface.
 
-Chemin des requêtes : **toujours par pc-bureau, par le réseau maillé**. Chaque commande ouvre
-`ssh -D 127.0.0.1:<port> -N pc-bureau` (adresse 100.64.0.2), vérifie que l'adresse de sortie vue
+Chemin des requêtes : **toujours par lp-work, par le réseau maillé**. Chaque commande ouvre
+`ssh -D 127.0.0.1:<port> -N lp-work` (adresse 100.64.0.2), vérifie que l'adresse de sortie vue
 par Internet n'est pas celle du VPS, puis lance Chrome avec `--proxy-server=socks5://…`. Pas de
-repli direct : si pc-bureau ne répond pas, rien n'est envoyé à Facebook (`TunnelError`).
+repli direct : si lp-work ne répond pas, rien n'est envoyé à Facebook (`TunnelError`).
 
 Session Facebook : le compte personnel de Charles. `login` ouvre Google Chrome sur l'écran de
-pc-bureau (profil dédié, port de débogage local), attend la connexion, puis exporte les cookies
+lp-work (profil dédié, port de débogage local), attend la connexion, puis exporte les cookies
 par CDP (ceux de Chrome Linux sont chiffrés par le trousseau : copier le profil ne marche pas).
 Ils sont gardés dans `~/.config/ccs/market/session.json` (600), jamais affichés ni journalisés,
 puis réinjectés à chaque commande (`Network.setCookies`) et remis à jour à la fin.
@@ -44,13 +44,13 @@ from . import core
 
 FB = "https://www.facebook.com"
 DEFAULTS = {
-    "host": "pc-bureau",                 # hôte ssh de pc-bureau
+    "host": "lp-work",                 # hôte ssh de lp-work
     "hostname": "100.64.0.2",            # son adresse dans le réseau maillé
     "host_key_alias": "ricochet-pc-bureau",
     "vps_ip": "84.46.246.202",           # adresse publique du VPS : jamais vue par Facebook
     "city": "lome",                      # ville de la recherche Marketplace
     "chrome": "",                        # Chrome du VPS (vide : navigateurs de Playwright)
-    "remote_chrome": "google-chrome",    # Chrome de pc-bureau (connexion)
+    "remote_chrome": "google-chrome",    # Chrome de lp-work (connexion)
     "remote_port": 9222,
     "page_delay": [6.0, 8.0],            # pause après une page (s)
     "scroll_delay": [1.5, 3.0],          # pause entre deux défilements (s)
@@ -142,11 +142,11 @@ def require_session():
     s = load_session()
     if not s or not logged_in(s["cookies"]):
         raise SessionError("Pas de session Facebook (ou session expirée) : lance `ccs market login` "
-                           "et connecte-toi dans le Chrome qui s'ouvre sur pc-bureau.")
+                           "et connecte-toi dans le Chrome qui s'ouvre sur lp-work.")
     return s
 
 
-# ---------------------------------------------------------------- ssh vers pc-bureau
+# ---------------------------------------------------------------- ssh vers lp-work
 
 def ssh_base(cfg):
     opts = {"HostName": cfg["hostname"], "HostKeyAlias": cfg["host_key_alias"],
@@ -171,7 +171,7 @@ def _port_open(port):
 
 
 def is_this_machine(addr):
-    """Vrai si `addr` est une adresse de cette machine (on tourne sur pc-bureau lui-même)."""
+    """Vrai si `addr` est une adresse de cette machine (on tourne sur lp-work lui-même)."""
     try:
         with socket.socket(socket.AF_INET6 if ":" in addr else socket.AF_INET) as s:
             s.bind((addr, 0))
@@ -181,7 +181,7 @@ def is_this_machine(addr):
 
 
 class Tunnel:
-    """`ssh -D` (SOCKS) ou `ssh -L` vers pc-bureau, fermé à la sortie du bloc `with`."""
+    """`ssh -D` (SOCKS) ou `ssh -L` vers lp-work, fermé à la sortie du bloc `with`."""
 
     def __init__(self, cfg, forward=None, popen=subprocess.Popen, timeout=20):
         self.cfg = cfg
@@ -207,9 +207,9 @@ class Tunnel:
                 return self
             time.sleep(0.3)
         self.close()
-        raise TunnelError(f"pc-bureau ne répond pas par le réseau maillé ({self.cfg['hostname']}) : "
-                          "rien n'a été envoyé à Facebook. Vérifie que pc-bureau est allumé et "
-                          "que Tailscale y tourne (`tailscale ping pc-bureau`), puis réessaie.")
+        raise TunnelError(f"lp-work ne répond pas par le réseau maillé ({self.cfg['hostname']}) : "
+                          "rien n'a été envoyé à Facebook. Vérifie que lp-work est allumé et "
+                          "que Tailscale y tourne (`tailscale ping lp-work`), puis réessaie.")
 
     def close(self):
         if self.proc is not None and self.proc.poll() is None:
@@ -243,7 +243,7 @@ def _http_get(sock, host, path):
 
 
 def socks_connect(port, host, dport=443, timeout=15):
-    """Connexion TCP à `host:dport` par le SOCKS5 local (nom résolu par pc-bureau)."""
+    """Connexion TCP à `host:dport` par le SOCKS5 local (nom résolu par lp-work)."""
     s = socket.create_connection(("127.0.0.1", port), timeout=timeout)
     try:
         s.sendall(b"\x05\x01\x00")
@@ -281,16 +281,16 @@ def public_ip(port=None, services=IP_SERVICES):
 
 
 def check_exit(port, cfg, lookup=public_ip):
-    """L'adresse de sortie du tunnel doit être celle de pc-bureau : ni celle du VPS, ni
+    """L'adresse de sortie du tunnel doit être celle de lp-work : ni celle du VPS, ni
     inconnue. Renvoie l'adresse vue."""
     seen = lookup(port)
     if not seen:
-        raise TunnelError("Impossible de vérifier l'adresse de sortie par pc-bureau : rien n'a été "
+        raise TunnelError("Impossible de vérifier l'adresse de sortie par lp-work : rien n'a été "
                           "envoyé à Facebook.")
     direct = lookup(None)
     if seen in {cfg["vps_ip"], direct}:
         raise TunnelError(f"La sortie par le tunnel donne l'adresse du VPS ({seen}), pas celle de "
-                          "pc-bureau : rien n'a été envoyé à Facebook.")
+                          "lp-work : rien n'a été envoyé à Facebook.")
     return seen
 
 
@@ -840,7 +840,7 @@ def run(action, cfg=None, tunnel=Tunnel, browser=Browser, exit_check=check_exit,
     with tunnel(cfg) as t:
         ip = exit_check(t.port, cfg)
         if log:
-            log(f"Sortie par pc-bureau ({ip}).")
+            log(f"Sortie par lp-work ({ip}).")
         with browser(cfg, t.port, session.get("user_agent")) as cdp:
             fb = Facebook(cdp, cfg)
             fb.setup(session)
@@ -879,7 +879,7 @@ def format_item(it):
 
 
 def status(cfg=None, tunnel=Tunnel, lookup=public_ip):
-    """État lisible : session, Chrome, tunnel par pc-bureau et adresse de sortie."""
+    """État lisible : session, Chrome, tunnel par lp-work et adresse de sortie."""
     cfg = cfg or config()
     lines = []
     s = load_session()
@@ -894,9 +894,9 @@ def status(cfg=None, tunnel=Tunnel, lookup=public_ip):
     try:
         with tunnel(cfg) as t:
             ip = check_exit(t.port, cfg, lookup)
-        lines.append(f"Tunnel par pc-bureau ({cfg['hostname']}) : ouvert, sortie {ip}.")
+        lines.append(f"Tunnel par lp-work ({cfg['hostname']}) : ouvert, sortie {ip}.")
     except TunnelError as e:
-        lines.append(f"Tunnel par pc-bureau : {e}")
+        lines.append(f"Tunnel par lp-work : {e}")
         ok = False
     return ok, "\n".join(lines)
 
@@ -919,12 +919,12 @@ echo OK
 
 def login(cfg=None, wait_s=LOGIN_WAIT_S, out=print, run_cmd=subprocess.run, tunnel=Tunnel,
           connect=None, sleep=time.sleep):
-    """Ouvre Chrome sur l'écran de pc-bureau (profil dédié), attend la connexion de Charles,
+    """Ouvre Chrome sur l'écran de lp-work (profil dédié), attend la connexion de Charles,
     exporte les cookies par CDP (tunnel `ssh -L`), les garde en 600 puis referme ce Chrome."""
     cfg = cfg or config()
     if is_this_machine(cfg["hostname"]):
         raise MarketError("`ccs market login` se lance depuis le VPS (ou le chat web), pas sur "
-                          "pc-bureau : c'est le VPS qui garde la session Facebook. Chrome "
+                          "lp-work : c'est le VPS qui garde la session Facebook. Chrome "
                           "s'ouvrira quand même ici, sur ton écran.")
     script = f"CHROME={cfg['remote_chrome']!s}; PORT={int(cfg['remote_port'])}\n" + LOGIN_SCRIPT
     try:
@@ -933,16 +933,16 @@ def login(cfg=None, wait_s=LOGIN_WAIT_S, out=print, run_cmd=subprocess.run, tunn
     except subprocess.TimeoutExpired:
         r = None
     if r is None or r.returncode == 255:
-        raise TunnelError(f"pc-bureau ne répond pas par le réseau maillé ({cfg['hostname']}).")
+        raise TunnelError(f"lp-work ne répond pas par le réseau maillé ({cfg['hostname']}).")
     said = (r.stdout or "").strip()
     if "PAS_DE_SESSION" in said:
-        raise MarketError("Pas de session graphique ouverte sur pc-bureau : ouvre ta session, "
+        raise MarketError("Pas de session graphique ouverte sur lp-work : ouvre ta session, "
                           "puis relance `ccs market login`.")
     if "PAS_DE_CHROME" in said:
-        raise MarketError(f"{cfg['remote_chrome']} n'est pas installé sur pc-bureau.")
+        raise MarketError(f"{cfg['remote_chrome']} n'est pas installé sur lp-work.")
     if "OK" not in said:
-        raise MarketError("Chrome ne s'est pas lancé sur pc-bureau.")
-    out("Chrome est ouvert sur l'écran de pc-bureau : connecte-toi à Facebook "
+        raise MarketError("Chrome ne s'est pas lancé sur lp-work.")
+    out("Chrome est ouvert sur l'écran de lp-work : connecte-toi à Facebook "
         f"(j'attends {wait_s // 60} min au plus).")
     connect = connect or _connect_browser
     with tunnel(cfg, forward=int(cfg["remote_port"])) as t:
@@ -954,7 +954,7 @@ def login(cfg=None, wait_s=LOGIN_WAIT_S, out=print, run_cmd=subprocess.run, tunn
             except (OSError, ValueError, MarketError):
                 sleep(1)
         if cdp is None:
-            raise MarketError("Impossible de joindre le Chrome de pc-bureau (port de débogage).")
+            raise MarketError("Impossible de joindre le Chrome de lp-work (port de débogage).")
         try:
             end = time.monotonic() + wait_s
             while True:
@@ -963,7 +963,7 @@ def login(cfg=None, wait_s=LOGIN_WAIT_S, out=print, run_cmd=subprocess.run, tunn
                     break
                 if time.monotonic() > end:
                     raise SessionError("Pas de connexion à Facebook dans le temps imparti : relance "
-                                       "`ccs market login` quand tu es devant pc-bureau.")
+                                       "`ccs market login` quand tu es devant lp-work.")
                 sleep(5)
             n = save_session(cookies, version.get("User-Agent", ""))
             try:
@@ -975,7 +975,7 @@ def login(cfg=None, wait_s=LOGIN_WAIT_S, out=print, run_cmd=subprocess.run, tunn
                 cdp.close()
             except OSError:
                 pass
-    out(f"Connecté : session gardée ({n} cookies, fichier privé). Chrome de pc-bureau refermé.")
+    out(f"Connecté : session gardée ({n} cookies, fichier privé). Chrome de lp-work refermé.")
     return n
 
 
@@ -1000,7 +1000,7 @@ Marketplace au Togo et tu réponds **dans ce chat seulement** (pas de surveillan
 - `ccs market seller <lien ou numéro>` : toutes les annonces d'un vendeur (boutique).
 - `ccs market item <lien>` : détails d'une annonce (état, description, vendeur). Seulement pour
   les meilleures candidates (5 au plus).
-- `ccs market status` : session Facebook, Chrome, tunnel par pc-bureau.
+- `ccs market status` : session Facebook, Chrome, tunnel par lp-work.
 - Ajoute `--json` pour une sortie JSON.
 - WebSearch / WebFetch : vérifier les caractéristiques des modèles (compatibilité, version
   matérielle, avis), jamais pour Facebook.
@@ -1031,10 +1031,10 @@ classement (5 annonces au plus) dans un bloc `cartes`, puis ton avis en texte co
   `{"type":"choix","titre":"Et ensuite ?","options":["Détails du premier","Chercher moins cher","Autre ville"]}`.
 
 ## Règles
-- Si une commande dit que **pc-bureau ne répond pas**, dis-le simplement et arrête : rien ne
+- Si une commande dit que **lp-work ne répond pas**, dis-le simplement et arrête : rien ne
   doit passer par un autre chemin.
 - Si la **session Facebook a expiré**, dis à Charles de lancer `ccs market login` (Chrome s'ouvre
-  sur l'écran de pc-bureau, il s'y connecte) ; tu peux la lancer toi-même s'il te le demande.
+  sur l'écran de lp-work, il s'y connecte) ; tu peux la lancer toi-même s'il te le demande.
 - Ne lis jamais Messenger, ne contacte aucun vendeur, ne publie rien.
 - Conversation trop longue : `ccs chat clear` à la fin d'une réponse quand Charles change de sujet.
 """

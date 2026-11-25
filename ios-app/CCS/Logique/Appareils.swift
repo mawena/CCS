@@ -37,7 +37,7 @@ enum Appareils {
     /// Icône SF Symbols : portable si son nom le dit, sinon ordinateur de bureau.
     static func icone(_ m: Machine) -> String {
         let noms = [m.id, m.name, m.mesh ?? "", m.host ?? ""].joined(separator: " ").lowercased()
-        return noms.contains("laptop") || noms.contains("portable") ? "laptopcomputer" : "desktopcomputer"
+        return noms.contains("lp-") || noms.contains("laptop") || noms.contains("portable") ? "laptopcomputer" : "desktopcomputer"
     }
 
     /// La barre d'appareils : « Serveur CCS » d'abord, puis les machines (le serveur lui-même exclu).
@@ -62,7 +62,7 @@ enum Appareils {
         return appareil != pilotee
     }
 
-    /// « pc-bureau injoignable : hors ligne » (le serveur : le message seul).
+    /// « lp-work injoignable : hors ligne » (le serveur : le message seul).
     static func messageInjoignable(_ nom: String, serveur: Bool, _ raison: String) -> String {
         return serveur ? raison : "\(nom) injoignable : \(raison)"
     }

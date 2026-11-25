@@ -90,8 +90,8 @@ final class JarvisTests: XCTestCase {
     func testTextesDErreur() {
         XCTAssertEqual(Jarvis.texteRefus("wrong_code", essais: 1), "Code d'appairage faux. Essais restants : 1.")
         XCTAssertEqual(Jarvis.texteRefus("inconnu", essais: nil), "Jarvis a refusé la connexion.")
-        XCTAssertEqual(Jarvis.texteFermeture(code: 4011, relais: "laptop-maison hors ligne.", raison: "x"),
-                       "Jarvis est injoignable : laptop-maison hors ligne.")
+        XCTAssertEqual(Jarvis.texteFermeture(code: 4011, relais: "lp-home hors ligne.", raison: "x"),
+                       "Jarvis est injoignable : lp-home hors ligne.")
         XCTAssertEqual(Jarvis.texteFermeture(code: 4011, relais: nil, raison: ""), "Jarvis est injoignable.")
         XCTAssertEqual(Jarvis.texteFermeture(code: 1011, relais: nil, raison: ""), "Pont CCS injoignable.")
         XCTAssertEqual(Jarvis.texteFermeture(code: 1006, relais: nil, raison: " "), "Connexion au relais de Jarvis perdue.")

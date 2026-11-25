@@ -18,7 +18,7 @@ def fake(stdout="", code=0, stderr=""):
 
 STATUS = {
     "BackendState": "Running",
-    "Self": {"DNSName": "mawena-cloud.mesh.mawena.cloud.", "HostName": "mawena-cloud", "OS": "linux",
+    "Self": {"DNSName": "srv-mawena-cloud.mesh.mawena.cloud.", "HostName": "srv-mawena-cloud", "OS": "linux",
              "TailscaleIPs": ["100.64.0.1"], "Online": True},
     "Peer": {
         "a": {"DNSName": "laptop.mesh.mawena.cloud.", "OS": "linux", "TailscaleIPs": ["100.64.0.2"],
@@ -27,7 +27,7 @@ STATUS = {
               "Online": True, "CurAddr": "", "Relay": "mawena"},
         "c": {"DNSName": "iphone.mesh.mawena.cloud.", "OS": "iOS", "TailscaleIPs": ["100.64.0.4"],
               "Online": True, "CurAddr": "[2a01:e0a::1]:41641"},
-        "d": {"DNSName": "pc-bureau.mesh.mawena.cloud.", "OS": "linux", "Online": False},
+        "d": {"DNSName": "lp-work.mesh.mawena.cloud.", "OS": "linux", "Online": False},
     },
 }
 
@@ -35,10 +35,10 @@ STATUS = {
 class PathTest(unittest.TestCase):
     def test_chemins(self):
         st = network.parse_status(STATUS)
-        self.assertEqual(st["self"]["name"], "mawena-cloud")
+        self.assertEqual(st["self"]["name"], "srv-mawena-cloud")
         self.assertEqual([(p["name"], p["path"]) for p in st["peers"]],
                          [("laptop", "lan"), ("iphone", "direct"), ("pixel", "relay"),
-                          ("pc-bureau", "offline")])
+                          ("lp-work", "offline")])
 
     def test_plage_maillee_pas_locale(self):
         self.assertFalse(network.is_local(network._host("100.64.0.9:41641")))
@@ -92,7 +92,7 @@ class DisplayTest(unittest.TestCase):
         self.assertEqual(network.device_kind({"os": "iOS", "name": "iphone-14-pro"}), "apple")
         self.assertEqual(network.device_kind({"os": "android", "name": "pixel-4-xl"}), "phone")
         self.assertEqual(network.device_kind({"os": "linux", "name": "srv-mawena-cloud"}), "server")
-        self.assertEqual(network.device_kind({"os": "linux", "name": "laptop-maison"}), "laptop")
+        self.assertEqual(network.device_kind({"os": "linux", "name": "lp-home"}), "laptop")
         st = {"self": {"name": "vps"}, "peers": [{"online": True, "path": "direct"},
                                                  {"online": False, "path": "offline"}]}
         self.assertEqual(network.summary(st), {"total": 3, "online": 2, "lan": 0, "direct": 1, "relay": 0})

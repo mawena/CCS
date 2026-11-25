@@ -75,8 +75,8 @@ export function deviceKind(d) {
   if (os === "ios" || name.includes("iphone") || name.includes("ipad")) return "apple";
   if (os === "android" || name.includes("pixel") || name.includes("phone")) return "phone";
   if (os === "macos") return "laptop";
-  if (name.includes("vps") || name.includes("cloud") || name.includes("server") || name.includes("serveur")) return "server";
-  if (name.includes("laptop") || name.includes("portable")) return "laptop";
+  if (name.startsWith("srv-") || name.includes("vps") || name.includes("cloud") || name.includes("server") || name.includes("serveur")) return "server";
+  if (name.startsWith("lp-") || name.includes("laptop") || name.includes("portable")) return "laptop";
   return "desktop";
 }
 
@@ -395,7 +395,7 @@ export function mountReseau(root, api) {
   // inscrit au réseau maillé. Sinon, la clé jetable du réseau maillé seule.
   function renderPc(body) {
     if (compute.canAdd()) { compute.addPc(body); return; }
-    const name = el("input", { type: "text", placeholder: "nom (facultatif) : laptop-maison", maxlength: "63", autocapitalize: "off", spellcheck: "false" });
+    const name = el("input", { type: "text", placeholder: "nom (facultatif) : lp-home", maxlength: "63", autocapitalize: "off", spellcheck: "false" });
     const out = el("div", {});
     const go = el("button", { type: "button", class: "primary net-btn" }, icon("key", 16), el("span", {}, "Créer la ligne d'inscription"));
     go.addEventListener("click", () => busy(go, async () => {
