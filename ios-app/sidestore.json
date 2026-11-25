@@ -14,6 +14,15 @@
       "category": "developer",
       "versions": [
         {
+          "version": "1.23.0",
+          "buildVersion": "50",
+          "date": "2026-11-25",
+          "localizedDescription": "Sessions de toutes les machines : l'écran Sessions montre aussi celles des autres machines en ligne.",
+          "downloadURL": "https://github.com/mawena/CCS/releases/download/v1.23.0/CCS-1.23.0.ipa",
+          "size": 2614934,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.21.0",
           "buildVersion": "49",
           "date": "2026-11-25",
