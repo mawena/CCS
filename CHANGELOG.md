@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.20.0] — 2026-12-02
+
 ### Ajouté
 
 - **Images dans le chat** : les images jointes à un message s'affichent en vignettes dans sa bulle (web), agrandies d'un clic. Celles de l'historique et celles envoyées d'un autre appareil sont relues dans le journal de la conversation par la nouvelle méthode `conversations.images`. L'appli de bureau les montre aussi dans l'historique ; sur iPhone et Android, l'historique indique « N image(s) jointe(s) ».
