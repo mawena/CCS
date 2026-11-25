@@ -38,6 +38,14 @@ class SessionsWebTest(unittest.TestCase):
         state = re.search(r"\n\.state \{([^}]*)\}", css).group(1)
         self.assertIn("align-content: center", state)
 
+    def test_sections_fold(self):
+        """« Projets » et « Conversations récentes » se replient d'un clic, état gardé."""
+        js = (WEB / "sessions.js").read_text()
+        for s in ('foldHead("projets", "Projets", foldP)', 'foldHead("conversations", "Conversations récentes", foldC)',
+                  "ccs-fold-${key}", "foldP ? [] : projects", "foldC ? [] : convs", 'aria-expanded'):
+            self.assertIn(s, js)
+        self.assertIn(".fold-toggle", (WEB / "sessions.css").read_text())
+
     def test_split_view_and_side_handle(self):
         """Vue partagée (menu de l'onglet, bouton, poignée entre les volets) ; poignée du panneau
         latéral hors de la zone qui défile ; boutons des lignes de projet en icônes."""
