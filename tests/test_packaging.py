@@ -119,6 +119,13 @@ class PackagingTest(unittest.TestCase):
         text = (DEB / "ccs-serveur.postinst").read_text(encoding="utf-8")
         # deb-systemd-invoke : respecte policy-rc.d (lintian : maintainer-script-calls-systemctl)
         self.assertIn("deb-systemd-invoke try-restart 'ccs-bridge@*.service'", text)
+        # depuis 1.18.0, les ponts se relancent seuls (chats rouverts) : plus de relance forcée
+        self.assertIn('dpkg --compare-versions "$2" lt 1.18.0', text)
+
+    def test_bridge_unit_lets_the_bridge_save_its_chats(self):
+        """SIGTERM au pont seul : ses processus claude ne meurent pas avant qu'il enregistre."""
+        text = (DEB / "ccs-serveur.ccs-bridge@.service").read_text(encoding="utf-8")
+        self.assertIn("KillMode=mixed", text)
 
     def test_server_services_start_after_web_user_exists(self):
         text = (DEB / "ccs-serveur.postinst").read_text(encoding="utf-8")

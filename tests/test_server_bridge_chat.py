@@ -2,6 +2,7 @@
 
 import asyncio
 import collections
+import json
 import os
 import shutil
 import tempfile
@@ -26,7 +27,7 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         env = mock.patch.dict(os.environ, {"HOME": str(home)})
         env.start()
         self.addCleanup(env.stop)
-        for var in ("CLAUDE_CONFIG_DIR", "CCS_HOME"):      # jamais le vrai dossier de Claude Code
+        for var in ("CLAUDE_CONFIG_DIR", "CCS_HOME", "XDG_STATE_HOME"):   # jamais les vrais dossiers
             os.environ.pop(var, None)
         self.home = home
         self.project = home / "projet"              # sous le dossier personnel (dossiers permis)
@@ -382,6 +383,110 @@ class ChatBridgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(check() for check in self.bridge.busy_checks))
         await c.call("chat.close", chat_id=chat_id)
         self.assertEqual((await c.call("chat.list"))["chats"], [])
+
+    # ---- reprise après un redémarrage ----------------------------------------------------
+
+    def second_hub(self):
+        """Pont relancé (même socket) : nouveau ChatHub, pas encore restauré."""
+        b2 = bridge.Bridge("alice", None, local=True, start_daemon=False, install_claude=False)
+        b2.socket_path = str(self.sock)
+        hub2 = bridge_chat.ChatHub(b2, claude=FAKE, environ=self.hub.environ)
+        self.addAsyncCleanup(hub2.close_all)
+        return b2, hub2
+
+    def saved(self):
+        path = self.hub.state_file()
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    async def test_state_file_follows_open_and_close(self):
+        path = self.hub.state_file()
+        self.assertTrue(str(path).startswith(str(self.home / ".local" / "state" / "ccs")))
+        self.assertTrue(path.name.startswith("chats-local-"))
+        c = await self.client()
+        chat_id = (await c.call("chat.open", cwd=str(self.project), options={"model": "opus"}))["chat_id"]
+        data = self.saved()
+        self.assertEqual(data["version"], 1)
+        self.assertEqual([x["chat_id"] for x in data["chats"]], [chat_id])
+        self.assertEqual(data["chats"][0]["cwd"], str(self.project))
+        self.assertEqual(data["chats"][0]["options"]["model"], "opus")
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        await c.call("chat.close", chat_id=chat_id)               # fermé exprès : il sort du fichier
+        self.assertIsNone(self.saved())
+
+    async def test_restart_reopens_chats_and_continues_busy_ones(self):
+        c = await self.client()
+        busy_id = (await c.call("chat.open", cwd=str(self.project), options={"rights": "auto"}))["chat_id"]
+        idle_id = (await c.call("chat.open", cwd=str(self.project), session_id="ancienne-conv"))["chat_id"]
+        await c.call("chat.send", chat_id=busy_id, text="bonjour")
+        self.assertTrue(await self.wait(lambda: "PermissionRequest" in self.types(c)))
+        sid = self.hub.chats[busy_id].engine.session_id
+        self.assertTrue(sid)
+        await self.hub.close_all()                                 # SIGTERM : stop_hooks
+        data = self.saved()                                        # le fichier reste
+        flags = {x["chat_id"]: x["busy"] for x in data["chats"]}
+        self.assertEqual(flags, {busy_id: True, idle_id: False})
+
+        log = Path(self.tmp) / "argv.log"
+        before = len(log.read_text().splitlines()) if log.exists() else 0
+        b2, hub2 = self.second_hub()
+        await hub2.restore()
+        self.assertEqual(set(hub2.chats), {busy_id, idle_id})
+        busy, idle = hub2.chats[busy_id], hub2.chats[idle_id]
+        self.assertEqual((busy.cwd, busy.engine.session_id), (str(self.project), sid))
+        self.assertEqual(busy.engine.options.rights, "auto")
+        self.assertEqual(idle.engine.session_id, "ancienne-conv")
+        self.assertEqual(idle.engine.state, "suspended")           # sans processus
+        self.assertIsNone(idle.engine.pid)
+        kinds = [i["event"]["type"] for i in busy.buf]
+        self.assertIn("UserSent", kinds)                           # « continue » relancé
+        self.assertIn(bridge_chat.RESTORED_NOTE, [i["event"].get("text") for i in busy.buf])
+        self.assertEqual([i["event"]["type"] for i in idle.buf], [])
+        self.assertTrue(await self.wait(lambda: log.exists() and len(log.read_text().splitlines()) > before))
+        argv = json.loads(log.read_text().splitlines()[-1])
+        self.assertIn("--resume", argv)
+        self.assertEqual(argv[argv.index("--resume") + 1], sid)
+        # un nouveau chat ne reprend jamais un identifiant restauré
+        hub2.boot = busy_id[1:].split("-")[0]
+        hub2._ids = iter([int(busy_id.split("-")[1]), int(idle_id.split("-")[1]), 99])
+        self.assertEqual(hub2._new_id(), f"c{hub2.boot}-99")
+
+    async def test_restore_skips_corrupt_file_and_missing_folders(self):
+        path = self.hub.state_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{pas du json", encoding="utf-8")
+        _, hub2 = self.second_hub()
+        await hub2.restore()                                       # ne plante pas
+        self.assertEqual(hub2.chats, {})
+        self.assertTrue(hub2._ready.is_set())
+        gone = self.home / "parti"
+        path.write_text(json.dumps({"version": 1, "chats": [
+            {"chat_id": "cabc123-1", "cwd": str(gone), "session_id": None, "options": {}, "busy": False},
+            {"chat_id": "../../x", "cwd": str(self.project), "session_id": None, "options": {}},
+            {"chat_id": "cabc123-2", "cwd": str(self.project), "session_id": "../evil", "options": {}},
+            "n'importe quoi",
+            {"chat_id": "cabc123-3", "cwd": str(self.project), "session_id": "bonne", "options": {},
+             "busy": False, "title": "Mon chat"},
+        ]}), encoding="utf-8")
+        _, hub3 = self.second_hub()
+        await hub3.restore()
+        self.assertEqual(list(hub3.chats), ["cabc123-3"])
+        self.assertEqual(hub3.chats["cabc123-3"].title, "Mon chat")
+        self.assertEqual([x["chat_id"] for x in json.loads(path.read_text())["chats"]], ["cabc123-3"])
+
+    async def test_list_waits_for_the_restore(self):
+        path = self.hub.state_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"version": 1, "chats": [
+            {"chat_id": "cabc123-7", "cwd": str(self.project), "session_id": None, "options": {}}]}),
+            encoding="utf-8")
+        self.bridge.preparing = True                               # démarrage en cours
+        c = await self.client()
+        listing = asyncio.ensure_future(c.call("chat.list"))
+        await asyncio.sleep(0.2)
+        self.assertFalse(listing.done())
+        await self.hub.restore()
+        self.assertEqual([x["chat_id"] for x in (await listing)["chats"]], ["cabc123-7"])
+        self.bridge.preparing = False
 
     async def test_render_markdown_sanitized(self):
         c = await self.client()

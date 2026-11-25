@@ -5,7 +5,7 @@
 // conversations) et les onglets de plusieurs machines restent ouverts côte à côte, chacun sur sa
 // propre connexion, sans changer la machine pilotée.
 import { Api } from "./api.js";
-import { ChatView } from "./chat.js";
+import { ChatView, savedOptions } from "./chat.js";
 import { clear, confirmSheet, contextMenu, el, emptyState, errorState, loading, promptSheet, resizable, toast } from "./dom.js";
 import { addProject, openTrash, removeProject, trashConversation } from "./sessions-manage.js";
 import { baseName as base, ProjectScreen } from "./project.js";
@@ -32,6 +32,7 @@ export function mountSessions(root, api, ctx = {}) {
   // clé (voir tabKey) → { tab, view, holder, term, cwd, title, state, sessionId, m, rid, conn }
   const tabs = new Map();
   let current = null;
+  let pair = null;                // vue partagée : [gauche, droite], deux clés d'onglets ; l'onglet courant est l'un des deux
   let project = null;             // { m, cwd, screen } : écran Projet ouvert (gardé pour le retrouver tel quel)
   const P = api.machine || "";    // machine pilotée (fixe pendant la vie de la page : la changer la remonte)
   const tree = loadTree();
@@ -46,12 +47,17 @@ export function mountSessions(root, api, ctx = {}) {
   // « ← Sessions » : comme le bouton Retour du téléphone quand on vient de la liste
   const back = el("button", { class: "flat back", onclick: () => (history.state?.fromList ? history.back() : show(null)) }, "← Sessions");
   const newBtn = el("button", { class: "primary new-session-btn", onclick: () => askNewSession() }, "Nouvelle session");
-  const side = el("aside", { class: "side" }, newBtn, running, search, list);
+  // Le cadre ne défile pas : la poignée de redimensionnement reste visible pendant le défilement.
+  const side = el("aside", { class: "side" }, el("div", { class: "side-body" }, newBtn, running, search, list));
   resizable(side, "sessions-side", { min: 220, max: 600 });
   // Grand écran : masquer / réafficher la liste des sessions (choix gardé).
   const sideToggle = el("button", { class: "flat side-toggle", "aria-label": "Masquer ou afficher la liste des sessions",
     title: "Masquer / afficher la liste", onclick: () => toggleSide() }, "☰");
-  const main = el("div", { class: "main" }, el("div", { class: "tabs-row" }, sideToggle, back, tabBar), stage);
+  // Vue partagée : deux onglets côte à côte (en colonne sur téléphone), séparés par une poignée.
+  const splitBtn = el("button", { class: "flat split-toggle", "aria-label": "Vue partagée : deux onglets côte à côte",
+    title: "Vue partagée (deux onglets côte à côte)", onclick: () => toggleSplit() }, "◫");
+  const divider = el("div", { class: "split-handle", role: "separator", title: "Glisser pour régler le partage (double-clic : moitié-moitié)" });
+  const main = el("div", { class: "main" }, el("div", { class: "tabs-row" }, sideToggle, back, tabBar, splitBtn), stage);
   const projectHost = el("div", { class: "project", hidden: true });
   const layout = el("div", { class: "sessions" }, side, main, projectHost);
   const toggleSide = (hide = !layout.classList.contains("side-hidden")) => {
@@ -74,12 +80,27 @@ export function mountSessions(root, api, ctx = {}) {
     const want = chatId ? `#/sessions/${encodeURIComponent(chatId)}` : "#/sessions";
     if (location.hash !== want) history[push && !current ? "pushState" : "replaceState"]({ fromList: push && !current }, "", want);
     document.body.classList.toggle("chat-mode", Boolean(chatId));
+    // un onglet hors de la vue partagée prend la place du volet courant
+    if (pair && chatId && !pair.includes(chatId)) pair[Math.max(0, pair.indexOf(current))] = chatId;
+    if (pair && (!tabs.has(pair[0]) || !tabs.has(pair[1]) || pair[0] === pair[1])) pair = null;
     current = chatId;
+    if (tabs.has(chatId)) tabs.get(chatId).shownAt = Date.now();
+    const both = Boolean(pair && chatId);
     for (const [id, t] of tabs) {
-      t.holder.hidden = id !== chatId;
+      const side = both ? pair.indexOf(id) : -1;
+      t.holder.hidden = side < 0 && id !== chatId;
+      t.holder.style.order = side < 0 ? "" : String(side * 2);
+      t.holder.classList.toggle("focused", both && id === chatId);
+      t.holder.classList.toggle("split-right", side === 1);
       t.tab.classList.toggle("active", id === chatId);
+      t.tab.classList.toggle("split-tab", both && side >= 0 && id !== chatId);
       t.tab.setAttribute("aria-selected", String(id === chatId));
     }
+    stage.classList.toggle("split", both);
+    if (both) { if (divider.parentNode !== stage) stage.append(divider); } else divider.remove();
+    splitBtn.classList.toggle("active", Boolean(pair));
+    splitBtn.disabled = !pair && tabs.size < 2;
+    if (both) requestAnimationFrame(() => { for (const id of pair) { const t = tabs.get(id); if (t?.term) t.view.resize(); } });
     layout.classList.toggle("chat-open", Boolean(chatId));
     // téléphone : un chat (pas un terminal) n'a qu'une barre, la sienne, avec son bouton retour
     layout.classList.toggle("chat-tab", Boolean(chatId && tabs.has(chatId) && !tabs.get(chatId).term));
@@ -114,6 +135,109 @@ export function mountSessions(root, api, ctx = {}) {
     layout.classList.add("project-open");
   }
 
+  // ---- vue partagée --------------------------------------------------------------------------
+
+  // id ouvert à côté de l'onglet courant ; sans id : le dernier onglet actif autre que le courant
+  function openBeside(id) {
+    if (!current || !tabs.has(current)) return;
+    if (!id) {
+      const others = [...tabs].filter(([k]) => k !== current).sort(([, a], [, b]) => (b.shownAt || 0) - (a.shownAt || 0));
+      id = others[0]?.[0];
+    }
+    if (!id || id === current || !tabs.has(id)) return;
+    pair = [current, id];
+    show(current);
+  }
+
+  function closeSplit() {
+    pair = null;
+    show(current);
+    const t = tabs.get(current);
+    if (t?.term) t.view.resize();
+  }
+
+  const toggleSplit = () => (pair ? closeSplit() : openBeside());
+
+  // Glisser un onglet (ou une ligne de « En cours ») sur la zone de chat, comme dans VS Code :
+  // bord gauche ou droit (haut ou bas sur téléphone) → vue partagée de ce côté ; milieu → l'onglet
+  // s'ouvre à la place ; en vue partagée, il prend la place du volet visé.
+  const dropHint = el("div", { class: "drop-hint" });
+  const dropZone = el("div", { class: "drop-zone" }, dropHint);
+  const narrow = () => window.matchMedia?.("(max-width: 719px)").matches;
+  // zone visée : "a" (gauche / haut), "b" (droite / bas) ou "c" (milieu, sans vue partagée)
+  function dropTarget(e) {
+    const r = stage.getBoundingClientRect();
+    const col = narrow();
+    const f = col ? (e.clientY - r.top) / (r.height || 1) : (e.clientX - r.left) / (r.width || 1);
+    if (pair && current) {
+      const cut = (parseFloat(stage.style.getPropertyValue("--split")) || 50) / 100;
+      return f < cut ? "a" : "b";
+    }
+    return f < 1 / 3 ? "a" : f > 2 / 3 ? "b" : "c";
+  }
+  function dropOn(id, zone) {
+    if (!tabs.has(id)) return;
+    if (pair && current) {
+      const at = zone === "a" ? 0 : 1;
+      const other = pair[1 - at];
+      pair = other === id ? [pair[1], pair[0]] : (at ? [pair[0], id] : [id, pair[1]]);
+    } else if (zone !== "c" && current && tabs.has(current)) {
+      let mate = id === current ? null : current;
+      if (!mate) mate = [...tabs].filter(([k]) => k !== id).sort(([, a], [, b]) => (b.shownAt || 0) - (a.shownAt || 0))[0]?.[0];
+      if (mate) pair = zone === "a" ? [id, mate] : [mate, id];
+    }
+    show(id);
+    for (const k of pair || [id]) { const t = tabs.get(k); if (t?.term) t.view.resize(); }
+  }
+  function showDropZone() {
+    if (!current || !tabs.has(current)) return;
+    dropZone.classList.toggle("col", Boolean(narrow()));
+    dropZone.classList.toggle("paired", Boolean(pair));
+    dropHint.className = "drop-hint";
+    stage.append(dropZone);
+  }
+  const hideDropZone = () => dropZone.remove();
+  dropZone.addEventListener("dragover", (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    dropHint.className = `drop-hint on-${dropTarget(e)}`;
+  });
+  dropZone.addEventListener("dragleave", (e) => { if (e.target === dropZone) dropHint.className = "drop-hint"; });
+  dropZone.addEventListener("drop", (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    const id = dragId;
+    hideDropZone();
+    dropOn(id, dropTarget(e));
+  });
+
+  // Proportion du volet gauche (ou du haut), gardée.
+  const setRatio = (r) => { stage.style.setProperty("--split", `${Math.min(Math.max(r, 20), 80)}%`); };
+  setRatio(Number(localStorage.getItem("ccs-split-ratio")) || 50);
+  divider.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    divider.setPointerCapture(e.pointerId);
+    const box = stage.getBoundingClientRect();
+    const col = getComputedStyle(stage).flexDirection === "column";
+    let ratio = 50;
+    const move = (ev) => {
+      ratio = col ? ((ev.clientY - box.top) / box.height) * 100 : ((ev.clientX - box.left) / box.width) * 100;
+      setRatio(ratio);
+    };
+    const up = () => {
+      divider.removeEventListener("pointermove", move);
+      divider.removeEventListener("pointerup", up);
+      document.body.classList.remove("resizing");
+      localStorage.setItem("ccs-split-ratio", String(Math.round(Math.min(Math.max(ratio, 20), 80))));
+      for (const id of pair || []) { const t = tabs.get(id); if (t?.term) t.view.resize(); }
+    };
+    document.body.classList.add("resizing");
+    divider.addEventListener("pointermove", move);
+    divider.addEventListener("pointerup", up);
+  });
+  divider.addEventListener("dblclick", () => { setRatio(50); localStorage.removeItem("ccs-split-ratio"); });
+
   const openedIds = (c) => new Set([...tabs.values()].filter((t) => t.conn === c).map((t) => t.sessionId).filter(Boolean));
   const machineLabel = (m) => machines.find((x) => x.id === m)?.name || m || "Ce serveur";
 
@@ -137,7 +261,11 @@ export function mountSessions(root, api, ctx = {}) {
     tabs.delete(id);
     detach(t.m);
     renderRunning();
-    if (current === id || !current) show(current === id ? (tabs.size ? [...tabs.keys()].pop() : null) : current);
+    // dans la vue partagée : l'autre volet reste seul et devient l'onglet courant
+    const mate = pair?.includes(id) ? pair.find((k) => k !== id) : null;
+    if (mate) pair = null;
+    if (mate && current === id) show(mate);
+    else if (current === id || !current || mate) show(current === id ? (tabs.size ? [...tabs.keys()].pop() : null) : current);
   }
 
   async function closeOthers(id) {
@@ -186,6 +314,9 @@ export function mountSessions(root, api, ctx = {}) {
     contextMenu(e, [
       { label: "Renommer…", run: () => renameTab(id) },
       null,
+      { label: "Ouvrir à côté", disabled: !current || id === current || Boolean(pair?.includes(id) && pair.includes(current)), run: () => openBeside(id) },
+      { label: "Fermer la vue partagée", disabled: !pair, run: () => closeSplit() },
+      null,
       { label: "Monter", disabled: at <= 0, run: () => { move(order, id, { delta: -1 }); renderRunning(); } },
       { label: "Descendre", disabled: at < 0 || at >= order.length - 1, run: () => { move(order, id, { delta: 1 }); renderRunning(); } },
       null,
@@ -206,6 +337,8 @@ export function mountSessions(root, api, ctx = {}) {
     if (tabs.has(chatId)) { if (!meta.silent) show(chatId); return tabs.get(chatId); }
     if (!tabs.size) clear(stage);
     const holder = el("div", { class: "holder" });
+    // vue partagée : un clic dans un volet en fait l'onglet courant
+    holder.addEventListener("pointerdown", () => { if (pair?.includes(chatId) && current !== chatId) show(chatId); }, true);
     stage.append(holder);
     const isTerm = Boolean(termOptions);
     const view = isTerm ? new TerminalView(holder, c.api, termOptions) : new ChatView(holder, c.api, { chatId: rid, cwd, title, history, sessionId: meta.session_id || null, options: meta.options || null,
@@ -220,6 +353,7 @@ export function mountSessions(root, api, ctx = {}) {
     const rec = { tab, label, closeBtn, view, holder, term: isTerm, cwd, title: title || base(cwd), state: isTerm ? "term" : (meta.state || "starting"), activeAt: Date.now(),
       sessionId: meta.session_id || null, path: typeof history === "string" ? history : null, m: c.id, rid, conn: c };
     tabs.set(chatId, rec);
+    splitBtn.disabled = !pair && tabs.size < 2;
     attach(c.id);
     renderRunning();
     if (!meta.silent) show(chatId, { push: true });
@@ -228,6 +362,7 @@ export function mountSessions(root, api, ctx = {}) {
 
   // chat.open ; options : { model, rights } ; text : premier message à envoyer. Lève en cas d'échec.
   async function openChat(c, cwd, conv, options, text) {
+    options = options || savedOptions(conv?.session_id);   // conversation reprise : ses derniers paramètres
     const r = await c.api.call("chat.open", { cwd, session_id: conv?.session_id || null, ...(options ? { options } : {}) });
     const real = r.cwd || cwd;                  // chemin réel (~ développé par le pont)
     const rec = addTab(c, r.chat_id, real, conv?.title || base(real), conv?.path || r.path, null,
@@ -287,8 +422,8 @@ export function mountSessions(root, api, ctx = {}) {
   function dragProps(id, axis) {
     return {
       draggable: "true",
-      ondragstart: (e) => { dragId = id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); e.currentTarget.classList.add("dragging"); },
-      ondragend: (e) => { dragId = null; e.currentTarget.classList.remove("dragging"); dropMarks(); },
+      ondragstart: (e) => { dragId = id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); e.currentTarget.classList.add("dragging"); setTimeout(showDropZone, 0); },
+      ondragend: (e) => { dragId = null; e.currentTarget.classList.remove("dragging"); dropMarks(); hideDropZone(); },
       ondragover: (e) => {
         if (!dragId || dragId === id) return;
         e.preventDefault();
@@ -407,8 +542,8 @@ export function mountSessions(root, api, ctx = {}) {
           el("button", { class: "machine-toggle", "aria-expanded": openN ? "true" : "false", onclick: () => toggleNode(m.id) },
             el("span", { class: "caret", "aria-hidden": "true" }, openN ? "▾" : "▸"),
             el("span", { "aria-hidden": "true" }, m.server ? "☁ " : "🖥 "),
-            el("span", { class: "grow" }, el("strong", {}, m.name || m.id),
-              el("span", { class: "subtle machine-status" }, ` ${state}${count ? ` · ${count} ouvert${count > 1 ? "s" : ""}` : ""}`))),
+            el("span", { class: "grow machine-label" }, el("strong", {}, m.name || m.id),
+              el("span", { class: "subtle machine-status" }, `${state}${count ? ` · ${count} ouvert${count > 1 ? "s" : ""}` : ""}`))),
           el("button", { class: "small flat machine-add", disabled: !live, "aria-label": `Nouvelle session sur ${m.name || m.id}`,
             title: `Nouvelle session sur ${m.name || m.id}`, onclick: () => askNewSession(m.id) }, "+")));
       if (openN) node.append(ensureConn(m.id).body);
@@ -466,9 +601,9 @@ export function mountSessions(root, api, ctx = {}) {
       ]) },
         el("button", { class: "project-open-btn grow", "aria-label": `Ouvrir le projet ${p.name}`, onclick: () => showProject(m, p.cwd, { push: true }) },
           el("strong", {}, p.name), el("span", { class: "subtle" }, `${p.total} conversation(s)${p.open ? ` · ${p.open} ouverte(s)` : ""}`)),
-        p.exists ? el("button", { class: "small", onclick: () => askNewSession(m, p.cwd) }, "Nouveau chat") : null,
-        p.exists ? el("button", { class: "small flat", title: "Terminal dans ce projet", "aria-label": `Terminal dans ${p.name}`, onclick: () => openTerm(c, p.cwd) }, "▸_") : null,
-        el("button", { class: "small flat", title: "Retirer de la liste", "aria-label": `Retirer ${p.name} de la liste`,
+        p.exists ? el("button", { class: "small flat icon-btn", title: "Nouveau chat", "aria-label": `Nouveau chat dans ${p.name}`, onclick: () => askNewSession(m, p.cwd) }, "+") : null,
+        p.exists ? el("button", { class: "small flat icon-btn", title: "Terminal dans ce projet", "aria-label": `Terminal dans ${p.name}`, onclick: () => openTerm(c, p.cwd) }, "▸_") : null,
+        el("button", { class: "small flat icon-btn", title: "Retirer de la liste", "aria-label": `Retirer ${p.name} de la liste`,
           onclick: () => removeProject(capi, p, { onDone: reload }) }, "✕")));
     }
     if (projects.length > c.shownProjects) body.append(el("button", { class: "flat more", onclick: () => { c.shownProjects += PROJECTS_STEP; renderList(c); } },
@@ -539,7 +674,10 @@ export function mountSessions(root, api, ctx = {}) {
     t.tab.remove();
     tabs.delete(id);
     detach(t.m);
-    if (current === id) show(null);
+    const mate = pair?.includes(id) ? pair.find((k) => k !== id) : null;
+    if (mate) pair = null;
+    if (current === id) show(mate);
+    else if (mate) show(current);
   }
 
   // « Reprendre la conversation » d'un chat que le pont a perdu : nouveau chat sur la même conversation,
@@ -550,7 +688,8 @@ export function mountSessions(root, api, ctx = {}) {
     const c = t.conn;
     const conv = { session_id: view.sessionId, title: t.title, path: view.history?.path || null };
     let r;
-    try { r = await call(c, "chat.open", { cwd: t.cwd, session_id: view.sessionId }); } catch (e) {
+    const options = view.opts || savedOptions(view.sessionId);   // mêmes paramètres qu'avant l'arrêt
+    try { r = await call(c, "chat.open", { cwd: t.cwd, session_id: view.sessionId, ...(options ? { options } : {}) }); } catch (e) {
       toast(e.message, { kind: "error", action: { label: "Réessayer", run: () => resumeStopped(oldId, view) } });
       return;
     }

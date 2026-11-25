@@ -16,7 +16,8 @@
 .dot.idle { background: var(--success); }
 .dot.term { background: var(--fg); opacity: 0.55; }
 @keyframes pulse { 50% { opacity: 0.35; } }
-.project-item { padding: 0 4px 0 0; }
+.project-item { padding: 0 2px 0 0; gap: 0; }
+.project-item .icon-btn { flex: none; min-width: 32px; width: 32px; padding: 0; font-size: 1.05em; }
 .project-open-btn { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; justify-items: start; background: transparent; font-weight: 400; text-align: left;
   min-width: 0; padding: 6px 10px; min-height: 52px; }
 .project-open-btn strong, .project-open-btn .subtle { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -123,7 +124,9 @@ button.on, button[aria-pressed="true"] { background: color-mix(in srgb, var(--ac
 .caret { width: 1.2em; flex: none; text-align: center; color: var(--subtle); }
 .machine-body { margin-left: 14px; padding-left: 10px; border-left: 1px solid var(--line); display: grid; gap: 4px; }
 .machine-node.offline .machine-head { opacity: 0.55; }
-.machine-status { font-size: 0.8em; color: var(--subtle); white-space: nowrap; }
+.machine-label { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+.machine-label strong, .machine-status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.machine-status { font-size: 0.8em; color: var(--subtle); }
 .tab-machine, .run-machine { display: inline-block; font-size: 0.75em; font-weight: 600; padding: 1px 6px; margin-right: 6px;
   border-radius: 6px; background: var(--soft); color: var(--subtle); max-width: 9em; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; vertical-align: middle; flex: none; }

@@ -196,6 +196,12 @@ mot de passe de `pkexec`), puis « Redémarrer l'application ». Détails et
 sécurité : [docs/utilisation.md](docs/utilisation.md#mises-à-jour) ; en
 ligne de commande : `ccs update`.
 
+**Sessions gardées pendant les mises à jour** : le pont (celui du poste comme le service
+`ccs-bridge@` du serveur) attend qu'aucun chat ne travaille pour se relancer sur le nouveau code.
+Avant de s'arrêter (mise à jour, `systemctl stop`, redémarrage), il note ses chats ouverts dans
+`~/.local/state/ccs/chats-*.json` ; au démarrage il les rouvre avec les mêmes identifiants et
+options (les onglets se rebranchent seuls), et renvoie « continue » à ceux qui travaillaient.
+
 ## Dans Claude Code
 
 `ccs integration on` ajoute deux choses à Claude Code (dans `~/.claude/settings.json`,
@@ -762,7 +768,15 @@ mêmes fonctions que le bureau :
   Les onglets de plusieurs machines restent ouverts côte à côte, chacun sur sa propre connexion
   et marqué du nom de sa machine, sans changer la machine pilotée. Les nœuds dépliés sont gardés
   dans le navigateur.
-- **Chat** : options (modèle, effort, droits) repliées, brouillon gardé par chat, diff
+  **Vue partagée** : le bouton « ◫ » de la barre d'onglets, ou « Ouvrir à côté » dans le menu
+  d'un onglet, affiche deux onglets côte à côte (l'un sous l'autre sur téléphone). Un clic dans
+  un volet en fait l'onglet courant ; choisir un autre onglet remplace le volet courant ; la
+  poignée entre les volets règle le partage (gardé, double-clic : moitié-moitié). On peut aussi
+  glisser un onglet sur la zone de chat, comme dans VS Code : sur un bord, il s'ouvre de ce côté ;
+  au milieu, à la place ; en vue partagée, dans le volet visé (la zone surlignée le montre).
+  La **poignée** au bord du panneau latéral règle sa largeur (gardée, double-clic : par défaut).
+- **Chat** : options (modèle, effort, droits) repliées et **gardées par conversation** (reprises
+  à la réouverture, même après l'arrêt du chat), brouillon gardé par chat, diff
   lisible des modifications de Claude, chemins cités ouverts dans le volet Fichiers, complétion
   `@` et `/`, messages enregistrés, Compacter, commande `!`, recherche dans le fil, volet
   « Changements de la session », **répondre en citant un message** (touche le message, puis

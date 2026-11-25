@@ -5,6 +5,22 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.18.0] — 2026-11-29
+
+### Ajouté
+
+- **Reprise automatique des chats** : le pont note ses chats ouverts avant de s'arrêter et les rouvre au démarrage, avec les mêmes identifiants et options ; ceux qui travaillaient reçoivent « continue ». Vaut pour le pont du poste et pour le service `ccs-bridge@` du serveur.
+- **Redémarrage différé** : après une mise à jour, le service du serveur se relance lui-même quand plus aucun chat ne travaille ; le paquet ne coupe plus les ponts (sauf en venant d'une version d'avant 1.18.0).
+- **Web, vue partagée** : deux sessions côte à côte (bouton ◫, « Ouvrir à côté » dans le menu d'un onglet), séparation réglable à la souris ou au doigt, l'une sous l'autre sur téléphone. Glisser un onglet sur la zone de chat, comme dans VS Code : sur un bord, il s'ouvre de ce côté ; au milieu, à la place ; en vue partagée, dans le volet visé.
+- **Web, panneau redimensionnable** : poignée pour élargir ou réduire le panneau latéral de Sessions.
+- **Web, paramètres gardés par conversation** : modèle, effort, droits et fournisseur sont réutilisés à la reprise d'une conversation, même coupée.
+
+### Corrigé
+
+- Web : noms tronqués et ligne d'état qui débordait dans l'arbre des machines.
+- Web : les composants du chat (blocs `ccs` : choix, cartes, formulaires) restaient dans un cadre de code « ccs / Copier », avec des boutons qui paraissaient inactifs.
+- Un mot de passe root gardé pour toujours (coffre) empêchait le pont de se relancer après une mise à jour.
+
 ## [1.17.0] — 2026-11-28
 
 ### Ajouté

@@ -50,6 +50,18 @@ out = { n: btns.length, sent, title: root.querySelector(".rich-title").textConte
         self.assertEqual(out, {"n": 2, "sent": ["Montre les détails"], "title": "Que faire ?",
                                "disabled": True, "pre": 0})
 
+    def test_choice_replaces_code_frame(self):
+        # Le bloc a déjà reçu sa barre « ccs / Copier » : le composant la remplace entièrement.
+        out = self.run_js("""
+const root = el("div", {}, el("div", { class: "code-wrap" },
+  el("div", { class: "code-head" }, el("span", { class: "code-lang" }, "ccs")),
+  el("pre", {}, el("code", { class: "language-ccs" }, '{"type":"choix","options":["A","B"]}'))));
+enrich(root, ctx);
+out = [root.querySelectorAll(".code-wrap").length, root.querySelectorAll(".code-head").length,
+  root.querySelectorAll(".rich-choices button").length];
+""")
+        self.assertEqual(out, [0, 0, 2])
+
     def test_form_sends_readable_message(self):
         out = self.run_js("""
 const spec = '{"type":"formulaire","titre":"Recherche","envoyer":"Chercher","champs":['

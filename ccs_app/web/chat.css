@@ -226,6 +226,9 @@ dialog.lightbox img { display: block; max-width: 96vw; max-height: 96vh; object-
 .rich-title { margin: 0 0 6px; font-weight: 600; }
 .rich-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .rich-row a.button { text-decoration: none; }
+.rich-row button:not(.primary), .rich-row a.button { background: transparent; color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+.rich-row button:not(.primary):hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .rich.sent { opacity: 0.6; }
 .rich-form { display: grid; gap: 8px; padding: 10px; max-width: 420px; background: var(--card);
   border: 1px solid var(--line); border-radius: var(--radius); }

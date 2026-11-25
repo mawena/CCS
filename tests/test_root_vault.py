@@ -65,6 +65,11 @@ class ForeverTest(VaultCase):
         self.assertTrue(k2.kept())
         (await k2.ask("ls")).wipe()
 
+    async def test_coffre_ne_retient_pas_la_relance(self):
+        k = self.make()
+        k.store(rk.to_secret(GOOD))
+        self.assertFalse(k.busy())                  # relu au démarrage : le pont peut se relancer
+
     async def test_oublier_efface_le_coffre(self):
         k = self.make()
         k.store(rk.to_secret(GOOD))
