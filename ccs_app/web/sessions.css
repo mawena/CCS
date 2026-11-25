@@ -97,6 +97,9 @@ button.on, button[aria-pressed="true"] { background: color-mix(in srgb, var(--ac
 /* ---- gérer projets et corbeille (sessions-manage.js) ---- */
 .list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
 .list-head h3 { margin: 0; }
+.fold-toggle { display: flex; align-items: center; gap: 2px; padding: 2px 4px 2px 0; background: transparent;
+  border: 0; color: inherit; cursor: pointer; text-align: left; }
+.fold-toggle:hover h3 { color: var(--accent); }
 .add-modes { display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .add-project .stack { display: grid; gap: 8px; }
 .trash-list { display: grid; gap: 6px; max-height: 60dvh; overflow-y: auto; }

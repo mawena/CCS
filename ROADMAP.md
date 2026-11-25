@@ -239,3 +239,8 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 6. Vue partagée : deux sessions côte à côte, glisser-déposer des onglets (comme VS Code)
 - [x] 6 bis. Composants du chat (blocs `ccs`) sans cadre de code
 - [x] 7. Release 1.18.0
+
+## Phase 52 — Liste des sessions plus compacte
+
+- [x] 1. Sections « Projets » et « Conversations récentes » repliables (web, état gardé)
+- [ ] 2. Release 1.18.1
