@@ -30,6 +30,10 @@ final class ModeleAppli {
     private(set) var machines: [Machine] = ModeleAppli.lireMachines()
     /// Feuille « Machine pilotée » ouverte (bandeau, Sessions, Plus).
     var choixMachine = false
+    /// Sessions ouvertes sur les autres machines (`machines.chats`), lues seulement quand on pilote ce serveur.
+    private(set) var chatsAutres: [ChatsMachine] = []
+    /// Lecture de `machines.chats` en cours (elle peut prendre plusieurs secondes).
+    private(set) var chercheChatsAutres = false
 
     private(set) var adresse: String
     private(set) var identifiants: Identifiants? = nil
@@ -136,6 +140,44 @@ final class ModeleAppli {
         if autres != machines { machines = autres }
         if let d = try? JSONEncoder().encode(autres) { Prefs.ecrire(ModeleAppli.cleMachines, String(decoding: d, as: UTF8.self)) }
         return r.message
+    }
+
+    /**
+     * Relit les sessions des autres machines (`machines.chats`, demandé au serveur lui-même : seulement
+     * quand il est la machine pilotée). Tout échec (ancien serveur sans la méthode, délai) : rien.
+     */
+    func rafraichirChatsAutres() async {
+        guard client.machine.isEmpty, client.etat.estConnecte else {
+            if !client.machine.isEmpty { chatsAutres = [] }
+            return
+        }
+        if chercheChatsAutres { return }
+        chercheChatsAutres = true
+        defer { chercheChatsAutres = false }
+        let r = try? await client.appeler("machines.chats", delai: 50, en: ChatsMachines.self)
+        // machine changée pendant l'appel : la réponse ne vaut plus
+        guard client.machine.isEmpty else { chatsAutres = []; return }
+        let autres = r?.machines ?? []
+        if autres != chatsAutres { chatsAutres = autres }
+    }
+
+    /**
+     * Ouvre un chat d'une autre machine : elle devient la machine pilotée, puis le chat s'ouvre dès
+     * que la connexion relayée est prête (20 s au plus ; sinon un avis).
+     */
+    func ouvrirSurMachine(_ id: String, nom: String, _ dest: DestChat) {
+        choisirMachine(id, nom: nom)
+        Task { @MainActor in
+            for _ in 0..<80 {
+                if self.client.machine != id { return }          // autre choix entre-temps
+                if self.client.etat.estConnecte {
+                    self.aOuvrir = dest
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+            if self.client.machine == id { self.avis.dire("« \(nom) » ne répond pas : le chat n'a pas pu s'ouvrir.") }
+        }
     }
 
     /// Pilote `id` (vide : ce serveur) : terminaux et notifications de l'ancienne machine sont oubliés.

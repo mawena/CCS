@@ -39,16 +39,18 @@ struct EcranSessions: View {
     var body: some View {
         List {
             if !chats.isEmpty {
-                Section("En cours") {
+                Section(titreEnCours) {
                     ForEach(chats) { ch in ligneChat(ch) }
                 }
             }
+            sectionsAutresMachines
             contenu
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Sessions")
         .searchable(text: $recherche, prompt: "Rechercher une conversation")
         .refreshable {
+            Task { await modele.rafraichirChatsAutres() }     // lent (ssh) : ne retient pas la liste
             await chargerChats()
             await charger()
         }
@@ -67,6 +69,7 @@ struct EcranSessions: View {
         }
         .task(id: client.etat.estConnecte) {
             guard client.etat.estConnecte else { return }
+            Task { await modele.rafraichirChatsAutres() }     // lent (ssh) : ne retient pas la liste
             await chargerChats()
             await charger()
         }
@@ -163,23 +166,66 @@ struct EcranSessions: View {
     }
 
     private func ligneChat(_ ch: ChatOuvert) -> some View {
-        let e = EtatChat.de(etats[ch.chatId] ?? ch.state)
         return Button {
-            naviguer(.chat(DestChat(cwd: ch.cwd, sessionId: ch.sessionId, chemin: ch.path, titre: Format.base(ch.cwd), chatId: ch.chatId)))
+            naviguer(.chat(destination(ch)))
         } label: {
-            HStack(spacing: 12) {
-                Pastille(couleur: couleurEtat(e.ton), taille: 12)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(Format.base(ch.cwd)).foregroundStyle(.primary).lineLimit(1)
-                    Text("\(e.libelle) · \(Format.base(ch.cwd))").font(.footnote).foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .contentShape(Rectangle())
+            etiquetteChat(ch, etat: etats[ch.chatId] ?? ch.state)
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
             Button("Fermer") { aFermer = ch }.tint(.red)
+        }
+    }
+
+    private func destination(_ ch: ChatOuvert) -> DestChat {
+        return DestChat(cwd: ch.cwd, sessionId: ch.sessionId, chemin: ch.path, titre: Format.base(ch.cwd), chatId: ch.chatId)
+    }
+
+    private func etiquetteChat(_ ch: ChatOuvert, etat: String) -> some View {
+        let e = EtatChat.de(etat)
+        return HStack(spacing: 12) {
+            Pastille(couleur: couleurEtat(e.ton), taille: 12)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Format.base(ch.cwd)).foregroundStyle(.primary).lineLimit(1)
+                Text("\(e.libelle) · \(Format.base(ch.cwd))").font(.footnote).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// « En cours », précisé « · Ce serveur » quand d'autres machines ont leur section.
+    private var titreEnCours: String {
+        if client.machine.isEmpty && !modele.chatsAutres.isEmpty { return "En cours · \(CcsClient.ceServeur)" }
+        return "En cours"
+    }
+
+    /// Une section par autre machine en ligne (seulement quand ce serveur est la machine pilotée) :
+    /// toucher une session pilote cette machine puis ouvre le chat.
+    @ViewBuilder
+    private var sectionsAutresMachines: some View {
+        if client.machine.isEmpty {
+            ForEach(modele.chatsAutres) { m in
+                Section {
+                    if let err = m.erreur {
+                        Text(err).font(.footnote).foregroundStyle(.secondary)
+                    } else if m.chats.isEmpty {
+                        Text("Aucune session en cours.").font(.footnote).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(m.chats) { ch in
+                            Button {
+                                modele.ouvrirSurMachine(m.id, nom: m.nom, destination(ch))
+                            } label: {
+                                etiquetteChat(ch, etat: ch.state)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Pilote \(m.nom) puis ouvre la session")
+                        }
+                    }
+                } header: {
+                    Label(m.nom, systemImage: "desktopcomputer")
+                }
+            }
         }
     }
 

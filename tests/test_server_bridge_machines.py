@@ -40,7 +40,8 @@ class MachinesTest(unittest.IsolatedAsyncioTestCase):
         self.runtime = self.tmp / "run"
         (self.runtime / "ccs").mkdir(parents=True)
         self.far = bridge.Bridge("bob", None, local=True, start_daemon=False, install_claude=False)
-        self.far.add_handlers({"echo": self._echo, "machines.list": self._far_list})
+        self.far.add_handlers({"echo": self._echo, "machines.list": self._far_list,
+                               "chat.list": self._far_chats})
         await self.far.start(self.runtime / "ccs" / "bridge.sock")
         self.addAsyncCleanup(self.far.stop)
         # pont du serveur, avec l'API des machines
@@ -58,6 +59,9 @@ class MachinesTest(unittest.IsolatedAsyncioTestCase):
         if params.get("push"):
             await conn.push("chat.event", {"from": "far"})
         return {"user": "bob", "params": params}
+
+    async def _far_chats(self, _conn, _params):
+        return {"chats": [{"chat_id": "c1", "cwd": "/home/bob/p", "state": "idle"}]}
 
     async def _far_list(self, _conn, _params):
         return {"machines": ["ne doit pas servir"]}
@@ -89,6 +93,35 @@ class MachinesTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(ids["vps"]["local"])
         self.assertFalse(ids["eteint"]["online"])
         self.assertEqual(ids["pc"]["name"], "PC")
+
+    async def test_chats_of_every_machine(self):
+        c = await self.client()
+        r = await c.call("machines.chats")
+        # ni ce serveur ni la machine éteinte : seulement « pc », avec ses sessions
+        self.assertEqual(r, {"machines": [{"id": "pc", "name": "PC", "chats": [
+            {"chat_id": "c1", "cwd": "/home/bob/p", "state": "idle"}]}]})
+        for _ in range(100):
+            if all(p.returncode is not None for p in self.spawned):
+                break
+            await asyncio.sleep(0.02)
+        self.assertTrue(all(p.returncode is not None for p in self.spawned))   # ssh refermé
+
+    async def test_chats_report_unreachable_machines(self):
+        self.machines.append(machine("autre"))
+        real = self._spawn
+        self.api._spawn = lambda m: (real(m, "import sys; sys.exit('ssh: connexion refusée')")
+                                     if m.id == "autre" else real(m))
+        c = await self.client()
+        r = {m["id"]: m for m in (await c.call("machines.chats"))["machines"]}
+        self.assertEqual(len(r["pc"]["chats"]), 1)
+        self.assertIn("connexion refusée", r["autre"]["error"])
+        self.assertNotIn("chats", r["autre"])
+
+    async def test_chats_without_ricochet_is_empty(self):
+        with mock.patch.object(distant, "configured", return_value=False):
+            c = await self.client()
+            r = await c.call("machines.chats")
+        self.assertEqual(r, {"machines": []})
 
     async def test_list_without_ricochet_says_why(self):
         with mock.patch.object(distant, "configured", return_value=False):
