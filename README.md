@@ -767,7 +767,8 @@ mêmes fonctions que le bureau :
   Déplier une machine montre ses projets et conversations ; « + » y ouvre une nouvelle session.
   Les onglets de plusieurs machines restent ouverts côte à côte, chacun sur sa propre connexion
   et marqué du nom de sa machine, sans changer la machine pilotée. Les nœuds dépliés sont gardés
-  dans le navigateur.
+  dans le navigateur. Un clic sur le titre « Projets » ou « Conversations récentes » replie ou
+  déplie la section (gardé aussi).
   **Vue partagée** : le bouton « ◫ » de la barre d'onglets, ou « Ouvrir à côté » dans le menu
   d'un onglet, affiche deux onglets côte à côte (l'un sous l'autre sur téléphone). Un clic dans
   un volet en fait l'onglet courant ; choisir un autre onglet remplace le volet courant ; la
