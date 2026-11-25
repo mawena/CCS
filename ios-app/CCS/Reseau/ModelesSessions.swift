@@ -140,6 +140,30 @@ struct ListeChats: LisibleJSON {
     init(json j: JSON) { chats = j.liste("chats").map { ChatOuvert(json: $0) } }
 }
 
+/// Sessions ouvertes d'une autre machine (`machines.chats`) ; `erreur` : machine injoignable.
+struct ChatsMachine: LisibleJSON, Identifiable, Equatable {
+    var id = ""
+    var name = ""
+    var chats: [ChatOuvert] = []
+    var erreur: String?
+
+    /// Nom affiché (l'identifiant si le nom est vide).
+    var nom: String { return name.trimmingCharacters(in: .whitespaces).isEmpty ? id : name }
+
+    init(json j: JSON) {
+        id = j.texte("id")
+        name = j.texte("name")
+        chats = j.liste("chats").map { ChatOuvert(json: $0) }
+        erreur = j.texteOuNul("error").flatMap { $0.isEmpty ? nil : $0 }
+    }
+}
+
+/// `machines.chats` : les sessions des autres machines en ligne (pas celles de ce serveur).
+struct ChatsMachines: LisibleJSON {
+    var machines: [ChatsMachine] = []
+    init(json j: JSON) { machines = j.liste("machines").map { ChatsMachine(json: $0) }.filter { !$0.id.isEmpty } }
+}
+
 struct Cout: LisibleJSON {
     var short = ""
     var text = ""

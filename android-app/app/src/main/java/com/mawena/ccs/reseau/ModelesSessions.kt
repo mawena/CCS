@@ -75,6 +75,21 @@ data class ChatOuvert(
 @Serializable
 data class ListeChats(val chats: List<ChatOuvert> = emptyList())
 
+/** Sessions d'une autre machine (`machines.chats`) ; `error` : machine injoignable. */
+@Serializable
+data class SessionsMachine(
+    val id: String = "",
+    val name: String = "",
+    val chats: List<ChatOuvert> = emptyList(),
+    val error: String? = null,
+) {
+    val nom: String get() = name.ifBlank { id }
+}
+
+/** `machines.chats` : les autres machines en ligne que le serveur, sans le serveur lui-même. */
+@Serializable
+data class SessionsMachines(val machines: List<SessionsMachine> = emptyList())
+
 @Serializable
 data class Cout(val short: String = "", val text: String = "", val dollars: Double = 0.0)
 

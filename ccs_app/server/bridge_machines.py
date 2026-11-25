@@ -24,6 +24,7 @@ log = logging.getLogger("ccs.bridge.machines")
 
 MACHINE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 HELLO_TIMEOUT = 45
+CHATS_TIMEOUT = 20      # par machine, pour la vue « toutes les machines »
 
 # Exécuté sur l'autre machine (python3 suffit, quelle que soit la version de CCS installée).
 REMOTE = r'''
@@ -121,6 +122,7 @@ class MachinesApi:
         bridge.busy_checks.append(lambda: bool(self.links))
         bridge.add_handlers({
             "machines.list": self.list, "machines.attach": self.attach,
+            "machines.chats": self.chats,
             "machines.jobs": self.jobs, "machines.stop": self.stop, "machines.log": self.log,
             "machines.start": self.start, "machines.settings": self.settings,
             "machines.configure": self.configure, "machines.limit": self.limit,
@@ -270,6 +272,37 @@ class MachinesApi:
             log.warning("relais vers %s refusé : %s", mid, why)
             raise rpc.RpcError("introuvable", f"{mid} injoignable : {why}") from None
         return machine, link, remote
+
+    async def chats(self, _conn, _params):
+        """Sessions des autres machines en ligne, pour une liste unique côté client :
+        `{"machines": [{"id", "name", "chats": [...]} ou {..., "error": "..."}]}`. Les sessions
+        de ce serveur restent celles de `chat.list`. Une machine en panne n'empêche pas les autres."""
+        try:
+            machines = await self._machines()
+        except rpc.RpcError:
+            return {"machines": []}
+        far = [m for m in machines if m.online and not m.local]
+
+        async def one(m):
+            out = {"id": m.id, "name": m.name or m.id}
+            link = None
+            try:
+                _machine, link, remote = await self.connect(m.id, CHATS_TIMEOUT)
+                if not (isinstance(remote, dict) and remote.get("protocol")):
+                    name, p = protocol.to_legacy("chat.list", {})
+                    r = protocol.upgrade_result("chat.list", await link.client.call(name, **p))
+                else:
+                    r = await asyncio.wait_for(link.client.call("chat.list"), CHATS_TIMEOUT)
+                out["chats"] = list((r or {}).get("chats") or [])
+            except rpc.RpcError as e:
+                out["error"] = e.message
+            except (asyncio.TimeoutError, ConnectionError, OSError) as e:
+                out["error"] = f"{m.id} injoignable : {e or 'délai dépassé'}"
+            finally:
+                if link is not None:
+                    await link.close()
+            return out
+        return {"machines": list(await asyncio.gather(*(one(m) for m in far)))}
 
     async def attach(self, conn, params):
         mid = params.get("machine")

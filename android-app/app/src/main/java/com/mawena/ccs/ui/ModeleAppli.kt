@@ -10,6 +10,8 @@ import com.mawena.ccs.reseau.EtatConnexion
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Ce qu'une intention demande à l'appli : notification, raccourci. */
@@ -123,6 +125,48 @@ class ModeleAppli(appli: Application) : AndroidViewModel(appli) {
             ),
         )
         return r
+    }
+
+    /** Sessions des autres machines (`machines.chats`), seulement quand le serveur est piloté. */
+    private val _autresSessions = MutableStateFlow<List<com.mawena.ccs.reseau.SessionsMachine>>(emptyList())
+    val autresSessions: StateFlow<List<com.mawena.ccs.reseau.SessionsMachine>> = _autresSessions.asStateFlow()
+    private var travailAutres: kotlinx.coroutines.Job? = null
+
+    /**
+     * Relit en arrière-plan les sessions des autres machines (plusieurs secondes : ssh vers
+     * chacune). Rien si une autre machine est pilotée (les requêtes lui sont relayées) ; un échec
+     * (ancien serveur sans la méthode…) vide la liste.
+     */
+    fun rafraichirAutresSessions() {
+        travailAutres?.cancel()
+        if (machine.value.isNotEmpty()) {
+            _autresSessions.value = emptyList()
+            return
+        }
+        travailAutres = viewModelScope.launch {
+            val r = runCatching {
+                com.mawena.ccs.reseau.CodecRpc.json.decodeFromJsonElement(
+                    com.mawena.ccs.reseau.SessionsMachines.serializer(),
+                    depot.client.appeler("machines.chats", delaiMs = 60_000),
+                )
+            }.getOrNull()
+            if (!isActive) return@launch   // relancé entre-temps : le nouvel appel décidera
+            // machine changée pendant l'appel : ces sessions sont maintenant celles d'ailleurs
+            _autresSessions.value = if (machine.value.isEmpty()) r?.machines.orEmpty() else emptyList()
+        }
+    }
+
+    /**
+     * Pilote la machine `id`, attend que la connexion relayée soit prête (30 s au plus) ; rend
+     * false si elle ne l'est pas à temps.
+     */
+    suspend fun piloterEtAttendre(id: String, nom: String): Boolean {
+        choisirMachine(id, nom)
+        _autresSessions.value = emptyList()
+        return kotlinx.coroutines.withTimeoutOrNull(30_000) {
+            kotlinx.coroutines.flow.combine(machine, etat) { m, e -> m == id && e is EtatConnexion.Connecte }
+                .first { it }
+        } ?: false
     }
 
     /** Pilote `id` (vide : ce serveur) : les terminaux de l'ancienne machine sont oubliés. */
