@@ -213,3 +213,17 @@ Réglages ; les réponses de Claude affichent images, sons, vidéos et composant
 - [x] 10. Rendu riche dans l'appli Android
 - [x] 11. Release 1.15.0 (avec les lecteurs et l'onglet Son de la phase 42)
 - [x] 12. Release 1.16.0 (audio Linux, Venice, rendu riche iOS et Android, lecteurs du Pixel)
+
+
+## Phase 50 — Arbre des machines dans Sessions
+
+La page Sessions du web devient un arbre : les machines à la racine, dépliées pour voir leurs
+projets et conversations ; les onglets de plusieurs machines restent ouverts côte à côte.
+
+- [x] 1. Logique de l'arbre : `sessions-tree.js` (clés d'onglet, adresses de projet, racines, état déplié gardé)
+- [x] 2. Une connexion par machine : chaque machine rattachée a son propre pont, sans changer la machine pilotée
+- [x] 3. Onglets de plusieurs machines côte à côte, marqués du nom de leur machine
+- [x] 4. Adresses de projet par machine (`projet/<chemin>` ici, `projet~<machine>/<chemin>` ailleurs)
+- [x] 5. Styles : nœuds de machine, état hors ligne, badges dans les onglets et « En cours »
+- [x] 6. Tests node de `sessions-tree.js`
+- [ ] 7. Même chose dans l'appli de bureau GTK

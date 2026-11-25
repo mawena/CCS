@@ -112,7 +112,7 @@ export class RoadmapPanel {
   newChat(text) {
     if (this.actions.newChat) return this.actions.newChat(text);
     if (this.actions.standalone && this.actions.send) return this.actions.send(text);
-    document.dispatchEvent(new CustomEvent("ccs:new-chat", { detail: { cwd: this.cwd, text } }));
+    document.dispatchEvent(new CustomEvent("ccs:new-chat", { detail: { cwd: this.cwd, text, machine: this.api.machine || "" } }));
     return null;
   }
 }

@@ -1,3 +1,9 @@
+ccs (1.17.0) noble; urgency=medium
+
+  * Web : arbre des machines dans Sessions, onglets de plusieurs machines ouverts ensemble.
+
+ -- Charles GAMLIGO <gamligocharles3@gmail.com>  Sat, 28 Nov 2026 02:00:00 +0100
+
 ccs (1.16.3) noble; urgency=medium
 
   * Web : la reprise d'une conversation Venice garde le fournisseur (erreur « selected model »).
