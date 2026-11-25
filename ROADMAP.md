@@ -267,5 +267,5 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 1. Identifiants des machines alignés sur les noms du réseau maillé : `srv-mawena-cloud`, `lp-work`, `lp-home` (code, docs, applis, tests)
 - [x] 2. Anciens noms acceptés (`pc-bureau`, `laptop-maison`, `mawena-cloud`) : `--machine`, `machines.toml`, clé SSH connue gardée
 - [x] 3. Genre d'appareil : `lp-` portable, `srv-` serveur (Python, web, iPhone, Android)
-- [ ] 4. Release 1.21.0, puis clés de `~/.config/ccs/machines.toml` renommées
+- [x] 4. Release 1.21.0, puis clés de `~/.config/ccs/machines.toml` renommées
 - [ ] 5. Identifiants Ricochet renommés (base du relais et `agent.toml` de chaque machine)
