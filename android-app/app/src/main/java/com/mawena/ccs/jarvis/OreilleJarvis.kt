@@ -220,7 +220,7 @@ class OreilleJarvis(
         when (m) {
             is MessageCerveau.Stop -> if (phrase?.numero == m.phrase) {
                 abandonner()
-                signaler("Une autre oreille a pris la phrase.")
+                signaler("Jarvis est occupé par une autre phrase : réessaie dans un instant.")
             }
             is MessageCerveau.Entendu -> {
                 armerInactivite()

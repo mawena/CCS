@@ -222,7 +222,7 @@ export class Ear {
       this.emit("error", m.message || "Lien avec Jarvis rompu.");
     } else if (m.type === "stop" && c && m.utterance === c.utterance) {
       this.abortCapture();
-      this.emit("error", "Une autre oreille a pris la phrase.");
+      this.emit("error", "Jarvis est occupé par une autre phrase : réessaie dans un instant.");
     } else if (m.type === "response" && m.response) {
       this.armIdle();
       const r = m.response;
