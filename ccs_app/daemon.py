@@ -28,6 +28,7 @@ SESSION_NOTIFY_GAP_S = 120
 TASKS_WAKE_S = 30           # réveil tant qu'une tâche est en file, en cours ou en attente
 ARCHIVE_EVERY_S = 30 * 60   # un passage d'archive toutes les 30 min
 BUDGET_EVERY_S = 15 * 60    # alertes de budget : au plus toutes les 15 min
+ACCOUNTS_EVERY_S = 10 * 60  # synchro des comptes Claude entre machines : toutes les 10 min
 EDGE_MARGIN_S = 2.0  # marge après une borne de plage horaire (début ou fin) avant de se réveiller
 
 
@@ -108,6 +109,7 @@ class Daemon:
         self.settings = None        # réglages du tick en cours (envoi au téléphone)
         self.background_jobs = True  # tâches, archive, budget : coupé pour l'observation seule
         self.last_archive = None
+        self.last_accounts = None
         self.last_budget = None
         self.jobs = {}              # nom -> fil de fond (jamais deux à la fois)
         self.jobs_lock = threading.Lock()
@@ -187,8 +189,15 @@ class Daemon:
         for a in budget.pending_alerts(now, settings):
             self.notifier(a)
 
+    def _run_accounts(self):
+        from . import account_sync
+        res = account_sync.sync()
+        if any(res["recu"].values()):
+            for line in account_sync.describe(res):
+                log.info("comptes : %s", line)
+
     def _background(self, settings, now):
-        """Archive (30 min) et budget (15 min), chacun dans son fil."""
+        """Archive (30 min), budget (15 min) et comptes (10 min), chacun dans son fil."""
         if not self.background_jobs:
             return
         ts = now.timestamp()
@@ -200,6 +209,9 @@ class Daemon:
                 self.last_budget is None or ts - self.last_budget >= BUDGET_EVERY_S):
             if self._spawn("budget", lambda: self._run_budget(settings, now)):
                 self.last_budget = ts
+        if self.last_accounts is None or ts - self.last_accounts >= ACCOUNTS_EVERY_S:
+            if self._spawn("accounts", self._run_accounts):
+                self.last_accounts = ts
 
     def _run_tasks(self, settings, now, paused):
         """File de tâches : un tour (`tasks.tick`), alertes envoyées. Renvoie True s'il

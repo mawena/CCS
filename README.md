@@ -76,6 +76,21 @@ ces comptes se comportent comme un seul :
 > les utiliser. CCS n'est pas un produit Anthropic ; il s'appuie sur les
 > fichiers et l'API d'usage de Claude Code, qui peuvent évoluer.
 
+### Les mêmes comptes sur toutes tes machines
+
+Un compte connecté (`ccs add`) sur une machine arrive tout seul sur les autres
+machines du réseau maillé (celles de `ccs remote machines`), par SSH. Le démon
+synchronise toutes les 10 minutes, et tout de suite après `ccs add` ;
+`ccs sync` le fait à la demande (`--machine M` pour une seule machine).
+
+- Deux copies d'un même compte : le jeton le plus récent l'emporte partout, y
+  compris pour le compte actif de chaque machine.
+- Deux comptes différents sous le même nom ne s'écrasent jamais.
+- Supprimer un compte (`ccs remove`, ou le bouton « Supprimer » de la version
+  web) le supprime aussi sur les autres machines, sauf là où il est actif. Le
+  reconnecter plus tard le fait revenir.
+- Une machine éteinte est simplement sautée et rattrapée au passage suivant.
+
 ## L'orchestrateur
 
 Pendant ta plage horaire (par défaut 8 h → 2 h), il applique quatre règles :

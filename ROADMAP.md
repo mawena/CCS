@@ -239,3 +239,12 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 6. Vue partagée : deux sessions côte à côte, glisser-déposer des onglets (comme VS Code)
 - [x] 6 bis. Composants du chat (blocs `ccs`) sans cadre de code
 - [x] 7. Release 1.18.0
+
+## Phase 53 — Comptes Claude synchronisés entre machines
+
+- [x] 1. Agent de lecture et d'écriture des profils, transport SSH par le réseau maillé
+- [x] 2. Fusion : jeton le plus récent, noms en conflit jamais écrasés, compte actif mis à jour
+- [x] 3. Pierres tombales : suppression propagée, sauf compte actif ; retour si reconnecté
+- [x] 4. `ccs sync`, synchro après `ccs add` et toutes les 10 min par le démon
+- [x] 5. Web : supprimer un compte depuis l'accueil
+- [ ] 6. Release 1.19.0

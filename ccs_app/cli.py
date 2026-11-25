@@ -1218,6 +1218,21 @@ def cmd_distant(args):
         return 130
 
 
+def cmd_sync(args):
+    """Comptes Claude : mêmes profils et jetons les plus récents sur toutes les machines."""
+    from . import account_sync
+    res = account_sync.sync(only=args.machine or None)
+    if not args.quiet:
+        print("\n".join(account_sync.describe(res)))
+    return 0
+
+
+def cmd_accounts_bury(args):
+    from . import account_sync
+    account_sync.bury(args.name)
+    return 0
+
+
 def cmd_reseau(args):
     """Réseau maillé (Headscale) : appareils, chemin de chaque liaison, clés d'inscription."""
     from . import network
@@ -1605,6 +1620,13 @@ def build_parser():
     dij = _action(di_sub, "log", "journal", help="sortie d'un travail détaché")
     dij.add_argument("id")
     di.set_defaults(func=cmd_distant)
+    sy = _command(sub, "sync", old=["synchroniser"], help="comptes Claude : les mêmes sur toutes les machines (réseau maillé)")
+    sy.add_argument("--machine", action="append", help="seulement cette machine (répétable)")
+    sy.add_argument("--quiet", action="store_true", help="sans rien afficher")
+    sy.set_defaults(func=cmd_sync)
+    ab = _command(sub, "accounts-bury")
+    ab.add_argument("name")
+    ab.set_defaults(func=cmd_accounts_bury)
     nw = _command(sub, "network", old=["reseau", "réseau"], help="réseau maillé de tous les appareils (network.mawena.cloud)")
     nw_sub = nw.add_subparsers(dest="action", metavar="<action>")
     _action(nw_sub, "status", "etat", help="appareils et chemin de chaque liaison (LAN, direct, relais)")
