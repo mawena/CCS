@@ -209,6 +209,20 @@ a.button.portier[hidden] { display: none; }
 .stage.split > .holder.focused { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .split-handle { order: 1; flex: none; width: 8px; cursor: col-resize; touch-action: none; position: relative; background: var(--line); opacity: 0.6; }
 .split-handle:hover { opacity: 1; background: var(--accent); }
+/* Glisser un onglet sur la zone de chat : la partie surlignée montre où il s'ouvrira. */
+.stage { position: relative; }
+.drop-zone { position: absolute; inset: 0; z-index: 30; }
+.drop-hint { position: absolute; inset: 0; opacity: 0; pointer-events: none; border-radius: 8px; transition: inset 0.08s, opacity 0.08s;
+  background: color-mix(in srgb, var(--accent) 18%, transparent); border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+.drop-hint.on-a, .drop-hint.on-b, .drop-hint.on-c { opacity: 1; }
+.drop-hint.on-a { right: 50%; }
+.drop-hint.on-b { left: 50%; }
+.drop-zone.paired .drop-hint.on-a { right: calc(100% - var(--split, 50%)); }
+.drop-zone.paired .drop-hint.on-b { left: var(--split, 50%); }
+.drop-zone.col .drop-hint.on-a { right: 0; bottom: 50%; }
+.drop-zone.col .drop-hint.on-b { left: 0; top: 50%; }
+.drop-zone.col.paired .drop-hint.on-a { bottom: calc(100% - var(--split, 50%)); }
+.drop-zone.col.paired .drop-hint.on-b { top: var(--split, 50%); }
 .split-toggle { flex: none; margin-left: auto; min-width: 40px; font-size: 1.15em; }
 .split-toggle.active { color: var(--accent); }
 .tab.split-tab { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 50%, transparent); }
