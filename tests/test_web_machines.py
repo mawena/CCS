@@ -360,7 +360,7 @@ out = { calls: api.calls.filter((c) => c[0] === "machines.add").map((c) => c[1])
         self.assertIn('if (name === "machines") name = "reseau";', (WEB / "app.js").read_text(encoding="utf-8"))
         self.assertIn('"#/reseau"', (WEB / "machines.js").read_text(encoding="utf-8"))
         self.assertNotIn("#/machines", (WEB / "settings.js").read_text(encoding="utf-8"))
-        self.assertIn("rememberProject(api, cwd)", (WEB / "sessions.js").read_text(encoding="utf-8"))
+        self.assertIn("rememberProject(c.api, cwd)", (WEB / "sessions.js").read_text(encoding="utf-8"))
 
 if __name__ == "__main__":
     unittest.main()

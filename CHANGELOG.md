@@ -5,6 +5,13 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.17.0] — 2026-11-28
+
+### Ajouté
+
+- **Web, arbre des machines** : la page Sessions montre les machines à la racine ; on les déplie pour voir leurs projets et conversations, et en ouvrir sur n'importe quelle machine sans changer la machine pilotée. Nœuds dépliés gardés dans le navigateur.
+- **Web, onglets multi-machines** : les chats et terminaux de plusieurs machines restent ouverts côte à côte, chacun sur sa propre connexion, avec le nom de leur machine dans l'onglet et dans « En cours » ; adresses de projet propres à chaque machine (`projet~<machine>/<chemin>`).
+
 ## [1.16.3] — 2026-11-27
 
 ### Corrigé

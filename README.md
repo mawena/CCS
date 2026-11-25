@@ -756,6 +756,12 @@ mêmes fonctions que le bureau :
   ou terminal dans le projet, ouvrir le projet, copier le chemin, fermer, fermer les autres ;
   sur un projet ou une conversation : ses actions habituelles. Renommer un chat renomme sa
   conversation, et l'onglet suit (titre automatique de Claude Code compris).
+  **Arbre des machines** : quand d'autres machines sont connues, la liste devient un arbre, les
+  machines à la racine (la machine pilotée d'abord, dépliée ; puis « Ce serveur » et les autres).
+  Déplier une machine montre ses projets et conversations ; « + » y ouvre une nouvelle session.
+  Les onglets de plusieurs machines restent ouverts côte à côte, chacun sur sa propre connexion
+  et marqué du nom de sa machine, sans changer la machine pilotée. Les nœuds dépliés sont gardés
+  dans le navigateur.
 - **Chat** : options (modèle, effort, droits) repliées, brouillon gardé par chat, diff
   lisible des modifications de Claude, chemins cités ouverts dans le volet Fichiers, complétion
   `@` et `/`, messages enregistrés, Compacter, commande `!`, recherche dans le fil, volet

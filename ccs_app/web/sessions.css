@@ -111,3 +111,19 @@ button.on, button[aria-pressed="true"] { background: color-mix(in srgb, var(--ac
 .item.run.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 .tabs .tab.drop-before { box-shadow: inset 2px 0 0 var(--accent); }
 .tabs .tab.drop-after { box-shadow: inset -2px 0 0 var(--accent); }
+
+/* ---- arbre des machines (phase 50) : machines à la racine, projets et conversations dessous ---- */
+.machine-node { display: block; }
+.machine-head { display: flex; align-items: center; gap: 4px; }
+.machine-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; justify-content: flex-start; text-align: left;
+  border: none; background: transparent; font-weight: 400; padding: 6px 8px; min-height: 48px; }
+.machine-toggle strong { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.machine-toggle .subtle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85em; }
+.machine-add { min-width: 44px; padding: 0; flex: none; }
+.caret { width: 1.2em; flex: none; text-align: center; color: var(--subtle); }
+.machine-body { margin-left: 14px; padding-left: 10px; border-left: 1px solid var(--line); display: grid; gap: 4px; }
+.machine-node.offline .machine-head { opacity: 0.55; }
+.machine-status { font-size: 0.8em; color: var(--subtle); white-space: nowrap; }
+.tab-machine, .run-machine { display: inline-block; font-size: 0.75em; font-weight: 600; padding: 1px 6px; margin-right: 6px;
+  border-radius: 6px; background: var(--soft); color: var(--subtle); max-width: 9em; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; vertical-align: middle; flex: none; }

@@ -13,7 +13,7 @@ from ccs_app.server import web
 
 WEB = Path(web.WEB_DIR)
 SERVER = WEB.parent / "server"
-MINE = ["sessions.js", "files.js", "files-manage.js", "roadmap.js", "terminal.js", "project.js", "sessions-conv.js", "sessions-new.js", "sessions-order.js"]
+MINE = ["sessions.js", "files.js", "files-manage.js", "roadmap.js", "terminal.js", "project.js", "sessions-conv.js", "sessions-new.js", "sessions-order.js", "sessions-tree.js"]
 NODE = shutil.which("node")
 
 
@@ -89,7 +89,7 @@ class SessionsWebTest(unittest.TestCase):
     def run_js(self, code):
         """Exécute `code` (module) à côté d'une copie des modules, déclarée « module » pour node."""
         with tempfile.TemporaryDirectory() as tmp:
-            for name in ("terminal.js", "dom.js", "sessions-order.js"):
+            for name in ("terminal.js", "dom.js", "sessions-order.js", "sessions-tree.js"):
                 shutil.copy(WEB / name, Path(tmp) / name)
             (Path(tmp) / "package.json").write_text('{"type": "module"}')
             r = subprocess.run([NODE, "--input-type=module", "-e", code], capture_output=True, text=True,
@@ -131,6 +131,53 @@ class SessionsWebTest(unittest.TestCase):
         self.assertIn('dragProps(chatId, "x")', text)
         self.assertIn('dragProps(id, "y")', text)
         self.assertIn('"/sessions-order.js"', source("sw.js"))
+
+    TREE_JS = ('const store = {}; globalThis.localStorage = { getItem: (k) => store[k] ?? null,'
+               ' setItem: (k, v) => { store[k] = String(v); } };'
+               'const t = await import("./sessions-tree.js");')
+
+    def test_tree_tab_keys(self):
+        """Clé d'onglet : brute sur la machine pilotée, « m~machine~id » ailleurs, même si l'id contient « ~ »."""
+        out = self.run_js(self.TREE_JS + 'console.log(JSON.stringify([t.tabKey("pc", "pc", "c1"), t.tabKey("pc", "vps", "c1"),'
+                          ' t.tabKey("pc", "vps", "a~b"), t.splitKey("pc", "c1"), t.splitKey("pc", "m~vps~c1"),'
+                          ' t.splitKey("pc", t.tabKey("pc", "vps", "a~b")), t.splitKey("pc", "m~~x")]));')
+        self.assertEqual(json.loads(out), ["c1", "m~vps~c1", "m~vps~a~b", {"machine": "pc", "rid": "c1"},
+                                           {"machine": "vps", "rid": "c1"}, {"machine": "vps", "rid": "a~b"},
+                                           {"machine": "", "rid": "x"}])
+
+    def test_tree_project_sub(self):
+        out = self.run_js(self.TREE_JS + 'console.log(JSON.stringify([t.projectSub("pc", "pc", "/a/b"), t.projectSub("pc", "vps", "/a/b"),'
+                          ' t.parseProject("pc", "projet//a/b"), t.parseProject("pc", "projet~vps//a/b"),'
+                          ' t.parseProject("pc", "fichiers"), t.parseProject("pc", null)]));')
+        self.assertEqual(json.loads(out), ["projet//a/b", "projet~vps//a/b", {"machine": "pc", "cwd": "/a/b"},
+                                           {"machine": "vps", "cwd": "/a/b"}, None, None])
+
+    def test_tree_roots(self):
+        """« Ce serveur » toujours là, la machine pilotée d'abord, ajoutée si elle manque."""
+        out = self.run_js(self.TREE_JS + 'const ms = [{ id: "pc", name: "PC" }, { id: "vps", name: "VPS" }, null, { name: "sans id" }];'
+                          'const ids = (l) => l.map((m) => m.id || "-").join(",");'
+                          'const miss = t.roots("laptop", ms, "Laptop");'
+                          'console.log(ids(t.roots("vps", ms)), ids(t.roots("", ms)), ids(miss), miss[0].name,'
+                          ' t.roots("", [])[0].name);')
+        self.assertEqual(out, "vps,-,pc -,pc,vps laptop,-,pc,vps Laptop Ce serveur")
+
+    def test_tree_is_open(self):
+        out = self.run_js(self.TREE_JS + 'const tr = { open: {} };'
+                          'const a = [t.isOpen(tr, "pc", "pc"), t.isOpen(tr, "vps", "pc")];'
+                          'tr.open.pc = false; tr.open.vps = true;'
+                          'console.log(JSON.stringify([...a, t.isOpen(tr, "pc", "pc"), t.isOpen(tr, "vps", "pc")]));')
+        self.assertEqual(json.loads(out), [True, False, False, True])
+
+    def test_tree_load_save(self):
+        out = self.run_js(self.TREE_JS + 'const empty = t.loadTree();'
+                          't.saveTree({ open: { vps: true }, attached: ["vps", 3] });'
+                          'const back = t.loadTree();'
+                          'store["ccs.sessions.tree"] = "{pas du json";'
+                          'const bad = t.loadTree();'
+                          'store["ccs.sessions.tree"] = "null";'
+                          'console.log(JSON.stringify([empty, back, bad, t.loadTree()]));')
+        self.assertEqual(json.loads(out), [{"open": {}, "attached": []}, {"open": {"vps": True}, "attached": ["vps"]},
+                                           {"open": {}, "attached": []}, {"open": {}, "attached": []}])
 
 
 if __name__ == "__main__":

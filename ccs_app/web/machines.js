@@ -6,7 +6,7 @@ import { el } from "./dom.js";
 const LIST_KEY = "ccs.machines";
 const NAME_KEY = "ccs.machine.name";
 
-function cached() {
+export function knownMachines() {
   try { return JSON.parse(localStorage.getItem(LIST_KEY) || "[]"); } catch { return []; }
 }
 
@@ -19,7 +19,7 @@ export function machineName(api) {
   try { return localStorage.getItem(NAME_KEY) || api.machine; } catch { return api.machine; }
 }
 
-function describe(m) {
+export function describe(m) {
   if (!m.online) return "hors ligne";
   const parts = ["en ligne"];
   if (m.cores) parts.push(`charge ${Number(m.load || 0).toFixed(1)} sur ${m.cores} cœurs`);
@@ -35,7 +35,7 @@ export async function otherMachines(api) {
     r = await Promise.race([api.call("machines.list"),
       new Promise((_, no) => setTimeout(() => no(new Error("délai")), 15000))]);
   } catch {
-    return { machines: cached(), message: "" };
+    return { machines: knownMachines(), message: "" };
   }
   const list = (r.machines || []).filter((m) => !m.local);
   remember(list);

@@ -1266,7 +1266,7 @@ export class ChatView {
       case "CacheExpired":
         this.cacheExpired = ev;
         this.notice(ev.text, "warning", [{ label: "Compacter", run: () => this.sendText("/compact") },
-          { label: "Nouvelle session", run: () => document.dispatchEvent(new CustomEvent("ccs:new-chat", { detail: { cwd: this.cwd } })) }]);
+          { label: "Nouvelle session", run: () => document.dispatchEvent(new CustomEvent("ccs:new-chat", { detail: { cwd: this.cwd, machine: this.api.machine || "" } })) }]);
         break;
       case "OptionRefused": this.notice(`Réglage refusé (${ev.what}) : ${ev.error}`, "warning"); break;
       case "UnhandledRequest": this.notice(`Demande non prise en charge : ${ev.subtype}`, "warning"); break;

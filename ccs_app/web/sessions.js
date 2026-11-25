@@ -1,14 +1,21 @@
 // Sessions : « En cours » (chats et terminaux ouverts, avec leur état), projets et conversations
 // à gauche, onglets de chat ou écran Projet à droite. Au téléphone, une colonne : la liste, puis
-// le chat (ou le projet) en plein écran avec un bouton de retour.
+// le chat (ou le projet) en plein écran avec un bouton de retour. Quand d'autres machines sont
+// connues, la liste devient un arbre (machines à la racine, dépliées : leurs projets et
+// conversations) et les onglets de plusieurs machines restent ouverts côte à côte, chacun sur sa
+// propre connexion, sans changer la machine pilotée.
+import { Api } from "./api.js";
 import { ChatView } from "./chat.js";
 import { clear, confirmSheet, contextMenu, el, emptyState, errorState, loading, promptSheet, resizable, toast } from "./dom.js";
 import { addProject, openTrash, removeProject, trashConversation } from "./sessions-manage.js";
 import { baseName as base, ProjectScreen } from "./project.js";
 import { convRow, copy, renameConversation } from "./sessions-conv.js";
 import { rememberProject } from "./calcul.js";
+import { describe, knownMachines, machineName, otherMachines } from "./machines.js";
+import { RootWatch } from "./root.js";
 import { newSession } from "./sessions-new.js";
 import { getMode, MODES, move, setMode, sortEntries } from "./sessions-order.js";
+import { isOpen, loadTree, parseProject, projectSub, roots, saveTree, splitKey, tabKey } from "./sessions-tree.js";
 import { TerminalView } from "./terminal.js";
 
 const STATES = {
@@ -17,19 +24,23 @@ const STATES = {
 };
 const PROJECTS_STEP = 40;
 const CONVS_STEP = 60;
-const PROJECT_PREFIX = "projet/";
+const PROJECT_PREFIX = "projet/";   // « projet~<machine>/<chemin> » sur une autre machine (sessions-tree.js)
+const REMOTE_MS = 20_000;           // une autre machine qui ne répond pas : erreur plutôt qu'attente sans fin
 const ACTIVE = new Set(["busy", "permission"]);   // états qui comptent comme activité (tri « Activité récente »)
 
 export function mountSessions(root, api, ctx = {}) {
-  const tabs = new Map();         // chat_id (ou term-<n>) → { tab, view, holder, term, cwd, title, state, sessionId }
+  // clé (voir tabKey) → { tab, view, holder, term, cwd, title, state, sessionId, m, rid, conn }
+  const tabs = new Map();
   let current = null;
-  let project = null;             // { cwd, screen } : écran Projet ouvert (gardé pour le retrouver tel quel)
-  let data = null;                // dernière réponse de projects.list
-  let shownProjects = PROJECTS_STEP;
-  let shownConvs = CONVS_STEP;
+  let project = null;             // { m, cwd, screen } : écran Projet ouvert (gardé pour le retrouver tel quel)
+  const P = api.machine || "";    // machine pilotée (fixe pendant la vie de la page : la changer la remonte)
+  const tree = loadTree();
+  const conns = new Map();        // machine → { id, api, own, data, shownProjects, shownConvs, status, body, offs, root }
+  let machines = roots(P, knownMachines(), machineName(api));
   const search = el("input", { type: "search", placeholder: "Rechercher une conversation", "aria-label": "Rechercher" });
   const running = el("div", { class: "running", hidden: true });
   const list = el("div", { class: "session-list" });
+  const tree_ = () => machines.length > 1;   // arbre seulement s'il y a d'autres machines
   const tabBar = el("div", { class: "tabs", role: "tablist" });
   const stage = el("div", { class: "stage" });
   // « ← Sessions » : comme le bouton Retour du téléphone quand on vient de la liste
@@ -71,38 +82,40 @@ export function mountSessions(root, api, ctx = {}) {
     }
     layout.classList.toggle("chat-open", Boolean(chatId));
     // téléphone : un chat (pas un terminal) n'a qu'une barre, la sienne, avec son bouton retour
-    layout.classList.toggle("chat-tab", Boolean(chatId && !chatId.startsWith("term-")));
+    layout.classList.toggle("chat-tab", Boolean(chatId && tabs.has(chatId) && !tabs.get(chatId).term));
     if (chatId) sessionStorage.setItem("ccs-chat", chatId); else sessionStorage.removeItem("ccs-chat");
     renderRunning();
     if (!tabs.size) clear(stage).append(emptyState("Aucun chat ouvert. Choisis un projet ou une conversation.",
       el("button", { class: "primary", onclick: () => askNewSession() }, "Nouvelle session")));
   }
 
-  function showProject(cwd, { push = false } = {}) {
+  function showProject(m, cwd, { push = false } = {}) {
+    const c = ensureConn(m);
     document.body.classList.remove("chat-mode");
     current = null;
     for (const t of tabs.values()) t.holder.hidden = true;
     layout.classList.remove("chat-open", "chat-tab");
     sessionStorage.removeItem("ccs-chat");
-    const want = `#/sessions/${PROJECT_PREFIX}${encodeURIComponent(cwd)}`;
+    const want = `#/sessions/${encodeURIComponent(projectSub(P, m, cwd))}`;
     if (location.hash !== want) history[push ? "pushState" : "replaceState"]({ fromList: push }, "", want);
-    rememberProject(api, cwd);          // dossier proposé pour lancer une commande (onglet Réseau)
-    if (!project || project.cwd !== cwd) {
+    rememberProject(c.api, cwd);        // dossier proposé pour lancer une commande (onglet Réseau)
+    if (!project || project.cwd !== cwd || project.m !== m) {
       project?.screen.destroy();
       clear(projectHost);
-      project = { cwd, screen: new ProjectScreen(projectHost, api, cwd, {
+      project = { m, cwd, screen: new ProjectScreen(projectHost, c.api, cwd, {
         onBack: () => (history.state?.fromList ? history.back() : show(null)),
-        resume: (c) => open(c.cwd, c),
-        newChat: (dir, text) => askNewSession(dir, text),
-        openTerm: (dir) => openTerm(dir),
-        opened: openedIds,
+        resume: (conv) => open(c, conv.cwd, conv),
+        newChat: (dir, text) => askNewSession(m, dir, text),
+        openTerm: (dir) => openTerm(c, dir),
+        opened: () => openedIds(c),
       }) };
     }
     projectHost.hidden = false;
     layout.classList.add("project-open");
   }
 
-  const openedIds = () => new Set([...tabs.values()].map((t) => t.sessionId).filter(Boolean));
+  const openedIds = (c) => new Set([...tabs.values()].filter((t) => t.conn === c).map((t) => t.sessionId).filter(Boolean));
+  const machineLabel = (m) => machines.find((x) => x.id === m)?.name || m || "Ce serveur";
 
   // ---- onglets ---------------------------------------------------------------------------------
 
@@ -116,12 +129,13 @@ export function mountSessions(root, api, ctx = {}) {
     if (!ok || !tabs.has(id)) return;
     if (t.term) t.view.destroy(true);
     else {
-      try { await api.call("chat.close", { chat_id: id }); } catch { /* déjà fermé */ }
+      try { await t.conn.api.call("chat.close", { chat_id: t.rid }); } catch { /* déjà fermé */ }
       t.view.destroy();
     }
     t.holder.remove();
     t.tab.remove();
     tabs.delete(id);
+    detach(t.m);
     renderRunning();
     if (current === id || !current) show(current === id ? (tabs.size ? [...tabs.keys()].pop() : null) : current);
   }
@@ -156,10 +170,10 @@ export function mountSessions(root, api, ctx = {}) {
       if (v && v.trim()) setTitle(id, v.trim());
       return;
     }
-    if (!t.sessionId || !t.path) { await sync(); t = tabs.get(id); }
+    if (!t.sessionId || !t.path) { await sync(t.conn); t = tabs.get(id); }
     if (!t) return;
     if (!t.sessionId || !t.path) { toast("Cette conversation n'a pas encore commencé : envoie d'abord un message.", { kind: "error" }); return; }
-    await renameConversation(api, { session_id: t.sessionId, path: t.path, title: t.title });
+    await renameConversation(t.conn.api, { session_id: t.sessionId, path: t.path, title: t.title });
   }
 
   // Clic droit sur un onglet ou une ligne de « En cours ».
@@ -175,9 +189,9 @@ export function mountSessions(root, api, ctx = {}) {
       { label: "Monter", disabled: at <= 0, run: () => { move(order, id, { delta: -1 }); renderRunning(); } },
       { label: "Descendre", disabled: at < 0 || at >= order.length - 1, run: () => { move(order, id, { delta: 1 }); renderRunning(); } },
       null,
-      { label: "Nouveau chat dans ce projet", disabled: !ok, run: () => askNewSession(t.cwd) },
-      { label: "Terminal dans ce projet", disabled: !ok, run: () => openTerm(t.cwd) },
-      { label: "Ouvrir le projet", disabled: !ok, run: () => showProject(t.cwd, { push: true }) },
+      { label: "Nouveau chat dans ce projet", disabled: !ok, run: () => askNewSession(t.m, t.cwd) },
+      { label: "Terminal dans ce projet", disabled: !ok, run: () => openTerm(t.conn, t.cwd) },
+      { label: "Ouvrir le projet", disabled: !ok, run: () => showProject(t.m, t.cwd, { push: true }) },
       { label: "Copier le chemin", disabled: !ok, run: () => copy(t.cwd) },
       null,
       { label: t.term ? "Fermer le terminal" : "Fermer le chat", danger: true, run: () => closeTab(id) },
@@ -187,58 +201,65 @@ export function mountSessions(root, api, ctx = {}) {
 
   // meta : { state, session_id, options, silent } ; silent : ne change ni l'onglet courant ni l'historique
   // (restauration au chargement et à la reconnexion : Retour ne doit pas se presser deux fois).
-  function addTab(chatId, cwd, title, history, termOptions, meta = {}) {
+  function addTab(c, rid, cwd, title, history, termOptions, meta = {}) {
+    const chatId = tabKey(P, c.id, rid);
     if (tabs.has(chatId)) { if (!meta.silent) show(chatId); return tabs.get(chatId); }
     if (!tabs.size) clear(stage);
     const holder = el("div", { class: "holder" });
     stage.append(holder);
     const isTerm = Boolean(termOptions);
-    const view = isTerm ? new TerminalView(holder, api, termOptions) : new ChatView(holder, api, { chatId, cwd, title, history, sessionId: meta.session_id || null, options: meta.options || null,
+    const view = isTerm ? new TerminalView(holder, c.api, termOptions) : new ChatView(holder, c.api, { chatId: rid, cwd, title, history, sessionId: meta.session_id || null, options: meta.options || null,
       host: { back: () => back.click(), resume: (v) => resumeStopped(chatId, v), stopped: () => { const t = tabs.get(chatId); if (t) { t.state = "stopped"; renderRunning(); } } } });
     const closeBtn = el("button", { class: "flat tab-close", "aria-label": `Fermer ${title || base(cwd)}`, onclick: (e) => { e.stopPropagation(); closeTab(chatId); } }, "×");
     const label = el("span", {}, (isTerm ? "▸ " : "") + (title || base(cwd)));
+    // badge de la machine quand ce n'est pas la machine pilotée
+    const badge = c.id !== P ? el("span", { class: "tab-machine", title: machineLabel(c.id) }, machineLabel(c.id)) : null;
     const tab = el("div", { class: `tab${isTerm ? " term-tab" : ""}`, role: "tab", tabindex: "0", onclick: () => { show(chatId); if (isTerm) view.resize(); },
-      oncontextmenu: (e) => tabMenu(e, chatId), ...dragProps(chatId, "x") }, label, closeBtn);
+      oncontextmenu: (e) => tabMenu(e, chatId), ...dragProps(chatId, "x") }, badge, label, closeBtn);
     tabBar.append(tab);
     const rec = { tab, label, closeBtn, view, holder, term: isTerm, cwd, title: title || base(cwd), state: isTerm ? "term" : (meta.state || "starting"), activeAt: Date.now(),
-      sessionId: meta.session_id || null, path: typeof history === "string" ? history : null };
+      sessionId: meta.session_id || null, path: typeof history === "string" ? history : null, m: c.id, rid, conn: c };
     tabs.set(chatId, rec);
+    attach(c.id);
     renderRunning();
     if (!meta.silent) show(chatId, { push: true });
     return rec;
   }
 
   // chat.open ; options : { model, rights } ; text : premier message à envoyer. Lève en cas d'échec.
-  async function openChat(cwd, conv, options, text) {
-    const r = await api.call("chat.open", { cwd, session_id: conv?.session_id || null, ...(options ? { options } : {}) });
+  async function openChat(c, cwd, conv, options, text) {
+    const r = await c.api.call("chat.open", { cwd, session_id: conv?.session_id || null, ...(options ? { options } : {}) });
     const real = r.cwd || cwd;                  // chemin réel (~ développé par le pont)
-    const rec = addTab(r.chat_id, real, conv?.title || base(real), conv?.path || r.path, null,
+    const rec = addTab(c, r.chat_id, real, conv?.title || base(real), conv?.path || r.path, null,
       { session_id: conv?.session_id || r.session_id, options: r.options, state: r.seq ? "idle" : "starting" });
     if (text && rec?.view?.sendText) rec.view.sendText(text);
     return true;
   }
 
-  async function open(cwd, conv, options, text) {
-    try { return await openChat(cwd, conv, options, text); } catch (e) {
-      toast(e.message, { kind: "error", action: { label: "Réessayer", run: () => open(cwd, conv, options, text) } });
+  async function open(c, cwd, conv, options, text) {
+    try { return await openChat(c, cwd, conv, options, text); } catch (e) {
+      toast(e.message, { kind: "error", action: { label: "Réessayer", run: () => open(c, cwd, conv, options, text) } });
       return false;
     }
   }
 
   let termSeq = 0;
-  function openTerm(cwd, extra = {}) {
+  function openTerm(c, cwd, extra = {}) {
     const key = `term-${++termSeq}`;
-    addTab(key, cwd, extra.title || base(cwd), null, { cwd, ...extra });
+    addTab(c, key, cwd, extra.title || base(cwd), null, { cwd, ...extra });
   }
 
   // Tout nouveau chat passe par cette feuille (modèle, droits, compte) ; initial : dossier déjà choisi,
   // text : premier message à envoyer une fois le chat ouvert.
-  function askNewSession(initial = "", text) {
-    const known = ((data && data.entries) || []).filter((p) => p.cwd && p.exists).map((p) => ({ path: p.cwd, name: p.name }));
-    newSession(api, {
+  // m : machine où ouvrir (la machine pilotée par défaut).
+  function askNewSession(m = P, initial = "", text) {
+    const c = ensureConn(m);
+    if (!c.data) loadList(c, { quiet: true });              // dossiers connus de cette machine
+    const known = ((c.data && c.data.entries) || []).filter((p) => p.cwd && p.exists).map((p) => ({ path: p.cwd, name: p.name }));
+    newSession(c.api, {
       known, initial,
-      onOpen: (cwd, options) => openChat(cwd, null, options, text),
-      onTerm: (cwd) => openTerm(cwd),
+      onOpen: (cwd, options) => openChat(c, cwd, null, options, text),
+      onTerm: (cwd) => openTerm(c, cwd),
     });
   }
 
@@ -302,101 +323,211 @@ export function mountSessions(root, api, ctx = {}) {
         el("button", { class: "run-main", onclick: () => { show(id, { push: true }); if (t.term) t.view.resize(); } },
           el("span", { class: `dot ${tone}`, "aria-hidden": "true" }),
           el("span", { class: "grow run-text" }, el("strong", {}, (t.term ? "▸ " : "") + t.title),
-            el("span", { class: "subtle" }, `${label} · ${base(t.cwd) || ""}`))),
+            el("span", { class: "subtle" }, t.m !== P ? el("span", { class: "run-machine" }, machineLabel(t.m)) : null,
+              `${label} · ${base(t.cwd) || ""}`))),
         el("button", { class: "flat run-close", "aria-label": `Fermer ${t.title}`, onclick: () => closeTab(id) }, "×")));
     }
   }
 
+  // ---- connexions par machine ------------------------------------------------------------------
+
+  // Connexion d'une machine : celle de la page pour la machine pilotée, une connexion à part sinon
+  // (ouverte au premier besoin, fermée avec la page).
+  function ensureConn(m) {
+    if (conns.has(m)) return conns.get(m);
+    const own = m !== P;
+    const capi = own ? new Api({ machine: m }) : api;
+    const c = { id: m, api: capi, own, data: null, shownProjects: PROJECTS_STEP, shownConvs: CONVS_STEP,
+      status: own ? "connecting" : "online", body: el("div", { class: "machine-body" }), offs: [], root: null, titleTimer: null };
+    conns.set(m, c);
+    const status = (st) => { if (c.status !== st) { c.status = st; renderTree(); } };
+    c.offs.push(
+      capi.on("reconnected", () => { if (c.data) loadList(c, { quiet: true }); sync(c); }),
+      capi.on("chat.event", (d) => {
+        if (d.event?.type !== "StateChanged") return;
+        setState(tabKey(P, m, d.chat_id), d.event.state);
+        if (d.event.state === "idle") refreshTitles(c);
+      }),
+    );
+    if (own) {
+      c.offs.push(capi.on("online", () => status("online")), capi.on("offline", () => status("offline")),
+        capi.on("machine-down", () => status("down")));
+      c.root = new RootWatch(capi).start();          // mot de passe administrateur demandé par cette machine
+      capi.connect();
+    }
+    return c;
+  }
+
+  // Appel avec délai pour une autre machine (un appel mis en file n'échoue jamais tout seul).
+  function call(c, method, params) {
+    const p = c.api.call(method, params);
+    if (!c.own) return p;
+    return Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error(`${machineLabel(c.id)} ne répond pas.`)), REMOTE_MS))]);
+  }
+
+  // Machines dont des onglets sont ouverts : reconnectées au prochain chargement.
+  function attach(m) {
+    if (tree.attached.includes(m)) return;
+    tree.attached.push(m);
+    saveTree(tree);
+    renderTree();
+  }
+  function detach(m) {
+    if ([...tabs.values()].some((t) => t.m === m) || !tree.attached.includes(m)) { renderTree(); return; }
+    tree.attached = tree.attached.filter((x) => x !== m);
+    saveTree(tree);
+    renderTree();
+  }
+
+  // ---- arbre des machines ----------------------------------------------------------------------
+
+  function toggleNode(m) {
+    tree.open[m] = !isOpen(tree, m, P);
+    saveTree(tree);
+    if (tree.open[m]) {
+      const c = ensureConn(m);
+      if (!c.data) loadList(c);
+      sync(c);
+    }
+    renderTree();
+  }
+
+  function renderTree() {
+    clear(list);
+    if (!tree_()) { list.append(ensureConn(P).body); return; }
+    for (const m of machines) {
+      const c = conns.get(m.id);
+      const openN = isOpen(tree, m.id, P);
+      const count = [...tabs.values()].filter((t) => t.m === m.id).length;
+      const live = m.id === P || (m.online !== false && m.tunnel !== false && (!c || c.status === "online" || c.status === "connecting"));
+      const state = c?.own && c.status === "offline" ? "connexion coupée" : c?.own && c.status === "down" ? "injoignable"
+        : m.server ? (m.id === P ? "machine pilotée" : "le serveur") : m.id === P ? "machine pilotée" : describe(m);
+      const node = el("div", { class: `machine-node${live ? "" : " offline"}` },
+        el("div", { class: "machine-head" },
+          el("button", { class: "machine-toggle", "aria-expanded": openN ? "true" : "false", onclick: () => toggleNode(m.id) },
+            el("span", { class: "caret", "aria-hidden": "true" }, openN ? "▾" : "▸"),
+            el("span", { "aria-hidden": "true" }, m.server ? "☁ " : "🖥 "),
+            el("span", { class: "grow" }, el("strong", {}, m.name || m.id),
+              el("span", { class: "subtle machine-status" }, ` ${state}${count ? ` · ${count} ouvert${count > 1 ? "s" : ""}` : ""}`))),
+          el("button", { class: "small flat machine-add", disabled: !live, "aria-label": `Nouvelle session sur ${m.name || m.id}`,
+            title: `Nouvelle session sur ${m.name || m.id}`, onclick: () => askNewSession(m.id) }, "+")));
+      if (openN) node.append(ensureConn(m.id).body);
+      list.append(node);
+    }
+  }
+
+  async function refreshMachines() {
+    const r = await otherMachines(api);
+    const next = roots(P, r.machines, machineName(api));
+    if (JSON.stringify(next) === JSON.stringify(machines)) return;
+    machines = next;
+    renderTree();
+  }
+
   // ---- liste des projets et des conversations --------------------------------------------------
 
-  async function loadList({ quiet = false } = {}) {
-    if (!quiet || !data) clear(list).append(loading());
+  async function loadList(c = ensureConn(P), { quiet = false } = {}) {
+    if (!quiet || !c.data) clear(c.body).append(loading());
     let r;
-    try { r = await api.call("projects.list", { query: search.value }); } catch (e) {
-      clear(list).append(errorState(e.message, () => loadList()));
+    try { r = await call(c, "projects.list", { query: search.value }); } catch (e) {
+      clear(c.body).append(errorState(e.message, () => loadList(c)));
       return;
     }
-    data = r;
-    renderList();
+    c.data = r;
+    renderList(c);
   }
 
-  function renderList() {
-    clear(list);
+  function renderList(c) {
+    const body = c.body;
+    clear(body);
     const query = search.value.trim();
-    const projects = (data.entries || []).filter((p) => p.cwd);
-    const convs = data.conversations || [];
+    const capi = c.api;
+    const m = c.id;
+    const projects = (c.data.entries || []).filter((p) => p.cwd);
+    const convs = c.data.conversations || [];
+    const reload = () => loadList(c, { quiet: true });
     if (!projects.length && !convs.length) {
-      list.append(query ? emptyState(`Rien trouvé pour « ${query} ».`, el("button", { onclick: () => { search.value = ""; loadList(); } }, "Effacer la recherche"))
-        : emptyState("Aucun projet ni conversation pour l'instant.", el("button", { class: "primary", onclick: () => askNewSession() }, "Nouvelle session")));
+      body.append(query ? emptyState(`Rien trouvé pour « ${query} ».`, el("button", { onclick: () => { search.value = ""; reloadAll(); } }, "Effacer la recherche"))
+        : emptyState("Aucun projet ni conversation pour l'instant.", el("button", { class: "primary", onclick: () => askNewSession(m) }, "Nouvelle session")));
       return;
     }
-    list.append(el("div", { class: "list-head" }, el("h3", {}, "Projets"),
+    body.append(el("div", { class: "list-head" }, el("h3", {}, "Projets"),
       el("button", { class: "small flat", "aria-label": "Ajouter un projet", title: "Ajouter un projet",
-        onclick: () => addProject(api, { folders: projects.map((p) => p.cwd), onDone: () => loadList({ quiet: true }) }) }, "+ Ajouter")));
-    if (!projects.length) list.append(el("p", { class: "subtle" }, "Aucun projet ne correspond."));
-    for (const p of projects.slice(0, shownProjects)) {
-      list.append(el("div", { class: "item project-item", oncontextmenu: (e) => contextMenu(e, [
-        { label: "Ouvrir le projet", run: () => showProject(p.cwd, { push: true }) },
-        { label: "Nouveau chat", disabled: !p.exists, run: () => askNewSession(p.cwd) },
-        { label: "Terminal", disabled: !p.exists, run: () => openTerm(p.cwd) },
+        onclick: () => addProject(capi, { folders: projects.map((p) => p.cwd), onDone: reload }) }, "+ Ajouter")));
+    if (!projects.length) body.append(el("p", { class: "subtle" }, "Aucun projet ne correspond."));
+    for (const p of projects.slice(0, c.shownProjects)) {
+      body.append(el("div", { class: "item project-item", oncontextmenu: (e) => contextMenu(e, [
+        { label: "Ouvrir le projet", run: () => showProject(m, p.cwd, { push: true }) },
+        { label: "Nouveau chat", disabled: !p.exists, run: () => askNewSession(m, p.cwd) },
+        { label: "Terminal", disabled: !p.exists, run: () => openTerm(c, p.cwd) },
         { label: "Copier le chemin", run: () => copy(p.cwd) },
         null,
-        { label: "Retirer de la liste…", danger: true, run: () => removeProject(api, p, { onDone: () => loadList({ quiet: true }) }) },
+        { label: "Retirer de la liste…", danger: true, run: () => removeProject(capi, p, { onDone: reload }) },
       ]) },
-        el("button", { class: "project-open-btn grow", "aria-label": `Ouvrir le projet ${p.name}`, onclick: () => showProject(p.cwd, { push: true }) },
+        el("button", { class: "project-open-btn grow", "aria-label": `Ouvrir le projet ${p.name}`, onclick: () => showProject(m, p.cwd, { push: true }) },
           el("strong", {}, p.name), el("span", { class: "subtle" }, `${p.total} conversation(s)${p.open ? ` · ${p.open} ouverte(s)` : ""}`)),
-        p.exists ? el("button", { class: "small", onclick: () => askNewSession(p.cwd) }, "Nouveau chat") : null,
-        p.exists ? el("button", { class: "small flat", title: "Terminal dans ce projet", "aria-label": `Terminal dans ${p.name}`, onclick: () => openTerm(p.cwd) }, "▸_") : null,
+        p.exists ? el("button", { class: "small", onclick: () => askNewSession(m, p.cwd) }, "Nouveau chat") : null,
+        p.exists ? el("button", { class: "small flat", title: "Terminal dans ce projet", "aria-label": `Terminal dans ${p.name}`, onclick: () => openTerm(c, p.cwd) }, "▸_") : null,
         el("button", { class: "small flat", title: "Retirer de la liste", "aria-label": `Retirer ${p.name} de la liste`,
-          onclick: () => removeProject(api, p, { onDone: () => loadList({ quiet: true }) }) }, "✕")));
+          onclick: () => removeProject(capi, p, { onDone: reload }) }, "✕")));
     }
-    if (projects.length > shownProjects) list.append(el("button", { class: "flat more", onclick: () => { shownProjects += PROJECTS_STEP; renderList(); } },
-      `Voir plus de projets (${projects.length - shownProjects})`));
-    list.append(el("h3", {}, "Conversations récentes"));
-    if (!convs.length) list.append(el("p", { class: "subtle" }, query ? "Aucune conversation ne correspond." : "Aucune conversation."));
-    const cctx = { api, opened: openedIds(), resume: (c) => open(c.cwd, c), trash: trashOf };
-    for (const c of convs.slice(0, shownConvs)) list.append(convRow(c, cctx));
-    if (convs.length > shownConvs) list.append(el("button", { class: "flat more", onclick: () => { shownConvs += CONVS_STEP; renderList(); } },
-      `Voir plus de conversations (${convs.length - shownConvs})`));
-    list.append(el("button", { class: "flat more trash-open", onclick: () => openTrash(api, { onDone: () => loadList({ quiet: true }) }) }, "🗑 Corbeille"));
+    if (projects.length > c.shownProjects) body.append(el("button", { class: "flat more", onclick: () => { c.shownProjects += PROJECTS_STEP; renderList(c); } },
+      `Voir plus de projets (${projects.length - c.shownProjects})`));
+    body.append(el("h3", {}, "Conversations récentes"));
+    if (!convs.length) body.append(el("p", { class: "subtle" }, query ? "Aucune conversation ne correspond." : "Aucune conversation."));
+    const cctx = { api: capi, opened: openedIds(c), resume: (conv) => open(c, conv.cwd, conv), trash: (conv) => trashOf(c, conv) };
+    for (const conv of convs.slice(0, c.shownConvs)) body.append(convRow(conv, cctx));
+    if (convs.length > c.shownConvs) body.append(el("button", { class: "flat more", onclick: () => { c.shownConvs += CONVS_STEP; renderList(c); } },
+      `Voir plus de conversations (${convs.length - c.shownConvs})`));
+    body.append(el("button", { class: "flat more trash-open", onclick: () => openTrash(capi, { onDone: reload }) }, "🗑 Corbeille"));
   }
 
-  function trashOf(c) {
-    trashConversation(api, c, { onDone: () => loadList({ quiet: true }) });
+  function trashOf(c, conv) {
+    trashConversation(c.api, conv, { onDone: () => loadList(c, { quiet: true }) });
   }
 
-  // Recale les onglets sur ce qui tourne vraiment dans le pont : ajoute ce qui manque, marque « arrêté »
-  // ce qui n'y est plus (le pont a pu redémarrer après une mise à jour), remplace un onglet dont le
-  // dossier ne correspond plus. Une liste qui n'arrive pas ne retire rien.
-  async function sync() {
+  // listes affichées (machine pilotée, nœuds dépliés) relues, par exemple après une recherche
+  function reloadAll() {
+    for (const c of conns.values()) {
+      c.shownProjects = PROJECTS_STEP; c.shownConvs = CONVS_STEP;
+      if (c.id === P && !tree_() || isOpen(tree, c.id, P)) loadList(c, { quiet: true });
+    }
+  }
+
+  // Recale les onglets d'une machine sur ce qui tourne vraiment dans son pont : ajoute ce qui manque,
+  // marque « arrêté » ce qui n'y est plus (le pont a pu redémarrer après une mise à jour), remplace un
+  // onglet dont le dossier ne correspond plus. Une liste qui n'arrive pas ne retire rien.
+  async function sync(c = ensureConn(P)) {
     let r = null;
-    try { r = await api.call("chat.list"); } catch { /* on garde les onglets tels quels */ }
+    try { r = await call(c, "chat.list"); } catch { /* on garde les onglets tels quels */ }
     if (r) {
-      const alive = new Map((r.chats || []).map((c) => [c.chat_id, c]));
+      const alive = new Map((r.chats || []).map((x) => [x.chat_id, x]));
       for (const [id, t] of [...tabs]) {
-        if (t.term) continue;
-        const c = alive.get(id);
-        if (c && c.cwd === t.cwd) continue;
-        if (c) dropTab(id);                                  // même identifiant, autre dossier : ce n'est plus ce chat
+        if (t.term || t.conn !== c) continue;
+        const x = alive.get(t.rid);
+        if (x && x.cwd === t.cwd) continue;
+        if (x) dropTab(id);                                  // même identifiant, autre dossier : ce n'est plus ce chat
         else { t.state = "stopped"; t.view.gone?.(); }
       }
-      for (const c of r.chats || []) {
-        const t = tabs.get(c.chat_id);
-        if (t) { if (ACTIVE.has(c.state) && c.state !== t.state) t.activeAt = Date.now(); t.state = c.state || t.state; t.sessionId = c.session_id || t.sessionId; t.path = c.path || t.path; setTitle(c.chat_id, c.title); continue; }
-        addTab(c.chat_id, c.cwd, c.title || base(c.cwd), c.path || null, null, { state: c.state, session_id: c.session_id, options: c.options, silent: true });
+      for (const x of r.chats || []) {
+        const key = tabKey(P, c.id, x.chat_id);
+        const t = tabs.get(key);
+        if (t) { if (ACTIVE.has(x.state) && x.state !== t.state) t.activeAt = Date.now(); t.state = x.state || t.state; t.sessionId = x.session_id || t.sessionId; t.path = x.path || t.path; setTitle(key, x.title); continue; }
+        addTab(c, x.chat_id, x.cwd, x.title || base(x.cwd), x.path || null, null, { state: x.state, session_id: x.session_id, options: x.options, silent: true });
       }
     }
     try {
-      const terms = (await api.call("term.list")).terms || [];
+      const terms = (await call(c, "term.list")).terms || [];
       const live = new Set(terms.map((t) => t.term_id));
-      const known = new Set([...tabs.values()].filter((t) => t.term).map((t) => t.view.termId).filter(Boolean));
+      const mine = [...tabs.values()].filter((t) => t.term && t.conn === c);
+      const known = new Set(mine.map((t) => t.view.termId).filter(Boolean));
       for (const t of terms) {
-        if (!known.has(t.term_id)) addTab(`term-${t.term_id}`, t.cwd || "", t.name || "Terminal", null, { termId: t.term_id }, { silent: true });
+        if (!known.has(t.term_id)) addTab(c, `term-${t.term_id}`, t.cwd || "", t.name || "Terminal", null, { termId: t.term_id }, { silent: true });
       }
-      for (const t of tabs.values()) if (t.term && t.view.termId && !live.has(t.view.termId)) t.view.gone?.();
+      for (const t of mine) if (t.view.termId && !live.has(t.view.termId)) t.view.gone?.();
     } catch { /* pas de terminal */ }
     renderRunning();
-    if (data) renderList();                                 // les conversations ouvertes reçoivent leur marque
+    if (c.data) renderList(c);                              // les conversations ouvertes reçoivent leur marque
   }
 
   // Retire un onglet sans rien demander au pont (il n'existe plus ou n'est plus le même).
@@ -407,6 +538,7 @@ export function mountSessions(root, api, ctx = {}) {
     t.holder.remove();
     t.tab.remove();
     tabs.delete(id);
+    detach(t.m);
     if (current === id) show(null);
   }
 
@@ -415,35 +547,55 @@ export function mountSessions(root, api, ctx = {}) {
   async function resumeStopped(oldId, view) {
     const t = tabs.get(oldId);
     if (!t || !view.sessionId) return;
+    const c = t.conn;
     const conv = { session_id: view.sessionId, title: t.title, path: view.history?.path || null };
     let r;
-    try { r = await api.call("chat.open", { cwd: t.cwd, session_id: view.sessionId }); } catch (e) {
+    try { r = await call(c, "chat.open", { cwd: t.cwd, session_id: view.sessionId }); } catch (e) {
       toast(e.message, { kind: "error", action: { label: "Réessayer", run: () => resumeStopped(oldId, view) } });
       return;
     }
-    addTab(r.chat_id, r.cwd || t.cwd, conv.title, conv.path || r.path, null,
+    const rec = addTab(c, r.chat_id, r.cwd || t.cwd, conv.title, conv.path || r.path, null,
       { session_id: conv.session_id, options: r.options, state: r.seq ? "idle" : "starting" });
-    if (r.chat_id !== oldId) dropTab(oldId);              // le nouvel onglet est déjà devant : l'ancien disparaît
+    if (tabs.get(oldId) !== rec) dropTab(oldId);           // le nouvel onglet est déjà devant : l'ancien disparaît
     renderRunning();
+  }
+
+  // Ouvre l'adresse demandée : écran Projet (« projet/… », « projet~<machine>/… ») ou onglet.
+  async function goTo(id) {
+    const proj = parseProject(P, id);
+    if (proj) { showProject(proj.machine, proj.cwd); return true; }
+    if (id && !tabs.has(id)) {                             // chat ouvert ailleurs ou d'une autre machine : on le rattrape
+      const { machine } = splitKey(P, id);
+      await sync(ensureConn(machine));
+    }
+    return false;
   }
 
   async function restore() {
     await sync();
+    // machines dont des onglets étaient ouverts, ou dépliées : rattachées sans les attendre
     const asked = ctx.sub ? decodeURIComponent(ctx.sub) : null;
-    if (asked && asked.startsWith(PROJECT_PREFIX)) { showProject(asked.slice(PROJECT_PREFIX.length)); return; }
+    const want = asked ? (parseProject(P, asked)?.machine ?? splitKey(P, asked).machine) : P;
+    for (const m of new Set([...tree.attached, ...Object.keys(tree.open).filter((k) => tree.open[k])])) {
+      if (m === P || m === want) continue;
+      const c = ensureConn(m);
+      sync(c);
+      if (tree_() && isOpen(tree, m, P)) loadList(c);
+    }
+    if (await goTo(asked)) return;
     const keep = tabs.has(asked) ? asked : sessionStorage.getItem("ccs-chat");
     show(tabs.has(keep) ? keep : (matchMedia("(max-width: 719px)").matches ? null : [...tabs.keys()][0] || null));
   }
 
   let timer;
-  search.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { shownProjects = PROJECTS_STEP; shownConvs = CONVS_STEP; loadList({ quiet: true }); }, 300); });
-  const onNewChat = (e) => { if (e.detail?.cwd) askNewSession(e.detail.cwd, e.detail.text); };
+  search.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(reloadAll, 300); });
+  const onNewChat = (e) => { if (e.detail?.cwd) askNewSession(e.detail.machine ?? P, e.detail.cwd, e.detail.text); };
   document.addEventListener("ccs:new-chat", onNewChat);
   // conversation renommée (onglet, liste, écran Projet) : ses onglets et la liste suivent
   const onRenamed = (e) => {
     const { session_id: sid, title } = e.detail || {};
     for (const [id, t] of tabs) if (!t.term && sid && t.sessionId === sid) setTitle(id, title);
-    if (data) loadList({ quiet: true });
+    for (const c of conns.values()) if (c.data) loadList(c, { quiet: true });
   };
   document.addEventListener("ccs:conv-renamed", onRenamed);
   // Ctrl+Page préc. / Ctrl+Page suiv. : onglet précédent / suivant, dans l'ordre de la barre, en boucle.
@@ -465,48 +617,49 @@ export function mountSessions(root, api, ctx = {}) {
   };
   window.addEventListener("keydown", onTabKey, true);
   // titre automatique de Claude Code (après la première réponse) : relu quand un chat redevient prêt
-  let titleTimer;
-  const refreshTitles = () => { clearTimeout(titleTimer); titleTimer = setTimeout(async () => {
+  const refreshTitles = (c) => { clearTimeout(c.titleTimer); c.titleTimer = setTimeout(async () => {
     let r;
-    try { r = await api.call("chat.list"); } catch { return; }
-    for (const c of r.chats || []) {
-      const t = tabs.get(c.chat_id);
+    try { r = await call(c, "chat.list"); } catch { return; }
+    for (const x of r.chats || []) {
+      const key = tabKey(P, c.id, x.chat_id);
+      const t = tabs.get(key);
       if (!t || t.term) continue;
-      t.sessionId = c.session_id || t.sessionId;
-      t.path = c.path || t.path;
-      setTitle(c.chat_id, c.title);
+      t.sessionId = x.session_id || t.sessionId;
+      t.path = x.path || t.path;
+      setTitle(key, x.title);
     }
   }, 1500); };
-  const offs = [
-    api.on("reconnected", () => { loadList({ quiet: true }); sync(); }),
-    api.on("chat.event", (d) => {
-      if (d.event?.type !== "StateChanged") return;
-      setState(d.chat_id, d.event.state);
-      if (d.event.state === "idle") refreshTitles();
-    }),
-  ];
+  ensureConn(P);
   const first = ctx.sub ? decodeURIComponent(ctx.sub) : "";
-  if (!first.startsWith(PROJECT_PREFIX)) show(null);
+  if (!parseProject(P, first)) show(null);
+  renderTree();
   loadList();
+  refreshMachines();
   restore();
   return {
     cleanup: () => {
-      for (const off of offs) off();
+      for (const c of conns.values()) {
+        for (const off of c.offs) off();
+        clearTimeout(c.titleTimer);
+        c.root?.stop();
+        if (c.own) c.api.close();
+      }
       document.removeEventListener("ccs:new-chat", onNewChat);
       document.removeEventListener("ccs:conv-renamed", onRenamed);
       window.removeEventListener("keydown", onTabKey, true);
-      clearTimeout(titleTimer);
       document.body.classList.remove("chat-mode");
       project?.screen.destroy();
       for (const t of tabs.values()) t.view.destroy();
     },
-    // bouton Retour du téléphone, lien direct : la sous-adresse est un chat ou « projet/<chemin> »
+    // bouton Retour du téléphone, lien direct : la sous-adresse est un chat, « projet/<chemin> »
+    // ou « projet~<machine>/<chemin> »
     route: (sub) => {
       const id = sub ? decodeURIComponent(sub) : null;
-      if (id && id.startsWith(PROJECT_PREFIX)) { showProject(id.slice(PROJECT_PREFIX.length)); return; }
-      if (id && !tabs.has(id)) { sync().then(() => show(tabs.has(id) ? id : null)); return; }   // chat ouvert ailleurs (« Reprendre » une tâche) : on le rattrape
+      if (id && (parseProject(P, id) || !tabs.has(id))) {
+        goTo(id).then((done) => { if (!done) show(tabs.has(id) ? id : null); });
+        return;
+      }
       show(tabs.has(id) ? id : null);
     },
   };
 }
-
