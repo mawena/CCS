@@ -267,5 +267,27 @@ class PrepareTest(unittest.IsolatedAsyncioTestCase):
         await b.stop()
 
 
+class BroadcastTest(unittest.IsolatedAsyncioTestCase):
+    """Une connexion relayée vers une autre machine ne reçoit pas les avis `root.*` de celle-ci
+    (sinon le web montrait deux fois « a lancé en root »)."""
+
+    class Conn:
+        def __init__(self, **peer):
+            self.peer = {"ok": True, **peer}
+            self.got = []
+
+        async def push(self, event, data):
+            self.got.append(event)
+
+    async def test_relayed_connection_skips_local_events(self):
+        b = bridge.Bridge("alice", KEY, start_daemon=False, install_claude=False)
+        here, relayed = self.Conn(), self.Conn(forward=object(), machine="pc")
+        b.clients.update({here, relayed})
+        for event in ("root.used", "notice", "audio"):
+            await b.broadcast(event, {})
+        self.assertEqual(here.got, ["root.used", "notice", "audio"])
+        self.assertEqual(relayed.got, ["notice", "audio"])
+
+
 if __name__ == "__main__":
     unittest.main()
