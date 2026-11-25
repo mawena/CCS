@@ -1,3 +1,10 @@
+ccs (1.19.0) noble; urgency=medium
+
+  * Comptes Claude synchronisés entre machines (ccs sync), suppression propagée.
+  * Web : supprimer un compte depuis l'accueil.
+
+ -- Charles GAMLIGO <gamligocharles3@gmail.com>  Tue, 01 Dec 2026 02:00:00 +0100
+
 ccs (1.18.1) noble; urgency=medium
 
   * Web : sections Projets et Conversations récentes repliables.
