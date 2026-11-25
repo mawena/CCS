@@ -113,14 +113,16 @@ details.details > div { display: grid; gap: 8px; padding-bottom: 6px; }
   .git-cols { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.4fr); gap: 12px; align-items: start; }
 }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.settings-wrap { display: grid; gap: 14px; max-width: 680px; width: 100%; margin: 0 auto; min-width: 0; }
+.settings-wrap { display: grid; gap: 14px; max-width: 760px; width: 100%; margin: 0; min-width: 0; }
+/* Réseau, Son et Jarvis : toute la largeur de la vue, comme les autres onglets (pas de colonne centrée). */
+.settings-wrap.net-page, .settings-wrap.jarvis-page { max-width: none; }
 .theme-choice { display: flex; gap: 6px; }
 .theme-choice button { flex: 1; }
 .theme-choice button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
 .form-error:empty { display: none; }
 
 /* ---- machines (#/machines) ---- */
-.machines-note { margin: 0; text-align: center; font-size: 0.9em; }
+.machines-note { margin: 0; font-size: 0.9em; }
 .machines-page h3 { margin: 6px 0 0; font-size: 0.95em; color: var(--subtle); }
 .machine-card { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); min-width: 0; }
 .machine-card:first-child { border-top: 0; padding-top: 0; }
@@ -194,7 +196,7 @@ h2.job-cmd { font-size: 1em; white-space: normal; overflow-wrap: anywhere; }
 .net-node svg { color: var(--fg); }
 .net-node.off { opacity: .45; }
 .net-label { fill: var(--fg); font-size: 13px; font-weight: 600; paint-order: stroke; stroke: var(--card); stroke-width: 5px; stroke-linejoin: round; }
-.net-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 6px; font-size: .82rem; color: var(--subtle); }
+.net-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; font-size: .82rem; color: var(--subtle); }
 .net-legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .net-legend-item i { width: 18px; height: 3px; border-radius: 2px; background: currentColor; }
 .net-legend-item.lan i { background: var(--lan); }

@@ -11,6 +11,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 - **Sessions de toutes les machines dans les applis mobiles** (iPhone, Android) : l'écran Sessions montre, sous celles du serveur, une section par machine en ligne avec ses sessions (nouvelle méthode serveur `machines.chats`). Toucher une session d'une autre machine pilote cette machine puis ouvre le chat ; une machine injoignable affiche son erreur.
 
+### Corrigé
+
+- **Version web : plus de colonne étroite centrée** sur les onglets Réseau, Son et Jarvis ; ils prennent toute la largeur comme les autres onglets, et Réglages s'aligne à gauche.
+
 ## [1.22.0] — 2026-12-03
 
 ### Ajouté
