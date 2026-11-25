@@ -11,6 +11,13 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 - **Suppression propagée** : un compte supprimé l'est aussi sur les autres machines (sauf là où il est actif) ; le reconnecter le fait revenir.
 - **Web : bouton « Supprimer »** sur les comptes non actifs de l'accueil, avec confirmation.
 
+## [1.18.1] — 2026-11-30
+
+### Ajouté
+
+- Web : les sections « Projets » et « Conversations récentes » se replient et se déplient
+  d'un clic sur leur titre ; l'état est gardé dans le navigateur.
+
 ## [1.18.0] — 2026-11-29
 
 ### Ajouté

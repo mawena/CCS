@@ -572,6 +572,16 @@ export function mountSessions(root, api, ctx = {}) {
     renderList(c);
   }
 
+  // sections « Projets » et « Conversations récentes » repliables ; l'état est gardé dans le navigateur
+  // et vaut pour toutes les machines
+  function folded(key) { return localStorage.getItem(`ccs-fold-${key}`) === "1"; }
+  function foldHead(key, title, isFolded) {
+    return el("button", { class: "fold-toggle", "aria-expanded": isFolded ? "false" : "true",
+      onclick: () => { localStorage.setItem(`ccs-fold-${key}`, isFolded ? "" : "1");
+        for (const x of conns.values()) if (x.data) renderList(x); } },
+      el("span", { class: "caret", "aria-hidden": "true" }, isFolded ? "▸" : "▾"), el("h3", {}, title));
+  }
+
   function renderList(c) {
     const body = c.body;
     clear(body);
@@ -586,11 +596,12 @@ export function mountSessions(root, api, ctx = {}) {
         : emptyState("Aucun projet ni conversation pour l'instant.", el("button", { class: "primary", onclick: () => askNewSession(m) }, "Nouvelle session")));
       return;
     }
-    body.append(el("div", { class: "list-head" }, el("h3", {}, "Projets"),
+    const foldP = folded("projets"), foldC = folded("conversations");
+    body.append(el("div", { class: "list-head" }, foldHead("projets", "Projets", foldP),
       el("button", { class: "small flat", "aria-label": "Ajouter un projet", title: "Ajouter un projet",
         onclick: () => addProject(capi, { folders: projects.map((p) => p.cwd), onDone: reload }) }, "+ Ajouter")));
-    if (!projects.length) body.append(el("p", { class: "subtle" }, "Aucun projet ne correspond."));
-    for (const p of projects.slice(0, c.shownProjects)) {
+    if (!foldP && !projects.length) body.append(el("p", { class: "subtle" }, "Aucun projet ne correspond."));
+    for (const p of foldP ? [] : projects.slice(0, c.shownProjects)) {
       body.append(el("div", { class: "item project-item", oncontextmenu: (e) => contextMenu(e, [
         { label: "Ouvrir le projet", run: () => showProject(m, p.cwd, { push: true }) },
         { label: "Nouveau chat", disabled: !p.exists, run: () => askNewSession(m, p.cwd) },
@@ -606,13 +617,13 @@ export function mountSessions(root, api, ctx = {}) {
         el("button", { class: "small flat icon-btn", title: "Retirer de la liste", "aria-label": `Retirer ${p.name} de la liste`,
           onclick: () => removeProject(capi, p, { onDone: reload }) }, "✕")));
     }
-    if (projects.length > c.shownProjects) body.append(el("button", { class: "flat more", onclick: () => { c.shownProjects += PROJECTS_STEP; renderList(c); } },
+    if (!foldP && projects.length > c.shownProjects) body.append(el("button", { class: "flat more", onclick: () => { c.shownProjects += PROJECTS_STEP; renderList(c); } },
       `Voir plus de projets (${projects.length - c.shownProjects})`));
-    body.append(el("h3", {}, "Conversations récentes"));
-    if (!convs.length) body.append(el("p", { class: "subtle" }, query ? "Aucune conversation ne correspond." : "Aucune conversation."));
+    body.append(el("div", { class: "list-head" }, foldHead("conversations", "Conversations récentes", foldC)));
+    if (!foldC && !convs.length) body.append(el("p", { class: "subtle" }, query ? "Aucune conversation ne correspond." : "Aucune conversation."));
     const cctx = { api: capi, opened: openedIds(c), resume: (conv) => open(c, conv.cwd, conv), trash: (conv) => trashOf(c, conv) };
-    for (const conv of convs.slice(0, c.shownConvs)) body.append(convRow(conv, cctx));
-    if (convs.length > c.shownConvs) body.append(el("button", { class: "flat more", onclick: () => { c.shownConvs += CONVS_STEP; renderList(c); } },
+    for (const conv of foldC ? [] : convs.slice(0, c.shownConvs)) body.append(convRow(conv, cctx));
+    if (!foldC && convs.length > c.shownConvs) body.append(el("button", { class: "flat more", onclick: () => { c.shownConvs += CONVS_STEP; renderList(c); } },
       `Voir plus de conversations (${convs.length - c.shownConvs})`));
     body.append(el("button", { class: "flat more trash-open", onclick: () => openTrash(capi, { onDone: reload }) }, "🗑 Corbeille"));
   }
