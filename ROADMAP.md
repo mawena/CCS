@@ -260,4 +260,4 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 2. Web : vignettes dans les bulles (envoi, historique, autre appareil), agrandies au clic
 - [x] 3. Bureau : images de l'historique ; iPhone et Android : compte des images de l'historique
 - [ ] 4. iPhone et Android : vignettes relues par `conversations.images`
-- [ ] 5. Release 1.20.0
+- [x] 5. Release 1.20.0
