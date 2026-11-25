@@ -15,7 +15,8 @@ final class ReseauTests: XCTestCase {
         XCTAssertEqual(Reseau.genre(Appareil(name: "iphone", os: "iOS")), .iphone)
         XCTAssertEqual(Reseau.genre(Appareil(name: "x", os: "android")), .android)
         XCTAssertEqual(Reseau.genre(Appareil(name: "srv-mawena-cloud", os: "linux")), .serveur)
-        XCTAssertEqual(Reseau.genre(Appareil(name: "lp-work", os: "linux")), .bureau)
+        XCTAssertEqual(Reseau.genre(Appareil(name: "lp-work", os: "linux")), .portable)
+        XCTAssertEqual(Reseau.genre(Appareil(name: "vieux", os: "linux")), .bureau)
     }
 
     func testBilanEtListe() {
