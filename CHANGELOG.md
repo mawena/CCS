@@ -5,6 +5,8 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.19.0] — 2026-12-01
+
 ### Ajouté
 
 - **Comptes Claude synchronisés entre machines** : chaque compte connecté arrive sur toutes les machines du réseau maillé (SSH), toutes les 10 minutes et juste après `ccs add` ; le jeton le plus récent l'emporte. Nouvelle commande `ccs sync [--machine M]`.

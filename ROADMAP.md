@@ -252,4 +252,4 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 3. Pierres tombales : suppression propagée, sauf compte actif ; retour si reconnecté
 - [x] 4. `ccs sync`, synchro après `ccs add` et toutes les 10 min par le démon
 - [x] 5. Web : supprimer un compte depuis l'accueil
-- [ ] 6. Release 1.19.0
+- [x] 6. Release 1.19.0
