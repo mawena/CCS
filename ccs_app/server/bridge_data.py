@@ -89,6 +89,7 @@ class DataApi:
             "conversations.trash": self.trash, "trash.list": self.trash_list,
             "trash.restore": self.restore,
             "projects.list": self.projects, "conversations.messages": self.messages,
+            "conversations.images": self.images,
             "files.list": self.files_list, "files.read": self.files_read,
             "files.write": self.files_write, "roadmap.read": self.roadmap_read,
             "roadmap.toggle": self.roadmap_toggle, "analysis.report": self.analysis,
@@ -197,6 +198,17 @@ class DataApi:
         except FileNotFoundError:
             raise rpc.RpcError("introuvable", "Conversation introuvable.") from None
         return {"messages": _plain(msgs)}
+
+    async def images(self, _conn, params):
+        """Images jointes à un message de l'utilisateur, relues dans le journal."""
+        path, uid = safe_path(params.get("path")), params.get("uuid")
+        if not isinstance(uid, str) or not uid or len(uid) > 64:
+            raise rpc.RpcError("invalide", "Message inconnu.")
+        try:
+            imgs = await asyncio.to_thread(preview.read_images, str(path), uid)
+        except FileNotFoundError:
+            raise rpc.RpcError("introuvable", "Conversation introuvable.") from None
+        return {"images": imgs}
 
     async def folders(self, _conn, _params):
         """Dépôts git du disque : dossier personnel sur 3 niveaux, /var/www et /srv sur 2."""

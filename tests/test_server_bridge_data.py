@@ -238,6 +238,23 @@ class DataBridgeTest(unittest.IsolatedAsyncioTestCase):
         r = await self.c.call("conversations.messages", path=str(journal), limit=50)
         self.assertEqual([m["text"] for m in r["messages"]], ["avant", "après"])
 
+    async def test_conversation_images(self):
+        """Les images jointes à un message se relisent du journal par son uuid."""
+        import json
+        d = self.home / ".claude" / "projects" / "-p"
+        d.mkdir(parents=True)
+        journal = d / "abc.jsonl"
+        img = {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": "QUJD"}}
+        journal.write_text(json.dumps({"type": "user", "timestamp": "2026-11-15T10:00:00Z", "uuid": "u1",
+                                       "message": {"role": "user", "content": [img, {"type": "text", "text": "vois"}]}}) + "\n")
+        r = await self.c.call("conversations.messages", path=str(journal), limit=50)
+        self.assertEqual((r["messages"][0]["text"], r["messages"][0]["images"]), ("vois", 1))
+        r = await self.c.call("conversations.images", path=str(journal), uuid="u1")
+        self.assertEqual(r["images"], [{"media_type": "image/jpeg", "data": "QUJD"}])
+        r = await self.c.call("conversations.images", path=str(journal), uuid="u9")
+        self.assertEqual(r["images"], [])            # pas encore écrit : le client réessaie
+        await self.refused("conversations.images", path="/etc/passwd", uuid="u1")
+
     async def test_conversation_rename_and_cost(self):
         d = self.home / ".claude" / "projects" / "-p"
         d.mkdir(parents=True)

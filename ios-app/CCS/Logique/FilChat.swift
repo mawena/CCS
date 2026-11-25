@@ -568,7 +568,7 @@ final class FilChat {
             n += 1
             switch m.role {
             case "user", "utilisateur":
-                avant.append(.toi(ElementFil.MsgToi(cle: "h\(n)-\(m.uuid)", texte: m.text, images: 0, msgId: m.uuid)))
+                avant.append(.toi(ElementFil.MsgToi(cle: "h\(n)-\(m.uuid)", texte: m.text, images: m.images, msgId: m.uuid)))
             case "assistant":
                 avant.append(.claude(ElementFil.MsgClaude(cle: "h\(n)-\(m.msgId)", texte: m.text, msgId: m.msgId, fini: true)))
             case "tool", "outil":

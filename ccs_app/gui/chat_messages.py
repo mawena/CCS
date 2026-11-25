@@ -1755,16 +1755,22 @@ class MessageList(Gtk.ScrolledWindow):
         self._dropped = 0
         self.older_row.set_visible(False)
 
-    def load_history(self, messages):
+    def load_history(self, messages, images=None):
         """Montre `messages` (preview.Message) : les derniers d'abord, les plus anciens au
-        défilement vers le haut."""
+        défilement vers le haut. `images` : {uuid: [(type MIME, octets)]} des images jointes."""
         self._hist, self._hist_pos = list(messages), len(messages)
+        self._hist_images = images or {}
         self._stick = True
         self._load_more(initial=True)
 
     def _history_widget(self, m):
         if m.role == preview.USER:
-            return self._user_widget(m.text, msg_id=getattr(m, "uuid", "") or "")
+            uuid = getattr(m, "uuid", "") or ""
+            pics = getattr(self, "_hist_images", {}).get(uuid, ())
+            text = m.text
+            if getattr(m, "images", 0) and not pics:
+                text = f"{text}\n\n({m.images} image(s) jointe(s))".strip()
+            return self._user_widget(text, images=pics, msg_id=uuid)
         if m.role == preview.ASSISTANT:
             if not (m.text or "").strip():
                 return None

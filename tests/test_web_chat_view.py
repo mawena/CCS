@@ -36,6 +36,7 @@ const api = {
       case "work.commands": return { commands: [], context: { enabled: true, threshold_tokens: 150000 } };
       case "work.files": return { files: [] };
       case "conversations.messages": return { messages: history };
+      case "conversations.images": return { images: (api.images || {})[params.uuid] || [] };
       default: return {};
     }
   },
@@ -293,6 +294,26 @@ out = { reply: [reply.querySelector(".quoted").dataset.author, reply.querySelect
         self.assertEqual(out["reply"], ["Claude", "A ou B ?", "A ou B ?La B"])
         self.assertEqual(out["other"], ["Toi", "La BNon, la A"])
         self.assertEqual(out["quoteFromHistory"], {"author": "claude", "text": "A ou B ?"})
+
+    def test_images_of_history_and_other_devices_are_shown(self):
+        out = run("""
+api.images = { u1: [{ media_type: "image/png", data: "AAAA" }], u2: [{ media_type: "image/jpeg", data: "QkJC" }] };
+history = [{ role: "user", text: "vois", images: 1, uuid: "u1" }, { role: "user", text: "perdue", images: 2, uuid: "u3" }];
+const view = open({ history: "/j.jsonl" });
+await settle();
+await live(view, { type: "UserSent", text: "et ça", images: 1, nonce: "autre-appareil", uuid: "u2" });
+await settle();
+const [old, lost, other] = msgs(view);
+const img = old.querySelector("img.bubble-image");
+img.click();
+out = { old: img.getAttribute("src"), big: img.classList.contains("big"),
+        lost: lost.querySelector(".bubble-images").textContent,
+        other: other.querySelector("img.bubble-image")?.getAttribute("src") || null };
+""")
+        self.assertEqual(out["old"], "data:image/png;base64,AAAA")
+        self.assertTrue(out["big"])
+        self.assertEqual(out["lost"], "2 image(s) jointe(s)")
+        self.assertEqual(out["other"], "data:image/jpeg;base64,QkJC")
 
     def test_touch_shows_the_actions_and_a_click_unfolds_the_quote(self):
         out = run(self.START + """

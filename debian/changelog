@@ -1,3 +1,10 @@
+ccs (1.20.0) noble; urgency=medium
+
+  * Images jointes affichées dans le chat (web, bureau), méthode conversations.images.
+  * Oreille Jarvis : message juste quand le cerveau est occupé.
+
+ -- Charles GAMLIGO <gamligocharles3@gmail.com>  Wed, 02 Dec 2026 02:00:00 +0100
+
 ccs (1.19.0) noble; urgency=medium
 
   * Comptes Claude synchronisés entre machines (ccs sync), suppression propagée.

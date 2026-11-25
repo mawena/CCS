@@ -127,6 +127,8 @@ data class MessageHistorique(
     val tool: OutilHistorique? = null,
     @SerialName("msg_id") val msgId: String = "",
     val uuid: String = "",
+    /** Images jointes (relues par `conversations.images`). */
+    val images: Int = 0,
 )
 
 @Serializable

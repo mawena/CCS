@@ -10,6 +10,7 @@ Signaux : `open-file(path, line)` et `show-diff(path, ancien, nouveau)`, pour l'
 session (panneau Fichiers).
 """
 
+import base64
 import dataclasses
 import os
 import re
@@ -211,13 +212,24 @@ class ChatTab(Gtk.Box):
 
         def read():
             try:
-                return reader(path)
+                messages = reader(path)
             except (OSError, ValueError):
-                return []
+                return [], {}
+            pics = {}                                # images jointes, relues du journal local
+            if self._history_reader is None:
+                for m in messages:
+                    if getattr(m, "images", 0) and m.uuid:
+                        try:
+                            pics[m.uuid] = [(i["media_type"], base64.b64decode(i["data"]))
+                                            for i in preview.read_images(path, m.uuid)]
+                        except (OSError, ValueError):
+                            pass
+            return messages, pics
 
-        def show(messages):
+        def show(result):
+            messages, pics = result
             if messages and not self._closed:
-                self.messages.load_history(messages)
+                self.messages.load_history(messages, pics)
             if then is not None and not self._closed:
                 then()
         in_thread(read, show)

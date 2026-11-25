@@ -273,6 +273,10 @@ a.button.portier[hidden] { display: none; }
 .thumbs { display: flex; gap: 6px; }
 .thumbs:empty { display: none; }
 .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; cursor: pointer; }
+.bubble-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.bubble-image { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; cursor: zoom-in; }
+.bubble-image.big { width: auto; height: auto; max-width: 100%; max-height: 70vh; object-fit: contain; cursor: zoom-out; }
+.bubble-image.pending { background: color-mix(in srgb, currentColor 10%, transparent); }
 
 @media (max-width: 719px) {
   .sessions > .side { width: auto !important; }

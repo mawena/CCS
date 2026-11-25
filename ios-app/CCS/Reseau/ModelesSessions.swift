@@ -254,8 +254,11 @@ struct MessageHistorique: Equatable {
     var tool: OutilHistorique?
     var msgId = ""
     var uuid = ""
+    var images = 0                      // images jointes (relues par `conversations.images`)
 
-    init(role: String, text: String, tool: OutilHistorique? = nil, msgId: String = "", uuid: String = "") {
+    init(role: String, text: String, tool: OutilHistorique? = nil, msgId: String = "", uuid: String = "",
+         images: Int = 0) {
+        self.images = images
         self.role = role
         self.text = text
         self.tool = tool
@@ -270,6 +273,7 @@ struct MessageHistorique: Equatable {
         if let t = j["tool"], case .objet = t { tool = OutilHistorique(json: t) }
         msgId = j.texte("msg_id")
         uuid = j.texte("uuid")
+        images = j.entier("images")
     }
 }
 
