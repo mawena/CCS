@@ -246,7 +246,7 @@ class MachinesApi:
         """Lien vers le pont CCS de la machine `mid` (ssh, puis `hello`) → (machine, Link,
         réponse de `hello`). Lève `RpcError` si la machine est inconnue, ce serveur, hors ligne
         ou injoignable. Sert au relais (`attach`) et à Jarvis (`bridge_pilot`)."""
-        machine = next((m for m in await self._machines() if m.id == mid), None)
+        machine = next((m for m in await self._machines() if distant.same_machine(m.id, mid)), None)
         if machine is None:
             raise rpc.RpcError("introuvable", f"{mid} : machine inconnue (Ricochet et réseau maillé).")
         if machine.local:

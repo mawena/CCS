@@ -22,7 +22,7 @@ STATUS = {
         {"name": "pixel", "host": "pixel", "os": "android", "ips": ["100.64.0.3"], "online": True,
          "path": "direct", "endpoint": "1.2.3.4:41641", "relay": "",
          "addrs": ["192.168.1.20:41641", "1.2.3.4:41641", "[2a02::1]:41641"], "rx": 2048, "tx": 5 * 2 ** 20},
-        {"name": "pc-bureau", "host": "pc-bureau", "os": "linux", "ips": ["100.64.0.2"], "online": False,
+        {"name": "lp-work", "host": "lp-work", "os": "linux", "ips": ["100.64.0.2"], "online": False,
          "path": "offline", "endpoint": "", "relay": "", "addrs": [], "rx": 0, "tx": 0}],
     "nodes": [{"id": 4, "name": "iphone", "host": "iphone", "ips": ["100.64.0.4"], "online": False}],
 }
@@ -67,7 +67,7 @@ class MeshGroupTest(HomeTestCase):
         self.bridge = FakeBridge(status)
         self.toasts = []
         g = MeshGroup(toast=self.toasts.append, runner=sync_runner, api=MeshApi(call=self.bridge))
-        g.here = "pc-bureau"
+        g.here = "lp-work"
         g.refresh()
         return g
 
@@ -76,7 +76,7 @@ class MeshGroupTest(HomeTestCase):
 
     def test_cards_like_the_web(self):
         g = self.make()
-        self.assertEqual([r.get_title() for r in g._rows], ["vps", "pixel", "pc-bureau", "iphone"])
+        self.assertEqual([r.get_title() for r in g._rows], ["vps", "pixel", "lp-work", "iphone"])
         desc = g.get_description()
         self.assertIn("Connecté · 2/3 en ligne · 0 en local · 1 en direct · 0 par relais", desc)
         pixel = self.row(g, "pixel")
@@ -95,7 +95,7 @@ class MeshGroupTest(HomeTestCase):
         self.assertIsNone(vps.measure)
         self.assertIsNone(vps.forget)               # pas de retrait du serveur lui-même
         self.assertIsNotNone(vps.rename)
-        off = self.row(g, "pc-bureau")
+        off = self.row(g, "lp-work")
         self.assertIn("Hors ligne", off.get_subtitle())
         self.assertIsNone(off.measure)
         self.assertTrue(off.has_css_class("dim-label"))
@@ -135,8 +135,8 @@ class MeshGroupTest(HomeTestCase):
         names = [r.get_title() for r in g._rows]
         # chaque machine rattachée à sa fiche ; Portable n'est pas dans le réseau maillé : sa
         # propre fiche, hors ligne (« Par Ricochet » quand elle est en ligne).
-        self.assertEqual(names, ["vps", "pixel", "pc-bureau", "iphone", "Portable"])
-        self.assertIn("Calcul", titles(self.row(g, "pc-bureau")))
+        self.assertEqual(names, ["vps", "pixel", "lp-work", "iphone", "Portable"])
+        self.assertIn("Calcul", titles(self.row(g, "lp-work")))
         self.assertIn("Calcul", titles(self.row(g, "vps")))
         self.assertNotIn("Calcul", titles(self.row(g, "pixel")))
         self.assertIn("Hors ligne", self.row(g, "Portable").get_subtitle())
@@ -182,7 +182,7 @@ class NetworkPageTest(HomeTestCase):
         self.assertEqual(self.groups(p), ["Appareils", "Travaux", "Lancer une commande",
                                           "Ajouter un appareil", "Secours Ricochet"])
         p.mesh.refresh()
-        self.assertIn("pc-bureau", [r.get_title() for r in p.mesh._rows])
+        self.assertIn("lp-work", [r.get_title() for r in p.mesh._rows])
 
     def test_add_device_key_and_phones(self):
         p = self.make()                     # pas de jeton opérateur : clé jetable du réseau
@@ -191,9 +191,9 @@ class NetworkPageTest(HomeTestCase):
         self.assertTrue(add.pc.get_visible())
         self.assertTrue(add.k_name.get_visible())
         self.assertFalse(p.a_id.get_visible())
-        add.k_name.set_text("laptop-maison")
+        add.k_name.set_text("lp-home")
         add.k_go.emit("clicked")
-        self.assertIn(("network.key", {"name": "laptop-maison"}), self.bridge.calls)
+        self.assertIn(("network.key", {"name": "lp-home"}), self.bridge.calls)
         self.assertEqual(add.k_line.get_text(), "sudo sh -c 'curl x | sh && tailscale up --authkey k'")
         self.assertTrue(add.k_copy.get_visible())
         key = add.phones["iPhone"].key

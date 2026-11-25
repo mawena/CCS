@@ -482,7 +482,7 @@ private struct AjoutAppareil: View {
                 etapes(["Choisis un nom pour la machine, puis crée la ligne.",
                         "Colle-la dans un terminal du PC : elle installe le client et l'inscrit.",
                         "Il apparaît ici en quelques secondes."])
-                TextField("Nom (facultatif) : laptop-maison", text: $nom)
+                TextField("Nom (facultatif) : lp-home", text: $nom)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .textFieldStyle(.roundedBorder)
                 Button {

@@ -87,14 +87,14 @@ class ConnexionFichiersTest {
         val principal = CcsClient(http, portee)
         val prefs = PrefsMemoire()
         val c = connexion(principal, prefs)
-        val o = c.ouvrir("pc-bureau")
+        val o = c.ouvrir("lp-work")
         assertTrue(o.propre)
         assertNotSame(principal, o.client)
-        assertEquals("pc-bureau", o.client.machine.value)
+        assertEquals("lp-work", o.client.machine.value)
         assertEquals("", principal.machine.value)                  // machine pilotée inchangée
-        assertEquals("pc-bureau", c.memorise)
-        assertSame(o, c.ouvrir("pc-bureau"))                       // déjà ouvert : gardé
-        assertSame(o.client, c.clientPour("pc-bureau"))
+        assertEquals("lp-work", c.memorise)
+        assertSame(o, c.ouvrir("lp-work"))                       // déjà ouvert : gardé
+        assertSame(o.client, c.clientPour("lp-work"))
         val s = c.ouvrir("")
         assertSame(principal, s.client)
         assertEquals(EtatConnexion.Arrete, o.client.etat.value)    // l'ancien appareil est fermé
@@ -104,12 +104,12 @@ class ConnexionFichiersTest {
 
     @Test
     fun serveurPendantQuOnPiloteUnPc() {
-        val principal = CcsClient(http, portee).also { it.changerMachine("pc-bureau") }
+        val principal = CcsClient(http, portee).also { it.changerMachine("lp-work") }
         val c = connexion(principal)
         val o = c.ouvrir("")
         assertTrue(o.propre)
         assertEquals("", o.client.machine.value)
-        assertSame(principal, c.ouvrir("pc-bureau").client)
+        assertSame(principal, c.ouvrir("lp-work").client)
         assertEquals(EtatConnexion.Arrete, o.client.etat.value)
     }
 

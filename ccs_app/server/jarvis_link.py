@@ -1,7 +1,7 @@
 """Lien du pont vers le cerveau de Jarvis (projet voisin) : réseau maillé (tunnel Ricochet en
 secours), TLS épinglé, WebSocket.
 
-Le cerveau écoute en WebSocket sur TLS 1.3 (port 7341 de `laptop-maison` par défaut), avec un
+Le cerveau écoute en WebSocket sur TLS 1.3 (port 7341 de `lp-home` par défaut), avec un
 certificat auto-signé : on ne vérifie ni nom ni autorité, seulement l'**empreinte** du certificat
 (SHA-256 du certificat DER, en base64url sans remplissage, 43 caractères), donnée à l'appairage
 par l'adresse `jarvis://pair?…&fp=…`. Le chemin du WebSocket est indifférent (`/`).

@@ -161,7 +161,7 @@ final class SonTests: XCTestCase {
     }
 
     func testNomAppareil() {
-        let e = EtatReseau(ici: Appareil(name: "mawena-cloud", ips: ["100.64.0.1"]),
+        let e = EtatReseau(ici: Appareil(name: "srv-mawena-cloud", ips: ["100.64.0.1"]),
                            peers: [Appareil(name: "iphone-charles", ips: ["100.64.0.4", "fd7a::4"]),
                                    Appareil(name: "pixel", ips: ["100.64.0.3"])])
         XCTAssertEqual(Son.nomAppareil(ip: "100.64.0.4", etat: e, modele: "iPhone"), "iphone-charles")

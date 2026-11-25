@@ -59,7 +59,7 @@ object Appareils {
      */
     fun partageConnexion(appareil: String, pilotee: String): Boolean = appareil == pilotee
 
-    /** « pc-bureau injoignable : hors ligne » ; pour le serveur, la raison seule. */
+    /** « lp-work injoignable : hors ligne » ; pour le serveur, la raison seule. */
     fun messageInjoignable(appareil: String, nom: String, raison: String): String {
         val r = raison.trim().ifEmpty { "pas de réponse." }
             .let { if (it == RAISON_PILOTEE) "pas de réponse par le réseau maillé ni le tunnel." else it }

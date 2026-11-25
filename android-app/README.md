@@ -175,20 +175,20 @@ retente comme après une coupure. Les notifications suivent la machine choisie.
 
 ## Construire
 
-Le VPS n'a pas le SDK Android : on construit sur `pc-bureau` (SDK `~/Android`, JDK 17), depuis ce
+Le VPS n'a pas le SDK Android : on construit sur `lp-work` (SDK `~/Android`, JDK 17), depuis ce
 dossier. `local.properties` (ignoré par git) est créé par la commande :
 
 ```sh
-ccs remote run --machine pc-bureau --tool sh --fetch app/build/reports/tests -- sh -c \
+ccs remote run --machine lp-work --tool sh --fetch app/build/reports/tests -- sh -c \
   'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64; echo "sdk.dir=$HOME/Android" > local.properties; ./gradlew testDebugUnitTest'
-ccs remote run --machine pc-bureau --tool sh --fetch app/build/outputs/apk -- sh -c \
+ccs remote run --machine lp-work --tool sh --fetch app/build/outputs/apk -- sh -c \
   'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64; echo "sdk.dir=$HOME/Android" > local.properties; ./gradlew assembleRelease'
 ```
 
 L'APK arrive dans `app/build/outputs/apk/release/app-release.apk`. L'émulateur de Termux vient de
 JitPack (`https://jitpack.io`, limité au groupe `com.github.termux.termux-app`). Gradle est bridé
 (`gradle.properties` : 2 Go, compilateur Kotlin dans le même processus) pour ne pas réveiller
-Gagarine sur pc-bureau.
+Gagarine sur lp-work.
 
 **Version** : `versionName` et `versionCode` dans `app/build.gradle.kts` ; le `versionCode` doit
 toujours augmenter (33 aujourd'hui pour 0.29.0 ; l'appli Flutter 0.26.1 avait 27).
@@ -196,12 +196,12 @@ toujours augmenter (33 aujourd'hui pour 0.29.0 ; l'appli Flutter 0.26.1 avait 27
 ## Signature
 
 La version de publication est signée avec la **clé de débogage** de la machine qui construit
-(`~/.android/debug.keystore` de `pc-bureau`), comme l'ancienne appli : il faut toujours construire
-sur `pc-bureau` pour installer une mise à jour par-dessus.
+(`~/.android/debug.keystore` de `lp-work`), comme l'ancienne appli : il faut toujours construire
+sur `lp-work` pour installer une mise à jour par-dessus.
 
 ## Installer sur le téléphone
 
-Depuis `pc-bureau` (débogage sans fil activé sur le téléphone) :
+Depuis `lp-work` (débogage sans fil activé sur le téléphone) :
 
 ```sh
 adb connect 10.228.2.44:5555

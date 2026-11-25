@@ -27,8 +27,8 @@ object Reseau {
             os == "ios" || "iphone" in nom || "ipad" in nom -> Genre.IPhone
             os == "android" || "pixel" in nom || "phone" in nom -> Genre.Android
             os == "macos" -> Genre.Portable
-            listOf("vps", "cloud", "server", "serveur").any { it in nom } -> Genre.Serveur
-            "laptop" in nom || "portable" in nom -> Genre.Portable
+            nom.startsWith("srv-") || listOf("vps", "cloud", "server", "serveur").any { it in nom } -> Genre.Serveur
+            nom.startsWith("lp-") || "laptop" in nom || "portable" in nom -> Genre.Portable
             else -> Genre.Bureau
         }
     }

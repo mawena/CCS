@@ -124,8 +124,8 @@ class CcsClientTest {
         val client = CcsClient(http, portee, prefs = prefs)
         assertEquals("", client.machine.value)
         assertEquals(CcsClient.CE_SERVEUR, client.nomMachine)
-        client.changerMachine("pc-bureau", "PC du bureau")
-        assertEquals("pc-bureau", CcsClient(http, portee, prefs = prefs).machine.value)
+        client.changerMachine("lp-work", "PC du bureau")
+        assertEquals("lp-work", CcsClient(http, portee, prefs = prefs).machine.value)
         assertEquals("PC du bureau", CcsClient(http, portee, prefs = prefs).nomMachine)
         client.changerMachine("", "")
         assertEquals("", CcsClient(http, portee, prefs = prefs).machine.value)
@@ -142,10 +142,10 @@ class CcsClientTest {
         assertEquals("/api/ws?protocol=1", serveur.takeRequest().path)
         val enAttente = async { runCatching { client.appeler("lent") }.exceptionOrNull() }
         kotlinx.coroutines.delay(300)     // l'appel est parti sur la première connexion
-        client.changerMachine("pc-bureau")
+        client.changerMachine("lp-work")
         val e = withTimeout(5_000) { enAttente.await() } as RpcException
         assertEquals("hors_ligne", e.code)
-        assertEquals("/api/ws?protocol=1&machine=pc-bureau", withTimeout(5_000) { serveur.takeRequest().path })
+        assertEquals("/api/ws?protocol=1&machine=lp-work", withTimeout(5_000) { serveur.takeRequest().path })
         val r = withTimeout(5_000) { client.appeler("sessions.list") }
         assertEquals("sessions.list", r.jsonObject["echo"]!!.jsonPrimitive.content)
         client.arreter()
@@ -155,20 +155,20 @@ class CcsClientTest {
     fun machineInjoignableRetentePlusTard() = runBlocking {
         val ferme = object : Poli() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                webSocket.close(CcsClient.MACHINE_INJOIGNABLE, "pc-bureau est hors ligne.")
+                webSocket.close(CcsClient.MACHINE_INJOIGNABLE, "lp-work est hors ligne.")
             }
         }
         serveur.enqueue(MockResponse().withWebSocketUpgrade(ferme))
         serveur.enqueue(MockResponse().withWebSocketUpgrade(faux))
-        val prefs = PrefsMemoire().apply { valeurs["machine"] = "pc-bureau" }
+        val prefs = PrefsMemoire().apply { valeurs["machine"] = "lp-work" }
         val client = CcsClient(http, portee, attenteMinMs = 300, attenteMaxMs = 600, prefs = prefs)
         client.demarrer(identifiants())
         val etat = withTimeout(5_000) { client.etat.first { it is EtatConnexion.HorsLigne } } as EtatConnexion.HorsLigne
         assertTrue(etat.machineInjoignable)
-        assertEquals("pc-bureau est hors ligne.", etat.raison)
+        assertEquals("lp-work est hors ligne.", etat.raison)
         withTimeout(5_000) { client.etat.first { it is EtatConnexion.Connecte } }
-        assertEquals("/api/ws?protocol=1&machine=pc-bureau", serveur.takeRequest().path)
-        assertEquals("/api/ws?protocol=1&machine=pc-bureau", serveur.takeRequest().path)
+        assertEquals("/api/ws?protocol=1&machine=lp-work", serveur.takeRequest().path)
+        assertEquals("/api/ws?protocol=1&machine=lp-work", serveur.takeRequest().path)
         client.arreter()
     }
 
@@ -177,10 +177,10 @@ class CcsClientTest {
         val l = CodecRpc.json.decodeFromString(
             ListeMachines.serializer(),
             """{"machines": [{"id": "vps", "name": "VPS", "online": true, "local": true},
-               {"id": "pc-bureau", "name": "PC", "online": true, "cores": 8, "load": 1.5, "tunnel": true, "mem_used": 1.5e9},
+               {"id": "lp-work", "name": "PC", "online": true, "cores": 8, "load": 1.5, "tunnel": true, "mem_used": 1.5e9},
                {"id": "portable", "online": false, "cores": null}]}""",
         )
-        assertEquals(listOf("pc-bureau", "portable"), l.autres.map { it.id })
+        assertEquals(listOf("lp-work", "portable"), l.autres.map { it.id })
         assertEquals("en ligne · charge 1.5 sur 8 cœurs", l.autres[0].description)
         assertTrue(l.autres[0].choisissable)
         assertEquals("hors ligne", l.autres[1].description)

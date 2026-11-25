@@ -645,7 +645,7 @@ private fun AjoutAppareil(
                 var ligne by remember { mutableStateOf<String?>(null) }
                 Etapes(listOf("Choisis un nom pour la machine, puis crée la ligne.", "Colle-la dans un terminal du PC : elle installe le client et l'inscrit.", "Il apparaît ici en quelques secondes."))
                 OutlinedTextField(nom, { nom = it.trim().lowercase() }, singleLine = true, label = { Text("Nom (facultatif)") },
-                    placeholder = { Text("laptop-maison") }, isError = nom.isNotEmpty() && !Reseau.nomValide(nom),
+                    placeholder = { Text("lp-home") }, isError = nom.isNotEmpty() && !Reseau.nomValide(nom),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None), modifier = Modifier.fillMaxWidth())
                 FilledTonalButton(enabled = nom.isEmpty() || Reseau.nomValide(nom), onClick = {
                     portee.launch { creerCle(nom)?.let { ligne = Reseau.ligneLinux(it.linux) } }

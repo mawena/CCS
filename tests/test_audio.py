@@ -75,12 +75,12 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(audio.parse_modules(mods), {"ccs_audio_iphone": "536870913"})
 
     def test_noms(self):
-        self.assertEqual(audio.sink_name("pc-bureau.local"), "ccs_audio_pc_bureau_local")
+        self.assertEqual(audio.sink_name("lp-work.local"), "ccs_audio_lp_work_local")
         self.assertEqual(audio.clean_label('iPhone "de" Charles\n'), "iPhone de Charles")
 
     def test_identite(self):
-        st = {"self": {"name": "pc-bureau", "ips": ["fd7a:115c::2", "100.64.0.2"]}}
-        self.assertEqual(audio.identity(st), ("pc-bureau", "100.64.0.2"))
+        st = {"self": {"name": "lp-work", "ips": ["fd7a:115c::2", "100.64.0.2"]}}
+        self.assertEqual(audio.identity(st), ("lp-work", "100.64.0.2"))
         with self.assertRaises(audio.AudioError):
             audio.identity({"self": {"name": "x", "ips": ["192.168.1.2"]}})
 
@@ -113,12 +113,12 @@ class ParseTest(unittest.TestCase):
 
     def test_resoudre(self):
         devs = [{"device": "iphone", "label": "iPhone de Charles"},
-                {"device": "pixel", "label": "Pixel 8"}, {"device": "pc-bureau", "label": "PC"}]
+                {"device": "pixel", "label": "Pixel 8"}, {"device": "lp-work", "label": "PC"}]
         self.assertEqual(audio.resolve(devs, "Pixel"), "pixel")
         self.assertEqual(audio.resolve(devs, "charles"), "iphone")
-        self.assertEqual(audio.resolve(devs, "ici", me="pc-bureau"), "pc-bureau")
+        self.assertEqual(audio.resolve(devs, "ici", me="lp-work"), "lp-work")
         with self.assertRaises(audio.AudioError):
-            audio.resolve(devs, "p")             # pixel et pc-bureau
+            audio.resolve(devs, "p")             # pixel et lp-work
         with self.assertRaises(audio.AudioError):
             audio.resolve(devs, "tablette")
 
@@ -161,7 +161,7 @@ class AgentTest(unittest.IsolatedAsyncioTestCase):
             p = FakeProc(argv)
             self.procs.append(p)
             return p
-        self.agent = audio.Agent(None, "pc-bureau", "100.64.0.2", {"port": 4010, "label": ""},
+        self.agent = audio.Agent(None, "lp-work", "100.64.0.2", {"port": 4010, "label": ""},
                                  pipewire=self.pw, popen=popen, clock=lambda: self.now)
         self.agent.client = FakeClient()
         self.agent.devices = {"iphone": {"device": "iphone", "label": "iPhone", "play": True},
@@ -177,13 +177,13 @@ class AgentTest(unittest.IsolatedAsyncioTestCase):
         a = self.agent
         a.on_event("audio", {"action": "receive", "device": "iphone", "stream": "a1"})
         self.assertIsNone(a.receiver)                       # pas pour moi
-        a.on_event("audio", {"action": "receive", "device": "pc-bureau", "stream": "a1", "from": "iphone"})
+        a.on_event("audio", {"action": "receive", "device": "lp-work", "stream": "a1", "from": "iphone"})
         self.assertEqual(a.receiver[0], "a1")
         self.assertIn("udpsrc", self.procs[-1].argv)
-        a.on_event("audio", {"action": "emit", "device": "pc-bureau", "stream": "a2", "to": "iphone",
+        a.on_event("audio", {"action": "emit", "device": "lp-work", "stream": "a2", "to": "iphone",
                              "ip": "100.64.0.4", "port": 4010})
         self.assertIn("device=@DEFAULT_MONITOR@", self.procs[-1].argv)
-        a.on_event("audio", {"action": "stop", "stream": "a1", "devices": ["iphone", "pc-bureau"]})
+        a.on_event("audio", {"action": "stop", "stream": "a1", "devices": ["iphone", "lp-work"]})
         self.assertIsNone(a.receiver)
         self.assertIsNotNone(a.sender)
         self.assertTrue(self.procs[0].signals)              # récepteur arrêté proprement
@@ -192,10 +192,10 @@ class AgentTest(unittest.IsolatedAsyncioTestCase):
         a = self.agent
         self.pw.states["ccs_audio_iphone"] = "RUNNING"
         await a.watch_sinks()
-        self.assertEqual(a.client.calls, [("audio.send", {"source": "pc-bureau", "target": "iphone"})])
+        self.assertEqual(a.client.calls, [("audio.send", {"source": "lp-work", "target": "iphone"})])
         await a.watch_sinks()
         self.assertEqual(len(a.client.calls), 1)            # pas de nouvelle demande avant 5 s
-        a.on_event("audio", {"action": "emit", "device": "pc-bureau", "stream": "a3", "to": "iphone",
+        a.on_event("audio", {"action": "emit", "device": "lp-work", "stream": "a3", "to": "iphone",
                              "ip": "100.64.0.4", "port": 4010})
         self.assertIn("device=ccs_audio_iphone.monitor", self.procs[-1].argv)
         self.pw.states["ccs_audio_iphone"] = "IDLE"
@@ -207,7 +207,7 @@ class AgentTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_pipeline_mort_relance_puis_flux_arrete(self):
         a = self.agent
-        a.on_event("audio", {"action": "receive", "device": "pc-bureau", "stream": "a5", "from": "iphone"})
+        a.on_event("audio", {"action": "receive", "device": "lp-work", "stream": "a5", "from": "iphone"})
         self.procs[-1].done = 1                             # gst-launch mort (sortie son partie…)
         await a.check_pipelines()
         self.assertEqual(len(self.procs), 2)                # relancé une fois
@@ -223,7 +223,7 @@ class AgentTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_emetteur_mort_relance_vers_la_meme_cible(self):
         a = self.agent
-        a.on_event("audio", {"action": "emit", "device": "pc-bureau", "stream": "a6", "to": "iphone",
+        a.on_event("audio", {"action": "emit", "device": "lp-work", "stream": "a6", "to": "iphone",
                              "ip": "100.64.0.4", "port": 4010})
         self.procs[-1].done = 1
         await a.check_pipelines()
@@ -242,8 +242,8 @@ class AgentTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((ann["play"], ann["capture"]), (False, False))
         a.sync_sinks()
         self.assertEqual(self.pw.created, [])               # pas de sorties virtuelles
-        a.on_event("audio", {"action": "receive", "device": "pc-bureau", "stream": "a7"})
-        a.on_event("audio", {"action": "emit", "device": "pc-bureau", "stream": "a8", "to": "iphone",
+        a.on_event("audio", {"action": "receive", "device": "lp-work", "stream": "a7"})
+        a.on_event("audio", {"action": "emit", "device": "lp-work", "stream": "a8", "to": "iphone",
                              "ip": "100.64.0.4", "port": 4010})
         self.assertEqual((a.receiver, a.sender, self.procs), (None, None, []))
         self.pw.up = True                                   # PipeWire revenu (session ouverte)
@@ -416,7 +416,7 @@ class FakeMpris:
 class AgentLecteursTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.mpris = FakeMpris()
-        self.agent = audio.Agent(None, "pc-bureau", "100.64.0.2", {"port": 4010, "label": ""},
+        self.agent = audio.Agent(None, "lp-work", "100.64.0.2", {"port": 4010, "label": ""},
                                  pipewire=FakePw(), popen=FakeProc, mpris=self.mpris)
         self.agent.client = FakeClient()
 
@@ -472,7 +472,7 @@ class BoutEnBoutTest(unittest.IsolatedAsyncioTestCase):
             def popen(argv, **kw):
                 procs.append(FakeProc(argv))
                 return procs[-1]
-            agent = audio.Agent(client.LocalTransport(sock, spawn=None), "pc-bureau", "100.64.0.2",
+            agent = audio.Agent(client.LocalTransport(sock, spawn=None), "lp-work", "100.64.0.2",
                                 {"port": 4010, "label": "PC"}, pipewire=FakePw(), popen=popen)
             task = asyncio.ensure_future(agent.run())
             phone = client.BridgeClient(client.LocalTransport(sock, spawn=None), retry_delays=())
@@ -485,7 +485,7 @@ class BoutEnBoutTest(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0.05)
                 if len((await phone.call("audio.list"))["devices"]) == 2:
                     break
-            r = await phone.call("audio.send", source="iphone", target="pc-bureau")
+            r = await phone.call("audio.send", source="iphone", target="lp-work")
             for _ in range(50):
                 await asyncio.sleep(0.05)
                 if agent.receiver:
@@ -534,14 +534,14 @@ class EtatTest(unittest.TestCase):
 
     def setUp(self):
         self.argvs, self.up = [], True
-        self.status = {"self": {"name": "pc-bureau", "ips": ["100.64.0.2"]}}
+        self.status = {"self": {"name": "lp-work", "ips": ["100.64.0.2"]}}
 
     def test_tout_va_bien(self):
         lines = audio.check({"active": True, "port": 4010, "label": "PC"}, which=lambda t: "/usr/bin/" + t,
                             system="linux", status=self.status, run=self.run_ok)
         text = "\n".join(lines)
         self.assertIn("actif (port UDP 4010, nom « PC »)", text)
-        self.assertIn("pc-bureau (100.64.0.2)", text)
+        self.assertIn("lp-work (100.64.0.2)", text)
         self.assertIn("Serveur de son : présent", text)
         self.assertIn("ccs_audio_iphone", text)
         self.assertIn("ccs-audio.service : active", text)

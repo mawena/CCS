@@ -30,17 +30,17 @@ class FakeBackend:
             {"id": "vps", "name": "VPS", "online": True, "local": True, "cores": 6, "load": 1.2,
              "mem_used": 4 * G, "mem_total": 11 * G, "tunnel": True, "tools": ["python3"],
              "limit": 2, "running": 0, "waiting": 0},
-            {"id": "pc-bureau", "name": "PC du bureau", "online": True, "local": False, "cores": 14, "load": 7.0,
+            {"id": "lp-work", "name": "PC du bureau", "online": True, "local": False, "cores": 14, "load": 7.0,
              "mem_used": 8 * G, "mem_total": 32 * G, "tunnel": True, "tools": ["flutter", "gradle"],
              "limit": 2, "running": 1, "waiting": 1},
             {"id": "portable", "name": "Portable", "online": False, "local": False, "cores": 0, "load": 0,
              "mem_used": 0, "mem_total": 0, "tunnel": True, "tools": [], "limit": 3, "running": 0, "waiting": 0}]}
         self.jobs_value = [
-            {"id": "a1", "text": "flutter build apk", "cwd": "/tmp", "machine": "pc-bureau", "state": "running",
+            {"id": "a1", "text": "flutter build apk", "cwd": "/tmp", "machine": "lp-work", "state": "running",
              "code": None, "created": 900.0, "started": 925.0, "ended": None, "why": ""},
             {"id": "b2", "text": "make test", "cwd": "/tmp", "machine": None, "state": "waiting", "code": None,
-             "created": 990.0, "started": None, "ended": None, "why": "en attente d'une place sur pc-bureau (2/2)"},
-            {"id": "c3", "text": "make deb", "cwd": "/tmp", "machine": "pc-bureau", "state": "failed", "code": 2,
+             "created": 990.0, "started": None, "ended": None, "why": "en attente d'une place sur lp-work (2/2)"},
+            {"id": "c3", "text": "make deb", "cwd": "/tmp", "machine": "lp-work", "state": "failed", "code": 2,
              "created": 100.0, "started": 200.0, "ended": 210.0, "why": ""}]
 
     def overview(self):
@@ -100,11 +100,11 @@ class MachinesPageTest(HomeTestCase):
         self.assertEqual(rows[2].limit.get_value_as_int(), 3)
         jobs = p._job_rows
         self.assertEqual([r.get_title() for r in jobs], ["flutter build apk", "make test", "make deb"])
-        self.assertIn("en attente d'une place sur pc-bureau (2/2)", jobs[1].get_subtitle())
+        self.assertIn("en attente d'une place sur lp-work (2/2)", jobs[1].get_subtitle())
         self.assertIn("code 2", jobs[2].get_subtitle())
         self.assertTrue(hasattr(jobs[0], "stop") and hasattr(jobs[1], "stop"))
         self.assertFalse(hasattr(jobs[2], "stop"))            # fini : pas de bouton Arrêter
-        self.assertEqual(p._targets, [None, "vps", "pc-bureau"])  # hors ligne : pas proposé
+        self.assertEqual(p._targets, [None, "vps", "lp-work"])  # hors ligne : pas proposé
 
     def test_engine_errors_are_shown_not_raised(self):
         self.backend = FakeBackend()
@@ -141,7 +141,7 @@ class MachinesPageTest(HomeTestCase):
         p.f_target.set_selected(2)
         p.f_when.set_selected(1)
         p.submit()
-        self.assertIn(("start", ["flutter build apk --target 'lib/main dev.dart'"], "/tmp", "pc-bureau", "nuit"),
+        self.assertIn(("start", ["flutter build apk --target 'lib/main dev.dart'"], "/tmp", "lp-work", "nuit"),
                       self.backend.calls)
         self.assertEqual(p.f_command.get_text(), "")
         p.f_command.set_text("make")
@@ -159,7 +159,7 @@ class MachinesPageTest(HomeTestCase):
     def test_limit_and_relay_settings(self):
         p = self.make()
         p._machine_rows[1].limit.set_value(4)
-        self.assertIn(("limit", "pc-bureau", 4), self.backend.calls)
+        self.assertIn(("limit", "lp-work", 4), self.backend.calls)
         self.assertEqual(p.f_token.get_text(), "")
         self.assertEqual(p.token_row.get_subtitle(), "Jeton enregistré")
         self.assertEqual(p.f_relay.get_text(), "https://ricochet.exemple")

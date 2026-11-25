@@ -14,11 +14,11 @@ from ccs_app import cli, distant
 from tests.helpers import HomeTestCase, write
 
 API = [
-    {"id": "mawena-cloud", "nom": "VPS", "connectee": True,
+    {"id": "srv-mawena-cloud", "nom": "VPS", "connectee": True,
      "info": {"nom_hote": "ici", "tunnels": [], "version_agent": "0.3.0"},
      "etat": {"nombre_coeurs": 6, "charge": [0.2, 0.1, 0.1],
               "memoire_utilisee": 4 << 30, "memoire_totale": 11 << 30}},
-    {"id": "pc-bureau", "nom": None, "connectee": True,
+    {"id": "lp-work", "nom": None, "connectee": True,
      "info": {"nom_hote": "bureau", "tunnels": [22], "version_agent": "0.3.0"},
      "etat": {"nombre_coeurs": 16, "charge": [8.0, 1, 1],
               "memoire_utilisee": 8 << 30, "memoire_totale": 32 << 30}},
@@ -38,7 +38,7 @@ class FakeRun:
 
     def __init__(self, tools=None, codes=None):
         self.calls = []
-        self.tools = tools or {"pc-bureau": PROBE, "portable": "CCS_PATH=/usr/bin\n"}
+        self.tools = tools or {"lp-work": PROBE, "portable": "CCS_PATH=/usr/bin\n"}
         self.codes = codes or {}
 
     def __call__(self, argv, **kw):
@@ -106,7 +106,7 @@ class TestSettings(DistantCase):
         self.assertEqual(o.request.full_url, "https://r.example/api/machines")
         self.assertEqual(o.request.get_header("Authorization"), "Bearer secret")
         pc = machines[1]
-        self.assertEqual((pc.id, pc.online, pc.ports, pc.cores, pc.load), ("pc-bureau", True, [22], 16, 8.0))
+        self.assertEqual((pc.id, pc.online, pc.ports, pc.cores, pc.load), ("lp-work", True, [22], 16, 8.0))
         self.assertTrue(machines[0].local)
         self.assertFalse(machines[3].online)
 
@@ -117,9 +117,9 @@ class TestSettings(DistantCase):
         self.assertIn("HostKeyAlias=ricochet-pc-bureau", opts)
         self.assertIn("BatchMode=yes", opts)
         self.assertEqual(distant.ssh_port(portable, {}), 2222)
-        write(distant.overrides_path(), '[machines.pc-bureau]\nutilisateur = "charles"\nport = 2244\n')
+        write(distant.overrides_path(), '[machines.lp-work]\nutilisateur = "charles"\nport = 2244\n')
         over = distant.load_overrides()
-        self.assertEqual(distant.target(pc, over), "charles@pc-bureau")
+        self.assertEqual(distant.target(pc, over), "charles@lp-work")
         self.assertEqual(distant.ssh_port(pc, over), 2244)
         self.assertEqual(distant.target(portable, over), "portable")
         with self.assertRaisesRegex(distant.DistantError, "tunnel"):
@@ -142,42 +142,42 @@ class TestMesh(DistantCase):
 
     def test_ssh_goes_through_mesh(self):
         pc, portable = self.machines()[1:3]
-        peers = {"lp-work": "100.64.0.2"}
+        peers = {"poste-bureau": "100.64.0.2"}
         self.assertIsNone(distant.mesh_address(pc, {}, peers))
-        over = {"pc-bureau": {"reseau": "lp-work"}}
+        over = {"lp-work": {"reseau": "poste-bureau"}}
         self.assertEqual(distant.mesh_address(pc, over, peers), "100.64.0.2")
         opts = distant.ssh_options(pc, over, peers)
         self.assertIn("HostName=100.64.0.2", opts)
         self.assertIn("Port=22", opts)
         self.assertIn("HostKeyAlias=ricochet-pc-bureau", opts)
         self.assertFalse(any(o.startswith("ProxyCommand") for o in opts))
-        self.assertIsNone(distant.mesh_address(pc, {"pc-bureau": {"reseau": False}}, {"pc-bureau": "100.64.0.2"}))
+        self.assertIsNone(distant.mesh_address(pc, {"lp-work": {"reseau": False}}, {"poste-bureau": "100.64.0.2"}))
         self.assertEqual(distant.mesh_address(portable, {}, {"portable": "100.64.0.9"}), "100.64.0.9")
 
 
     def test_list_merges_relay_and_mesh(self):
-        over = {"pc-bureau": {"reseau": "lp-work"}, "laptop-maison": {"reseau": "lp-home"},
+        over = {"lp-work": {"reseau": "lp-work"}, "lp-home": {"reseau": "lp-home"},
                 "vieux": {"reseau": "vieux-pc"}}
         peers = {"lp-home": "100.64.0.5", "vieux-pc": "100.64.0.7"}
         ms = {m.id: m for m in distant.list_machines(opener=opener(), peers=peers, overrides=over)}
         self.assertTrue(ms["vieux"].online)               # déconnecté de Ricochet, vu par le maillé
-        self.assertTrue(ms["laptop-maison"].online)       # inconnu de Ricochet, ajouté
-        self.assertEqual(ms["laptop-maison"].host, "lp-home")
-        self.assertTrue(ms["pc-bureau"].online)
+        self.assertTrue(ms["lp-home"].online)       # inconnu de Ricochet, ajouté
+        self.assertEqual(ms["lp-home"].host, "lp-home")
+        self.assertTrue(ms["lp-work"].online)
 
     def test_list_without_relay(self):
         def down(req, timeout=0):
             raise OSError("relais éteint")
-        over = {"laptop-maison": {"reseau": "lp-home"}}
+        over = {"lp-home": {"reseau": "lp-home"}}
         ms = distant.list_machines(opener=down, peers={"lp-home": "100.64.0.5"}, overrides=over)
-        self.assertEqual([(m.id, m.online) for m in ms], [("laptop-maison", True)])
+        self.assertEqual([(m.id, m.online) for m in ms], [("lp-home", True)])
         with self.assertRaises(distant.DistantError):
             distant.list_machines(opener=down, peers={}, overrides={})
         (self.home / ".config/ricochet/client.toml").unlink()
         self.assertFalse(distant.configured())
         ms = distant.list_machines(peers={}, overrides=over)
-        self.assertEqual([(m.id, m.online) for m in ms], [("laptop-maison", False)])
-        write(self.home / ".config/ccs/machines.toml", '[machines.laptop-maison]\nreseau = "lp-home"\n')
+        self.assertEqual([(m.id, m.online) for m in ms], [("lp-home", False)])
+        write(self.home / ".config/ccs/machines.toml", '[machines.lp-home]\nreseau = "lp-home"\n')
         self.assertTrue(distant.available())
 
 
@@ -208,7 +208,7 @@ class TestChoice(DistantCase):
     def test_machine_with_the_tool_then_least_loaded(self):
         run = FakeRun()
         m, _ = distant.choose(self.machines(), {}, tool="flutter", run=run)
-        self.assertEqual(m.id, "pc-bureau", "seule machine avec flutter, malgré sa charge")
+        self.assertEqual(m.id, "lp-work", "seule machine avec flutter, malgré sa charge")
         m, _ = distant.choose(self.machines(), {}, tool=None, run=run)
         self.assertEqual(m.id, "portable", "la moins chargée par cœur, hors cette machine")
         m, _ = distant.choose(self.machines(), {}, tool="cargo", run=run)
@@ -219,8 +219,8 @@ class TestChoice(DistantCase):
         with self.assertRaises(distant.DistantError) as ctx:
             distant.choose(self.machines(), {}, tool="flutter", run=run)
         text = str(ctx.exception)
-        for part in ("avec flutter", "portable : pas de flutter", "pc-bureau : SSH refusé", "vieux : hors ligne",
-                     "mawena-cloud : c'est cette machine"):
+        for part in ("avec flutter", "portable : pas de flutter", "lp-work : SSH refusé", "vieux : hors ligne",
+                     "srv-mawena-cloud : c'est cette machine"):
             self.assertIn(part, text)
         with self.assertRaisesRegex(distant.DistantError, "Machine inconnue : x"):
             distant.choose(self.machines(), {}, wanted="x", run=run)
@@ -251,19 +251,19 @@ class TestLaunch(DistantCase):
         root = distant.remote_dir(self.project.resolve())
         self.assertRegex(root, r"^\.cache/ccs-distant/appli-[0-9a-f]{8}$")
         send, fetch = [a for a in run.calls if a[0] == "rsync"]
-        self.assertEqual(send[-2:], [f"{self.project.resolve()}/", f"pc-bureau:{root}/"])
+        self.assertEqual(send[-2:], [f"{self.project.resolve()}/", f"lp-work:{root}/"])
         self.assertIn("--delete", send)
         self.assertIn("--exclude=/.git/", send)
         self.assertLess(send.index("--include=/app/.env"), send.index("--filter=:- .gitignore"))
         self.assertIn("--include=/app/", send)
-        self.assertEqual(fetch[-2:], [f"pc-bureau:{root}/./app/build/outputs", f"{self.project.resolve()}/"])
+        self.assertEqual(fetch[-2:], [f"lp-work:{root}/./app/build/outputs", f"{self.project.resolve()}/"])
         self.assertIn("-azR", fetch)
         host, command = run.remote()[-1]
-        self.assertEqual(host, "pc-bureau")
+        self.assertEqual(host, "lp-work")
         self.assertTrue(command.startswith("exec bash -c '"))
         self.assertTrue(command.endswith(f" ccs-distant {root}/app /home/c/flutter/bin:/usr/bin "
                                          "'flutter build apk'"))
-        self.assertIn("pc-bureau", said[0])
+        self.assertIn("lp-work", said[0])
         self.assertIn("build/outputs rapatrié", said[-1])
 
     def test_failure_keeps_the_exit_code_and_skips_fetch(self):
@@ -290,7 +290,7 @@ class TestLaunch(DistantCase):
         with self.assertRaisesRegex(distant.DistantError, "hors du projet"):
             distant.fetch_argv(pc, {}, root, ".", "../ailleurs")
         self.assertEqual(distant.fetch_argv(pc, {}, root, "src", "../build/a.txt")[-2],
-                         f"pc-bureau:{distant.remote_dir(root)}/./build/a.txt")
+                         f"lp-work:{distant.remote_dir(root)}/./build/a.txt")
         with self.assertRaisesRegex(distant.DistantError, "hors du projet"):
             distant.include_rules(root, root, ["/etc/passwd"])
         (root / "secrets").mkdir()
@@ -365,17 +365,17 @@ class TestCli(DistantCase):
                 mock.patch("ccs_app.distant.subprocess.run", FakeRun()):
             code, out, _ = self.run_cli("distant", "machines")
         self.assertEqual(code, 0)
-        self.assertIn("mawena-cloud (VPS) : en ligne, charge 0.2 sur 6 cœurs, mémoire 4/11 Go — cette machine", out)
-        self.assertIn("pc-bureau : en ligne, charge 8.0 sur 16 cœurs", out)
+        self.assertIn("srv-mawena-cloud (VPS) : en ligne, charge 0.2 sur 6 cœurs, mémoire 4/11 Go — cette machine", out)
+        self.assertIn("lp-work : en ligne, charge 8.0 sur 16 cœurs", out)
         self.assertIn("  outils : flutter", out)
         self.assertIn("vieux : hors ligne", out)
 
     def test_lancer_passes_everything_after_the_dashes(self):
         with mock.patch("ccs_app.distant.launch", return_value=7) as launch:
-            code, _, _ = self.run_cli("distant", "lancer", "--machine", "pc-bureau", "--rapatrier", "build",
+            code, _, _ = self.run_cli("distant", "lancer", "--machine", "lp-work", "--rapatrier", "build",
                                       "--", "flutter", "build", "apk", "--release")
         self.assertEqual(code, 7)
-        launch.assert_called_once_with(["flutter", "build", "apk", "--release"], machine="pc-bureau", tool=None,
+        launch.assert_called_once_with(["flutter", "build", "apk", "--release"], machine="lp-work", tool=None,
                                        fetch=["build"], include=[], with_git=False, when="",
                                        job_id=None, detached=False)
 

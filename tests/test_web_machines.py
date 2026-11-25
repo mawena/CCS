@@ -60,7 +60,7 @@ const seen = [];
 api.on("machine", (m) => seen.push(m));
 api.connect(); sockets[0].open();
 const old = api.call("chat.list").catch((e) => "rejeté:" + e.code);
-pickMachine(api, "pc-bureau", "PC du bureau");
+pickMachine(api, "lp-work", "PC du bureau");
 sockets[1].open();
 const fresh = api.call("chat.list");
 sockets[1].reply(sockets[1].sent[0].id, { chats: [1] });
@@ -71,35 +71,35 @@ pickMachine(api, "", "");
 out.back = sockets[2].url; out.nameBack = machineName(api);
 """)
         self.assertEqual(out["urls"], ["wss://ccs.exemple/api/ws?protocol=1",
-                                       "wss://ccs.exemple/api/ws?protocol=1&machine=pc-bureau"])
+                                       "wss://ccs.exemple/api/ws?protocol=1&machine=lp-work"])
         self.assertEqual(out["old"], "rejeté:hors_ligne")
         self.assertEqual(out["fresh"], {"chats": [1]})
-        self.assertEqual(out["seen"], ["pc-bureau"])
-        self.assertEqual(out["stored"], "pc-bureau")
+        self.assertEqual(out["seen"], ["lp-work"])
+        self.assertEqual(out["stored"], "lp-work")
         self.assertEqual(out["name"], "PC du bureau")
-        self.assertEqual(out["again"], "pc-bureau")          # gardé après un rechargement
+        self.assertEqual(out["again"], "lp-work")          # gardé après un rechargement
         self.assertEqual(out["back"], "wss://ccs.exemple/api/ws?protocol=1")
         self.assertEqual(out["nameBack"], "Ce serveur")
 
     def test_machine_down_is_reported_with_its_reason(self):
         out = run(r"""
 const api = new Api();
-api.machine = "pc-bureau";
+api.machine = "lp-work";
 const got = [];
 api.on("machine-down", (d) => got.push(d));
 api.on("offline", () => got.push("offline"));
-api.connect(); sockets[0].onclose({ code: 4010, reason: "pc-bureau est hors ligne." });
+api.connect(); sockets[0].onclose({ code: 4010, reason: "lp-work est hors ligne." });
 api.close();
 out = got;
 """)
-        self.assertEqual(out, [{"machine": "pc-bureau", "reason": "pc-bureau est hors ligne."}])
+        self.assertEqual(out, [{"machine": "lp-work", "reason": "lp-work est hors ligne."}])
 
     def test_sheet_lists_other_machines_and_picks_one(self):
         out = run(r"""
 const api = { machine: "", async call(m) {
   return { machines: [
     { id: "vps", name: "VPS", online: true, local: true, tunnel: true },
-    { id: "pc-bureau", name: "PC du bureau", online: true, local: false, tunnel: true, cores: 14, load: 1.9 },
+    { id: "lp-work", name: "PC du bureau", online: true, local: false, tunnel: true, cores: 14, load: 1.9 },
     { id: "portable", name: "Portable", online: false, local: false, tunnel: true }] }; } };
 let picked = null;
 const dlg = machineSheet(api, (id, name) => { picked = [id, name]; });
@@ -110,14 +110,14 @@ items[1].click();
 out.picked = picked; out.closed = !dlg.open;
 out.cached = JSON.parse(localStorage.getItem("ccs.machines")).map((m) => m.id);
 """)
-        self.assertEqual(len(out["labels"]), 3)                # ce serveur, pc-bureau, portable
+        self.assertEqual(len(out["labels"]), 3)                # ce serveur, lp-work, portable
         self.assertIn("Ce serveur", out["labels"][0])
         self.assertIn("charge 1.9 sur 14 cœurs", out["labels"][1])
         self.assertIn("hors ligne", out["labels"][2])
         self.assertEqual(out["disabled"], [False, False, True])
-        self.assertEqual(out["picked"], ["pc-bureau", "PC du bureau"])
+        self.assertEqual(out["picked"], ["lp-work", "PC du bureau"])
         self.assertTrue(out["closed"])
-        self.assertEqual(out["cached"], ["pc-bureau", "portable"])
+        self.assertEqual(out["cached"], ["lp-work", "portable"])
 
 
 PAGE = r"""
@@ -128,26 +128,26 @@ globalThis.clearInterval = (id) => { if (intervals[id - 1]) intervals[id - 1].on
 const { mountReseau } = await import("./reseau.js");
 const mountMachines = mountReseau;
 const NET = { url: "https://network.mawena.cloud", domain: "mesh.mawena.cloud", installed: true, server: true, state: "Running",
-  self: { name: "mawena-cloud", os: "linux", ips: ["100.64.0.1"], online: true, path: "self", addrs: [] },
+  self: { name: "srv-mawena-cloud", os: "linux", ips: ["100.64.0.1"], online: true, path: "self", addrs: [] },
   peers: [{ name: "lp-work", host: "lp-work", os: "linux", ips: ["100.64.0.2"], online: true, path: "lan", addrs: [] }],
   nodes: [] };
 const MACHINES = { configured: true, message: "", machines: [
   { id: "vps", name: "VPS", online: true, local: true, cores: 6, load: 1.2, mem_used: 4 * 2 ** 30, mem_total: 11 * 2 ** 30,
     tunnel: true, tools: ["python3"], limit: 2, running: 0, waiting: 0 },
-  { id: "pc-bureau", name: "PC du bureau", online: true, local: false, cores: 14, load: 7, mem_used: 2 ** 33, mem_total: 2 ** 35,
-    tunnel: true, tools: ["flutter", "gradle"], limit: 2, running: 1, waiting: 1, mesh: "", mesh_ip: "100.64.0.2", host: "pc-bureau" },
+  { id: "lp-work", name: "PC du bureau", online: true, local: false, cores: 14, load: 7, mem_used: 2 ** 33, mem_total: 2 ** 35,
+    tunnel: true, tools: ["flutter", "gradle"], limit: 2, running: 1, waiting: 1, mesh: "", mesh_ip: "100.64.0.2", host: "lp-work" },
   { id: "portable", name: "Portable", online: false, local: false, cores: 0, load: 0, mem_used: 0, mem_total: 0,
     tunnel: true, tools: [], limit: 3, running: 0, waiting: 0 }] };
 const now = Date.now() / 1000;
 const JOBS = { jobs: [
-  { id: "a1", text: "flutter build apk", command: ["flutter", "build", "apk"], cwd: "/home/u/App", machine: "pc-bureau",
+  { id: "a1", text: "flutter build apk", command: ["flutter", "build", "apk"], cwd: "/home/u/App", machine: "lp-work",
     state: "running", code: null, created: now - 100, started: now - 75, ended: null, why: "" },
   { id: "b2", text: "make test", command: ["make", "test"], cwd: "/home/u/App", machine: null,
-    state: "waiting", code: null, created: now - 30, started: null, ended: null, why: "en attente d'une place sur pc-bureau (2/2)" },
-  { id: "c3", text: "make deb", command: ["make", "deb"], cwd: "/home/u/App", machine: "pc-bureau",
+    state: "waiting", code: null, created: now - 30, started: null, ended: null, why: "en attente d'une place sur lp-work (2/2)" },
+  { id: "c3", text: "make deb", command: ["make", "deb"], cwd: "/home/u/App", machine: "lp-work",
     state: "failed", code: 2, created: now - 900, started: now - 800, ended: now - 790, why: "" }] };
 const SETTINGS = { relay: "https://ricochet.exemple", token_set: true, path: "/home/u/.config/ricochet/client.toml",
-  default_limit: 2, limits: { "pc-bureau": 3 } };
+  default_limit: 2, limits: { "lp-work": 3 } };
 function fakeApi(machine = "") {
   const calls = [];
   return { machine, calls, on: () => () => {}, async call(m, p = {}) {
@@ -191,7 +191,7 @@ out.visibleCalls = api.calls.map((c) => c[0]);
 stop();
 out.stopped = !intervals[0].on;
 """)
-        self.assertEqual(len(out["cards"]), 3)               # serveur, lp-work (= pc-bureau), portable (Ricochet seul)
+        self.assertEqual(len(out["cards"]), 3)               # serveur, lp-work (= lp-work), portable (Ricochet seul)
         self.assertEqual(out["blocks"], 3)
         self.assertIn("Serveur CCS", out["cards"][0])
         self.assertIn("PC du bureau", out["cards"][1])          # rattaché par son adresse du réseau maillé
@@ -203,7 +203,7 @@ out.stopped = !intervals[0].on;
         self.assertIn("outils pas encore inventoriés", out["cards"][2])
         self.assertEqual(out["h3"], ["En cours et à venir (2)", "Finis (1)"])
         self.assertIn("1 min 15 s", out["jobs"][0])
-        self.assertIn("en attente d'une place sur pc-bureau (2/2)", out["jobs"][1])
+        self.assertIn("en attente d'une place sur lp-work (2/2)", out["jobs"][1])
         self.assertIn("code 2", out["jobs"][2])
         self.assertEqual(out["stops"], [True, True, False])
         self.assertEqual(out["note"], [])
@@ -216,7 +216,7 @@ out.stopped = !intervals[0].on;
     def test_note_when_driving_another_machine(self):
         out = run(PAGE + r"""
 localStorage.setItem("ccs.machine.name", "PC du bureau");
-const api = fakeApi("pc-bureau");
+const api = fakeApi("lp-work");
 mountMachines(root, api);
 await settle();
 out = { note: text(".machines-note"), folder: root.querySelector('input[aria-label="Dossier"]').value,
@@ -282,7 +282,7 @@ q("Quand").value = "nuit"; q("Quand").dispatchEvent(new Event("change"));
 button("Lancer").click(); await settle();
 q("Commande").value = "make";
 q("Dossier").value = "~/Autre";
-q("Machine").value = "pc-bureau";
+q("Machine").value = "lp-work";
 q("Quand").value = "heure"; q("Quand").dispatchEvent(new Event("change"));
 q("Heure").value = "22:30";
 button("Lancer").click(); await settle();
@@ -292,11 +292,11 @@ out.starts = api.calls.filter((c) => c[0] === "machines.start").map((c) => c[1])
         self.assertEqual(out["empty"], "Écris la commande à lancer.")
         self.assertEqual(out["starts"], [
             {"command": "flutter build apk", "cwd": "/home/u/App", "when": "nuit"},
-            {"command": "make", "cwd": "/home/u/Autre", "when": "22:30", "machine": "pc-bureau"}])
+            {"command": "make", "cwd": "/home/u/Autre", "when": "22:30", "machine": "lp-work"}])
 
     def test_folder_falls_back_to_home_and_limit_is_saved(self):
         out = run(PAGE + r"""
-localStorage.setItem("ccs.project.last", JSON.stringify({ machine: "pc-bureau", cwd: "/ailleurs" }));
+localStorage.setItem("ccs.project.last", JSON.stringify({ machine: "lp-work", cwd: "/ailleurs" }));
 const api = fakeApi();
 mountMachines(root, api);
 await settle();
@@ -307,7 +307,7 @@ out.calls = api.calls.filter((c) => c[0] === "machines.limit").map((c) => c[1]);
 """)
         self.assertEqual(out["folder"], "/home/u")              # projet d'une autre machine : ignoré
         self.assertEqual(out["limit"], "2")
-        self.assertEqual(out["calls"], [{"machine": "pc-bureau", "limit": 3}])
+        self.assertEqual(out["calls"], [{"machine": "lp-work", "limit": 3}])
 
     def test_relay_settings_never_show_the_token(self):
         out = run(PAGE + r"""

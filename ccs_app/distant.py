@@ -141,24 +141,64 @@ def load_client():
     return {"relais": relais, "jeton": jeton}
 
 
+# Anciens identifiants des machines (avant le 25/11/2026, noms du réseau maillé depuis) : toujours
+# acceptés, dans `--machine`, `machines.toml` et les réglages, et reconnus tant que Ricochet garde
+# l'ancien identifiant.
+ALIASES = {"pc-bureau": "lp-work", "laptop-maison": "lp-home", "mawena-cloud": "srv-mawena-cloud"}
+
+
+def canonical(machine_id):
+    """Identifiant actuel d'une machine (`lp-work` → `lp-work`)."""
+    return ALIASES.get(machine_id, machine_id)
+
+
+def key_alias(machine_id):
+    """Nom de la clé d'hôte ssh : l'ancien nom s'il y en a un, pour garder les clés déjà connues."""
+    canon = canonical(machine_id)
+    return next((old for old, new in ALIASES.items() if new == canon), machine_id)
+
+
+def same_machine(a, b):
+    """Vrai si `a` et `b` désignent la même machine, ancien ou nouveau nom."""
+    return a == b or (a is not None and b is not None and canonical(a) == canonical(b))
+
+
+class Overrides(dict):
+    """Réglages par machine, lus aussi sous l'ancien ou le nouveau nom de la machine."""
+
+    def _key(self, key):
+        if dict.__contains__(self, key):
+            return key
+        return next((k for k in dict.keys(self) if same_machine(k, key)), key)
+
+    def __getitem__(self, key):
+        return dict.__getitem__(self, self._key(key))
+
+    def __contains__(self, key):
+        return dict.__contains__(self, self._key(key))
+
+    def get(self, key, default=None):
+        return dict.get(self, self._key(key), default)
+
+
 def load_overrides():
     """Réglages par machine : `[machines.<id>]` avec `user`, `port` et `limit` (anciennes clés
     françaises converties)."""
     try:
         data = tomllib.loads(overrides_path().read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return {}
+        return Overrides()
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise DistantError(f"{overrides_path()} illisible : {e}") from None
     machines = data.get("machines", {})
     if not isinstance(machines, dict):
-        return {}
+        return Overrides()
     for conf in machines.values():
         if isinstance(conf, dict):
             for old, new in OLD_OVERRIDE_KEYS.items():
                 if old in conf:
                     conf.setdefault(new, conf.pop(old))
-    return machines
+    return Overrides(machines)
 
 
 # ------------------------------------------------------------------ machines
@@ -221,7 +261,7 @@ def list_machines(opener=None, peers=None, overrides=None):
             err = e
     known = {m.id for m in machines}
     for mid, name in mesh_declared(overrides).items():
-        if mid not in known:
+        if not any(same_machine(mid, k) for k in known):
             machines.append(Machine(id=mid, name=(overrides[mid].get("nom") or mid), host=name))
     if machines:
         peers = mesh_peers() if peers is None else peers
@@ -294,7 +334,7 @@ def mesh_address(machine, overrides, peers=None):
 
 def ssh_options(machine, overrides, peers=None):
     common = {
-        "HostKeyAlias": f"ricochet-{machine.id}",
+        "HostKeyAlias": f"ricochet-{key_alias(machine.id)}",
         "StrictHostKeyChecking": "accept-new", "BatchMode": "yes",
         "ControlMaster": "auto", "ControlPath": str(_cache_dir() / "distant-%C"),
         "ControlPersist": "120", "ServerAliveInterval": "30", "LogLevel": "ERROR",
@@ -429,7 +469,7 @@ def eligible(machines, overrides, tool=None, wanted=None, run=None, now=time.tim
     on s'arrête dès que l'appelant a ce qu'il lui faut). `why` reçoit les raisons des refus."""
     why = why if why is not None else []
     if wanted:
-        m = next((m for m in machines if m.id == wanted), None)
+        m = next((m for m in machines if same_machine(m.id, wanted)), None)
         if m is None:
             known = ", ".join(x.id for x in machines) or "aucune"
             raise DistantError(f"Machine inconnue : {wanted} (connues : {known})")

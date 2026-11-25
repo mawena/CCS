@@ -84,7 +84,7 @@ class FakeBrain:
                         await ws.close()
                         break
                     await ws.send_json({"type": "paired", "ear_id": "e1", "token": "jeton-oreille",
-                                        "brain_id": "b1", "brain_name": "laptop-maison"})
+                                        "brain_id": "b1", "brain_name": "lp-home"})
                     await ws.close()
                     break
                 if t == "hello":
@@ -93,7 +93,7 @@ class FakeBrain:
                         await ws.close()
                         break
                     await ws.send_json({"type": "welcome", "version": 1, "brain_id": "b1",
-                                        "brain_name": "laptop-maison",
+                                        "brain_name": "lp-home",
                                         "status": {"mode": "local", "version": "0.5.0", "local_model": "x"}})
                 elif t == "wake":
                     await ws.send_json({"type": "elected", "utterance": m["utterance"]})

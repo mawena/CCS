@@ -117,8 +117,8 @@ class JarvisTest {
         assertEquals("Code d'appairage faux. Essais restants : 1.", Jarvis.texteRefus("wrong_code", 1))
         assertEquals("Jarvis a refusé la connexion.", Jarvis.texteRefus("inconnu", null))
         assertEquals(
-            "Jarvis est injoignable : laptop-maison hors ligne.",
-            Jarvis.texteFermeture(4011, "laptop-maison hors ligne.", "x"),
+            "Jarvis est injoignable : lp-home hors ligne.",
+            Jarvis.texteFermeture(4011, "lp-home hors ligne.", "x"),
         )
         assertEquals("Jarvis est injoignable.", Jarvis.texteFermeture(4011, null, ""))
         assertEquals("Pont CCS injoignable.", Jarvis.texteFermeture(1011, null, ""))

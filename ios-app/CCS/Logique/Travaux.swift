@@ -26,7 +26,7 @@ enum Travaux {
         return "\(s / 3600) h " + String(format: "%02d", (s % 3600) / 60)
     }
 
-    /// « pc-bureau · 3 min 07 s · code 0 · ~/Work/ccs » (`jobLine`).
+    /// « lp-work · 3 min 07 s · code 0 · ~/Work/ccs » (`jobLine`).
     static func ligne(_ j: TravailDistant, home: String = "", maintenant: Double = Date().timeIntervalSince1970) -> String {
         var parts = [j.machine ?? "machine à choisir"]
         if let d = j.started { parts.append(duree((j.ended ?? maintenant) - d)) }
