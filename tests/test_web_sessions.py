@@ -38,6 +38,18 @@ class SessionsWebTest(unittest.TestCase):
         state = re.search(r"\n\.state \{([^}]*)\}", css).group(1)
         self.assertIn("align-content: center", state)
 
+    def test_split_view_and_side_handle(self):
+        """Vue partagée (menu de l'onglet, bouton, poignée entre les volets) ; poignée du panneau
+        latéral hors de la zone qui défile ; boutons des lignes de projet en icônes."""
+        js = (WEB / "sessions.js").read_text()
+        css = (WEB / "style.css").read_text()
+        for s in ("Ouvrir à côté", "Fermer la vue partagée", "split-handle", "ccs-split-ratio"):
+            self.assertIn(s, js)
+        self.assertIn('el("aside", { class: "side" }, el("div", { class: "side-body" }', js)
+        self.assertIn(".stage.split > .holder", css)
+        self.assertIn(".side-body", css)
+        self.assertIn(".project-item .icon-btn", (WEB / "sessions.css").read_text())
+
     def test_short_titles_aligned_left(self):
         """Ligne de projet ou de conversation (bouton en grille) : le `justify-content: center` des
         boutons ne centre pas un titre court ; une colonne pleine largeur, texte à gauche."""

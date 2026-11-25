@@ -10,3 +10,7 @@ ExecStart=/usr/bin/claude-accounts bridge --socket /run/ccs/bridge/%i/bridge.soc
 SyslogIdentifier=ccs-bridge
 Restart=on-failure
 RestartSec=3
+# SIGTERM au pont seul : il enregistre ses chats (ceux qui travaillent compris) puis arrête
+# lui-même ses processus claude ; le reste n'est tué qu'au bout du délai
+KillMode=mixed
+TimeoutStopSec=30

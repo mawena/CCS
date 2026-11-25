@@ -8,12 +8,15 @@ dossier de l'utilisateur et `hello` suffit. `hello {protocol}` déclare la versi
 le client connaît (absente : ancien client) ; la réponse donne celle du pont et la version de CCS.
 Les anciens noms de méthode et de paramètre sont acceptés (`protocol.py`).
 
-Mise à jour de CCS : un pont local (`--local`) relit chaque minute la version installée ; si elle
-a changé et qu'aucun travail ne tourne (chat au travail, relais, limite attendue, terminal ou
-commande `!` du pont), il ferme ses
-chats (les conversations sont enregistrées) et se relance sur le nouveau code (`restart`, repris
-par `ccs bridge`). Les appareils se reconnectent seuls et rouvrent leurs conversations. Le service
-`ccs-bridge@` du serveur, lui, est relancé par le postinst du paquet `ccs-serveur`.
+Mise à jour de CCS : le pont (local ou service `ccs-bridge@` du serveur) relit chaque minute la
+version installée ; si elle a changé et qu'aucun travail ne tourne (chat au travail, relais, limite
+attendue, terminal ou commande `!` du pont), il enregistre ses chats ouverts, les ferme et se
+relance sur le nouveau code (`restart`, repris par `ccs bridge`) ; au démarrage, il les rouvre
+avec les mêmes identifiants (`bridge_chat`). Les appareils se reconnectent seuls. Depuis 1.18.0,
+le postinst de `ccs-serveur` ne relance plus les ponts : ils le font seuls à ce passage.
+
+Arrêt (SIGTERM : `systemctl stop`, ancien pont remplacé par le client) : arrêt propre, les
+`stop_hooks` passent (chats enregistrés avec ceux qui travaillaient, relancés au démarrage).
 """
 
 import asyncio
@@ -25,6 +28,7 @@ import logging
 import os
 import re
 import shutil
+import signal
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -74,6 +78,8 @@ class Bridge:
         self.restart = False         # arrêté pour se relancer sur le code mis à jour
         self.last_activity = clock()
         self._server = None
+        self.socket_path = None      # socket écouté (nom du fichier des chats ouverts)
+        self.preparing = False       # `serve` : le démarrage (`prepare_hooks`) est en cours
         self._handlers = {}
         self._stop = asyncio.Event()
         self.add_handlers({
@@ -136,6 +142,7 @@ class Bridge:
         self.last_activity = self.clock()
 
     async def start(self, socket_path):
+        self.socket_path = str(socket_path)
         self._server = rpc.RpcServer(self.handlers(), on_connect=self._on_connect,
                                      on_close=self._on_close, keep_local=self.keeps_local,
                                      normalize=protocol.normalize,
@@ -191,16 +198,38 @@ class Bridge:
         return self.clock() - self.last_activity > IDLE_STOP
 
     def should_restart(self):
-        """Pont local dont CCS a été mis à jour (version sur le disque différente de celle chargée)
-        et qui ne fait rien qu'on perdrait : il peut se relancer sur le nouveau code."""
-        if not self.local or any(check() for check in self.busy_checks + self.restart_checks):
+        """Pont (local ou service du serveur) dont CCS a été mis à jour (version sur le disque
+        différente de celle chargée) et qui ne fait rien qu'on perdrait : il peut se relancer sur
+        le nouveau code (ses chats sont enregistrés puis rouverts)."""
+        if any(check() for check in self.busy_checks + self.restart_checks):
             return False
         found = self._version_on_disk()
         return bool(found) and found != __version__
 
+    def _on_signal(self, signame):
+        log.info("pont de %s arrêté : %s", self.user, signame)
+        self._stop.set()
+
     async def serve(self, socket_path):
+        loop = asyncio.get_running_loop()
+        try:          # systemctl stop, ancien pont remplacé : arrêt propre, stop_hooks compris
+            loop.add_signal_handler(signal.SIGTERM, self._on_signal, "SIGTERM")
+            handled = True
+        except (NotImplementedError, RuntimeError, ValueError):
+            handled = False       # hors du fil principal (tests) : pas de gestionnaire
+        try:
+            await self._serve(socket_path)
+        finally:
+            if handled:
+                loop.remove_signal_handler(signal.SIGTERM)
+
+    async def _serve(self, socket_path):
+        self.preparing = True     # avant `start` : un client arrivé tôt attend la restauration
         await self.start(socket_path)
-        await self.prepare()
+        try:
+            await self.prepare()
+        finally:
+            self.preparing = False
         log.info("pont de %s prêt sur %s", self.user, socket_path)
         while not self._stop.is_set():
             try:

@@ -2,7 +2,15 @@
 déconnexions). Chaque événement est numéroté et gardé (2000 par chat) : un appareil qui revient
 demande ce qu'il a manqué depuis son dernier numéro ; tous les appareils attachés reçoivent les
 mêmes événements. Identifiants `c<boot>-<n>` : `boot` est tiré au hasard à chaque démarrage du
-pont, un identifiant d'avant un redémarrage ne désigne donc jamais un autre chat.
+pont ; un chat rouvert après un redémarrage garde le sien, et aucun nouveau chat ne prend un
+identifiant déjà pris : un identifiant ne désigne donc jamais un autre chat.
+
+Reprise après un redémarrage (mise à jour, SIGTERM) : les chats ouverts sont écrits dans un fichier
+d'état (`state_file`, sous `$XDG_STATE_HOME/ccs`) à chaque ouverture, fermeture, changement d'état
+ou de conversation. Au démarrage (`restore`), chacun est recréé avec son identifiant, son dossier,
+sa conversation et ses options, suspendu (sans processus : le prochain message relance `claude`
+avec `--resume`) ; ceux qui travaillaient reçoivent « continue ». `chat.list`, `chat.attach` et
+`chat.open` attendent la fin de la reprise. Un chat fermé exprès sort du fichier.
 
 Compactage automatique (réglage `context_alert.auto_compact`) : quand Claude revient au repos, le
 pont mesure le contexte ; au-delà du seuil il envoie `/compact` lui-même, même sans appareil
@@ -17,7 +25,8 @@ délai voit son processus `claude` arrêté (état `suspended`) ; le prochain me
 
 Fermeture : `chat.close {keep_if_shared: true}` (onglet du bureau refermé) ne fait que détacher
 l'appareil si un autre appareil suit encore ce chat ; sinon le chat est fermé comme avant. À
-l'arrêt du pont (inactivité, relance après une mise à jour), tous les chats sont fermés.
+l'arrêt du pont (inactivité, relance après une mise à jour, SIGTERM), tous les chats sont fermés,
+mais restent dans le fichier d'état pour être rouverts au démarrage suivant.
 
 Sous-agents de fond : la CLI ne passe dans le flux que leur lancement et leur fin. Tant qu'il y en
 a un en cours, le pont relit toutes les WATCH_S secondes sa transcription (`subagents.Tails`) et
@@ -30,7 +39,9 @@ import base64
 import binascii
 import collections
 import dataclasses
+import hashlib
 import itertools
+import logging
 import os
 import re
 import secrets
@@ -38,7 +49,7 @@ import time
 import uuid as uuidlib
 from pathlib import Path
 
-from .. import chat_engine, chat_options, conversations, providers, chat_protocol as proto, context_alert, limit_events, \
+from .. import core, chat_engine, chat_options, conversations, providers, chat_protocol as proto, context_alert, limit_events, \
     limit_resume, markdown_render, message_tags, notify, sessions, settings, subagents
 from ..chat_engine import ChatSession
 from . import events, rpc
@@ -48,6 +59,12 @@ BUFFER = 2000
 WATCH_S = 3                  # relecture des transcriptions des sous-agents de fond
 BUSY = ("starting", "busy", "permission")
 _SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")      # nom d'un journal `<id>.jsonl`
+_CHAT_ID = re.compile(r"c([0-9a-f]{1,32})-([0-9]{1,9})")
+STATE_VERSION = 1
+RESTORE_WAIT_S = 60          # attente maximale de la reprise par list/attach/open
+RESTORED_NOTE = "Pont relancé : « continue » envoyé."
+
+log = logging.getLogger(__name__)
 
 
 class _Chat:
@@ -63,6 +80,9 @@ class _Chat:
         self.follower = limit_resume.Follower()     # relance après une limite
         self.agents = subagents.Subagents()         # sous-agents lancés (Jarvis)
         self.tails = subagents.Tails()              # étapes des sous-agents de fond
+        self.working = False        # au travail au dernier changement d'état (hors arrêt)
+        self.title = None           # titre du journal, pour le fichier d'état
+        self.saved_sid = None       # conversation au dernier enregistrement
 
 
 def transcript_of(cwd, session_id):
@@ -155,11 +175,16 @@ class ChatHub:
         self.boot = secrets.token_hex(3)
         self._ids = itertools.count(1)
         self._loop = None
+        self._ready = asyncio.Event()  # reprise des chats d'avant le redémarrage finie
+        self._saved = []             # dernier contenu écrit dans le fichier d'état
+        self._closing = False        # close_all : plus rien n'est écrit
         self._limited = False        # un chat attend la levée d'une limite : le pont reste ouvert
         self._watch = None           # tâche qui suit les sous-agents de fond
         bridge.busy_checks.append(self.busy)
         bridge.tick_hooks.append(self.limits_pass)
         bridge.tick_hooks.append(self.suspend_pass)
+        bridge.tick_hooks.append(self.persist_pass)
+        getattr(bridge, "prepare_hooks", []).append(self.restore)
         getattr(bridge, "stop_hooks", []).append(self.close_all)
         bridge.close_hooks.append(self._forget)
         bridge.add_handlers({
@@ -192,6 +217,10 @@ class ChatHub:
         par `_on_event` (retour au repos, mesure du contexte), pour le compactage automatique."""
         if chat.chat_id not in self.chats:
             return
+        if isinstance(ev, chat_engine.StateChanged) and ev.state != "stopped":
+            # « stopped » (processus tué avec le pont, plantage) ne change pas le drapeau : un
+            # chat coupé en plein travail reçoit « continue » à la reprise
+            chat.working = ev.state in BUSY
         auto = context_alert.auto_on(cfg)
         if auto and isinstance(ev, chat_engine.ContextUsage):
             ev = dataclasses.replace(ev, auto_compact=True)     # les appareils ne proposent rien
@@ -209,6 +238,10 @@ class ChatHub:
         note = self._auto_compact(chat, ev, cfg, auto)
         if note:
             self._record(chat, events.Notice(*note))
+        sid = getattr(chat.engine, "session_id", None)
+        if isinstance(ev, chat_engine.StateChanged) or sid != chat.saved_sid:
+            chat.saved_sid = sid
+            self._persist()       # état ou conversation changés
 
     @staticmethod
     def _auto_compact(chat, ev, cfg, auto):
@@ -254,6 +287,7 @@ class ChatHub:
 
     async def open(self, conn, params):
         self._loop = asyncio.get_running_loop()
+        await self._wait_ready()
         cwd, session_id = params.get("cwd"), params.get("session_id")
         if isinstance(cwd, str) and cwd.startswith("~"):          # « ~/Repo/P » tapé au téléphone
             cwd = os.path.normpath(os.path.expanduser(cwd))
@@ -277,16 +311,18 @@ class ChatHub:
             if provider and (not raw.get("model") or providers.for_model(raw["model"]) == provider):
                 raw["provider"] = provider
                 raw["model"] = raw.get("model") or model
-        chat = _Chat(f"c{self.boot}-{next(self._ids)}", cwd)
+        chat = _Chat(self._new_id(), cwd)
         chat.engine = ChatSession(cwd, session_id=session_id or None,
                                   options=_options(raw),
                                   on_event=self._on_event(chat), claude=self.claude,
                                   environ=self.environ)
         chat.conns.add(conn)
         self.chats[chat.chat_id] = chat
+        self._persist()
         return {"chat_id": chat.chat_id, "seq": 0, "cwd": chat.cwd, **_info(chat)}
 
     async def list(self, _conn, _params):
+        await self._wait_ready()
         chats = [{"chat_id": c.chat_id, "cwd": c.cwd, "state": c.engine.state, "seq": c.seq,
                   **_info(c)} for c in self.chats.values()]
 
@@ -297,6 +333,7 @@ class ChatHub:
         return {"chats": chats}
 
     async def attach(self, conn, params):
+        await self._wait_ready()
         chat = self._get(params)
         since = params.get("since") if isinstance(params.get("since"), int) else 0
         chat.conns.add(conn)
@@ -370,15 +407,161 @@ class ChatHub:
                 chat.conns.discard(conn)
                 return {"closed": False, "devices": len(others)}
         del self.chats[chat.chat_id]
+        self._persist()               # fermé exprès : ne sera pas rouvert
         await asyncio.to_thread(chat.engine.stop)
         return {"closed": True}
 
     async def close_all(self):
+        """Arrêt du pont : enregistre les chats (avec ceux qui travaillent) puis les arrête ; le
+        fichier d'état reste, pour les rouvrir au démarrage suivant."""
+        if not self._closing:
+            await asyncio.to_thread(self._refresh_titles)
+            self._persist()
+            self._closing = True
         if self._watch is not None:
             self._watch.cancel()
         chats, self.chats = list(self.chats.values()), {}
         for chat in chats:
             await asyncio.to_thread(chat.engine.stop)
+
+    # ---- reprise après un redémarrage -------------------------------------------------------
+
+    def state_file(self):
+        """Fichier des chats ouverts : un par pont (local ou serveur, et socket écouté)."""
+        mode = "local" if getattr(self.bridge, "local", False) else "serveur"
+        sock = getattr(self.bridge, "socket_path", None)
+        tag = hashlib.sha256(str(sock).encode()).hexdigest()[:12] if sock else "defaut"
+        return core.ccs_dir("state") / f"chats-{mode}-{tag}.json"
+
+    def _new_id(self):
+        while True:
+            chat_id = f"c{self.boot}-{next(self._ids)}"
+            if chat_id not in self.chats:
+                return chat_id
+
+    async def _wait_ready(self):
+        """Pendant le démarrage du pont, attend la reprise des chats (identifiants connus)."""
+        if getattr(self.bridge, "preparing", False) and not self._ready.is_set():
+            try:
+                await asyncio.wait_for(self._ready.wait(), RESTORE_WAIT_S)
+            except asyncio.TimeoutError:
+                log.warning("reprise des chats trop longue : on répond sans attendre")
+
+    def _snapshot(self):
+        out = []
+        for chat in self.chats.values():
+            try:
+                engine = chat.engine
+                out.append({"chat_id": chat.chat_id, "cwd": chat.cwd,
+                            "session_id": engine.session_id,
+                            "options": dataclasses.asdict(engine.options),
+                            "busy": bool(chat.working or engine.state in BUSY),
+                            "title": chat.title})
+            except Exception:       # moteur incomplet (tests) : ce chat n'est pas gardé
+                continue
+        return out
+
+    def _persist(self):
+        """Écrit les chats ouverts s'ils ont changé (fichier supprimé quand il n'y en a plus)."""
+        if self._closing:
+            return
+        snap = self._snapshot()
+        if snap == self._saved:
+            return
+        try:
+            path = self.state_file()
+            if snap:
+                core.atomic_write_json(path, {"version": STATE_VERSION, "chats": snap})
+            else:
+                path.unlink(missing_ok=True)
+            self._saved = snap
+        except (OSError, TypeError, ValueError):
+            log.warning("chats ouverts impossibles à enregistrer", exc_info=True)
+
+    def _refresh_titles(self):
+        for chat in list(self.chats.values()):
+            try:
+                title = journal_title(transcript_of(chat.cwd, chat.engine.session_id))
+            except Exception:
+                continue
+            if title:
+                chat.title = title
+
+    async def persist_pass(self, now=None):
+        """Un passage (chaque minute) : titres relus, fichier d'état réécrit s'il a changé."""
+        if self.chats:
+            await asyncio.to_thread(self._refresh_titles)
+        self._persist()
+
+    @staticmethod
+    def _entry(raw):
+        """Entrée valide du fichier d'état → (chat_id, cwd, session_id, options, busy, title),
+        ou None (entrée abîmée, dossier disparu, fournisseur refusé)."""
+        if not isinstance(raw, dict):
+            return None
+        chat_id, cwd, sid = raw.get("chat_id"), raw.get("cwd"), raw.get("session_id")
+        if not isinstance(chat_id, str) or not _CHAT_ID.fullmatch(chat_id):
+            return None
+        if not isinstance(cwd, str) or not os.path.isabs(cwd) or not os.path.isdir(cwd):
+            return None
+        try:
+            safe_path(cwd)
+        except Exception:
+            return None
+        if sid is not None and not (isinstance(sid, str) and _SESSION_ID.fullmatch(sid)):
+            return None
+        try:
+            options = _options(raw.get("options"))
+        except Exception:
+            return None
+        title = raw.get("title") if isinstance(raw.get("title"), str) else None
+        return chat_id, cwd, sid or None, options, raw.get("busy") is True, title
+
+    async def restore(self):
+        """Démarrage du pont : rouvre les chats du fichier d'état, suspendus ; ceux qui
+        travaillaient reçoivent « continue »."""
+        self._loop = asyncio.get_running_loop()
+        try:
+            await self._restore()
+        finally:
+            self._ready.set()
+
+    async def _restore(self):
+        data = await asyncio.to_thread(core.load_json, self.state_file())
+        items = data.get("chats") if isinstance(data, dict) else None
+        if not isinstance(items, list):
+            return
+        resume = []
+        for raw in items:
+            entry = self._entry(raw)
+            if entry is None or entry[0] in self.chats:
+                if entry is None:
+                    log.warning("chat d'avant le redémarrage ignoré : %r", raw)
+                continue
+            chat_id, cwd, sid, options, busy, title = entry
+            boot, n = _CHAT_ID.fullmatch(chat_id).groups()
+            if boot == self.boot:         # même tirage (rare) : les nouveaux numéros passent après
+                self._ids = itertools.count(max(int(n) + 1, next(self._ids)))
+            chat = _Chat(chat_id, cwd)
+            chat.title, chat.saved_sid = title, sid
+            chat.engine = ChatSession(cwd, session_id=sid, options=options,
+                                      on_event=self._on_event(chat), claude=self.claude,
+                                      environ=self.environ)
+            chat.engine.state = "suspended"       # pas de processus : le prochain message le lance
+            self.chats[chat_id] = chat
+            if busy and sid:
+                resume.append(chat)
+        log.info("%d chat(s) rouvert(s) après le redémarrage", len(self.chats))
+        for chat in resume:
+            uid = await asyncio.to_thread(self._send_continue, chat.engine)
+            if uid is None:
+                self._record(chat, events.Notice(
+                    "Pont relancé, mais la relance a échoué : tape « continue ».", "warning"))
+                continue
+            self._record(chat, chat_engine.UserSent(limit_resume.TEXT, 0, "", uid))
+            self._record(chat, events.Notice(RESTORED_NOTE, "info"))
+        self._saved = None            # réécrit tel quel (entrées ignorées retirées)
+        self._persist()
 
     # ---- sous-agents -----------------------------------------------------------------------
 

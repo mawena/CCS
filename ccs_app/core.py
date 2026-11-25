@@ -79,18 +79,18 @@ def paths():
 # Racines XDG (seul endroit qui les calcule) : la variable si elle est un chemin absolu,
 # sinon le dossier habituel sous HOME. Les dossiers de CCS sont `<racine>/ccs`.
 _XDG = {"config": ("XDG_CONFIG_HOME", ".config"), "cache": ("XDG_CACHE_HOME", ".cache"),
-        "data": ("XDG_DATA_HOME", ".local/share")}
+        "data": ("XDG_DATA_HOME", ".local/share"), "state": ("XDG_STATE_HOME", ".local/state")}
 
 
 def xdg_home(kind):
-    """Racine XDG `config`, `cache` ou `data` (relue à chaque appel)."""
+    """Racine XDG `config`, `cache`, `data` ou `state` (relue à chaque appel)."""
     var, default = _XDG[kind]
     value = os.environ.get(var, "")
     return Path(value) if os.path.isabs(value) else paths().home / default
 
 
 def ccs_dir(kind):
-    """`${XDG_<KIND>_HOME}/ccs` : configuration, cache ou données de CCS hors du store."""
+    """`${XDG_<KIND>_HOME}/ccs` : configuration, cache, données ou état de CCS hors du store."""
     return xdg_home(kind) / "ccs"
 
 

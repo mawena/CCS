@@ -196,7 +196,7 @@ def cmd_bridge(args):
     if b.restart:          # CCS mis à jour : même commande, nouveau code (même pid)
         from . import core
         exe = core.ccs_bin()
-        os.execv(exe, [exe, "bridge", "--local", "--socket", str(sock)])
+        os.execv(exe, [exe, "bridge", *(["--local"] if args.local else []), "--socket", str(sock)])
     return 0
 
 

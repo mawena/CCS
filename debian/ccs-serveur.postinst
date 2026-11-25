@@ -17,8 +17,10 @@ case "$1" in
       printf '{"listen": "127.0.0.1:8420", "origin": "https://ccs.mawena.cloud"}\n' > /etc/ccs/web.json
       chmod 0644 /etc/ccs/web.json
     fi
-    # mise à jour : les ponts déjà lancés gardent l'ancien code en mémoire
-    if [ -n "$2" ] && [ -d /run/systemd/system ]; then
+    # mise à jour depuis une version d'avant 1.18.0 : les ponts lancés gardent l'ancien code en
+    # mémoire et ne savent pas se relancer seuls ; depuis 1.18.0 ils se relancent d'eux-mêmes
+    # (chats enregistrés puis rouverts), sans couper un travail en cours
+    if [ -n "$2" ] && [ -d /run/systemd/system ] && dpkg --compare-versions "$2" lt 1.18.0; then
       deb-systemd-invoke try-restart 'ccs-bridge@*.service' >/dev/null 2>&1 || true
     fi
     if [ -z "$(getent group ccs | cut -d: -f4)" ]; then

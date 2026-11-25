@@ -19,6 +19,21 @@ import { GitPanel } from "./git.js";
 import { RoadmapPanel } from "./roadmap.js";
 import { autoRead, canDictate, canSpeak, dictate, dictationError, speak, speakingKey, stopSpeaking, unlockSpeech } from "./voice.js";
 
+// Paramètres de lancement de chaque conversation (modèle, effort, droits, fournisseur…), gardés
+// après l'arrêt du chat : une reprise repart avec les mêmes.
+const OPTS_KEY = "ccs-chat-options";
+function optionsStore() { try { return JSON.parse(localStorage.getItem(OPTS_KEY)) || {}; } catch { return {}; } }
+export function savedOptions(sessionId) { return (sessionId && optionsStore()[sessionId]) || null; }
+function saveOptions(sessionId, opts) {
+  if (!sessionId || !opts) return;
+  const all = optionsStore();
+  delete all[sessionId];
+  all[sessionId] = opts;
+  const keys = Object.keys(all);
+  for (const k of keys.slice(0, Math.max(0, keys.length - 200))) delete all[k];   // les 200 plus récentes
+  try { localStorage.setItem(OPTS_KEY, JSON.stringify(all)); } catch { /* stockage plein : tant pis */ }
+}
+
 const RIGHTS = [["manual", "Demander"], ["acceptEdits", "Modifications acceptées"], ["plan", "Plan"],
   ["bypassPermissions", "Tout autoriser"]];
 // Maj+Tab : « Tout autoriser » n'en fait pas partie (comme au bureau, il demande une confirmation)
@@ -362,6 +377,7 @@ export class ChatView {
   applyOptions(o) {
     if (!o || typeof o !== "object") return;
     this.opts = { ...(this.opts || {}), ...o };
+    saveOptions(this.sessionId, this.opts);
     const set = (sel, value) => {
       const v = value || "";
       if (v && ![...sel.options].some((op) => op.value === v)) sel.append(el("option", { value: v }, v));
@@ -383,6 +399,7 @@ export class ChatView {
     this.updateSummary();
     if (!this.optionsReady) return;
     this.opts = { ...(this.opts || {}), model: this.model.value || null, effort: this.effort.value || null, rights: this.rights.value };
+    saveOptions(this.sessionId, this.opts);
     this.call("chat.options", { options: this.opts });
   }
 
@@ -559,6 +576,7 @@ export class ChatView {
   // étiquettes sont alors relues.
   setSession(id) {
     this.sessionId = this.seenSession = id;
+    if (id && this.opts) saveOptions(id, this.opts);
     if (id && id !== this.tagsSession) this.loadTags();
   }
 
