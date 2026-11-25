@@ -102,6 +102,13 @@ class MarkdownViewTest(unittest.TestCase):
         fetched, old = [], mv._fetch
         mv._fetch = lambda url: (fetched.append(url), result)[1]
         self.addCleanup(setattr, mv, "_fetch", old)
+        # Fil lancé sur-le-champ : dans la suite complète, les fils laissés par d'autres tests
+        # rendaient l'attente aléatoire. Le retour passe toujours par GLib.idle_add.
+        from unittest import mock
+        fil = mock.patch.object(mv.threading, "Thread",
+                                lambda target, daemon=None: mock.Mock(start=target))
+        fil.start()
+        self.addCleanup(fil.stop)
         self.addCleanup(mv._photos.clear)
         return fetched
 
