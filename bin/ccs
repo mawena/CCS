@@ -270,6 +270,7 @@ cmd_add() {
   unlock_store
   echo "${c_green}✔${c_off} profil '$name' ajouté et actif : $(describe "$name")"
   warn_masked "$name"
+  ( "$CA" sync --quiet >/dev/null 2>&1 & )   # le nouveau compte gagne les autres machines
 }
 
 cmd_use() {
@@ -338,6 +339,7 @@ cmd_rm() {
   local name="${1:-}"; [[ -n "$name" ]] || die "usage : ccs remove <nom>"
   [[ -d "$STORE/$name" ]] || die "profil inconnu : $name"
   [[ "$(active_profile)" != "$name" ]] || die "'$name' est le compte actif ; bascule d'abord sur un autre"
+  "$CA" accounts-bury "$name" 2>/dev/null || true   # la synchro l'effacera aussi ailleurs
   rm -rf -- "${STORE:?}/$name"
   echo "profil '$name' supprimé (le compte reste valide côté Anthropic)"
 }
@@ -348,7 +350,9 @@ cmd_rename() {
   valid_name "$new"
   [[ -d "$STORE/$old" ]] || die "profil inconnu : $old"
   [[ ! -e "$STORE/$new" ]] || die "'$new' existe déjà"
+  "$CA" accounts-bury "$old" 2>/dev/null || true
   mv -- "$STORE/$old" "$STORE/$new"
+  touch -- "$STORE/$new/account.json"   # plus récent que la suppression de l'ancien nom
   echo "'$old' → '$new'"
   warn_masked "$new"
 }
@@ -421,6 +425,8 @@ ${c_bold}ccs${c_off} — Claude Code partout : appareils, machines et comptes
   ccs update [--check]
                            installe la dernière version de CCS (.deb de GitHub, vérifié) ;
                            --check : dit seulement s'il y en a une
+  ccs sync [--machine M]   comptes Claude : les mêmes sur toutes les machines (réseau maillé,
+                           jeton le plus récent ; un compte supprimé l'est partout)
   ccs log [--days N | --all]
                            journal des bascules avec leur raison (7 derniers jours par défaut)
   ccs project [<dossier>] [<compte>|aucun]

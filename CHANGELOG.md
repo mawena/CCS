@@ -5,6 +5,14 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.19.0] — 2026-12-01
+
+### Ajouté
+
+- **Comptes Claude synchronisés entre machines** : chaque compte connecté arrive sur toutes les machines du réseau maillé (SSH), toutes les 10 minutes et juste après `ccs add` ; le jeton le plus récent l'emporte. Nouvelle commande `ccs sync [--machine M]`.
+- **Suppression propagée** : un compte supprimé l'est aussi sur les autres machines (sauf là où il est actif) ; le reconnecter le fait revenir.
+- **Web : bouton « Supprimer »** sur les comptes non actifs de l'accueil, avec confirmation.
+
 ## [1.18.1] — 2026-11-30
 
 ### Ajouté
