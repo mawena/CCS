@@ -1195,6 +1195,10 @@ def cmd_distant(args):
                       else "Journal vide pour l'instant.")
             return 0
         command = list(args.commande)
+        if args.gpu:
+            if args.machine and args.machine != "modal":
+                raise distant.DistantError("--gpu ne marche qu'avec Modal (--machine modal)")
+            args.machine = f"modal:{args.gpu}"
         if command[:1] == ["--"]:
             command = command[1:]
         if args.quand:
@@ -1585,6 +1589,7 @@ def build_parser():
     dil = _action(di_sub, "run", "lancer", help="envoie le projet, lance la commande ailleurs, rapporte les fichiers",
                             usage="ccs remote run [options] -- <command>")
     dil.add_argument("--machine", help="machine voulue (sinon : la moins chargée qui a l'outil)")
+    dil.add_argument("--gpu", help="sur Modal, avec cette carte (H100, A100, L4, T4, best…) : --machine modal:<carte>")
     dil.add_argument("--tool", dest="outil", help="outil nécessaire (sinon : le premier mot de la commande)")
     _old_option(dil, "--outil", dest="outil")
     dil.add_argument("--fetch", dest="rapatrier", action="append", default=[], metavar="CHEMIN",

@@ -269,3 +269,9 @@ projets et conversations ; les onglets de plusieurs machines restent ouverts cô
 - [x] 3. Genre d'appareil : `lp-` portable, `srv-` serveur (Python, web, iPhone, Android)
 - [x] 4. Release 1.21.0, puis clés de `~/.config/ccs/machines.toml` renommées
 - [ ] 5. Identifiants Ricochet renommés (base du relais et `agent.toml` de chaque machine)
+
+## Phase 57 — GPU Modal dans `ccs remote`
+- [x] 1. Machine `modal` (`--machine modal`, `--gpu <carte>`) : bac à sable Modal, projet envoyé, `--fetch` rapporté, bac à sable détruit
+- [x] 2. Réglages `[machines.modal]` (carte, image, durée, limite), file d'attente et `--detach`
+- [x] 3. Visible dans `ccs remote machines` et la consigne des chats quand Modal est connecté
+- [x] 4. Release 1.22.0

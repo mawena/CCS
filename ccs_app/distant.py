@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import core, distant_jobs, migrate, network
+from . import core, distant_jobs, distant_modal, migrate, network
 
 # Outils cherchés d'office sur chaque machine (les autres le sont à la demande).
 TOOLS = ("flutter", "dart", "cargo", "node", "npm", "pnpm", "yarn", "bun", "go", "java",
@@ -56,6 +56,9 @@ HINT = ("Calcul réparti : d'autres machines de Charles sont joignables (réseau
         "`ccs remote run --when night --detach -- <commande>` (ou `--when HH:MM`), puis "
         "`ccs remote jobs`, `ccs remote log <id>` et `ccs remote stop <id>`. "
         "`ccs remote machines` liste les machines, leur charge et leurs outils.")
+MODAL_HINT = (" Pour un GPU (apprentissage, inférence), `--gpu H100` (ou A100, L4, T4, best) "
+              "lance la commande dans un bac à sable Modal, payé à la seconde : à réserver aux "
+              "travaux qui en ont vraiment besoin.")
 DEFAULT_LIMIT = 2
 LIMIT_RANGE = (1, 8)
 MACHINE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -119,8 +122,11 @@ def configured():
 def hint():
     """Consigne ajoutée aux chats quand le calcul réparti est disponible."""
     try:
-        return HINT if available() else None
-    except OSError:
+        if not available():
+            return None
+        return HINT + (MODAL_HINT if distant_modal.configured(
+            distant_modal.settings(load_overrides())) else "")
+    except (OSError, DistantError):
         return None
 
 
@@ -729,6 +735,9 @@ def _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run, 
         say(f"{why} (travail {job_id})")
         _wait(job_id, not_before, now, sleep, max(poll, 30.0))
     overrides = load_overrides()
+    if distant_modal.is_modal(machine):
+        return _launch_modal(job_id, command, machine, fetch, include, with_git, cwd, run, say,
+                             overrides, now, poll, sleep)
     machines = list_machines(opener=opener)
     tool = tool or (None if machine else wanted_tool(command))
     refused, candidates, chosen = [], [], None
@@ -794,6 +803,33 @@ def _launch(job_id, command, machine, tool, fetch, include, with_git, cwd, run, 
     return code, why
 
 
+def _launch_modal(job_id, command, machine, fetch, include, with_git, cwd, run, say, overrides,
+                  now, poll, sleep):
+    """Même parcours qu'une machine du réseau, mais dans un bac à sable Modal."""
+    mid = distant_modal.MACHINE_ID
+    limit = limit_for(mid, overrides)
+    told = False
+    while True:
+        ok, n = distant_jobs.reserve(job_id, mid, limit, now=now)
+        if ok:
+            break
+        if not told:
+            wait = f"en attente d'une place sur {mid} ({n}/{limit})"
+            distant_jobs.update(job_id, state="waiting", why=wait, machine=machine)
+            say(f"{wait} (travail {job_id})")
+            told = True
+        _wait(job_id, now() + poll, now, sleep, poll)
+    root, rel = project_root(cwd)
+    distant_jobs.update(job_id, state="running")
+    kw = {"run": run} if run else {}
+    try:
+        return distant_modal.run_job(command, distant_modal.split(machine), root, rel, overrides,
+                                     fetch=fetch, include=include, with_git=with_git, cwd=cwd,
+                                     say=say, **kw)
+    except distant_modal.ModalError as e:
+        raise DistantError(str(e)) from None
+
+
 # ------------------------------------------------------------------ page « Machines »
 
 def _public(m):
@@ -831,6 +867,13 @@ def machines_overview(fetch=None):
                     limit=limit_for(m.id, overrides), running=c.get("running", 0),
                     waiting=c.get("waiting", 0))
         out["machines"].append(item)
+    modal = distant_modal.overview(overrides)
+    if modal:
+        c = counts.get(modal["id"]) or {}
+        modal.update(host="modal.com", mesh="", mesh_ip="", tools=["gpu"] if modal["gpu"] else [],
+                     limit=limit_for(modal["id"], overrides), running=c.get("running", 0),
+                     waiting=c.get("waiting", 0))
+        out["machines"].append(modal)
     return out
 
 
@@ -1101,4 +1144,8 @@ def describe(machines, overrides, probe=True, run=None):
         if inv:
             tools = sorted(k for k, v in inv.get("tools", {}).items() if v)
             lines.append("  outils : " + (", ".join(tools) or "aucun de la liste"))
+    modal = distant_modal.overview(overrides)
+    if modal:
+        lines.append(f"modal ({modal['name']}) : à la demande, carte par défaut "
+                     f"{modal['gpu'] or 'aucune (processeur seul)'} — --gpu H100, A100, L4…")
     return lines
