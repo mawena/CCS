@@ -1,3 +1,10 @@
+ccs (1.22.0) noble; urgency=medium
+
+  * Machine modal dans ccs remote : commande dans un bac a sable Modal avec la carte
+    voulue (--gpu H100, best = B200), projet envoye, --fetch rapporte.
+
+ -- Charles GAMLIGO <gamligocharles3@gmail.com>  Thu, 03 Dec 2026 03:00:00 +0100
+
 ccs (1.21.0) noble; urgency=medium
 
   * Identifiants des machines alignés sur le réseau maillé (srv-mawena-cloud, lp-work, lp-home),
