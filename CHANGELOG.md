@@ -5,6 +5,12 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+## [1.22.0] — 2026-12-03
+
+### Ajouté
+
+- **Machine « modal » dans `ccs remote`** : `ccs remote run --gpu H100 -- <commande>` (ou `--machine modal`) fait tourner la commande dans un bac à sable Modal avec la carte voulue (`best` : B200), envoie le projet, rapporte `--fetch`, puis détruit le bac à sable. File d'attente, `--detach` et `--when` marchent aussi ; réglages dans `[machines.modal]` de `machines.toml`. Visible dans `ccs remote machines` quand Modal est connecté.
+
 ## [1.21.0] — 2026-12-03
 
 ### Modifié

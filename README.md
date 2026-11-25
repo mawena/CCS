@@ -1154,6 +1154,32 @@ ccs remote log <id>                          # fin du journal d'un travail
 ccs remote stop <id>                          # arrêt (la commande distante s'arrête aussi)
 ```
 
+**Machine « modal » : GPU à la demande.** Si [Modal](https://modal.com) est installé (son python
+dans `~/.local/opt/modal/bin/python3`, ou `modal` dans le PATH) et connecté (`modal setup`),
+`ccs remote` gagne la machine `modal` : la commande tourne dans un bac à sable Modal, avec la
+carte demandée, puis le bac à sable est détruit.
+
+```sh
+ccs remote run --gpu H100 --fetch sortie/ -- python3 entraine.py
+ccs remote run --gpu best -- nvidia-smi       # la meilleure carte (B200)
+ccs remote run --machine modal -- make test   # carte par défaut, ou processeur seul
+```
+
+Le projet part en archive (fichiers suivis par git et non ignorés, plus `--include`), la commande
+tourne dans `/projet`, et `--fetch` revient comme pour les autres machines. Cartes : T4, L4, A10,
+A10G, L40S, A100, A100-40GB, A100-80GB, H100, H200, B200, et `H100:2` pour plusieurs. Réglages
+facultatifs dans `~/.config/ccs/machines.toml` :
+
+```toml
+[machines.modal]
+gpu = "L4"           # carte par défaut
+python = "3.12"      # python de l'image
+apt = ["git"]        # paquets Debian de l'image
+pip = ["torch"]      # paquets python de l'image
+timeout = 3600       # durée maximale (s)
+limit = 2            # commandes en même temps
+```
+
 Le registre des travaux est dans `~/.cache/ccs/machines/jobs/` (les 30 derniers finis et ceux
 de moins de 24 h sont gardés).
 
