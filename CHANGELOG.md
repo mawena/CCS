@@ -5,6 +5,10 @@ Format : [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), versionnage
 
 ## [Non publié]
 
+### Corrigé
+
+- **Oreille Jarvis** : quand le cerveau refuse une phrase parce qu'il en traite déjà une, l'oreille dit « Jarvis est occupé par une autre phrase : réessaie dans un instant. » au lieu de « Une autre oreille a pris la phrase. » (web, iPhone, Android).
+
 ## [1.19.0] — 2026-12-01
 
 ### Ajouté

@@ -205,7 +205,7 @@ final class OreilleJarvis {
         case .stop(let n):
             if phrase?.numero == n {
                 abandonner()
-                signaler("Une autre oreille a pris la phrase.")
+                signaler("Jarvis est occupé par une autre phrase : réessaie dans un instant.")
             }
         case .entendu(let texte, let voix, let audio, let attendReponse):
             armerInactivite()
